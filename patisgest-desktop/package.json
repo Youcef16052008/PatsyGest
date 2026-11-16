@@ -1,0 +1,21 @@
+{
+  "name": "patisgest",
+  "productName": "PâtisGest",
+  "version": "1.0.0",
+  "description": "PâtisGest — Logiciel de gestion pour pâtisserie (version finale)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.patisgest.app",
+    "productName": "PâtisGest",
+    "files": ["main.js", "../PâtisGest-Final.html"],
+    "win": { "target": "nsis" }
+  }
+}

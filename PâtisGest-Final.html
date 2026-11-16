@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PâtisGest — Logiciel de gestion pâtisserie (Version Finale)</title>
+<meta name="description" content="PâtisGest : gestion complète pour pâtisserie — stocks FEFO, recettes, production, ventes, clôture, HACCP, cake design. Version finale fusionnée, 100% autonome.">
+<style>
+:root{
+  --bg:#f3f5fa;--card:#fff;--ink:#101828;--muted:#667085;--line:#e4e7ec;
+  --brand:#7c3aed;--brand2:#4f46e5;--brandink:#fff;
+  --ok:#067647;--okbg:#dcfae6;--warn:#b54708;--warnbg:#fef0c7;--bad:#b42318;--badbg:#fee4e2;--info:#175cd3;--infobg:#e0eaff;
+  --r:14px;--sh:0 4px 18px rgba(16,24,40,.07);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.5}
+.app{display:flex;min-height:100vh}
+.side{width:248px;flex:0 0 248px;background:#131022;color:#e6e3f5;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brand{padding:20px 18px 14px;border-bottom:1px solid rgba(255,255,255,.1)}
+.brand .logo{font-size:26px;font-weight:800;letter-spacing:-.02em}
+.brand .logo span{color:#c4b5fd}
+.brand small{color:#a89fc9;font-size:12px}
+.nav{padding:10px;display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:10px;color:#cfc9ea;text-decoration:none;font-size:13.5px;font-weight:600;padding:8px 10px;border-radius:10px;white-space:nowrap}
+.nav a:hover{background:rgba(255,255,255,.08);color:#fff}
+.nav a.on{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff}
+.nav .sec{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:#8b84ad;margin:12px 6px 4px;font-weight:700}
+.side .foot{margin-top:auto;padding:14px 18px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;color:#a89fc9}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.top{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:12px 22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.top h1{font-size:18px;margin:0;letter-spacing:-.01em}
+.top .date{color:var(--muted);font-size:13px}
+.top .sp{flex:1}
+.alertpill{position:relative;border:1px solid var(--line);background:#fff;border-radius:99px;padding:7px 14px;font-weight:700;font-size:13px;cursor:pointer}
+.alertpill b{background:var(--bad);color:#fff;border-radius:99px;padding:1px 8px;font-size:12px;margin-left:6px}
+.content{padding:22px;max-width:1280px;width:100%;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);padding:18px;margin-bottom:16px}
+.card h2{margin:0 0 4px;font-size:16.5px}
+.card h3{margin:0 0 8px;font-size:14.5px}
+.muted{color:var(--muted)}.small{font-size:12.5px}.tiny{font-size:11.5px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(330px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.g5{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);padding:14px 16px;border-top:4px solid var(--kc,var(--brand))}
+.kpi .l{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.kpi .v{font-size:23px;font-weight:800;margin:2px 0}
+.kpi .s{font-size:12.5px;color:var(--muted)}
+table.tbl{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#fff}
+.tbl th,.tbl td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.tbl thead th{background:#f8fafc;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);white-space:nowrap}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:#fafbff}
+.tbl td.num,.tbl th.num{text-align:right;white-space:nowrap}
+.bd{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:99px;white-space:nowrap}
+.bd.ok{background:var(--okbg);color:var(--ok)}.bd.warn{background:var(--warnbg);color:var(--warn)}
+.bd.bad{background:var(--badbg);color:var(--bad)}.bd.info{background:var(--infobg);color:var(--info)}
+.bd.grey{background:#eef1f6;color:#475467}.bd.violet{background:#ede9fe;color:#6d28d9}
+.btn{border:1px solid var(--line);background:#fff;padding:8px 14px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;color:var(--ink);display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.btn:hover{background:#f2f4f7}
+.btn.primary{background:linear-gradient(135deg,var(--brand),var(--brand2));border-color:transparent;color:#fff}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.danger{background:#fef3f2;border-color:#fecdca;color:var(--bad)}
+.btn.ok{background:#ecfdf3;border-color:#a6f4c5;color:var(--ok)}
+.btn.sm{padding:5px 10px;font-size:12px;border-radius:8px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.toolbar .sp{flex:1}
+.inp,select.inp,textarea.inp{border:1px solid #cfd4dc;border-radius:10px;padding:8px 11px;font-size:13.5px;background:#fff;color:var(--ink);width:100%;font-family:inherit}
+.inp:focus{outline:2px solid #c4b5fd;border-color:var(--brand)}
+textarea.inp{min-height:70px;resize:vertical}
+.fld{margin-bottom:11px}
+.fld label{display:block;font-size:12.5px;font-weight:700;margin-bottom:4px;color:#344054}
+.fld .hint{font-size:11.5px;color:var(--muted);margin-top:3px}
+.row{display:grid;gap:10px}.r2{grid-template-columns:1fr 1fr}.r3{grid-template-columns:1fr 1fr 1fr}.r4{grid-template-columns:1fr 1fr 1fr 1fr}
+@media(max-width:760px){.r2,.r3,.r4{grid-template-columns:1fr}}
+.ovl{position:fixed;inset:0;background:rgba(16,24,40,.55);z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:30px 14px;overflow-y:auto}
+.modal{background:#fff;border-radius:16px;max-width:640px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden}
+.modal.wide{max-width:920px}
+.modal .mh{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.modal .mh h3{margin:0;font-size:16px;flex:1}
+.modal .mb{padding:18px 20px;max-height:70vh;overflow-y:auto}
+.modal .mf{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;background:#f9fafb}
+.xbtn{border:none;background:#eef1f6;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:15px;font-weight:800}
+.toasts{position:fixed;bottom:18px;right:18px;z-index:200;display:flex;flex-direction:column;gap:8px;max-width:min(420px,90vw)}
+.toast{background:#101828;color:#fff;border-radius:12px;padding:12px 16px;font-size:13.5px;box-shadow:0 10px 30px rgba(0,0,0,.3);border-left:5px solid var(--brand);animation:tin .25s ease}
+.toast.ok{border-color:#12b76a}.toast.warn{border-color:#f79009}.toast.bad{border-color:#f04438}
+@keyframes tin{from{transform:translateY(10px);opacity:0}}
+.callout{border-radius:12px;padding:12px 15px;font-size:13.5px;margin:10px 0;border:1px solid}
+.callout.warn{background:#fffaeb;border-color:#fedf89;color:#7a2e0e}
+.callout.info{background:#eff8ff;border-color:#b2ddff;color:#1849a9}
+.callout.bad{background:#fef3f2;border-color:#fecdca;color:#7a271a}
+.callout.ok{background:#ecfdf3;border-color:#a6f4c5;color:#05603a}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tab{border:1.5px solid var(--line);background:#fff;padding:7px 14px;border-radius:99px;font-weight:700;font-size:13px;cursor:pointer;color:var(--muted)}
+.tab.on{border-color:var(--brand);color:var(--brand);background:#f5f1ff}
+.prog{height:9px;background:#eef1f6;border-radius:99px;overflow:hidden;min-width:80px}
+.prog>i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--brand2));border-radius:99px}
+.list-plain{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.list-plain li{background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13.5px}
+.etiquette{border:2px dashed #98a2b3;border-radius:12px;padding:16px;max-width:420px;background:#fff}
+.etiquette h4{margin:0 0 6px;font-size:17px}
+.etiquette .alg{font-weight:800;text-decoration:underline}
+.ticket{font-family:ui-monospace,Consolas,monospace;background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;max-width:340px;font-size:12.5px}
+.ticket hr{border:none;border-top:1px dashed #98a2b3}
+footer.appfoot{padding:18px;text-align:center;color:var(--muted);font-size:12px}
+@media(max-width:960px){
+  .app{flex-direction:column}
+  .side{width:100%;flex:none;height:auto;position:static}
+  .nav{flex-direction:row;overflow-x:auto;padding:8px}
+  .nav a{flex:0 0 auto}.nav .sec{display:none}
+  .side .foot,.brand small{display:none}
+  .content{padding:14px}
+  .top h1{font-size:15px}
+}
+@media print{
+  .side,.top,.no-print,.toasts,.ovl,footer.appfoot{display:none!important}
+  body{background:#fff}
+  .content{padding:0;max-width:none}
+  .card{box-shadow:none;break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><div class="logo">🧁 Pâtis<span>Gest</span></div><small>Version finale fusionnée · v1.0</small></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="foot">💾 Données locales (hors-ligne)<br><span id="footLab"></span></div>
+  </aside>
+  <div class="main">
+    <div class="top">
+      <h1 id="viewTitle">Tableau de bord</h1>
+      <span class="date" id="topDate"></span>
+      <span class="sp"></span>
+      <button class="alertpill no-print" onclick="go('dashboard');setTimeout(showAlertes,50)">⚠ Alertes<b id="alertCount">0</b></button>
+      <button class="btn sm no-print" onclick="quickBackup()">💾 Sauvegarder</button>
+    </div>
+    <div class="content" id="content"></div>
+    <footer class="appfoot">PâtisGest v1.0 finale — 100% autonome, fonctionne hors-ligne · Vos données restent sur cet appareil · <a href="#" onclick="go('guide');return false">Guide logiciel</a></footer>
+  </div>
+</div>
+<div id="modalRoot"></div>
+<div class="toasts" id="toasts"></div>
+<script>
+"use strict";
+/* =====================================================================
+   PâtisGest v1.0 — Version FINALE fusionnée (issue de l'audit des 5 CDC)
+   Fichier unique, 100% autonome : d'abord le SITE, puis le LOGICIEL.
+   ===================================================================== */
+const APP="PâtisGest", VER="1.0-finale", LSKEY="patisgest_v1";
+const LEVELS={matiere:"Matière première",semifini:"Semi-fini",produit:"Produit fini",emballage:"Emballage",consommable:"Consommable"};
+const UNITS=["kg","g","L","ml","pcs"];
+const TVA_CHOICES=[0,5.5,7,9,10,19,20];
+const ALLERGENES=[["gluten","Gluten"],["crustaces","Crustacés"],["oeufs","Œufs"],["poissons","Poissons"],["arachides","Arachides"],["soja","Soja"],["lait","Lait (lactose)"],["fruits_coque","Fruits à coque"],["celeri","Céleri"],["moutarde","Moutarde"],["sesame","Graines de sésame"],["sulfites","Sulfites"],["lupin","Lupin"],["mollusques","Mollusques"]];
+const FLUX=[["produit","Fabriqué"],["vendu","Vendu"],["reporte","Reporté (invendu réutilisable)"],["jete","Jeté"],["casse","Casse / erreur"],["offert","Offert / don / personnel"]];
+const OF_STATUTS={planifie:["Planifié","info"],encours:["En cours","violet"],partiel:["Partiellement validé","warn"],termine:["Terminé","ok"],annule:["Annulé","grey"]};
+const BC_STATUTS={brouillon:["Brouillon","grey"],commande:["Commandé","info"],partiel:["Partiellement reçu","warn"],recu:["Reçu","ok"],annule:["Annulé","bad"]};
+const CAKE_STATUTS={devis:["Devis","grey"],acompte:["Acompte versé","info"],confirme:["Confirmé","violet"],produit:["Produit","warn"],livre:["Livré / soldé","ok"],annule:["Annulé","bad"]};
+
+/* ---------------- OUTILS ---------------- */
+function esc(s){if(s==null)return"";return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+function uid(p){return (p||"id")+"-"+Date.now().toString(36)+"-"+Math.floor(Math.random()*1e6).toString(36)}
+function pad2(n){return String(n).padStart(2,"0")}
+function dISO(d){return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate())}
+function today(off){const d=new Date();if(off)d.setDate(d.getDate()+off);return dISO(d)}
+function nowDT(){return new Date().toISOString()}
+function fmtD(iso){if(!iso)return"—";const p=String(iso).slice(0,10).split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:iso}
+function fmtDT(iso){if(!iso)return"—";const d=new Date(iso);return pad2(d.getDate())+"/"+pad2(d.getMonth()+1)+"/"+d.getFullYear()+" "+pad2(d.getHours())+":"+pad2(d.getMinutes())}
+function daysBetween(a,b){const d1=new Date(a+"T00:00:00"),d2=new Date(b+"T00:00:00");return Math.round((d2-d1)/864e5)}
+function num(v){const n=parseFloat(String(v).replace(/\s/g,"").replace(",","."));return isNaN(n)?0:n}
+function fmtN(n,d){if(n==null||isNaN(n))n=0;const dec=(d==null?2:d);return new Intl.NumberFormat("fr-FR",{minimumFractionDigits:dec,maximumFractionDigits:dec}).format(n)}
+function fmtQ(n,u){return fmtN(n,(u==="pcs"?0:3))+" "+(u||"")}
+function M(n){return fmtN(n)+" "+(DB?DB.settings.deviseSym:"DA")}
+function clamp(n,a,b){return Math.max(a,Math.min(b,n))}
+function sum(arr,fn){return arr.reduce((t,x)=>t+(fn?fn(x):x),0)}
+function groupBy(arr,fn){const o={};arr.forEach(x=>{const k=fn(x);(o[k]=o[k]||[]).push(x)});return o}
+function download(nom,contenu,mime){const b=new Blob([contenu],{type:mime||"text/plain;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=nom;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
+function csvCell(v){v=String(v==null?"":v);return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+function toCSV(rows){return "﻿"+rows.map(r=>r.map(csvCell).join(";")).join("\r\n")}
+
+/* ---------------- DONNÉES DE DÉMONSTRATION ----------------
+   Jeu d'essai réaliste (pâtisserie à Oran). Dates relatives à aujourd'hui
+   pour que la démo soit toujours fraîche. Tout est modifiable/supprimable. */
+function seedDB(){
+  const db={
+    settings:{labName:"Pâtisserie El Yasmine — Oran",adresse:"Rue Emir Abdelkader, Oran",tel:"0550 12 34 56",nif:"NIF 123456789",
+      devise:"DZD",deviseSym:"DA",tvaDefaut:19,tauxHoraireMO:600,chargesRate:0.35,coefConseille:3,
+      acompteMinPct:30,alerteDlcJours:5,alerteHaussePct:10,fraisGenerauxJour:8000,capaciteMinJour:480},
+    sites:[{id:"S1",nom:"Laboratoire — Oran Centre"},{id:"S2",nom:"Boutique — Front de Mer"}],
+    frigos:[{id:"F1",nom:"Chambre froide (+4°C)",seuilMax:4},{id:"F2",nom:"Congélateur (-18°C)",seuilMax:-18},{id:"F3",nom:"Vitrine boutique (+4°C)",seuilMax:4}],
+    zonesNettoyage:["Plan de travail","Fours","Chambre froide","Sols du labo","Vitrine","Réserve sèche"],
+    fournisseurs:[
+      {id:"F1",nom:"Minoterie El Baraka",contact:"M. Benali",tel:"0551 11 22 33",email:"",score:4,delaiJours:2},
+      {id:"F2",nom:"DDA — Distribution Alimentaire",contact:"Mme Kaci",tel:"0552 44 55 66",email:"",score:5,delaiJours:1},
+      {id:"F3",nom:"Marché de Gros — Fruits & Légumes",contact:"Hadj Karim",tel:"0553 77 88 99",email:"",score:3,delaiJours:1},
+      {id:"F4",nom:"Emballages Pro Dz",contact:"M. Ziani",tel:"0554 00 11 22",email:"",score:4,delaiJours:3}],
+    articles:[],lots:[],mouvements:[],prixHisto:[],
+    bcs:[],familles:[],versions:[],ofs:[],ventes:[],importsZ:[],retours:[],
+    clotures:[],cakes:[],temps:[],nettoyages:[],ncs:[],transferts:[],planning:[],
+    allergenes:{},traces:{},compteurs:{lot:100,of:10,bc:10,vente:100,ticket:1000,cake:10,mvt:1000}
+  };
+  const A=(id,code,nom,niveau,unite,seuil,pvHT,tva)=>db.articles.push({id,code,nom,niveau,unite,seuil:seuil||0,pvHT:pvHT||0,tva:(tva==null?db.settings.tvaDefaut:tva)});
+  // Matières
+  A("MP-FAR","MP-FAR","Farine T55","matiere","kg",25);A("MP-SUC","MP-SUC","Sucre semoule","matiere","kg",15);
+  A("MP-SUG","MP-SUG","Sucre glace","matiere","kg",5);A("MP-BEU","MP-BEU","Beurre doux","matiere","kg",10);A("MP-MAR","MP-MAR","Margarine feuilletage","matiere","kg",10);
+  A("MP-OEU","MP-OEU","Œufs frais","matiere","pcs",200);A("MP-CHO","MP-CHO","Chocolat noir 70%","matiere","kg",8);
+  A("MP-CRE","MP-CRE","Crème liquide 35%","matiere","L",10);A("MP-LAI","MP-LAI","Lait entier","matiere","L",20);
+  A("MP-LEV","MP-LEV","Levure boulangère","matiere","kg",1);A("MP-SEL","MP-SEL","Sel fin","matiere","kg",2);
+  A("MP-VAN","MP-VAN","Vanille naturelle","matiere","g",100);A("MP-FRA","MP-FRA","Fraises fraîches","matiere","kg",5);
+  A("MP-CIT","MP-CIT","Citrons jaunes","matiere","kg",5);A("MP-MAS","MP-MAS","Mascarpone","matiere","kg",4);
+  A("MP-CAF","MP-CAF","Café arabica","matiere","g",500);A("MP-AMA","MP-AMA","Amandes moulues","matiere","kg",3);
+  A("MP-MIE","MP-MIE","Miel pur","matiere","kg",2);
+  // Semi-finis
+  A("SF-CPA","SF-CPA","Crème pâtissière","semifini","kg",3);A("SF-GAN","SF-GAN","Ganache chocolat","semifini","kg",2);
+  A("SF-PFE","SF-PFE","Pâte feuilletée","semifini","kg",5);A("SF-PCH","SF-PCH","Pâte à choux","semifini","kg",3);
+  A("SF-PSU","SF-PSU","Pâte sucrée","semifini","kg",3);
+  // Produits finis (prix de vente HT en DA)
+  A("PF-MIL","PF-MIL","Millefeuille","produit","pcs",10,260);A("PF-ECL","PF-ECL","Éclair au chocolat","produit","pcs",10,320);
+  A("PF-TAC","PF-TAC","Tartelette citron","produit","pcs",10,300);A("PF-CRO","PF-CRO","Croissant au beurre","produit","pcs",20,85);
+  A("PF-PCH","PF-PCH","Pain au chocolat","produit","pcs",20,120);A("PF-CDG","PF-CDG","Corne de gazelle","produit","pcs",15,180);
+  A("PF-BAK","PF-BAK","Baklawa au miel","produit","pcs",15,200);A("PF-FRA","PF-FRA","Fraisier 6 parts","produit","pcs",2,2900);
+  // Emballages
+  A("EM-BOI","EM-BOI","Boîte pâtissière","emballage","pcs",100);A("EM-SAC","EM-SAC","Sachet kraft","emballage","pcs",200);
+  A("EM-SUP","EM-SUP","Support gâteau doré","emballage","pcs",30);
+  // Allergènes connus des matières
+  db.allergenes={"MP-FAR":["gluten"],"MP-BEU":["lait"],"MP-OEU":["oeufs"],"MP-CHO":["lait","soja"],"MP-CRE":["lait"],"MP-LAI":["lait"],"MP-MAS":["lait"],"MP-AMA":["fruits_coque"],"MP-SUC":[],"MP-SUG":[],"MP-LEV":[],"MP-SEL":[],"MP-VAN":[],"MP-FRA":[],"MP-CIT":[],"MP-CAF":[],"MP-MIE":[],"MP-MAR":[]};
+  db.traces={"MP-CHO":["fruits_coque"],"MP-AMA":["sesame"]};
+  return db;
+}
+/* Lots initiaux : [article, qté, PU, DLC(J+n), site, fournisseur] */
+function seedLots(){
+  const L=[["MP-FAR",50,120,180,"S1","F1"],["MP-SUC",30,115,120,"S1","F1"],["MP-SUG",10,220,180,"S1","F1"],
+    ["MP-BEU",20,1750,45,"S1","F2"],["MP-BEU",10,1820,60,"S1","F2"],["MP-MAR",20,550,90,"S1","F2"],["MP-OEU",500,22,14,"S1","F2"],
+    ["MP-CHO",12,2600,200,"S1","F2"],["MP-CRE",20,950,21,"S1","F2"],["MP-LAI",40,160,7,"S1","F2"],
+    ["MP-LEV",2,900,90,"S1","F2"],["MP-SEL",5,120,365,"S1","F1"],["MP-VAN",250,18,300,"S1","F2"],
+    ["MP-FRA",8,600,3,"S1","F3"],["MP-CIT",10,250,12,"S1","F3"],["MP-MAS",6,1900,18,"S1","F2"],
+    ["MP-CAF",1000,6,240,"S1","F2"],["MP-AMA",10,2800,120,"S1","F2"],["MP-MIE",5,2200,200,"S1","F3"],
+    ["SF-CPA",5,0,2,"S1",null],["SF-GAN",3,0,4,"S1",null],["SF-PFE",8,0,3,"S1",null],["SF-PCH",4,0,2,"S1",null],["SF-PSU",4,0,3,"S1",null],
+    ["PF-MIL",120,0,1,"S1",null],["PF-ECL",150,0,1,"S1",null],["PF-TAC",80,0,1,"S1",null],["PF-CRO",250,0,1,"S1",null],
+    ["PF-PCH",180,0,1,"S1",null],["PF-CDG",100,0,5,"S1",null],["PF-BAK",80,0,7,"S1",null],["PF-FRA",6,0,2,"S1",null],
+    ["PF-CRO",150,0,1,"S2",null],["PF-PCH",80,0,1,"S2",null],["PF-ECL",60,0,1,"S2",null],["PF-MIL",30,0,1,"S2",null],["PF-TAC",30,0,1,"S2",null],["PF-BAK",30,0,1,"S2",null],
+    ["EM-BOI",300,35,365,"S1","F4"],["EM-SAC",500,8,365,"S1","F4"],["EM-SUP",50,120,365,"S1","F4"]];
+  L.forEach((l,i)=>newLot({articleId:l[0],qty:l[1],pu:l[2],dlc:l[3]!=null?today(l[3]):"",siteId:l[4],fournisseurId:l[5],date:today(-2),ref:"Stock initial",numero:"LOT-"+(101+i)}));
+  // Historique de prix (pour hausses + recettes impactées)
+  [["MP-BEU",-60,1650,"F2"],["MP-BEU",-25,1750,"F2"],["MP-CHO",-50,2400,"F2"],["MP-CHO",-10,2600,"F2"],
+   ["MP-FAR",-45,112,"F1"],["MP-FAR",-8,120,"F1"],["MP-SUC",-30,108,"F1"],["MP-OEU",-20,20,"F2"]].forEach(h=>DB.prixHisto.push({articleId:h[0],date:today(h[1]),pu:h[2],fournisseurId:h[3]}));
+}
+/* Recettes : familles + versions. Ingrédient = {t:"a"|"r", id, q, u, parage%} */
+function seedRecettes(){
+  const F=(id,nom,produitId)=>DB.familles.push({id,nom,produitId});
+  const V=(id,fam,version,rendQ,rendU,ingr,cuisson,moMin,energie,emb,fg,notes,active)=>DB.versions.push({id,familleId:fam,version,rendement:{qty:rendQ,unit:rendU},ingredients:ingr,cuissonPertePct:cuisson||0,moMin:moMin||0,energie:energie||0,emballage:emb||0,fraisGeneraux:fg||0,notes:notes||"",active:active!==false,createdAt:nowDT()});
+  F("RF-CPA","Crème pâtissière","SF-CPA");
+  V("RF-CPA-v1","RF-CPA",1,1,"kg",[{t:"a",id:"MP-LAI",q:0.8,u:"L"},{t:"a",id:"MP-OEU",q:4,u:"pcs"},{t:"a",id:"MP-SUC",q:0.2,u:"kg"},{t:"a",id:"MP-VAN",q:3,u:"g"}],0,12,50,0,0,"",true);
+  F("RF-GAN","Ganache chocolat","SF-GAN");
+  V("RF-GAN-v1","RF-GAN",1,1,"kg",[{t:"a",id:"MP-CHO",q:0.6,u:"kg"},{t:"a",id:"MP-CRE",q:0.4,u:"L"}],0,10,40,0,0,"",true);
+  F("RF-PFE","Pâte feuilletée","SF-PFE");
+  V("RF-PFE-v1","RF-PFE",1,1,"kg",[{t:"a",id:"MP-FAR",q:0.55,u:"kg"},{t:"a",id:"MP-MAR",q:0.35,u:"kg"},{t:"a",id:"MP-SEL",q:0.01,u:"kg"}],0,20,60,0,0,"",true);
+  F("RF-PCH","Pâte à choux","SF-PCH");
+  V("RF-PCH-v1","RF-PCH",1,1,"kg",[{t:"a",id:"MP-FAR",q:0.35,u:"kg"},{t:"a",id:"MP-BEU",q:0.25,u:"kg"},{t:"a",id:"MP-OEU",q:6,u:"pcs"},{t:"a",id:"MP-LAI",q:0.25,u:"L"},{t:"a",id:"MP-SEL",q:0.005,u:"kg"}],0,20,80,0,0,"",true);
+  F("RF-PSU","Pâte sucrée","SF-PSU");
+  V("RF-PSU-v1","RF-PSU",1,1,"kg",[{t:"a",id:"MP-FAR",q:0.5,u:"kg"},{t:"a",id:"MP-BEU",q:0.3,u:"kg"},{t:"a",id:"MP-SUC",q:0.2,u:"kg"},{t:"a",id:"MP-OEU",q:2,u:"pcs"},{t:"a",id:"MP-SEL",q:0.005,u:"kg"}],0,15,50,0,0,"",true);
+  F("RF-MIL","Millefeuille","PF-MIL");
+  V("RF-MIL-v1","RF-MIL",1,10,"pcs",[{t:"a",id:"SF-PFE",q:1.2,u:"kg"},{t:"r",id:"RF-CPA-v1",q:0.9,u:"kg"},{t:"a",id:"MP-SUG",q:0.15,u:"kg"}],8,30,150,300,0,"Ancienne version (rendement 10).",false);
+  V("RF-MIL-v2","RF-MIL",2,12,"pcs",[{t:"a",id:"SF-PFE",q:1.2,u:"kg"},{t:"r",id:"RF-CPA-v1",q:1,u:"kg"},{t:"a",id:"MP-SUG",q:0.15,u:"kg"}],8,30,150,240,0,"Version optimisée : rendement 12.",true);
+  F("RF-ECL","Éclair au chocolat","PF-ECL");
+  V("RF-ECL-v1","RF-ECL",1,15,"pcs",[{t:"a",id:"SF-PCH",q:1,u:"kg"},{t:"r",id:"RF-GAN-v1",q:0.6,u:"kg"}],10,40,200,150,0,"",true);
+  F("RF-TAC","Tartelette citron","PF-TAC");
+  V("RF-TAC-v1","RF-TAC",1,12,"pcs",[{t:"a",id:"SF-PSU",q:0.9,u:"kg"},{t:"a",id:"MP-CIT",q:0.8,u:"kg",parage:20},{t:"a",id:"MP-SUC",q:0.4,u:"kg"},{t:"a",id:"MP-OEU",q:6,u:"pcs"},{t:"a",id:"MP-BEU",q:0.25,u:"kg"}],5,40,200,200,0,"Parage citrons 20% (zeste + jus).",true);
+  F("RF-CRO","Croissant au beurre","PF-CRO");
+  V("RF-CRO-v1","RF-CRO",1,40,"pcs",[{t:"a",id:"MP-FAR",q:3,u:"kg"},{t:"a",id:"MP-MAR",q:1.2,u:"kg"},{t:"a",id:"MP-SUC",q:0.3,u:"kg"},{t:"a",id:"MP-LEV",q:0.06,u:"kg"},{t:"a",id:"MP-SEL",q:0.05,u:"kg"},{t:"a",id:"MP-LAI",q:1.5,u:"L"}],12,45,300,200,0,"",true);
+  F("RF-PAC","Pain au chocolat","PF-PCH");
+  V("RF-PAC-v1","RF-PAC",1,30,"pcs",[{t:"a",id:"MP-FAR",q:2,u:"kg"},{t:"a",id:"MP-MAR",q:0.8,u:"kg"},{t:"a",id:"MP-SUC",q:0.2,u:"kg"},{t:"a",id:"MP-LEV",q:0.04,u:"kg"},{t:"a",id:"MP-SEL",q:0.03,u:"kg"},{t:"a",id:"MP-LAI",q:1,u:"L"},{t:"a",id:"MP-CHO",q:0.3,u:"kg"}],12,40,250,150,0,"",true);
+  F("RF-CDG","Corne de gazelle","PF-CDG");
+  V("RF-CDG-v1","RF-CDG",1,50,"pcs",[{t:"a",id:"MP-AMA",q:1.5,u:"kg"},{t:"a",id:"MP-SUC",q:0.6,u:"kg"},{t:"a",id:"MP-BEU",q:0.3,u:"kg"},{t:"a",id:"MP-FAR",q:0.8,u:"kg"}],6,90,250,300,0,"",true);
+  F("RF-BAK","Baklawa au miel","PF-BAK");
+  V("RF-BAK-v1","RF-BAK",1,40,"pcs",[{t:"a",id:"MP-AMA",q:1,u:"kg"},{t:"a",id:"MP-FAR",q:0.6,u:"kg"},{t:"a",id:"MP-BEU",q:0.5,u:"kg"},{t:"a",id:"MP-SUC",q:0.5,u:"kg"},{t:"a",id:"MP-MIE",q:0.3,u:"kg"}],5,70,200,240,0,"",true);
+  F("RF-FRA","Fraisier 6 parts","PF-FRA");
+  V("RF-FRA-v1","RF-FRA",1,1,"pcs",[{t:"a",id:"MP-FRA",q:0.6,u:"kg",parage:10},{t:"a",id:"MP-MAS",q:0.4,u:"kg"},{t:"a",id:"MP-SUC",q:0.2,u:"kg"},{t:"a",id:"MP-OEU",q:3,u:"pcs"},{t:"a",id:"MP-FAR",q:0.2,u:"kg"}],0,45,150,155,0,"",true);
+}
+/* Mouvements d'historique générés avec le vrai moteur (OF, ventes, Z, clôtures…) */
+function seedMouvements(){
+  const of1=createOF("RF-CRO","RF-CRO-v1",80,"S1",today(-1));lancerOF(of1.id);validerOF(of1.id,78);
+  const of2=createOF("RF-MIL","RF-MIL-v2",24,"S1",today());lancerOF(of2.id);
+  createOF("RF-FRA","RF-FRA-v1",3,"S1",today(1));
+  createOF("RF-ECL","RF-ECL-v1",30,"S1",today(1));
+  // Ventes des 7 derniers jours (boutique S2 + laboratoire S1)
+  const plan=[["PF-CRO",22,"PF-PCH",14,"PF-ECL",10],["PF-CRO",25,"PF-MIL",12,"PF-ECL",14],["PF-CRO",20,"PF-TAC",10,"PF-PCH",12],
+    ["PF-CRO",28,"PF-MIL",15,"PF-CDG",12],["PF-CRO",24,"PF-ECL",16,"PF-BAK",10],["PF-CRO",30,"PF-MIL",18,"PF-TAC",12],["PF-CRO",18,"PF-PCH",10,"PF-ECL",8]];
+  for(let d=6;d>=0;d--){const lig=[];const p=plan[6-d];for(let i=0;i<p.length;i+=2){const a=article(p[i]);lig.push({articleId:p[i],qty:p[i+1],puHT:a.pvHT,tva:a.tva})}encaisser(d%2?"S1":"S2",lig,today(-d),"caisse",true)}
+  // Un import Z (boutique, hier)
+  validerZ(today(-1),"S2",[{code:"PF-CRO",qty:20,pu:85},{code:"PF-PCH",qty:12,pu:120},{code:"PF-ECL",qty:9,pu:320}],"CAISSE-01",true);
+  // Clôtures
+  addCloture({date:today(-1),siteId:"S1",lignes:[
+    {produitId:"PF-CRO",produit:78,vendu:64,reporte:8,jete:4,casse:2,offert:0},
+    {produitId:"PF-MIL",produit:24,vendu:20,reporte:2,jete:1,casse:1,offert:0}]});
+  addCloture({date:today(-2),siteId:"S2",lignes:[{produitId:"PF-CRO",produit:0,vendu:22,reporte:0,jete:2,casse:1,offert:1}]});
+  // Transfert laboratoire → boutique
+  addTransfert({date:today(-1),fromSite:"S1",toSite:"S2",motif:"Réassort boutique",lignes:[{articleId:"PF-CRO",qty:40},{articleId:"PF-ECL",qty:20}]});
+  // Cake design
+  DB.cakes.push({id:"CAKE-1",numero:"DEV-001",client:"Famille Haddad",tel:"0555 66 77 88",dateEvent:today(9),nbParts:30,
+    options:[{nom:"Gâteau vanille-fraise 30 parts",cout:3200,tempsMin:120},{nom:"Décor pâte à sucre personnalisé",cout:1500,tempsMin:90},{nom:"Pièce montée présentoir",cout:800,tempsMin:20}],
+    prixHT:9500,acompte:0,statut:"devis",cgv:false,notes:"Thème : mariage bleu et or.",retro:[{t:"Achat supports + pâte à sucre",j:-5,fait:true},{t:"Cuisson génoises",j:-2,fait:false},{t:"Montage + décor",j:-1,fait:false},{t:"Livraison 10h",j:0,fait:false}]});
+  DB.cakes.push({id:"CAKE-2",numero:"DEV-002",client:"Mme Belkacem",tel:"0556 11 22 33",dateEvent:today(5),nbParts:20,
+    options:[{nom:"Number cake 20 parts",cout:2600,tempsMin:90},{nom:"Fruits frais déco",cout:900,tempsMin:30}],prixHT:6800,acompte:2720,statut:"confirme",cgv:true,notes:"Chiffre 18, rose et blanc.",
+    retro:[{t:"Achat fruits + supports",j:-3,fait:true},{t:"Production",j:-1,fait:false},{t:"Retrait boutique 16h",j:0,fait:false}]});
+  // HACCP
+  [["F1",3.8],["F1",4.5],["F2",-19],["F2",-17],["F3",4.1],["F3",5.2]].forEach((t,i)=>DB.temps.push({id:uid("tmp"),date:today(-(i%3)),frigoId:t[0],temp:t[1],agent:i%2?"Amine":"Sara"}));
+  DB.zonesNettoyage.forEach((z,i)=>DB.nettoyages.push({id:uid("net"),date:today(-(i%2)),zone:z,fait:i%3!==2,agent:"Amine"}));
+  DB.ncs.push({id:uid("nc"),date:today(-2),type:"DLC dépassée",description:"Lot de crème liquide LOT-108 entamé, DLC courte : mis de côté.",lotId:"",action:"Retiré de la production, jeté et tracé en perte.",statut:"Clôturée"});
+  // Planning
+  DB.planning.push({id:uid("pl"),date:today(),tache:"Cuisson croissants + pains au chocolat",ofId:"",dureeMin:120,responsable:"Amine",fait:true});
+  DB.planning.push({id:uid("pl"),date:today(),tache:"Montage millefeuilles (OF en cours)",ofId:of2.id,dureeMin:60,responsable:"Sara",fait:false});
+  DB.planning.push({id:uid("pl"),date:today(1),tache:"Fraisiers commande + éclairs",ofId:"",dureeMin:180,responsable:"Amine",fait:false});
+  DB.planning.push({id:uid("pl"),date:today(1),tache:"Inventaire chambre froide",ofId:"",dureeMin:45,responsable:"Sara",fait:false});
+  // Un bon de commande en cours
+  DB.bcs.push({id:"BC-1",numero:"BC-001",fournisseurId:"F2",date:today(-1),statut:"commande",lignes:[{articleId:"MP-BEU",qty:15,pu:1820,recue:0},{articleId:"MP-CRE",qty:12,pu:950,recue:0}],notes:"Livraison prévue demain matin."});
+}
+
+/* ---------------- STOCKAGE ---------------- */
+let DB=null;
+function save(){try{localStorage.setItem(LSKEY,JSON.stringify(DB))}catch(e){toast("Stockage local plein ou indisponible !","bad")}}
+function load(){try{const r=localStorage.getItem(LSKEY);return r?JSON.parse(r):null}catch(e){return null}}
+function resetDemo(){DB=seedDB();seedLots();seedRecettes();seedMouvements();save()}
+/* ---------------- ACCÈS ---------------- */
+function S(){return DB.settings}
+function article(id){return DB.articles.find(a=>a.id===id)||{id,nom:"(article supprimé)",code:"?",niveau:"matiere",unite:"",seuil:0,pvHT:0,tva:S().tvaDefaut}}
+function lot(id){return DB.lots.find(l=>l.id===id)}
+function fournisseur(id){return DB.fournisseurs.find(f=>f.id===id)||{nom:"—"}}
+function site(id){return DB.sites.find(s=>s.id===id)||{nom:"—"}}
+function famille(id){return DB.familles.find(f=>f.id===id)||{nom:"—"}}
+function version(id){return DB.versions.find(v=>v.id===id)}
+function activeVersion(famId){return DB.versions.filter(v=>v.familleId===famId).find(v=>v.active)||DB.versions.filter(v=>v.familleId===famId).slice(-1)[0]}
+function of(id){return DB.ofs.find(o=>o.id===id)}
+function frigo(id){return DB.frigos.find(f=>f.id===id)||{nom:"—",seuilMax:4}}
+function lotStatut(l){if(!l)return["—","grey"];if(l.bloque)return["Bloqué","bad"];if(l.qtyRestante<0)return["Négatif","bad"];if(l.qtyRestante<=0.0001)return["Épuisé","grey"];if(l.dlc&&l.dlc<today())return["Périmé","bad"];return["Disponible","ok"]}
+/* ---------------- STOCK & LOTS (FEFO) ---------------- */
+function lotsOf(aid,siteId){return DB.lots.filter(l=>l.articleId===aid&&(!siteId||l.siteId===siteId))}
+function stockOf(aid,siteId){return sum(lotsOf(aid,siteId),l=>l.qtyRestante)}
+function cumpOf(aid){const ls=lotsOf(aid).filter(l=>l.qtyInitiale>0&&l.pu>0);const q=sum(ls,l=>l.qtyInitiale);return q>0?sum(ls,l=>l.qtyInitiale*l.pu)/q:0}
+function lastPrice(aid){const hs=DB.prixHisto.filter(h=>h.articleId===aid).sort((a,b)=>a.date<b.date?1:-1);if(hs.length)return hs[0].pu;const ls=lotsOf(aid).filter(l=>l.pu>0).sort((a,b)=>a.date<b.date?1:-1);return ls.length?ls[0].pu:0}
+function dlcMin(aid,siteId){const ls=lotsOf(aid,siteId).filter(l=>l.qtyRestante>0.0001&&l.dlc);if(!ls.length)return"";return ls.map(l=>l.dlc).sort()[0]}
+function lotsFEFO(aid,siteId){return lotsOf(aid,siteId).filter(l=>!l.bloque&&l.qtyRestante>0.0001).sort((a,b)=>{
+  if(a.congele!==b.congele)return a.congele?1:-1;
+  if(!a.dlc&&!b.dlc)return a.date<b.date?-1:1; if(!a.dlc)return 1; if(!b.dlc)return -1;
+  return a.dlc<b.dlc?-1:(a.dlc>b.dlc?1:0)})}
+function addMouvement(m){m.id=m.id||uid("mvt");m.date=m.date||today();m.dt=m.dt||nowDT();DB.mouvements.push(m);return m}
+/* Création d'un lot (entrée stock). Règle : lot obligatoire, DLC recommandée. */
+function newLot(o){
+  DB.compteurs.lot++;
+  const l={id:uid("lot"),numero:o.numero||("LOT-"+DB.compteurs.lot),articleId:o.articleId,qtyInitiale:o.qty,qtyRestante:o.qty,
+    pu:o.pu||0,dlc:o.dlc||"",siteId:o.siteId||"S1",fournisseurId:o.fournisseurId||"",date:o.date||today(),ref:o.ref||"",congele:!!o.congele,bloque:false};
+  DB.lots.push(l);
+  addMouvement({articleId:l.articleId,lotId:l.id,type:"entree",qty:l.qtyInitiale,siteId:l.siteId,ref:l.ref||("Lot "+l.numero),motif:"",pu:l.pu,date:l.date});
+  if(l.pu>0&&o.fournisseurId)DB.prixHisto.push({articleId:l.articleId,date:l.date,pu:l.pu,fournisseurId:o.fournisseurId});
+  return l;
+}
+/* Consommation multi-lots en FEFO. JAMAIS de blocage : le manquant est alerté. */
+function consumeFEFO(aid,qtyBesoin,siteId,ref){
+  let reste=qtyBesoin;const details=[];
+  lotsFEFO(aid,siteId).forEach(l=>{if(reste<=0.0001)return;const prend=Math.min(l.qtyRestante,reste);
+    l.qtyRestante=Math.round((l.qtyRestante-prend)*10000)/10000;reste=Math.round((reste-prend)*10000)/10000;
+    details.push({lotId:l.id,numero:l.numero,qty:prend,pu:l.pu});
+    addMouvement({articleId:aid,lotId:l.id,type:"sortie",qty:-prend,siteId,ref:ref||"",motif:"",pu:l.pu})});
+  let manquant=0;
+  if(reste>0.0001){manquant=reste;
+    addMouvement({articleId:aid,lotId:"",type:"ecart",qty:-reste,siteId,ref:(ref||"")+" — MANQUANT (alerte, non bloquant)",motif:"Stock insuffisant"})}
+  return{details,manquant};
+}
+function enterStock(aid,qty,siteId,ref,pu,dlc,fournisseurId,congele){
+  return newLot({articleId:aid,qty,pu:pu||0,dlc:dlc||"",siteId,fournisseurId:fournisseurId||"",date:today(),ref:ref||"Entrée"});
+}
+/* ---------------- COÛT DE REVIENT COMPLET (formules corrigées) ----------------
+   - Parage/cuve : la CONSOMMATION augmente  → qté × (1 + parage%)
+   - Cuisson : le RENDEMENT diminue          → rendement × (1 - cuisson%)
+   - Coût/portion = coût total ÷ rendement net. Pas de TVA dans le coût. */
+let PUM_GUARD=0;
+function puMatiere(aid){
+  const fefo=lotsFEFO(aid); if(fefo.length&&fefo[0].pu>0)return{pu:fefo[0].pu,src:"lot FEFO "+fefo[0].numero};
+  const c=cumpOf(aid); if(c>0)return{pu:c,src:"CUMP (indicatif)"};
+  const lp=lastPrice(aid); if(lp>0)return{pu:lp,src:"dernier prix"};
+  if(PUM_GUARD<3){const f=DB.familles.find(x=>x.produitId===aid);
+    if(f){const av=activeVersion(f.id);
+      if(av){PUM_GUARD++;const cc=coutVersion(av.id);PUM_GUARD--;
+        if(cc.coutPortion>0)return{pu:cc.coutPortion,src:"co\u00fbt recette "+f.nom+" v"+av.version}}}}
+  return{pu:0,src:"prix inconnu"};
+}
+function coutVersion(vid,prof){
+  prof=prof||0; if(prof>5)return{total:0,coutPortion:0,lignes:[],erreur:"Boucle de sous-recette détectée !"};
+  const v=version(vid); if(!v)return{total:0,coutPortion:0,lignes:[],erreur:"Version introuvable"};
+  const lignes=[];let matiere=0;
+  v.ingredients.forEach(ing=>{
+    const parage=(ing.parage||0)/100, qAjust=ing.q*(1+parage);
+    if(ing.t==="r"){const sv=version(ing.id);
+      if(!sv){lignes.push({label:"Sous-recette introuvable",qty:qAjust,unit:ing.u,pu:0,total:0});return}
+      const sub=coutVersion(sv.id,prof+1);const tot=sub.coutPortion*qAjust;
+      matiere+=tot;lignes.push({label:"↳ "+famille(sv.familleId).nom+" v"+sv.version+" (figée)",qty:qAjust,unit:ing.u,pu:sub.coutPortion,total:tot,sub:true});
+    }else{const a=article(ing.id);const p=puMatiere(ing.id);const tot=p.pu*qAjust;
+      matiere+=tot;lignes.push({label:a.nom+(parage>0?" (parage +"+ing.parage+"%)":""),qty:qAjust,unit:ing.u,pu:p.pu,total:tot,src:p.src});
+    }});
+  const mo=(v.moMin/60)*S().tauxHoraireMO*(1+S().chargesRate);
+  const total=matiere+(v.emballage||0)+mo+(v.energie||0)+(v.fraisGeneraux||0);
+  const rendementNet=v.rendement.qty*(1-(v.cuissonPertePct||0)/100);
+  return{lignes,matiere,emballage:v.emballage||0,mo,energie:v.energie||0,fraisGeneraux:v.fraisGeneraux||0,total,rendementNet,cuisson:v.cuissonPertePct||0,
+    coutPortion:rendementNet>0?total/rendementNet:0,rendementBrut:v.rendement.qty,unit:v.rendement.unit};
+}
+function margeVersion(vid){
+  const v=version(vid);const c=coutVersion(vid);const f=famille(v.familleId);
+  const a=f.produitId?article(f.produitId):null;const pv=a?a.pvHT:0;
+  return{cout:c.coutPortion,pvHT:pv,marge:pv-c.coutPortion,taux:pv>0?(pv-c.coutPortion)/pv*100:0,coutTotal:c};
+}
+/* ---------------- ORDRES DE FABRICATION ---------------- */
+function besoinsVersion(vid,qtyVoulue){
+  const v=version(vid);const f=v.rendement.qty>0?qtyVoulue/v.rendement.qty:0;
+  return v.ingredients.map(ing=>({t:ing.t,id:ing.id,qty:ing.q*f*(1+(ing.parage||0)/100),unit:ing.u,nom:ing.t==="r"?famille(version(ing.id)?version(ing.id).familleId:"").nom+" (v"+(version(ing.id)?version(ing.id).version:"?")+")":article(ing.id).nom}));
+}
+function createOF(famId,verId,qty,siteId,datePrevue){
+  DB.compteurs.of++;
+  const v=version(verId);
+  const snapshot=JSON.parse(JSON.stringify({version:v,cout:coutVersion(verId)})); // snapshot figé
+  const o={id:uid("of"),numero:"OF-"+String(DB.compteurs.of).padStart(3,"0"),familleId:famId,versionId:verId,
+    qtyPrevue:qty,qtyRealisee:0,siteId,datePrevue:datePrevue||today(),dateLancement:"",statut:"planifie",
+    snapshot,besoins:besoinsVersion(verId,qty),consommations:[],manquants:[],lotsProduits:[],coutReel:0};
+  DB.ofs.push(o);return o;
+}
+function lancerOF(id){
+  const o=of(id);if(!o||o.statut!=="planifie")return o;
+  o.consommations=[];o.manquants=[];let coutMat=0;
+  o.besoins.forEach(b=>{
+    if(b.t==="r"){ // sous-recette : on consomme le semi-fini via sa version figée
+      const sv=version(b.id);const subArt=famille(sv.familleId).produitId;
+      const r=consumeFEFO(subArt,b.qty,o.siteId,o.numero+" · "+b.nom);
+      r.details.forEach(d=>{o.consommations.push({articleId:subArt,lotId:d.lotId,numero:d.numero,qty:d.qty,pu:d.pu});coutMat+=d.qty*d.pu});
+      if(r.manquant>0)o.manquants.push({articleId:subArt,qty:r.manquant});
+    }else{
+      const r=consumeFEFO(b.id,b.qty,o.siteId,o.numero+" · "+b.nom);
+      r.details.forEach(d=>{o.consommations.push({articleId:b.id,lotId:d.lotId,numero:d.numero,qty:d.qty,pu:d.pu});coutMat+=d.qty*d.pu});
+      if(r.manquant>0)o.manquants.push({articleId:b.id,qty:r.manquant});
+    }});
+  o.coutMatieres=coutMat;o.statut="encours";o.dateLancement=today();save();return o;
+}
+function validerOF(id,qtyReal){
+  const o=of(id);if(!o)return null;
+  qtyReal=Math.min(qtyReal,o.qtyPrevue-o.qtyRealisee);if(qtyReal<=0)return o;
+  const f=famille(o.familleId);
+  const prorata=o.qtyPrevue>0?qtyReal/o.qtyPrevue:0;
+  const v=o.snapshot.version;
+  const coutSup=(o.coutMatieres||0)*prorata+((v.emballage||0)+(v.energie||0)+(v.fraisGeneraux||0))*prorata+((v.moMin/60)*S().tauxHoraireMO*(1+S().chargesRate))*prorata;
+  o.coutReel=(o.coutReel||0)+coutSup;
+  const lotP=enterStock(f.produitId,qtyReal,o.siteId,o.numero+" · production",o.qtyPrevue>0?o.coutReel/(o.qtyRealisee+qtyReal):0,today(2),"",false);
+  o.lotsProduits.push(lotP.id);o.qtyRealisee+=qtyReal;
+  o.statut=o.qtyRealisee>=o.qtyPrevue-0.0001?"termine":"partiel";
+  save();return o;
+}
+/* ---------------- VENTES / CAISSE / Z ---------------- */
+function encaisser(siteId,lignes,date,source,silencieux){
+  DB.compteurs.vente++;DB.compteurs.ticket++;
+  const v={id:uid("vente"),numero:"V-"+DB.compteurs.vente,ticket:"T-"+DB.compteurs.ticket,date:date||today(),dt:nowDT(),siteId,source:source||"caisse",lignes:[],manquants:[]};
+  lignes.forEach(l=>{const a=article(l.articleId);
+    const r=a.niveau==="produit"?consumeFEFO(l.articleId,l.qty,siteId,"Vente "+v.ticket):{details:[],manquant:0};
+    v.lignes.push({articleId:l.articleId,qty:l.qty,puHT:l.puHT,tva:(l.tva==null?a.tva:l.tva),lots:r.details.map(d=>d.numero).join(", ")});
+    if(r.manquant>0)v.manquants.push({articleId:l.articleId,qty:r.manquant})});
+  v.totalHT=sum(v.lignes,l=>l.qty*l.puHT);v.totalTTC=sum(v.lignes,l=>l.qty*l.puHT*(1+l.tva/100));
+  DB.ventes.push(v);if(!silencieux)save();return v;
+}
+function validerZ(date,siteId,lignes,caisse,silencieux){
+  const mappees=lignes.map(l=>{const a=DB.articles.find(x=>x.code===l.code||x.id===l.code);return{articleId:a?a.id:l.code,qty:l.qty,puHT:l.pu,tva:a?a.tva:S().tvaDefaut,ok:!!a}});
+  const totalHT=sum(mappees,l=>l.qty*l.puHT);
+  const doublon=DB.importsZ.some(z=>z.date===date&&z.siteId===siteId&&Math.abs(z.totalHT-totalHT)<0.01);
+  const z={id:uid("z"),date,siteId,caisse:caisse||"CAISSE-01",lignes:mappees,totalHT,doublon:!!doublon,venteId:""};
+  if(!doublon){const v=encaisser(siteId,mappees.filter(l=>l.ok),date,"z-import",true);z.venteId=v.id}
+  DB.importsZ.push(z);if(!silencieux)save();return z;
+}
+/* ---------------- CLÔTURE (6 flux) ---------------- */
+function addCloture(o){o.id=o.id||uid("clo");DB.clotures.push(o);save();return o}
+function clotureStats(cl){
+  let produit=0,vendu=0,jete=0,casse=0,manque=0,caHT=0;
+  cl.lignes.forEach(l=>{const a=article(l.produitId);
+    produit+=l.produit;vendu+=l.vendu;jete+=l.jete;casse+=l.casse;
+    manque+=(l.jete+l.casse)*a.pvHT;caHT+=l.vendu*a.pvHT});
+  return{produit,vendu,jete,casse,tauxPerte:produit>0?(jete+casse)/produit*100:0,manque,caHT};
+}
+/* ---------------- TRANSFERTS / RETOURS / DIVERS ---------------- */
+function addTransfert(o){
+  o.id=o.id||uid("tr");o.lignes.forEach(l=>{const r=consumeFEFO(l.articleId,l.qty,o.fromSite,"Transfert → "+site(o.toSite).nom);
+    l.lots=r.details.map(d=>d.numero).join(", ");if(r.manquant>0)l.manquant=r.manquant;
+    if(l.qty-(r.manquant||0)>0)enterStock(l.articleId,l.qty-(r.manquant||0),o.toSite,"Transfert ← "+site(o.fromSite).nom,0,today(1),"",false)});
+  DB.transferts.push(o);save();return o;
+}
+function addRetour(o){o.id=o.id||uid("ret");o.date=o.date||today();
+  o.lignes.forEach(l=>{if(o.remiseEnStock!==false)enterStock(l.articleId,l.qty,o.siteId,"Retour client — "+(o.motif||""),0,today(1),"",false)});
+  o.totalHT=sum(o.lignes,l=>l.qty*l.puHT);DB.retours.push(o);save();return o}
+function recettesImpactees(aid){
+  const out=[];
+  DB.versions.filter(v=>v.active).forEach(v=>{if(v.ingredients.some(i=>i.t==="a"&&i.id===aid))out.push(v)});
+  return out;
+}
+function besoinsGlobal(dateMax){
+  const besoins={};
+  DB.ofs.filter(o=>(o.statut==="planifie"||o.statut==="encours")&&(!dateMax||o.datePrevue<=dateMax)).forEach(o=>{
+    o.besoins.forEach(b=>{if(b.t!=="a")return;const reste=o.statut==="encours"?0:1; // en cours : déjà consommé
+      if(!reste)return;besoins[b.id]=(besoins[b.id]||0)+b.qty})});
+  return Object.keys(besoins).map(aid=>({articleId:aid,besoin:besoins[aid],stock:stockOf(aid),manque:Math.max(0,besoins[aid]-stockOf(aid))}));
+}
+/* ---------------- ALERTES (alerte, jamais blocage) ---------------- */
+function getAlertes(){
+  const al=[];const J=S().alerteDlcJours;
+  DB.lots.filter(l=>l.qtyRestante>0.0001).forEach(l=>{
+    if(!l.dlc)al.push({niv:"warn",txt:"Lot "+l.numero+" ("+article(l.articleId).nom+") sans DLC",vue:"articles"});
+    else{const j=daysBetween(today(),l.dlc);
+      if(l.dlc<today())al.push({niv:"bad",txt:"Lot "+l.numero+" ("+article(l.articleId).nom+") PÉRIMÉ depuis "+fmtD(l.dlc),vue:"articles"});
+      else if(j<=J)al.push({niv:"warn",txt:"DLC proche : "+l.numero+" ("+article(l.articleId).nom+") — J-"+j+" ("+fmtD(l.dlc)+")",vue:"articles"})}});
+  DB.lots.filter(l=>l.qtyRestante<-0.0001).forEach(l=>al.push({niv:"bad",txt:"Stock négatif : "+l.numero+" ("+article(l.articleId).nom+")",vue:"articles"}));
+  DB.articles.forEach(a=>{const s=stockOf(a.id);if(a.seuil>0&&s<=a.seuil)al.push({niv:s<=0?"bad":"warn",txt:"Stock bas : "+a.nom+" — reste "+fmtQ(s,a.unite)+" (seuil "+fmtQ(a.seuil,a.unite)+")",vue:"articles"})});
+  DB.mouvements.filter(m=>m.type==="ecart").slice(-8).forEach(m=>al.push({niv:"warn",txt:"Manquant non bloquant : "+article(m.articleId).nom+" ("+fmtN(Math.abs(m.qty))+") — "+m.ref,vue:"dashboard"}));
+  DB.temps.forEach(t=>{const f=frigo(t.frigoId);if(t.temp>f.seuilMax)al.push({niv:"bad",txt:"Température non conforme : "+f.nom+" à "+t.temp+"°C le "+fmtD(t.date)+" (max "+f.seuilMax+"°C)",vue:"haccp"})});
+  DB.ncs.filter(n=>n.statut!=="Clôturée").forEach(n=>al.push({niv:"warn",txt:"Non-conformité ouverte : "+n.type+" — "+n.description,vue:"haccp"}));
+  DB.cakes.filter(c=>c.statut==="devis"&&daysBetween(today(),c.dateEvent)<=3&&daysBetween(today(),c.dateEvent)>=0).forEach(c=>al.push({niv:"warn",txt:"Devis "+c.numero+" ("+c.client+") sans acompte, événement dans "+daysBetween(today(),c.dateEvent)+" j",vue:"cake"}));
+  return al;
+}
+/* Garde-fous de saisie : ×10/÷10 et prix > 2× la référence. Alerte, jamais blocage. */
+function guardCheck(valeur,reference,libelle){
+  if(!reference||reference<=0||!valeur||valeur<=0)return"";
+  const r=valeur/reference;
+  if(r>=10||r<=0.1)return"⚠ "+libelle+" : valeur ×"+fmtN(r,1)+" par rapport à la référence ("+fmtN(reference)+" — "+fmtN(valeur)+"). Vérifiez la saisie (non bloquant).";
+  if(r>=2||r<=0.5)return"⚠ "+libelle+" : écart important vs référence ("+fmtN(reference)+" → "+fmtN(valeur)+"). Vérifiez (non bloquant).";
+  return"";
+}
+
+/* ---------------- UI KIT ---------------- */
+let UI={artNiveau:"all",artQ:"",mvtArt:"",venteSite:"S2",etqPF:"PF-MIL",tracaLot:"",simVer:"",simPV:0,simMat:0,planDate:today()};
+function toast(msg,kind){
+  const t=document.createElement("div");t.className="toast "+(kind||"");t.innerHTML=msg;
+  document.getElementById("toasts").appendChild(t);setTimeout(()=>{t.style.opacity="0";t.style.transition="opacity .4s";setTimeout(()=>t.remove(),400)},kind==="bad"?6000:3800);
+}
+function openModal(titre,corpsHTML,onOk,opts){
+  opts=opts||{};
+  document.getElementById("modalRoot").innerHTML=
+    '<div class="ovl" onclick="if(event.target===this)closeModal()">'+
+    '<div class="modal '+(opts.wide?"wide":"")+'"><div class="mh"><h3>'+titre+'</h3><button class="xbtn" onclick="closeModal()">✕</button></div>'+
+    '<form id="mForm" onsubmit="return false"><div class="mb">'+corpsHTML+'</div>'+
+    '<div class="mf"><span class="muted small" style="flex:1;text-align:left">'+(opts.note||"")+'</span>'+
+    '<button type="button" class="btn" onclick="closeModal()">Annuler</button>'+
+    '<button type="submit" class="btn primary" id="mOk">'+(opts.okLabel||"Enregistrer")+"</button></div></form></div></div>";
+  const f=document.getElementById("mForm");
+  f.addEventListener("submit",e=>{e.preventDefault();const fd=new FormData(f);if(onOk(fd)===false)return;closeModal();refresh()});
+  const first=f.querySelector("input,select,textarea");if(first)setTimeout(()=>first.focus(),60);
+}
+function closeModal(){document.getElementById("modalRoot").innerHTML=""}
+function confirmDlg(msg,okLabel){
+  return new Promise(res=>{openModal("Confirmation","<p>"+msg+"</p>",()=>{res(true)},{okLabel:okLabel||"Confirmer",note:""});
+    const f=document.getElementById("mForm");const old=f.onsubmit;
+    document.querySelector(".modal .mf .btn").onclick=()=>{closeModal();res(false)};
+    document.querySelector(".ovl").onclick=e=>{if(e.target.classList.contains("ovl")){closeModal();res(false)}};
+  });
+}
+function tbl(heads,rows,opts){
+  opts=opts||{};
+  if(!rows.length)return '<div class="callout info">Aucune donnée pour le moment.</div>';
+  return '<div class="tbl-wrap"><table class="tbl"><thead><tr>'+heads.map(h=>'<th class="'+(h[1]||"")+'">'+h[0]+"</th>").join("")+'</tr></thead><tbody>'+
+    rows.map(r=>"<tr>"+r.map((c,i)=>'<td class="'+((heads[i]&&heads[i][1])||"")+'">'+c+"</td>").join("")+"</tr>").join("")+"</tbody></table></div>";
+}
+function kpi(lib,val,sub,coul){return '<div class="kpi" style="--kc:'+(coul||"#7c3aed")+'"><div class="l">'+lib+'</div><div class="v">'+val+'</div><div class="s">'+(sub||"")+"</div></div>"}
+function bd(txt,kind){return '<span class="bd '+(kind||"grey")+'">'+txt+"</span>"}
+function fld(label,inner,hint){return '<div class="fld"><label>'+label+"</label>"+inner+(hint?'<div class="hint">'+hint+"</div>":"")+"</div>"}
+function inp(name,val,type,attrs){return '<input class="inp" name="'+name+'" type="'+(type||"text")+'" value="'+esc(val==null?"":val)+'" '+(attrs||"")+">"}
+function selOpts(liste,selected,valFn,labFn){
+  return liste.map(x=>{const v=valFn?valFn(x):x[0],l=labFn?labFn(x):x[1];
+    return '<option value="'+esc(v)+'"'+(String(v)===String(selected)?" selected":"")+">"+esc(l)+"</option>"}).join("");
+}
+function sel(name,liste,selected,attrs){return '<select class="inp" name="'+name+'" '+(attrs||"")+">"+selOpts(liste,selected)+"</select>"}
+function artOptions(niveaux,selected){
+  const arts=DB.articles.filter(a=>!niveaux||niveaux.includes(a.niveau));
+  return selOpts(arts.map(a=>[a.id,a.code+" — "+a.nom+" ("+fmtQ(stockOf(a.id),a.unite)+")"]),selected);
+}
+function barChart(paires,couleur){
+  const max=Math.max.apply(null, paires.map(p=>p[1]).concat([1]));
+  const W=560,H=190,pad=34,bw=(W-pad*2)/paires.length;
+  let s='<svg viewBox="0 0 '+W+" "+H+'" width="100%" role="img">';
+  paires.forEach((p,i)=>{const h=Math.max(2,(H-pad*2)*p[1]/max);const x=pad+i*bw+4,y=H-pad-h;
+    s+='<rect x="'+x+'" y="'+y+'" width="'+(bw-8)+'" height="'+h+'" rx="4" fill="'+(couleur||"#7c3aed")+'" opacity=".88"><title>'+esc(p[0])+" : "+fmtN(p[1])+"</title></rect>";
+    s+='<text x="'+(x+(bw-8)/2)+'" y="'+(H-pad+14)+'" font-size="10" text-anchor="middle" fill="#667085">'+esc(p[0])+"</text>"});
+  return s+"</svg>";
+}
+function printHTML(titre,corps){
+  const w=window.open("","_blank");
+  w.document.write('<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>'+esc(titre)+"</title>"+
+    "<style>body{font-family:Arial,sans-serif;padding:24px;color:#111}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #999;padding:6px 8px;text-align:left}h1{font-size:20px}h2{font-size:16px;margin-top:22px}.muted{color:#555;font-size:12px}.etq{border:2px solid #111;border-radius:10px;padding:14px;max-width:400px}.alg{font-weight:bold;text-decoration:underline}@media print{.np{display:none}}</style></head><body>"+
+    corps+'<p class="muted">'+esc(S().labName)+" — édité le "+fmtDT(nowDT())+'</p><p class="np"><button onclick="window.print()">🖨 Imprimer</button></p></body></html>');
+  w.document.close();
+}
+function refresh(){renderNav();render()}
+function majAlertes(){
+  const n=getAlertes().length;const e=document.getElementById("alertCount");if(e)e.textContent=n;
+}
+function quickBackup(){download("patisgest-sauvegarde-"+today()+".json",JSON.stringify(DB,null,1),"application/json");toast("💾 Sauvegarde téléchargée (gardez ce fichier précieusement).","ok")}
+function showAlertes(){
+  const al=getAlertes();
+  openModal("⚠ Alertes ("+al.length+")",al.length?'<ul class="list-plain">'+al.map(a=>"<li>"+bd(a.niv==="bad"?"Urgent":"À vérifier",a.niv==="bad"?"bad":"warn")+" "+esc(a.txt)+"</li>").join("")+"</ul>":'<div class="callout ok">Aucune alerte. Tout est en ordre. 🎉</div>',null,{okLabel:"Fermer"});
+}
+
+/* ================= VUE : TABLEAU DE BORD ================= */
+function vDashboard(){
+  const t=today();
+  const ventesJ=DB.ventes.filter(v=>v.date===t), ventes7=DB.ventes.filter(v=>daysBetween(v.date,t)<=6&&v.date<=t);
+  const caJ=sum(ventesJ,v=>v.totalHT), ca7=sum(ventes7,v=>v.totalHT);
+  // Marge réelle 7 j : CA - coût des produits vendus (coût portion recette active)
+  let coutVendu=0;
+  ventes7.forEach(v=>v.lignes.forEach(l=>{const f=DB.familles.find(x=>x.produitId===l.articleId);
+    if(f){const av=activeVersion(f.id);if(av)coutVendu+=coutVersion(av.id).coutPortion*l.qty}}));
+  const marge=ca7-coutVendu;
+  const clo7=DB.clotures.filter(c=>daysBetween(c.date,t)<=6&&c.date<=t);
+  let p=0,perte=0,mq=0;clo7.forEach(c=>{const s=clotureStats(c);p+=s.produit;perte+=s.jete+s.casse;mq+=s.manque});
+  const ofEnc=DB.ofs.filter(o=>o.statut==="encours"||o.statut==="partiel").length;
+  const al=getAlertes();
+  const jours=[];for(let i=6;i>=0;i--){const d=today(-i);jours.push([fmtD(d).slice(0,5),sum(DB.ventes.filter(v=>v.date===d),v=>v.totalHT)])}
+  const topG=groupBy(ventes7.flatMap(v=>v.lignes.map(l=>({a:l.articleId,q:l.qty,ca:l.qty*l.puHT}))),x=>x.a);
+  const top=Object.keys(topG).map(k=>({a:article(k),q:sum(topG[k],x=>x.q),ca:sum(topG[k],x=>x.ca)})).sort((a,b)=>b.ca-a.ca).slice(0,5);
+  return '<div class="grid g4">'+
+    kpi("CA aujourd'hui (HT)",M(caJ),ventesJ.length+" ticket(s)","#12b76a")+
+    kpi("CA 7 jours (HT)",M(ca7),"Marge réelle : "+M(marge),"#7c3aed")+
+    kpi("Taux de perte 7 j",fmtN(p?perte/p*100:0,1)+" %","Manque à gagner : "+M(mq),"#f79009")+
+    kpi("OF en cours",ofEnc,DB.ofs.filter(o=>o.statut==="planifie").length+" planifié(s)","#2e90fa")+"</div>"+
+    '<div class="grid g2"><div class="card"><h2>📈 Chiffre d\'affaires — 7 derniers jours (HT)</h2>'+barChart(jours)+'</div>'+
+    '<div class="card"><h2>🏆 Top produits (7 j)</h2>'+tbl([["Produit"],["Qté","num"],["CA HT","num"]],top.map(x=>["<b>"+esc(x.a.nom)+"</b>",fmtN(x.q,0),M(x.ca)]))+"</div></div>"+
+    '<div class="card"><h2>⚠ Alertes ('+al.length+") — <span class='muted small'>alerte, jamais blocage</span></h2>"+
+    (al.length?'<ul class="list-plain">'+al.slice(0,12).map(a=>"<li>"+bd(a.niv==="bad"?"Urgent":"À vérifier",a.niv==="bad"?"bad":"warn")+" "+esc(a.txt)+' <button class="btn sm" onclick="go(\''+a.vue+'\')">Voir</button></li>').join("")+"</ul>"+(al.length>12?'<p class="muted small">… et '+(al.length-12)+" autres. Cliquez sur « ⚠ Alertes » en haut pour tout voir.</p>":'<p class="muted small">Cliquez sur « ⚠ Alertes » en haut pour le détail complet.</p>'):'<div class="callout ok">Aucune alerte. Tout est en ordre. 🎉</div>')+"</div>"+
+    '<div class="card"><h2>🧭 Démarrage rapide</h2><p class="muted">Votre logiciel est prêt avec des données de démonstration. Parcours conseillé :</p>'+
+    '<div class="toolbar"><button class="btn primary" onclick="go(\'articles\')">1 · Voir les stocks</button><button class="btn" onclick="go(\'recettes\')">2 · Coûts & marges</button><button class="btn" onclick="go(\'production\')">3 · Lancer une production</button><button class="btn" onclick="go(\'ventes\')">4 · Encaisser</button><button class="btn" onclick="go(\'guide\')">❓ Guide complet</button></div></div>';
+}
+/* ================= VUE : ARTICLES & STOCKS ================= */
+function vArticles(){
+  const nivs=[["all","Tous"],["matiere","Matières"],["semifini","Semi-finis"],["produit","Produits finis"],["emballage","Emballages"],["consommable","Consommables"]];
+  const arts=DB.articles.filter(a=>(UI.artNiveau==="all"||a.niveau===UI.artNiveau)&&(!UI.artQ||(a.nom+a.code).toLowerCase().includes(UI.artQ.toLowerCase())));
+  const rows=arts.map(a=>{const s=stockOf(a.id);const dm=dlcMin(a.id);
+    const st=s<-0.0001?bd(fmtQ(s,a.unite),"bad"):(a.seuil>0&&s<=a.seuil?bd(fmtQ(s,a.unite),"warn"):fmtQ(s,a.unite));
+    return ["<b>"+esc(a.nom)+"</b><br><span class='tiny muted'>"+esc(a.code)+"</span>",LEVELS[a.niveau],st,
+      dm?(daysBetween(today(),dm)<=S().alerteDlcJours?bd(fmtD(dm),"warn"):fmtD(dm)):"<span class='muted'>—</span>",
+      a.niveau==="produit"?M(a.pvHT):"<span class='muted'>—</span>",
+      '<button class="btn sm" onclick="artLots(\''+a.id+'\')">Lots</button> <button class="btn sm" onclick="artMvt(\''+a.id+'\')">Mouvements</button> <button class="btn sm" onclick="editArticle(\''+a.id+'\')">✏️</button>']});
+  const mvts=DB.mouvements.filter(m=>!UI.mvtArt||m.articleId===UI.mvtArt).slice(-60).reverse();
+  return '<div class="toolbar"><button class="btn primary" onclick="editArticle(\'\')">+ Nouvel article</button>'+
+    '<button class="btn ok" onclick="entreeStock()">📥 Entrée stock (lot)</button><button class="btn" onclick="correctionStock()">⚖️ Correction / inventaire</button><span class="sp"></span>'+
+    '<input class="inp" style="max-width:220px" placeholder="🔍 Rechercher…" value="'+esc(UI.artQ)+'" oninput="UI.artQ=this.value;render()"></div>'+
+    '<div class="tabs">'+nivs.map(n=>'<button class="tab '+(UI.artNiveau===n[0]?"on":"")+'" onclick="UI.artNiveau=\''+n[0]+'\';render()">'+n[1]+"</button>").join("")+"</div>"+
+    '<div class="card"><h2>📦 Articles ('+arts.length+")</h2>"+tbl([["Article"],["Niveau"],["Stock total","num"],["DLC min"],["PV HT","num"],["Actions"]],rows)+
+    '<p class="tiny muted">Le stock = somme des lots (mouvements immuables). Le CUMP n\'est qu\'un indicateur : le coût réel vient des lots FEFO.</p></div>'+
+    '<div class="card"><h2>📜 Derniers mouvements</h2><div class="toolbar"><select class="inp" style="max-width:280px" onchange="UI.mvtArt=this.value;render()"><option value="">Tous les articles</option>'+artOptions(null,UI.mvtArt)+'</select>'+
+    '<button class="btn sm" onclick="exportMouvements()">⬇️ Export CSV</button></div>'+
+    tbl([["Date"],["Article"],["Lot"],["Type"],["Qté","num"],["Référence / motif"]],mvts.map(m=>{const a=article(m.articleId);const l=m.lotId?lot(m.lotId):null;
+      const tc={entree:"ok",sortie:"info",ecart:"bad",ajustement:"warn"}[m.type]||"grey";
+      return [fmtD(m.date),esc(a.nom),l?esc(l.numero):"<span class='muted'>—</span>",bd(m.type,tc),(m.qty>0?"+":"")+fmtN(m.qty)+(m.pu?" <span class='tiny muted'>@ "+M(m.pu)+"</span>":""),esc(m.ref+(m.motif?" · "+m.motif:""))]}))+"</div>";
+}
+function editArticle(id){
+  const a=id?article(id):{id:"",code:"",nom:"",niveau:"matiere",unite:"kg",seuil:0,pvHT:0,tva:S().tvaDefaut};
+  openModal(id?"✏️ Modifier l'article":"➕ Nouvel article",
+    '<div class="row r2">'+fld("Code",inp("code",a.code,"text",'required maxlength="20"'))+fld("Nom",inp("nom",a.nom,"text",'required maxlength="60"'))+"</div>"+
+    '<div class="row r3">'+fld("Niveau",sel("niveau",Object.keys(LEVELS).map(k=>[k,LEVELS[k]]),a.niveau))+fld("Unité",sel("unite",UNITS.map(u=>[u,u]),a.unite))+fld("Seuil d'alerte",inp("seuil",a.seuil,"number",'step="any" min="0"'))+"</div>"+
+    '<div class="row r2">'+fld("Prix de vente HT (produits finis)",inp("pvHT",a.pvHT,"number",'step="any" min="0"'))+fld("TVA %",sel("tva",TVA_CHOICES.map(t=>[t,t+" %"]),a.tva))+"</div>"+
+    '<div class="callout info">Structure à 3 niveaux : <b>matière → semi-fini → produit fini</b>. Les ventes ne concernent que les produits finis ; les lots et la traçabilité partent des matières.</div>',
+    fd=>{const o={code:fd.get("code").trim(),nom:fd.get("nom").trim(),niveau:fd.get("niveau"),unite:fd.get("unite"),seuil:num(fd.get("seuil")),pvHT:num(fd.get("pvHT")),tva:num(fd.get("tva"))};
+      if(id)Object.assign(article(id),o);else{DB.articles.push(Object.assign({id:uid("art")},o));toast("Article créé. Créez son premier lot via « Entrée stock ».","ok")}
+      save()});
+}
+function artLots(aid){
+  const a=article(aid);const ls=lotsOf(aid);
+  openModal("📦 Lots — "+esc(a.nom),
+    tbl([["N° lot"],["Site"],["Qté restante","num"],["PU","num"],["DLC"],["Fournisseur"],["Statut"],[""]],ls.map(l=>{const st=lotStatut(l);
+      return [ "<b>"+esc(l.numero)+"</b><br><span class='tiny muted'>reçu "+fmtD(l.date)+"</span>",esc(site(l.siteId).nom),fmtQ(l.qtyRestante,a.unite)+(l.qtyInitiale?" <span class='tiny muted'>/ "+fmtQ(l.qtyInitiale,a.unite)+"</span>":""),
+      l.pu?M(l.pu):"—",l.dlc?fmtD(l.dlc)+(l.congele?" ❄️":""):"—",esc(fournisseur(l.fournisseurId).nom),bd(st[0],st[1]),
+      '<button class="btn sm" onclick="toggleLot(\''+l.id+'\')">'+(l.bloque?"Débloquer":"Bloquer")+"</button>"]}))+
+    '<p class="small muted">CUMP (indicatif) : <b>'+M(cumpOf(aid))+'</b> · Dernier prix : <b>'+(lastPrice(aid)?M(lastPrice(aid)):"—")+'</b> · Consommation en FEFO (DLC la plus proche d\'abord).</p>',
+    null,{wide:true,okLabel:"Fermer"});
+}
+function toggleLot(id){const l=lot(id);l.bloque=!l.bloque;save();closeModal();toast(l.bloque?"Lot bloqué (exclu du FEFO).":"Lot débloqué.","warn");refresh()}
+function artMvt(aid){UI.mvtArt=aid;render();toast("Mouvements filtrés sur : "+article(aid).nom)}
+function entreeStock(pre){
+  pre=pre||{};
+  openModal("📥 Entrée stock (création d'un lot)",
+    '<div id="guardBox"></div>'+
+    fld("Article",'<select class="inp" name="articleId" id="esArt" onchange="esGuard()">'+artOptions(null,pre.articleId)+"</select>")+
+    '<div class="row r3">'+fld("Quantité",inp("qty",pre.qty||"","number",'step="any" min="0.001" required'))+fld("Prix unitaire d'achat (HT)",inp("pu",pre.pu||"","number",'step="any" min="0" oninput="esGuard()"'))+fld("DLC / DDM",inp("dlc",pre.dlc||"","date"))+"</div>"+
+    '<div class="row r3">'+fld("Site",sel("siteId",DB.sites.map(s=>[s.id,s.nom]),pre.siteId||"S1"))+fld("Fournisseur",'<select class="inp" name="fournisseurId"><option value="">—</option>'+selOpts(DB.fournisseurs.map(f=>[f.id,f.nom]),pre.fournisseurId)+"</select>")+fld("Date de réception",inp("date",today(),"date"))+"</div>"+
+    fld("Référence (n° BL, facture…)",inp("ref",pre.ref||"","","maxlength='60'")),
+    fd=>{const aid=fd.get("articleId");const l=newLot({articleId:aid,qty:num(fd.get("qty")),pu:num(fd.get("pu")),dlc:fd.get("dlc"),siteId:fd.get("siteId"),fournisseurId:fd.get("fournisseurId"),date:fd.get("date"),ref:fd.get("ref")});
+      const g=guardCheck(l.pu,lastPrice(aid),"Prix d'achat");save();
+      toast("Lot <b>"+l.numero+"</b> créé ("+fmtQ(l.qtyInitiale,article(aid).unite)+")."+(g?"<br>"+g:""),g?"warn":"ok")});
+}
+function esGuard(){
+  const aid=document.querySelector("#esArt").value;const pu=num(document.querySelector("[name=pu]").value);
+  const g=guardCheck(pu,lastPrice(aid),"Prix d'achat");const lp=lastPrice(aid);
+  document.getElementById("guardBox").innerHTML=(lp?"<p class='small muted'>Dernier prix : <b>"+M(lp)+"</b> · CUMP : <b>"+M(cumpOf(aid))+"</b></p>":"")+(g?'<div class="callout warn">'+g+"</div>":"");
+}
+function correctionStock(){
+  openModal("⚖️ Correction / inventaire (motif obligatoire)",
+    fld("Article",'<select class="inp" name="articleId">'+artOptions(null,"")+"</select>")+
+    fld("Lot concerné (vide = ajustement global)",'<select class="inp" name="lotId"><option value="">— ajustement sans lot —</option></select><div class="hint">Choisissez d\'abord l\'article, la liste des lots suivra.</div>')+
+    '<div class="row r2">'+fld("Nouvelle quantité constatée",inp("qty","","number",'step="any" required'))+fld("Site",sel("siteId",DB.sites.map(s=>[s.id,s.nom]),"S1"))+"</div>"+
+    fld("Motif (obligatoire : casse, erreur, inventaire…)",inp("motif","","text",'required maxlength="80"')),
+    fd=>{const aid=fd.get("articleId");
+      const l=DB.lots.find(x=>x.articleId===aid&&(!fd.get("lotId")||x.id===fd.get("lotId"))&&x.siteId===fd.get("siteId"));
+      if(!l){toast("Aucun lot trouvé pour cet article sur ce site. Faites d'abord une entrée stock.","bad");return false}
+      const anc=l.qtyRestante;l.qtyRestante=num(fd.get("qty"));
+      addMouvement({articleId:aid,lotId:l.id,type:"ajustement",qty:l.qtyRestante-anc,siteId:l.siteId,ref:"Inventaire/correction",motif:fd.get("motif")});
+      save();toast("Stock OK ("+esc(fd.get("motif"))+").","ok")});
+  document.querySelector("[name=articleId]").addEventListener("change",e=>{
+    const ls=lotsOf(e.target.value);
+    document.querySelector("[name=lotId]").innerHTML='<option value="">— ajustement sans lot —</option>'+selOpts(ls.map(l=>[l.id,l.numero+" ("+fmtN(l.qtyRestante)+")"]),null);
+  });
+}
+function exportMouvements(){
+  const rows=[["Date","Article","Code","Lot","Type","Quantité","PU","Référence","Motif"]];
+  DB.mouvements.forEach(m=>{const a=article(m.articleId);const l=m.lotId?lot(m.lotId):null;
+    rows.push([m.date,a.nom,a.code,l?l.numero:"",m.type,m.qty,m.pu||"",m.ref||"",m.motif||""])});
+  download("patisgest-mouvements.csv",toCSV(rows),"text/csv");toast("Export CSV téléchargé.","ok");
+}
+/* ================= VUE : ACHATS & FOURNISSEURS ================= */
+function vAchats(){
+  const fr=tbl([["Fournisseur"],["Contact"],["Délai"],["Score"],["Actions"]],DB.fournisseurs.map(f=>
+    ["<b>"+esc(f.nom)+"</b>",esc(f.contact||"—")+(f.tel?"<br><span class='tiny'>📞 "+esc(f.tel)+"</span>":""),f.delaiJours+" j","★".repeat(f.score||0)+"<span class='muted'>"+"★".repeat(Math.max(0,5-(f.score||0)))+"</span>",
+    '<button class="btn sm" onclick="editFournisseur(\''+f.id+'\')">✏️</button>']));
+  const bc=tbl([["N°"],["Fournisseur"],["Date"],["Lignes"],["Statut"],["Actions"]],DB.bcs.slice().reverse().map(b=>
+    ["<b>"+esc(b.numero)+"</b>",esc(fournisseur(b.fournisseurId).nom),fmtD(b.date),
+    b.lignes.map(l=>esc(article(l.articleId).nom)+" × "+fmtQ(l.qty,article(l.articleId).unite)+" <span class='tiny muted'>(reçu "+fmtN(l.recue||0)+")</span>").join("<br>"),
+    bd.apply(null,BC_STATUTS[b.statut]||["?","grey"]),
+    (b.statut==="commande"||b.statut==="partiel"?'<button class="btn sm primary" onclick="receptionBC(\''+b.id+'\')">📥 Réceptionner</button> ':"")+'<button class="btn sm" onclick="printBC(\''+b.id+'\')">🖨</button>']));
+  // Hausse de prix + recettes impactées
+  const hausses=[];
+  DB.articles.filter(a=>a.niveau==="matiere").forEach(a=>{const hs=DB.prixHisto.filter(h=>h.articleId===a.id).sort((x,y)=>x.date<y.date?1:-1);
+    if(hs.length>=2){const pct=(hs[0].pu-hs[1].pu)/hs[1].pu*100;
+      if(pct>=S().alerteHaussePct)hausses.push({a,pct,recettes:recettesImpactees(a.id)})}});
+  const besoins=besoinsGlobal("").filter(b=>b.manque>0);
+  return '<div class="toolbar"><button class="btn primary" onclick="editFournisseur(\'\')">+ Fournisseur</button><button class="btn primary" onclick="editBC(\'\')">+ Bon de commande</button></div>'+
+    '<div class="card"><h2>🏭 Fournisseurs</h2>'+fr+"</div>"+
+    '<div class="card"><h2>🧾 Bons de commande</h2>'+bc+"</div>"+
+    '<div class="grid g2"><div class="card"><h2>📈 Hausse de prix fournisseurs (≥ '+S().alerteHaussePct+'%)</h2>'+
+    (hausses.length?tbl([["Article"],["Hausse"],["Recettes impactées"]],hausses.map(h=>["<b>"+esc(h.a.nom)+"</b>","<b style='color:var(--bad)'>+"+fmtN(h.pct,1)+" %</b>",h.recettes.length?h.recettes.map(v=>esc(famille(v.familleId).nom)).join(", "):"<span class='muted'>aucune</span>"])):'<div class="callout ok">Aucune hausse significative. Les hausses futures afficheront ici les recettes impactées.</div>')+"</div>"+
+    '<div class="card"><h2>🛒 Liste de courses auto (OF planifiés − stock)</h2>'+
+    (besoins.length?tbl([["Article"],["Besoin","num"],["Stock","num"],["À acheter","num"]],besoins.map(b=>{const a=article(b.articleId);return ["<b>"+esc(a.nom)+"</b>",fmtQ(b.besoin,a.unite),fmtQ(b.stock,a.unite),"<b>"+fmtQ(b.manque,a.unite)+"</b>"]})):'<div class="callout ok">Aucun besoin : les OF planifiés sont couverts par le stock.</div>')+"</div></div>";
+}
+function editFournisseur(id){
+  const f=id?fournisseur(id):{id:"",nom:"",contact:"",tel:"",email:"",score:3,delaiJours:1};
+  openModal(id?"✏️ Fournisseur":"➕ Nouveau fournisseur",
+    fld("Nom",inp("nom",f.nom,"text",'required maxlength="60"'))+
+    '<div class="row r2">'+fld("Contact",inp("contact",f.contact,"text",'maxlength="40"'))+fld("Téléphone",inp("tel",f.tel,"text",'maxlength="20"'))+"</div>"+
+    '<div class="row r2">'+fld("Score (1-5)",inp("score",f.score,"number",'min="1" max="5" step="1"'))+fld("Délai moyen (jours)",inp("delaiJours",f.delaiJours,"number",'min="0" step="1"'))+"</div>",
+    fd=>{const o={nom:fd.get("nom"),contact:fd.get("contact"),tel:fd.get("tel"),score:clamp(parseInt(fd.get("score"))||3,1,5),delaiJours:parseInt(fd.get("delaiJours"))||0};
+      if(id)Object.assign(fournisseur(id),o);else DB.fournisseurs.push(Object.assign({id:uid("fr")},o));save();toast("Fournisseur enregistré.","ok")});
+}
+let BC_TMP=[];
+function editBC(){
+  BC_TMP=[{articleId:"MP-FAR",qty:10,pu:lastPrice("MP-FAR")||0}];
+  openModal("🧾 Nouveau bon de commande",'<div id="bcBody"></div>',
+    fd=>{const lignes=BC_TMP.filter(l=>l.qty>0);
+      if(!lignes.length){toast("Ajoutez au moins une ligne.","bad");return false}
+      DB.compteurs.bc++;DB.bcs.push({id:uid("bc"),numero:"BC-"+String(DB.compteurs.bc).padStart(3,"0"),fournisseurId:fd.get("fournisseurId"),date:fd.get("date")||today(),statut:"commande",lignes:lignes.map(l=>({...l,recue:0})),notes:fd.get("notes")});
+      save();toast("Bon de commande créé (statut : commandé).","ok")},{wide:true,okLabel:"Commander"});
+  drawBC();
+}
+function drawBC(){
+  const el=document.getElementById("bcBody");if(!el)return;
+  el.innerHTML='<div class="row r2">'+fld("Fournisseur",sel("fournisseurId",DB.fournisseurs.map(f=>[f.id,f.nom]),DB.fournisseurs[0]?DB.fournisseurs[0].id:""))+fld("Date",inp("date",today(),"date"))+"</div>"+
+    tbl([["Article"],["Qté","num"],["PU HT","num"],["Montant","num"],[""]],BC_TMP.map((l,i)=>{const a=article(l.articleId);
+      return ['<select class="inp" onchange="BC_TMP['+i+'].articleId=this.value;BC_TMP['+i+'].pu=lastPrice(this.value)||0;drawBC()">'+artOptions(["matiere","emballage","consommable"],l.articleId)+"</select>",
+      '<input class="inp" type="number" step="any" min="0" value="'+l.qty+'" onchange="BC_TMP['+i+'].qty=num(this.value);drawBC()">',
+      '<input class="inp" type="number" step="any" min="0" value="'+l.pu+'" onchange="BC_TMP['+i+'].pu=num(this.value);drawBC()">',
+      M(l.qty*l.pu),'<button type="button" class="btn sm danger" onclick="BC_TMP.splice('+i+',1);drawBC()">✕</button>']}))+
+    '<div class="toolbar"><button type="button" class="btn sm" onclick="BC_TMP.push({articleId:\'MP-FAR\',qty:1,pu:lastPrice(\'MP-FAR\')||0});drawBC()">+ Ligne</button><span class="sp"></span><b>Total : '+M(sum(BC_TMP,l=>l.qty*l.pu))+"</b></div>"+
+    fld("Notes",inp("notes","","text",'maxlength="120"'));
+}
+function receptionBC(id){
+  const b=DB.bcs.find(x=>x.id===id);
+  openModal("📥 Réception — "+esc(b.numero),
+    '<div class="callout info">Chaque ligne réceptionnée crée un <b>lot</b> (DLC obligatoire recommandée). Le prix saisi alimente l\'historique et le CUMP indicatif.</div>'+
+    b.lignes.map((l,i)=>{const a=article(l.articleId);const reste=l.qty-(l.recue||0);
+      return '<div class="card" style="margin-bottom:10px"><b>'+esc(a.nom)+"</b> — commandé "+fmtQ(l.qty,a.unite)+", déjà reçu "+fmtN(l.recue||0)+
+      '<div class="row r3" style="margin-top:8px">'+fld("Qté reçue",'<input class="inp" type="number" step="any" min="0" max="'+reste+'" name="q'+i+'" value="'+reste+'">')+fld("PU réel",'<input class="inp" type="number" step="any" min="0" name="p'+i+'" value="'+l.pu+'">')+fld("DLC",'<input class="inp" type="date" name="d'+i+'">')+"</div></div>"}).join(""),
+    fd=>{b.lignes.forEach((l,i)=>{const q=num(fd.get("q"+i));if(q<=0)return;
+        const nl=newLot({articleId:l.articleId,qty:q,pu:num(fd.get("p"+i))||l.pu,dlc:fd.get("d"+i),siteId:"S1",fournisseurId:b.fournisseurId,date:today(),ref:b.numero});
+        l.recue=(l.recue||0)+q;l.dlc=fd.get("d"+i);
+        const g=guardCheck(num(fd.get("p"+i)),l.pu,"Prix réception vs commande");if(g)toast(g,"warn")});
+      b.statut=b.lignes.every(l=>(l.recue||0)>=l.qty-0.0001)?"recu":"partiel";save();
+      toast("Réception enregistrée — "+esc(b.numero)+" : "+(BC_STATUTS[b.statut][0])+".","ok")},{wide:true,okLabel:"Valider la réception"});
+}
+function printBC(id){
+  const b=DB.bcs.find(x=>x.id===id);const f=fournisseur(b.fournisseurId);
+  printHTML("Bon de commande "+b.numero,"<h1>Bon de commande "+esc(b.numero)+"</h1><p><b>"+esc(S().labName)+"</b><br>Fournisseur : <b>"+esc(f.nom)+"</b><br>Date : "+fmtD(b.date)+"</p>"+
+    "<table><tr><th>Article</th><th>Qté</th><th>PU HT</th><th>Total HT</th></tr>"+
+    b.lignes.map(l=>{const a=article(l.articleId);return "<tr><td>"+esc(a.nom)+"</td><td>"+fmtQ(l.qty,a.unite)+"</td><td>"+M(l.pu)+"</td><td>"+M(l.qty*l.pu)+"</td></tr>"}).join("")+
+    "</table><p><b>Total HT : "+M(sum(b.lignes,l=>l.qty*l.pu))+"</b></p><p>"+esc(b.notes||"")+"</p>");
+}
+
+/* ================= VUE : RECETTES & COÛTS ================= */
+function vRecettes(){
+  const rows=[];
+  DB.familles.forEach(f=>{const vers=DB.versions.filter(v=>v.familleId===f.id);
+    vers.forEach(v=>{const m=margeVersion(v.id);const a=f.produitId?article(f.produitId):null;
+      rows.push(["<b>"+esc(f.nom)+"</b> <span class='tiny muted'>v"+v.version+"</span> "+(v.active?bd("active","ok"):bd("archivée","grey")),
+      fmtQ(v.rendement.qty,v.rendement.unit),M(m.cout),a?M(a.pvHT):"—",
+      m.pvHT?M(m.marge)+" ("+fmtN(m.taux,1)+" %)":"—",
+      '<button class="btn sm primary" onclick="ficheRecette(\''+v.id+'\')">Fiche coût</button> <button class="btn sm" onclick="dupliquerVersion(\''+v.id+'\')">Dupliquer</button> '+(v.active?"":'<button class="btn sm ok" onclick="activerVersion(\''+v.id+'\')">Activer</button>')])})});
+  return '<div class="toolbar"><button class="btn primary" onclick="editFamille(\'\')">+ Famille de recette</button>'+
+    '<span class="muted small">Versionnage : famille + version immuable · sous-recette = version figée · coût matière au lot FEFO</span></div>'+
+    '<div class="card"><h2>📖 Recettes, versions & marges</h2>'+
+    tbl([["Recette"],["Rendement brut"],["Coût / portion","num"],["PV HT","num"],["Marge (HT)","num"],["Actions"]],rows)+
+    '<p class="tiny muted">Formules : parage → consommation ×(1+parage%) · cuisson → rendement ×(1-cuisson%) · MO chargée = temps × taux × (1+charges) · <b>jamais de TVA dans le coût</b> · marge sur HT.</p></div>';
+}
+function ficheRecette(vid){
+  const v=version(vid),f=famille(v.familleId),m=margeVersion(vid),c=m.coutTotal;
+  openModal("📖 "+esc(f.nom)+" — version "+v.version+(v.active?" (active)":" (archivée)"),
+    '<div class="grid g4">'+kpi("Coût total",M(c.total),"Rendement net : "+fmtQ(c.rendementNet,c.unit),"#7c3aed")+kpi("Coût / "+c.unit,M(c.coutPortion),"Cuisson −"+c.cuisson+"%","#2e90fa")+
+    kpi("PV HT",(f.produitId?M(article(f.produitId).pvHT):"—"),"Coef conseillé ×"+S().coefConseille,"#12b76a")+kpi("Marge",M(m.marge),fmtN(m.taux,1)+" %","#f79009")+"</div>"+
+    "<h3>Ingrédients (quantités ajustées du parage)</h3>"+
+    tbl([["Ingrédient"],["Qté ajustée","num"],["PU","num"],["Total","num"]],c.lignes.map(l=>["<b>"+esc(l.label)+"</b>"+(l.src?"<br><span class='tiny muted'>"+esc(l.src)+"</span>":""),fmtQ(l.qty,l.unit),M(l.pu),"<b>"+M(l.total)+"</b>"]))+
+    tbl([["Charge"],["Montant","num"]],[["Matières",M(c.matiere)],["Emballage (forfait)",M(c.emballage)],["Main-d'œuvre chargée ("+v.moMin+" min)",M(c.mo)],["Énergie (forfait)",M(c.energie)],["Frais généraux (forfait)",M(c.fraisGeneraux)],["<b>TOTAL</b>","<b>"+M(c.total)+"</b>"]])+
+    (v.notes?'<div class="callout info">'+esc(v.notes)+"</div>":"")+
+    '<p class="small"><button class="btn sm" onclick="printFiche(\''+vid+'\')">🖨 Imprimer la fiche</button></p>',
+    null,{wide:true,okLabel:"Fermer"});
+}
+function printFiche(vid){
+  const v=version(vid),f=famille(v.familleId),c=coutVersion(vid);
+  printHTML("Fiche recette "+f.nom,"<h1>"+esc(f.nom)+" — v"+v.version+"</h1><p>Rendement brut : "+fmtQ(v.rendement.qty,v.rendement.unit)+" · Rendement net (cuisson −"+v.cuissonPertePct+"%) : <b>"+fmtQ(c.rendementNet,c.unit)+"</b></p>"+
+    "<table><tr><th>Ingrédient</th><th>Qté</th><th>PU</th><th>Total</th></tr>"+c.lignes.map(l=>"<tr><td>"+esc(l.label)+"</td><td>"+fmtQ(l.qty,l.unit)+"</td><td>"+M(l.pu)+"</td><td>"+M(l.total)+"</td></tr>").join("")+"</table>"+
+    "<p>Matières : "+M(c.matiere)+" · Emballage : "+M(c.emballage)+" · MO chargée : "+M(c.mo)+" · Énergie : "+M(c.energie)+" · Frais généraux : "+M(c.fraisGeneraux)+"</p><h2>Coût total : "+M(c.total)+" → Coût/portion : "+M(c.coutPortion)+"</h2>");
+}
+function editFamille(){openModal("➕ Nouvelle famille de recette",
+  fld("Nom de la recette",inp("nom","","text",'required maxlength="60"'))+fld("Produit fini correspondant",'<select class="inp" name="produitId">'+artOptions(["produit"],"")+"</select>"),
+  fd=>{DB.familles.push({id:uid("fam"),nom:fd.get("nom"),produitId:fd.get("produitId")});save();toast("Famille créée. Ajoutez-lui une version en dupliquant ou via le bouton « Dupliquer » d'une recette proche.","ok")})}
+let VR_TMP=null;
+function dupliquerVersion(vid){
+  const v=version(vid);
+  VR_TMP=JSON.parse(JSON.stringify({familleId:v.familleId,version:Math.max.apply(null,DB.versions.filter(x=>x.familleId===v.familleId).map(x=>x.version).concat([0]))+1,
+    rendement:v.rendement,ingredients:v.ingredients,cuissonPertePct:v.cuissonPertePct,moMin:v.moMin,energie:v.energie,emballage:v.emballage,fraisGeneraux:v.fraisGeneraux,notes:""}));
+  openModal("➕ Nouvelle version — "+esc(famille(v.familleId).nom)+" (v"+VR_TMP.version+')','<div id="vrBody"></div>',
+    ()=>{DB.versions.push(Object.assign({id:uid("ver"),active:false,createdAt:nowDT()},VR_TMP));save();toast("Version "+VR_TMP.version+" créée (inactive). Activez-la quand elle est validée.","ok")},{wide:true,okLabel:"Créer la version"});
+  drawVR();
+}
+function drawVR(){
+  const el=document.getElementById("vrBody");if(!el)return;
+  const versAll=DB.versions.map(v=>[v.id,famille(v.familleId).nom+" v"+v.version+(v.active?" ★":"")]);
+  el.innerHTML='<div class="row r4">'+fld("Rendement",'<input class="inp" type="number" step="any" value="'+VR_TMP.rendement.qty+'" onchange="VR_TMP.rendement.qty=num(this.value)">')+
+    fld("Unité",'<select class="inp" onchange="VR_TMP.rendement.unit=this.value">'+selOpts(UNITS.map(u=>[u,u]),VR_TMP.rendement.unit)+"</select>")+
+    fld("Perte cuisson %",'<input class="inp" type="number" step="any" value="'+VR_TMP.cuissonPertePct+'" onchange="VR_TMP.cuissonPertePct=num(this.value)">')+
+    fld("MO (min)",'<input class="inp" type="number" step="any" value="'+VR_TMP.moMin+'" onchange="VR_TMP.moMin=num(this.value)">')+"</div>"+
+    '<div class="row r3">'+fld("Énergie (forfait)",'<input class="inp" type="number" step="any" value="'+VR_TMP.energie+'" onchange="VR_TMP.energie=num(this.value)">')+
+    fld("Emballage (forfait)",'<input class="inp" type="number" step="any" value="'+VR_TMP.emballage+'" onchange="VR_TMP.emballage=num(this.value)">')+
+    fld("Frais généraux",'<input class="inp" type="number" step="any" value="'+VR_TMP.fraisGeneraux+'" onchange="VR_TMP.fraisGeneraux=num(this.value)">')+"</div>"+
+    tbl([["Type"],["Ingrédient / sous-recette"],["Qté","num"],["Unité"],["Parage %","num"],[""]],VR_TMP.ingredients.map((g,i)=>
+      ['<select class="inp" onchange="VR_TMP.ingredients['+i+'].t=this.value;VR_TMP.ingredients['+i+'].id=this.value===\'r\'?\''+(DB.versions[0]?DB.versions[0].id:"")+'\':\'MP-FAR\';drawVR()">'+selOpts([["a","Article"],["r","Sous-recette (version figée)"]],g.t)+"</select>",
+      g.t==="r"?'<select class="inp" onchange="VR_TMP.ingredients['+i+'].id=this.value;drawVR()">'+selOpts(versAll,g.id)+"</select>":'<select class="inp" onchange="VR_TMP.ingredients['+i+'].id=this.value;drawVR()">'+artOptions(["matiere","semifini","emballage"],g.id)+"</select>",
+      '<input class="inp" type="number" step="any" value="'+g.q+'" onchange="VR_TMP.ingredients['+i+'].q=num(this.value)">',
+      '<select class="inp" onchange="VR_TMP.ingredients['+i+'].u=this.value">'+selOpts(UNITS.map(u=>[u,u]),g.u)+"</select>",
+      '<input class="inp" type="number" step="any" value="'+(g.parage||0)+'" onchange="VR_TMP.ingredients['+i+'].parage=num(this.value)">',
+      '<button type="button" class="btn sm danger" onclick="VR_TMP.ingredients.splice('+i+',1);drawVR()">✕</button>']))+
+    '<div class="toolbar"><button type="button" class="btn sm" onclick="VR_TMP.ingredients.push({t:\'a\',id:\'MP-FAR\',q:1,u:\'kg\'});drawVR()">+ Ingrédient</button></div>'+
+    fld("Notes de version",'<input class="inp" value="'+esc(VR_TMP.notes)+'" onchange="VR_TMP.notes=this.value" maxlength="140">');
+}
+function activerVersion(vid){const v=version(vid);DB.versions.filter(x=>x.familleId===v.familleId).forEach(x=>x.active=false);v.active=true;save();toast("Version "+v.version+" activée.","ok");refresh()}
+/* ================= VUE : PRODUCTION (OF) ================= */
+function vProduction(){
+  const rows=DB.ofs.slice().reverse().map(o=>{const f=famille(o.familleId);
+    return ["<b>"+o.numero+"</b><br><span class='tiny muted'>"+fmtD(o.datePrevue)+" · "+esc(site(o.siteId).nom)+"</span>",
+    esc(f.nom)+" <span class='tiny muted'>v"+(o.snapshot.version?o.snapshot.version.version:"?")+" (snapshot)</span>",
+    fmtN(o.qtyRealisee,0)+" / "+fmtN(o.qtyPrevue,0),bd.apply(null,OF_STATUTS[o.statut]),
+    o.manquants&&o.manquants.length?bd(o.manquants.length+" manquant(s)","warn"):bd("OK","ok"),
+    '<button class="btn sm primary" onclick="ficheOF(\''+o.id+'\')">Ouvrir</button>']});
+  return '<div class="toolbar"><button class="btn primary" onclick="newOF()">+ Nouvel ordre de fabrication</button>'+
+    '<span class="muted small">Snapshot figé · consommation multi-lots FEFO · validation partielle · coût réel</span></div>'+
+    '<div class="card"><h2>👨‍🍳 Ordres de fabrication</h2>'+tbl([["OF"],["Recette"],["Réalisé / prévu","num"],["Statut"],["Manquants"],[""]],rows)+"</div>";
+}
+function ficheOF(id){
+  const o=of(id),f=famille(o.familleId),v=o.snapshot.version;
+  const coutPrev=o.snapshot.cout.coutPortion*o.qtyPrevue;
+  let h='<div class="grid g4">'+kpi("Prévu",fmtN(o.qtyPrevue,0),"le "+fmtD(o.datePrevue),"#7c3aed")+kpi("Réalisé",fmtN(o.qtyRealisee,0),OF_STATUTS[o.statut][0],"#2e90fa")+
+    kpi("Coût prévu",M(coutPrev),M(o.snapshot.cout.coutPortion)+" / portion","#f79009")+kpi("Coût réel",M(o.coutReel||0),o.qtyRealisee?M(o.coutReel/o.qtyRealisee)+" / pièce":"—","#12b76a")+"</div>";
+  h+="<h3>Besoins (snapshot figé au lancement)</h3>"+tbl([["Ingrédient"],["Besoin","num"],["Consommé (lots)","num"]],
+    o.besoins.map(b=>{const con=o.consommations.filter(c=>(b.t==="r"?famille(version(b.id).familleId).produitId===c.articleId:b.id===c.articleId));
+      return ["<b>"+esc(b.nom)+"</b>",fmtQ(b.qty,b.unit),con.length?con.map(c=>fmtN(c.qty)+" ("+esc(c.numero)+")").join("<br>"):"<span class='muted'>—</span>"]}));
+  if(o.manquants&&o.manquants.length)h+='<div class="callout warn"><b>Manquants (alerte, non bloquant) :</b> '+o.manquants.map(m=>esc(article(m.articleId).nom)+" × "+fmtN(m.qty)).join(" · ")+"</div>";
+  if(o.lotsProduits.length)h+="<p class='small'>Lots produits : "+o.lotsProduits.map(l=>lot(l)?"<b>"+esc(lot(l).numero)+"</b>":"").join(", ")+"</p>";
+  h+='<div class="toolbar">'+(o.statut==="planifie"?'<button class="btn primary" onclick="lancerOFUI(\''+o.id+'\')">▶ Lancer (consommer FEFO)</button>':"")+
+    ((o.statut==="encours"||o.statut==="partiel")?'<button class="btn ok" onclick="validerOFUI(\''+o.id+'\')">✅ Valider une quantité produite</button>':"")+"</div>";
+  openModal("👨‍🍳 "+o.numero+" — "+esc(f.nom),h,null,{wide:true,okLabel:"Fermer"});
+}
+function newOF(){
+  const fams=DB.familles.filter(f=>activeVersion(f.id));
+  if(!fams.length){toast("Créez d'abord une recette active.","bad");return}
+  openModal("+ Nouvel OF",
+    fld("Recette (version active)",sel("famId",fams.map(f=>[f.id,f.nom+" — v"+activeVersion(f.id).version+" ("+fmtQ(activeVersion(f.id).rendement.qty,activeVersion(f.id).rendement.unit)+")"]),fams[0].id))+
+    '<div class="row r3">'+fld("Quantité à produire",inp("qty","10","number",'step="any" min="0.01" required'))+fld("Site",sel("siteId",DB.sites.map(s=>[s.id,s.nom]),"S1"))+fld("Date prévue",inp("date",today(),"date"))+"</div>"+
+    '<div class="callout info">Un <b>snapshot figé</b> de la recette sera enregistré dans l\'OF : toute modification ultérieure de la recette ne changera pas cet OF.</div>',
+    fd=>{const av=activeVersion(fd.get("famId"));const o=createOF(fd.get("famId"),av.id,num(fd.get("qty")),fd.get("siteId"),fd.get("date"));save();toast("OF <b>"+o.numero+"</b> créé (planifié).","ok")});
+}
+function lancerOFUI(id){
+  const o=lancerOF(id);closeModal();
+  toast(o.manquants.length?"OF <b>"+o.numero+"</b> lancé avec <b>"+o.manquants.length+" manquant(s)</b> (alertés, non bloquants).":"OF <b>"+o.numero+"</b> lancé — consommation FEFO OK.",o.manquants.length?"warn":"ok");
+  refresh();
+}
+function validerOFUI(id){
+  const o=of(id);const reste=o.qtyPrevue-o.qtyRealisee;
+  openModal("✅ Valider la production — "+o.numero,
+    fld("Quantité réelle produite (reste "+fmtN(reste,0)+")",inp("qty",reste,"number",'step="any" min="0.01" required'))+
+    '<div class="callout info">Un <b>lot de produit fini</b> sera créé (DLC J+2). Validation partielle possible : le reliquat reste « en cours ».</div>',
+    fd=>{validerOF(id,num(fd.get("qty")));toast("Production validée. Lot de produit fini créé.","ok")});
+}
+/* ================= VUE : VENTES & CAISSE ================= */
+let POS_TMP=[];
+function vVentes(){
+  const rows=DB.ventes.slice().reverse().slice(0,60).map(v=>
+    [fmtD(v.date)+"<br><span class='tiny muted'>"+v.ticket+"</span>",esc(site(v.siteId).nom),
+    v.lignes.map(l=>esc(article(l.articleId).nom)+" × "+l.qty).join("<br>"),M(v.totalHT),M(v.totalTTC),
+    v.source==="z-import"?bd("Import Z","violet"):bd("Caisse","info"),
+    (v.manquants&&v.manquants.length?bd("manquant","warn"):"")+' <button class="btn sm" onclick="voirVente(\''+v.id+'\')">Ticket</button>']);
+  const rets=DB.retours.slice().reverse().map(r=>[fmtD(r.date),esc(r.client||"—"),r.lignes.map(l=>esc(article(l.articleId).nom)+" × "+l.qty).join("<br>"),esc(r.motif||"—"),M(r.totalHT)]);
+  return '<div class="toolbar"><button class="btn primary" onclick="POS_TMP=[];drawPOS()">🧾 Nouvelle vente (caisse)</button>'+
+    '<button class="btn" onclick="importZUI()">📥 Import ticket Z</button><button class="btn danger" onclick="retourUI()">↩️ Retour / avoir</button><span class="sp"></span>'+
+    '<select class="inp" style="max-width:230px" onchange="UI.venteSite=this.value;render()">'+selOpts(DB.sites.map(s=>[s.id,"Caisse : "+s.nom]),UI.venteSite)+"</select></div>"+
+    '<div class="card"><h2>💰 Dernières ventes (déduction FEFO auto)</h2>'+tbl([["Ticket"],["Site"],["Lignes"],["Total HT","num"],["Total TTC","num"],["Source"],[""]],rows)+"</div>"+
+    '<div class="card"><h2>↩️ Retours & avoirs</h2>'+tbl([["Date"],["Client"],["Lignes"],["Motif"],["Avoir HT","num"]],rets)+"</div>";
+}
+function drawPOS(){
+  const pfs=DB.articles.filter(a=>a.niveau==="produit");
+  const totHT=sum(POS_TMP,l=>l.qty*l.puHT),totTTC=sum(POS_TMP,l=>l.qty*l.puHT*(1+l.tva/100));
+  openModal("🧾 Caisse — "+esc(site(UI.venteSite).nom),
+    tbl([["Produit"],["Stock","num"],["Qté","num"],["PU HT","num"],["Total","num"],[""]],
+    POS_TMP.map((l,i)=>{const a=article(l.articleId);
+      return ['<select class="inp" onchange="POS_TMP['+i+'].articleId=this.value;const a=article(this.value);POS_TMP['+i+'].puHT=a.pvHT;POS_TMP['+i+'].tva=a.tva;drawPOS()">'+selOpts(pfs.map(p=>[p.id,p.nom]),l.articleId)+"</select>",
+      fmtQ(stockOf(l.articleId,UI.venteSite),a.unite),
+      '<input class="inp" type="number" step="any" min="0" value="'+l.qty+'" onchange="POS_TMP['+i+'].qty=num(this.value);drawPOS()">',
+      '<input class="inp" type="number" step="any" min="0" value="'+l.puHT+'" onchange="POS_TMP['+i+'].puHT=num(this.value);drawPOS()">',
+      M(l.qty*l.puHT),'<button type="button" class="btn sm danger" onclick="POS_TMP.splice('+i+',1);drawPOS()">✕</button>']}))+
+    '<div class="toolbar"><button type="button" class="btn sm" onclick="const p=DB.articles.find(a=>a.niveau===\'produit\');POS_TMP.push({articleId:p.id,qty:1,puHT:p.pvHT,tva:p.tva});drawPOS()">+ Ligne</button>'+
+    '<span class="sp"></span><b>Total HT : '+M(totHT)+' · TTC : '+M(totTTC)+"</b></div>",
+    ()=>{const lignes=POS_TMP.filter(l=>l.qty>0);if(!lignes.length){toast("Ticket vide.","bad");return false}
+      const v=encaisser(UI.venteSite,lignes,today(),"caisse");save();POS_TMP=[];
+      toast("Vente <b>"+v.ticket+"</b> encaissée : "+M(v.totalTTC)+(v.manquants.length?" — <b>manquants alertés (non bloquants)</b>":""),v.manquants.length?"warn":"ok");
+      voirVente(v.id)},{wide:true,okLabel:"💰 Encaisser"});
+}
+function voirVente(id){
+  const v=DB.ventes.find(x=>x.id===id);
+  openModal("🧾 Ticket "+v.ticket,
+    '<div class="ticket"><div style="text-align:center"><b>'+esc(S().labName)+'</b><br>'+esc(site(v.siteId).nom)+'<br>'+fmtD(v.date)+'</div><hr>'+
+    v.lignes.map(l=>{const a=article(l.articleId);return esc(a.nom)+"<br>"+l.qty+" × "+M(l.puHT)+" = <b>"+M(l.qty*l.puHT)+"</b>"}).join("<br>")+
+    "<hr>Total HT : "+M(v.totalHT)+"<br><b>Total TTC : "+M(v.totalTTC)+"</b></div>"+
+    (v.manquants&&v.manquants.length?'<div class="callout warn">Manquants : '+v.manquants.map(m=>esc(article(m.articleId).nom)+" × "+m.qty).join(", ")+"</div>":"")+
+    '<div class="toolbar"><button class="btn sm" onclick="printTicket(\''+v.id+'\')">🖨 Imprimer</button></div>',null,{okLabel:"Fermer"});
+}
+function printTicket(id){
+  const v=DB.ventes.find(x=>x.id===id);
+  printHTML("Ticket "+v.ticket,"<h1>"+esc(S().labName)+"</h1><p>"+esc(site(v.siteId).nom)+" · "+fmtD(v.date)+" · "+v.ticket+"</p>"+
+    "<table><tr><th>Article</th><th>Qté</th><th>PU HT</th><th>Total</th></tr>"+v.lignes.map(l=>"<tr><td>"+esc(article(l.articleId).nom)+"</td><td>"+l.qty+"</td><td>"+M(l.puHT)+"</td><td>"+M(l.qty*l.puHT)+"</td></tr>").join("")+"</table>"+
+    "<p><b>Total HT : "+M(v.totalHT)+"<br>Total TTC : "+M(v.totalTTC)+"</b></p><p>Merci de votre visite !</p>");
+}
+function importZUI(){
+  openModal("📥 Import ticket Z de caisse",
+    '<div class="callout info">Collez l\'export caisse (une ligne par article : <b>code;quantité;prix</b>). Mapping auto par code, <b>détection de doublon</b> (même jour + même total), déduction FEFO.</div>'+
+    fld("Site",sel("siteId",DB.sites.map(s=>[s.id,s.nom]),UI.venteSite))+
+    '<div class="row r2">'+fld("Date du Z",inp("date",today(),"date"))+fld("Caisse",inp("caisse","CAISSE-01","text"))+"</div>"+
+    fld("Données Z",'<textarea class="inp" name="csv" rows="5" placeholder="PF-CRO;20;55&#10;PF-PCH;12;65">PF-CRO;20;55\nPF-PCH;12;65\nPF-ECL;9;120</textarea>'),
+    fd=>{const lignes=fd.get("csv").split("\n").map(x=>x.trim()).filter(Boolean).map(x=>{const p=x.split(";");return{code:p[0].trim(),qty:num(p[1]),pu:num(p[2])}}).filter(l=>l.code&&l.qty>0);
+      if(!lignes.length){toast("Aucune ligne valide.","bad");return false}
+      const z=validerZ(fd.get("date"),fd.get("siteId"),lignes,fd.get("caisse"));save();
+      const inconnus=z.lignes.filter(l=>!l.ok);
+      toast(z.doublon?"⚠ <b>Doublon détecté</b> : ce Z existe déjà — rien n'a été déduit.":"Z importé : "+M(z.totalHT)+(inconnus.length?" — codes inconnus : "+inconnus.map(l=>esc(l.articleId)).join(", "):""),z.doublon?"warn":(inconnus.length?"warn":"ok"))},{wide:true,okLabel:"Importer"});
+}
+function retourUI(){
+  const pfs=DB.articles.filter(a=>a.niveau==="produit");
+  window._ret={siteId:UI.venteSite,client:"",motif:"",lignes:[{articleId:pfs[0].id,qty:1,puHT:pfs[0].pvHT}],remise:true};
+  openModal("↩️ Retour client / avoir",'<div id="retBody"></div>',()=>{
+    const r=window._ret;if(!r.lignes.some(l=>l.qty>0)){toast("Aucune ligne.","bad");return false}
+    addRetour({siteId:r.siteId,client:r.client,motif:r.motif,lignes:r.lignes.filter(l=>l.qty>0),remiseEnStock:r.remise});
+    toast("Avoir créé : "+M(sum(r.lignes,l=>l.qty*l.puHT))+(r.remise?" (remis en stock)":""),"ok")},{wide:true});
+  drawRet();
+}
+function drawRet(){
+  const r=window._ret,el=document.getElementById("retBody");if(!el)return;
+  const pfs=DB.articles.filter(a=>a.niveau==="produit");
+  el.innerHTML='<div class="row r3">'+fld("Site",'<select class="inp" onchange="_ret.siteId=this.value">'+selOpts(DB.sites.map(s=>[s.id,s.nom]),r.siteId)+"</select>")+fld("Client",'<input class="inp" value="'+esc(r.client)+'" onchange="_ret.client=this.value">')+fld("Motif",'<input class="inp" value="'+esc(r.motif)+'" onchange="_ret.motif=this.value">')+"</div>"+
+    tbl([["Produit"],["Qté","num"],["PU HT","num"],[""]],r.lignes.map((l,i)=>['<select class="inp" onchange="_ret.lignes['+i+'].articleId=this.value;_ret.lignes['+i+'].puHT=article(this.value).pvHT;drawRet()">'+selOpts(pfs.map(p=>[p.id,p.nom]),l.articleId)+"</select>",
+    '<input class="inp" type="number" step="any" value="'+l.qty+'" onchange="_ret.lignes['+i+'].qty=num(this.value);drawRet()">',
+    '<input class="inp" type="number" step="any" value="'+l.puHT+'" onchange="_ret.lignes['+i+'].puHT=num(this.value);drawRet()">',
+    '<button type="button" class="btn sm danger" onclick="_ret.lignes.splice('+i+',1);drawRet()">✕</button>']))+
+    '<div class="toolbar"><button type="button" class="btn sm" onclick="_ret.lignes.push({articleId:\''+pfs[0].id+'\',qty:1,puHT:'+pfs[0].pvHT+'});drawRet()">+ Ligne</button>'+
+    '<label class="small"><input type="checkbox" '+(r.remise?"checked":"")+' onchange="_ret.remise=this.checked"> Remettre en stock</label><span class="sp"></span><b>Avoir : '+M(sum(r.lignes,l=>l.qty*l.puHT))+"</b></div>";
+}
+
+/* ================= VUE : CLÔTURE & PERTES (6 flux) ================= */
+function vCloture(){
+  const rows=DB.clotures.slice().reverse().map(c=>{const s=clotureStats(c);
+    return [fmtD(c.date),esc(site(c.siteId).nom),fmtN(s.produit,0),fmtN(s.vendu,0),fmtN(s.jete+s.casse,0),
+    s.tauxPerte>=10?bd(fmtN(s.tauxPerte,1)+" %","bad"):(s.tauxPerte>=5?bd(fmtN(s.tauxPerte,1)+" %","warn"):bd(fmtN(s.tauxPerte,1)+" %","ok")),
+    M(s.manque),'<button class="btn sm" onclick="voirCloture(\''+c.id+'\')">Détail</button>']});
+  return '<div class="toolbar"><button class="btn primary" onclick="editCloture()">+ Clôture du jour</button>'+
+    '<span class="muted small">6 flux : fabriqué · vendu · reporté · jeté · casse/erreur · offert — Taux de perte = (jeté + casse) ÷ fabriqué</span></div>'+
+    '<div class="card"><h2>📊 Clôtures & anti-gaspi</h2>'+tbl([["Date"],["Site"],["Fabriqué","num"],["Vendu","num"],["Pertes","num"],["Taux perte","num"],["Manque à gagner","num"],[""]],rows)+"</div>";
+}
+let CLO_TMP=null;
+function editCloture(){
+  CLO_TMP={date:today(),siteId:"S1",lignes:[{produitId:"PF-CRO",produit:0,vendu:0,reporte:0,jete:0,casse:0,offert:0}]};
+  openModal("📊 Clôture du jour",'<div id="cloBody"></div>',()=>{
+    addCloture({date:CLO_TMP.date,siteId:CLO_TMP.siteId,lignes:CLO_TMP.lignes});toast("Clôture enregistrée.","ok")},{wide:true});
+  drawClo();
+}
+function drawClo(){
+  const el=document.getElementById("cloBody");if(!el)return;
+  el.innerHTML='<div class="row r2">'+fld("Date",'<input class="inp" type="date" value="'+CLO_TMP.date+'" onchange="CLO_TMP.date=this.value">')+fld("Site",'<select class="inp" onchange="CLO_TMP.siteId=this.value">'+selOpts(DB.sites.map(s=>[s.id,s.nom]),CLO_TMP.siteId)+"</select>")+"</div>"+
+    tbl([["Produit"],["Fabriqué","num"],["Vendu","num"],["Reporté","num"],["Jeté","num"],["Casse","num"],["Offert","num"],[""]],
+    CLO_TMP.lignes.map((l,i)=>['<select class="inp" onchange="CLO_TMP.lignes['+i+'].produitId=this.value">'+artOptions(["produit"],l.produitId)+"</select>",
+      ["produit","vendu","reporte","jete","casse","offert"].map(k=>'<input class="inp" type="number" step="any" min="0" value="'+l[k]+'" onchange="CLO_TMP.lignes['+i+'].'+k+'=num(this.value)">').join("</td><td class='num'>"),
+      '<button type="button" class="btn sm danger" onclick="CLO_TMP.lignes.splice('+i+',1);drawClo()">✕</button>']))+
+    '<div class="toolbar"><button type="button" class="btn sm" onclick="CLO_TMP.lignes.push({produitId:\'PF-CRO\',produit:0,vendu:0,reporte:0,jete:0,casse:0,offert:0});drawClo()">+ Produit</button></div>';
+}
+function voirCloture(id){
+  const c=DB.clotures.find(x=>x.id===id),s=clotureStats(c);
+  openModal("📊 Clôture "+fmtD(c.date)+" — "+esc(site(c.siteId).nom),
+    '<div class="grid g4">'+kpi("Fabriqué",fmtN(s.produit,0),"","#7c3aed")+kpi("Vendu",fmtN(s.vendu,0),"CA : "+M(s.caHT),"#12b76a")+kpi("Taux de perte",fmtN(s.tauxPerte,1)+" %","(jeté+casse) ÷ fabriqué","#f79009")+kpi("Manque à gagner",M(s.manque),"valorisé au PV HT","#f04438")+"</div>"+
+    tbl([["Produit"],["Fab.","num"],["Vendu","num"],["Rep.","num"],["Jeté","num"],["Casse","num"],["Offert","num"]],c.lignes.map(l=>["<b>"+esc(article(l.produitId).nom)+"</b>",fmtN(l.produit,0),fmtN(l.vendu,0),fmtN(l.reporte,0),fmtN(l.jete,0),fmtN(l.casse,0),fmtN(l.offert,0)])),
+    null,{wide:true,okLabel:"Fermer"});
+}
+/* ================= VUE : CAKE DESIGN STUDIO ================= */
+function vCake(){
+  const rows=DB.cakes.map(c=>{const cout=sum(c.options,o=>o.cout);const j=daysBetween(today(),c.dateEvent);
+    return ["<b>"+c.numero+"</b><br><span class='tiny muted'>"+esc(c.client)+" · "+esc(c.tel||"")+"</span>",
+    fmtD(c.dateEvent)+(j<0?" "+bd("passé","grey"):(j<=3?" "+bd("J-"+j,"warn"):"")),
+    c.nbParts+" parts",M(cout),"<b>"+M(c.prixHT)+"</b>",M(c.acompte)+" ("+fmtN(c.prixHT?c.acompte/c.prixHT*100:0,0)+" %)",
+    bd.apply(null,CAKE_STATUTS[c.statut]),'<button class="btn sm primary" onclick="ficheCake(\''+c.id+'\')">Ouvrir</button>']});
+  return '<div class="toolbar"><button class="btn primary" onclick="editCake(\'\')">+ Nouveau devis</button><span class="muted small">Configurateur (option = coût + temps) · acompte bloquant '+S().acompteMinPct+'% · rétroplanning · CGV</span></div>'+
+    '<div class="card"><h2>🎂 Cake Design Studio — devis & commandes</h2>'+tbl([["Devis / client"],["Événement"],["Parts"],["Coût options","num"],["Prix HT","num"],["Acompte","num"],["Statut"],[""]],rows)+"</div>";
+}
+function editCake(id){
+  const c=id?DB.cakes.find(x=>x.id===id):null;
+  const tmp=c?JSON.parse(JSON.stringify(c)):{id:"",numero:"",client:"",tel:"",dateEvent:today(7),nbParts:20,options:[{nom:"",cout:0,tempsMin:60}],prixHT:0,acompte:0,statut:"devis",cgv:false,notes:"",retro:[{t:"Achats matières + supports",j:-3,fait:false},{t:"Production",j:-1,fait:false},{t:"Livraison / retrait",j:0,fait:false}]};
+  window._cake=tmp;
+  openModal(id?"🎂 Modifier "+c.numero:"+ Nouveau devis cake",'<div id="cakeBody"></div>',()=>{
+    const t=window._cake;if(!t.client){toast("Nom du client obligatoire.","bad");return false}
+    if(!t.id){DB.compteurs.cake++;t.id=uid("cake");t.numero="DEV-"+String(DB.compteurs.cake).padStart(3,"0");DB.cakes.push(t)}
+    else Object.assign(DB.cakes.find(x=>x.id===t.id),t);
+    save();toast("Devis "+t.numero+" enregistré.","ok")},{wide:true});
+  drawCake();
+}
+function drawCake(){
+  const t=window._cake,el=document.getElementById("cakeBody");if(!el)return;
+  const cout=sum(t.options,o=>o.cout),temps=sum(t.options,o=>o.tempsMin);
+  el.innerHTML='<div class="row r3">'+fld("Client",'<input class="inp" value="'+esc(t.client)+'" onchange="_cake.client=this.value">')+fld("Téléphone",'<input class="inp" value="'+esc(t.tel)+'" onchange="_cake.tel=this.value">')+fld("Date événement",'<input class="inp" type="date" value="'+t.dateEvent+'" onchange="_cake.dateEvent=this.value">')+"</div>"+
+    '<div class="row r3">'+fld("Nb parts",'<input class="inp" type="number" value="'+t.nbParts+'" onchange="_cake.nbParts=num(this.value)">')+fld("Prix de vente HT",'<input class="inp" type="number" step="any" value="'+t.prixHT+'" onchange="_cake.prixHT=num(this.value)">')+fld("Acompte versé",'<input class="inp" type="number" step="any" value="'+t.acompte+'" onchange="_cake.acompte=num(this.value)">')+"</div>"+
+    "<h3>Options (chacune = coût + temps)</h3>"+
+    tbl([["Option"],["Coût","num"],["Temps (min)","num"],[""]],t.options.map((o,i)=>['<input class="inp" value="'+esc(o.nom)+'" onchange="_cake.options['+i+'].nom=this.value">','<input class="inp" type="number" step="any" value="'+o.cout+'" onchange="_cake.options['+i+'].cout=num(this.value);drawCake()">','<input class="inp" type="number" step="any" value="'+o.tempsMin+'" onchange="_cake.options['+i+'].tempsMin=num(this.value);drawCake()">','<button type="button" class="btn sm danger" onclick="_cake.options.splice('+i+',1);drawCake()">✕</button>']))+
+    '<div class="toolbar"><button type="button" class="btn sm" onclick="_cake.options.push({nom:\'\',cout:0,tempsMin:30});drawCake()">+ Option</button><span class="sp"></span><span>Coût total : <b>'+M(cout)+"</b> · Temps : <b>"+temps+" min</b> · Marge : <b>"+M(t.prixHT-cout)+"</b></span></div>"+
+    fld("Notes",'<input class="inp" value="'+esc(t.notes)+'" onchange="_cake.notes=this.value" maxlength="140">');
+}
+function ficheCake(id){
+  const c=DB.cakes.find(x=>x.id===id);const cout=sum(c.options,o=>o.cout);const pctA=c.prixHT?c.acompte/c.prixHT*100:0;
+  const flow={devis:["acompte","Encaisser l'acompte"],"acompte":["confirme","Confirmer (acompte ≥ "+S().acompteMinPct+"%)"],"confirme":["produit","Marquer produit"],"produit":["livre","Livrer / solder"],"livre":["",""],"annule":["",""]};
+  openModal("🎂 "+c.numero+" — "+esc(c.client),
+    '<div class="grid g4">'+kpi("Événement",fmtD(c.dateEvent),c.nbParts+" parts","#7c3aed")+kpi("Coût options",M(cout),c.options.length+" option(s)","#2e90fa")+kpi("Prix HT",M(c.prixHT),"Marge : "+M(c.prixHT-cout),"#12b76a")+kpi("Acompte",M(c.acompte),fmtN(pctA,0)+" %","#f79009")+"</div>"+
+    "<p>Statut : "+bd.apply(null,CAKE_STATUTS[c.statut])+" · CGV : "+(c.cgv?bd("acceptées","ok"):bd("non acceptées","warn"))+"</p>"+
+    "<h3>Options</h3>"+tbl([["Option"],["Coût","num"],["Temps","num"]],c.options.map(o=>[esc(o.nom),M(o.cout),o.tempsMin+" min"]))+
+    "<h3>Rétroplanning</h3>"+tbl([["Échéance"],["Tâche"],["Fait"]],c.retro.map((r,i)=>{const d=today(daysBetween(today(),c.dateEvent)+r.j);return [fmtD(d)+(r.j===0?" (J)":" (J"+r.j+")"),esc(r.t),'<input type="checkbox" '+(r.fait?"checked":"")+' onchange="toggleRetro(\''+c.id+"',"+i+',this.checked)">']}))+
+    (c.notes?'<div class="callout info">'+esc(c.notes)+"</div>":"")+
+    '<div class="toolbar"><button class="btn sm" onclick="printCake(\''+c.id+'\')">🖨 Imprimer le devis</button><button class="btn sm" onclick="closeModal();editCake(\''+c.id+'\')">✏️ Modifier</button>'+
+    (flow[c.statut][0]?'<button class="btn sm primary" onclick="cakeNext(\''+c.id+"','"+flow[c.statut][0]+'\')">'+flow[c.statut][1]+"</button>":"")+
+    (c.statut!=="annule"&&c.statut!=="livre"?'<button class="btn sm danger" onclick="cakeNext(\''+c.id+'\',\'annule\')">Annuler</button>':"")+"</div>",
+    null,{wide:true,okLabel:"Fermer"});
+}
+function toggleRetro(cid,i,val){DB.cakes.find(x=>x.id===cid).retro[i].fait=val;save()}
+function cakeNext(id,nx){
+  const c=DB.cakes.find(x=>x.id===id);
+  if(nx==="confirme"&&(c.prixHT?c.acompte/c.prixHT*100:0)<S().acompteMinPct){toast("⛔ Acompte bloquant : minimum "+S().acompteMinPct+"% ("+M(c.prixHT*S().acompteMinPct/100)+") pour confirmer. Encaissez d'abord l'acompte.","bad");return}
+  if(nx==="acompte"&&c.acompte<=0){const m=c.prixHT*S().acompteMinPct/100;
+    openModal("💰 Encaisser l'acompte",fld("Montant (min "+S().acompteMinPct+"% = "+M(m)+")",inp("m",Math.round(m),"number",'step="any" min="0"')),fd=>{c.acompte=num(fd.get("m"));c.statut="acompte";save();toast("Acompte encaissé : "+M(c.acompte),"ok")});return}
+  c.statut=nx;save();closeModal();toast("Devis "+c.numero+" → "+CAKE_STATUTS[nx][0],"ok");refresh();
+}
+function printCake(id){
+  const c=DB.cakes.find(x=>x.id===id);const cout=sum(c.options,o=>o.cout);
+  printHTML("Devis "+c.numero,"<h1>Devis "+c.numero+" — Cake Design</h1><p><b>"+esc(S().labName)+"</b><br>Client : <b>"+esc(c.client)+"</b> ("+esc(c.tel||"")+ ")<br>Événement : "+fmtD(c.dateEvent)+" · "+c.nbParts+" parts</p>"+
+    "<table><tr><th>Option</th><th>Coût</th><th>Temps</th></tr>"+c.options.map(o=>"<tr><td>"+esc(o.nom)+"</td><td>"+M(o.cout)+"</td><td>"+o.tempsMin+" min</td></tr>").join("")+"</table>"+
+    "<p><b>Prix HT : "+M(c.prixHT)+"</b> · Acompte versé : "+M(c.acompte)+" · Reste : "+M(c.prixHT-c.acompte)+"</p>"+
+    "<p class='muted'>CGV : acompte minimum "+S().acompteMinPct+"% à la commande, non remboursable en cas d'annulation à moins de 72h. TVA selon nature des produits.</p><p>"+esc(c.notes||"")+"</p>");
+}
+/* ================= VUE : HACCP & QUALITÉ ================= */
+function vHaccp(){
+  const tp=tbl([["Date"],["Équipement"],["Température"],["Statut"],["Agent"]],DB.temps.slice().reverse().slice(0,40).map(t=>{const f=frigo(t.frigoId);const ok=t.temp<=f.seuilMax;
+    return [fmtD(t.date),esc(f.nom)+" <span class='tiny muted'>(max "+f.seuilMax+"°C)</span>","<b>"+t.temp+"°C</b>",ok?bd("Conforme","ok"):bd("NON CONFORME","bad"),esc(t.agent||"—")]}));
+  const nt=tbl([["Date"],["Zone"],["Fait"],["Agent"]],DB.nettoyages.slice().reverse().slice(0,30).map(n=>[fmtD(n.date),esc(n.zone),n.fait?bd("Fait","ok"):bd("À faire","warn"),esc(n.agent||"—")]));
+  const nc=tbl([["Date"],["Type"],["Description"],["Action corrective"],["Statut"],[""]],DB.ncs.slice().reverse().map(n=>[fmtD(n.date),"<b>"+esc(n.type)+"</b>",esc(n.description),esc(n.action||"—"),n.statut==="Clôturée"?bd("Clôturée","ok"):bd("Ouverte","warn"),'<button class="btn sm" onclick="toggleNC(\''+n.id+'\')">'+(n.statut==="Clôturée"?"Rouvrir":"Clôturer")+"</button>"]));
+  return '<div class="toolbar"><button class="btn primary" onclick="addTemp()">🌡️ + Relevé température</button><button class="btn" onclick="addNettoyage()">🧹 + Nettoyage</button><button class="btn danger" onclick="addNC()">⚠ + Non-conformité</button></div>'+
+    '<div class="grid g2"><div class="card"><h2>🌡️ Températures</h2>'+tp+'</div><div><div class="card"><h2>🧹 Plan de nettoyage</h2>'+nt+'</div><div class="card"><h2>⚠ Non-conformités</h2>'+nc+"</div></div></div>";
+}
+function addTemp(){
+  openModal("🌡️ Relevé de température",
+    fld("Équipement",sel("frigoId",DB.frigos.map(f=>[f.id,f.nom+" (max "+f.seuilMax+"°C)"]),DB.frigos[0].id))+
+    '<div class="row r3">'+fld("Température (°C)",inp("temp","","number",'step="0.1" required'))+fld("Date",inp("date",today(),"date"))+fld("Agent",inp("agent","","text",'maxlength="30"'))+"</div>",
+    fd=>{const f=frigo(fd.get("frigoId"));const t=num(fd.get("temp"));
+      DB.temps.push({id:uid("tmp"),date:fd.get("date"),frigoId:f.id,temp:t,agent:fd.get("agent")});save();
+      toast(t<=f.seuilMax?"Relevé conforme ("+t+"°C).":"⛔ NON CONFORME : "+t+"°C > max "+f.seuilMax+"°C — action requise !",t<=f.seuilMax?"ok":"bad")});
+}
+function addNettoyage(){
+  openModal("🧹 Nettoyage",fld("Zone",sel("zone",DB.zonesNettoyage.map(z=>[z,z]),DB.zonesNettoyage[0]))+
+    '<div class="row r2">'+fld("Date",inp("date",today(),"date"))+fld("Agent",inp("agent","","text",'maxlength="30"'))+"</div>"+
+    fld("Effectué ?",sel("fait",[["1","Oui"],["0","Non"]],"1")),
+    fd=>{DB.nettoyages.push({id:uid("net"),date:fd.get("date"),zone:fd.get("zone"),fait:fd.get("fait")==="1",agent:fd.get("agent")});save();toast("Nettoyage enregistré.","ok")});
+}
+function addNC(){
+  openModal("⚠ Non-conformité",
+    '<div class="row r2">'+fld("Date",inp("date",today(),"date"))+fld("Type",sel("type",[["Température"],["DLC dépassée"],["Corps étranger"],["Hygiène"],["Étiquetage"],["Autre"]].map(x=>[x[0],x[0]]),"Autre"))+"</div>"+
+    fld("Description",inp("description","","text",'required maxlength="140"'))+fld("Lot concerné (optionnel)",'<select class="inp" name="lotId"><option value="">—</option>'+selOpts(DB.lots.slice(-40).map(l=>[l.id,l.numero+" — "+article(l.articleId).nom]),"")+"</select>")+fld("Action corrective",inp("action","","text",'maxlength="140"')),
+    fd=>{DB.ncs.push({id:uid("nc"),date:fd.get("date"),type:fd.get("type"),description:fd.get("description"),lotId:fd.get("lotId"),action:fd.get("action"),statut:"Ouverte"});save();toast("Non-conformité enregistrée.","warn")});
+}
+function toggleNC(id){const n=DB.ncs.find(x=>x.id===id);n.statut=n.statut==="Clôturée"?"Ouverte":"Clôturée";save();refresh()}
+/* ================= VUE : ÉTIQUETTES & ALLERGÈNES ================= */
+function allergenesOf(aid,prof){
+  prof=prof||0;if(prof>4)return[];
+  const direct=DB.allergenes[aid]||[];
+  const f=DB.familles.find(x=>x.produitId===aid);
+  if(!f)return direct;
+  const av=activeVersion(f.id);if(!av)return direct;
+  const set=new Set(direct);
+  av.ingredients.forEach(ing=>{
+    if(ing.t==="a"){(DB.allergenes[ing.id]||[]).forEach(a=>set.add(a))}
+    else{const sv=version(ing.id);if(sv){const sub=famille(sv.familleId).produitId;allergenesOf(sub,prof+1).forEach(a=>set.add(a))}}});
+  return Array.from(set);
+}
+function tracesOf(aid){
+  const set=new Set(DB.traces[aid]||[]);
+  const f=DB.familles.find(x=>x.produitId===aid);
+  if(f){const av=activeVersion(f.id);if(av)av.ingredients.forEach(ing=>{if(ing.t==="a")(DB.traces[ing.id]||[]).forEach(t=>set.add(t))})}
+  return Array.from(set);
+}
+function ingredientsINCO(aid){
+  const f=DB.familles.find(x=>x.produitId===aid);if(!f)return[];
+  const av=activeVersion(f.id);if(!av)return[];
+  const items=av.ingredients.map(ing=>{
+    if(ing.t==="a")return{nom:article(ing.id).nom,qty:ing.q,alg:DB.allergenes[ing.id]||[]};
+    const sv=version(ing.id);return{nom:famille(sv.familleId).nom+" (sous-recette)",qty:ing.q,alg:allergenesOf(famille(sv.familleId).produitId)}});
+  return items.sort((a,b)=>b.qty-a.qty); // ordre décroissant de poids (INCO)
+}
+function vEtiquettes(){
+  const pfs=DB.articles.filter(a=>a.niveau==="produit");
+  if(!pfs.find(a=>a.id===UI.etqPF))UI.etqPF=pfs[0].id;
+  const a=article(UI.etqPF),ing=ingredientsINCO(a.id),alg=allergenesOf(a.id),tr=tracesOf(a.id);
+  const lots=lotsOf(a.id).filter(l=>l.qtyRestante>0);
+  const lot1=lots[0];
+  const ingHTML=ing.map(i=>{const parts=i.nom.split(/(\s+)/).map(w=>i.alg.some(c=>w.toLowerCase().includes(c)||ALLERGENES.find(x=>x[0]===c&&w.toLowerCase().includes(x[1].split(" ")[0].toLowerCase())))?'<span class="alg">'+esc(w)+"</span>":esc(w)).join("");return parts}).join(", ")||"<span class='muted'>Recette non renseignée</span>";
+  const mats=DB.articles.filter(x=>x.niveau==="matiere");
+  return '<div class="grid g2"><div class="card"><h2>🏷️ Étiquette produit</h2>'+
+    fld("Produit fini",'<select class="inp" onchange="UI.etqPF=this.value;render()">'+selOpts(pfs.map(p=>[p.id,p.nom]),UI.etqPF)+"</select>")+
+    '<div class="etiquette"><h4>'+esc(a.nom)+'</h4>'+
+    '<p class="small"><b>Ingrédients :</b> '+ingHTML+'.</p>'+
+    (alg.length?'<p class="small"><b>Allergènes :</b> '+alg.map(c=>'<span class="alg">'+esc((ALLERGENES.find(x=>x[0]===c)||["",c])[1])+"</span>").join(", ")+'</p>':'<p class="small">Allergènes : aucun détecté.</p>')+
+    (tr.length?'<p class="small">Traces éventuelles : '+tr.map(c=>esc((ALLERGENES.find(x=>x[0]===c)||["",c])[1])).join(", ")+'</p>':"")+
+    '<p class="small">Lot : <b>'+(lot1?esc(lot1.numero):"—")+'</b> · DLC : <b>'+(lot1&&lot1.dlc?fmtD(lot1.dlc):"—")+'</b><br>Conservation : à +4°C · '+esc(S().labName)+'</p></div>'+
+    '<div class="toolbar" style="margin-top:10px"><button class="btn primary" onclick="printEtiquette()">🖨 Imprimer l\'étiquette</button></div>'+
+    '<p class="tiny muted">Ingrédients triés par ordre décroissant (règle INCO), allergènes mis en évidence. Étiquette « allergènes » dès le MVP, INCO complète (valeurs nutritionnelles) en V4.</p></div>'+
+    '<div class="card"><h2>⚗️ Allergènes des matières (14 officiels)</h2><p class="small muted">Les allergènes des produits finis sont <b>calculés automatiquement</b> depuis la recette active. Réglez ici les matières + traces éventuelles.</p>'+
+    tbl([["Matière"],["Allergènes"],["Traces"],[""]],mats.map(m=>["<b>"+esc(m.nom)+"</b>",
+      ((DB.allergenes[m.id]||[]).map(c=>esc((ALLERGENES.find(x=>x[0]===c)||["",c])[1])).join(", ")||"<span class='muted'>—</span>"),
+      ((DB.traces[m.id]||[]).map(c=>esc((ALLERGENES.find(x=>x[0]===c)||["",c])[1])).join(", ")||"<span class='muted'>—</span>"),
+      '<button class="btn sm" onclick="editAllergenes(\''+m.id+'\')">✏️</button>']))+"</div></div>";
+}
+function editAllergenes(aid){
+  const cur=DB.allergenes[aid]||[],tr=DB.traces[aid]||[];
+  openModal("⚗️ Allergènes — "+esc(article(aid).nom),
+    "<h3>Contient</h3>"+ALLERGENES.map(a=>'<label style="display:inline-block;margin:0 12px 8px 0;font-size:13px"><input type="checkbox" name="a_'+a[0]+'" '+(cur.includes(a[0])?"checked":"")+"> "+a[1]+"</label>").join("")+
+    "<h3>Traces éventuelles</h3>"+ALLERGENES.map(a=>'<label style="display:inline-block;margin:0 12px 8px 0;font-size:13px"><input type="checkbox" name="t_'+a[0]+'" '+(tr.includes(a[0])?"checked":"")+"> "+a[1]+"</label>").join(""),
+    fd=>{DB.allergenes[aid]=ALLERGENES.filter(a=>fd.get("a_"+a[0])).map(a=>a[0]);DB.traces[aid]=ALLERGENES.filter(a=>fd.get("t_"+a[0])).map(a=>a[0]);save();toast("Allergènes mis à jour. Les produits finis sont recalculés automatiquement.","ok")},{wide:true});
+}
+function printEtiquette(){
+  const a=article(UI.etqPF),ing=ingredientsINCO(a.id),alg=allergenesOf(a.id),tr=tracesOf(a.id);
+  const lot1=lotsOf(a.id).filter(l=>l.qtyRestante>0)[0];
+  const nomAlg=c=>(ALLERGENES.find(x=>x[0]===c)||["",c])[1];
+  printHTML("Étiquette "+a.nom,'<div class="etq"><h2>'+esc(a.nom)+"</h2><p><b>Ingrédients : </b>"+
+    (ing.map(i=>esc(i.nom)).join(", ")||"—")+".</p>"+
+    "<p><b>Allergènes : </b>"+(alg.map(c=>'<span class="alg">'+esc(nomAlg(c))+"</span>").join(", ")||"aucun détecté")+"</p>"+
+    (tr.length?"<p>Traces éventuelles : "+tr.map(esc).join(", ")+"</p>":"")+
+    "<p>Lot : <b>"+(lot1?esc(lot1.numero):"—")+"</b> · DLC : <b>"+(lot1&&lot1.dlc?fmtD(lot1.dlc):"—")+"</b><br>Conservation : à +4°C · "+esc(S().labName)+"</p></div>");
+}
+
+/* ================= VUE : TRAÇABILITÉ ================= */
+function vTraca(){
+  const lots=DB.lots.slice().reverse();
+  if(!UI.tracaLot&&lots.length)UI.tracaLot=lots[0].id;
+  const l=lot(UI.tracaLot);
+  let detail='<div class="callout info">Sélectionnez un lot.</div>';
+  if(l){const a=article(l.articleId);
+    const amont='<li><b>Réception :</b> '+fmtD(l.date)+' · '+esc(site(l.siteId).nom)+'</li>'+
+      (l.fournisseurId?"<li><b>Fournisseur :</b> "+esc(fournisseur(l.fournisseurId).nom)+"</li>":"<li><b>Origine :</b> production interne ("+esc(l.ref||"—")+")</li>")+
+      "<li><b>DLC :</b> "+(l.dlc?fmtD(l.dlc):"non renseignée")+" · <b>Qté initiale :</b> "+fmtQ(l.qtyInitiale,a.unite)+" · <b>Reste :</b> "+fmtQ(l.qtyRestante,a.unite)+"</li>";
+    const conso=DB.ofs.flatMap(o=>o.consommations.filter(c=>c.lotId===l.id).map(c=>({of:o,c})));
+    const ventes=DB.ventes.filter(v=>v.lignes.some(x=>x.lots&&x.lots.includes(l.numero)));
+    const aval=(conso.length?conso.map(x=>"<li>Consommé par <b>"+x.of.numero+"</b> ("+esc(famille(x.of.familleId).nom)+") : "+fmtQ(x.c.qty,article(x.c.articleId).unite)+"</li>").join(""):"<li class='muted'>Non consommé en production.</li>")+
+      (ventes.length?ventes.map(v=>"<li>Vendu : ticket <b>"+v.ticket+"</b> du "+fmtD(v.date)+" ("+esc(site(v.siteId).nom)+")</li>").join(""):"<li class='muted'>Non vendu directement.</li>");
+    detail='<div class="grid g2"><div class="card"><h3>⬆ Amont — '+esc(l.numero)+" <span class='tiny muted'>("+esc(a.nom)+")</span></h3><ul class='list-plain'>"+amont+"</ul></div>"+
+      '<div class="card"><h3>⬇ Aval — où est parti ce lot ?</h3><ul class="list-plain">'+aval+"</ul></div></div>"+
+      '<div class="toolbar"><button class="btn danger" onclick="rappelLot(\''+l.id+'\')">🚨 Simuler un rappel de ce lot</button></div>';
+  }
+  return '<div class="card"><h2>🔍 Traçabilité amont / aval par lot</h2>'+
+    fld("Lot",'<select class="inp" onchange="UI.tracaLot=this.value;render()">'+selOpts(lots.map(x=>[x.id,x.numero+" — "+article(x.articleId).nom+" ("+fmtQ(x.qtyRestante,article(x.articleId).unite)+")"]),UI.tracaLot)+"</select>")+"</div>"+detail;
+}
+function rappelLot(id){
+  const l=lot(id),a=article(l.articleId);
+  const conso=DB.ofs.flatMap(o=>o.consommations.filter(c=>c.lotId===id).map(c=>({of:o,qty:c.qty})));
+  const pfs=[...new Set(conso.map(x=>famille(x.of.familleId).produitId))];
+  const ventes=DB.ventes.filter(v=>v.lignes.some(x=>x.lots&&x.lots.includes(l.numero)||pfs.includes(x.articleId)));
+  openModal("🚨 Rappel lot "+l.numero,
+    '<div class="callout bad"><b>Lot :</b> '+esc(l.numero)+" ("+esc(a.nom)+") · reçu le "+fmtD(l.date)+(l.fournisseurId?" · fournisseur "+esc(fournisseur(l.fournisseurId).nom):"")+"</div>"+
+    "<h3>Productions touchées ("+conso.length+")</h3>"+
+    (conso.length?tbl([["OF"],["Produit"],["Qté lot consommée","num"]],conso.map(x=>["<b>"+x.of.numero+"</b>",esc(famille(x.of.familleId).nom),fmtQ(x.qty,a.unite)])):"<p class='muted'>Aucune.</p>")+
+    "<h3>Ventes potentiellement touchées ("+ventes.length+")</h3>"+
+    (ventes.length?tbl([["Ticket"],["Date"],["Site"],["Lignes"]],ventes.slice(0,30).map(v=>["<b>"+v.ticket+"</b>",fmtD(v.date),esc(site(v.siteId).nom),v.lignes.map(x=>esc(article(x.articleId).nom)+" × "+x.qty).join(", ")])):"<p class='muted'>Aucune.</p>")+
+    '<div class="callout warn"><b>Conduite à tenir :</b> 1) Bloquez le lot restant. 2) Bloquez les produits finis issus des OF listés. 3) Prévenez les clients (tickets listés). 4) Tracez une non-conformité.</div>'+
+    '<div class="toolbar"><button class="btn danger" onclick="lot(\''+id+'\').bloque=true;save();closeModal();refresh();toast(\'Lot bloqué.\',\'warn\')">Bloquer le lot restant</button><button class="btn" onclick="closeModal();go(\'haccp\');setTimeout(addNC,200)">Créer une non-conformité</button></div>',
+    null,{wide:true,okLabel:"Fermer"});
+}
+/* ================= VUE : PLANNING ================= */
+function vPlanning(){
+  const d=UI.planDate;
+  const taches=DB.planning.filter(p=>p.date===d);
+  const charge=sum(taches,p=>p.dureeMin||0);
+  const besoins=besoinsGlobal(d).filter(b=>b.besoin>0);
+  return '<div class="card"><h2>📅 Planning de production</h2><div class="toolbar">'+
+    '<input class="inp" type="date" style="max-width:180px" value="'+d+'" onchange="UI.planDate=this.value;render()">'+
+    '<button class="btn primary" onclick="editTache(\'\')">+ Tâche</button><span class="sp"></span>'+
+    "<span>Charge : <b>"+charge+" min</b> / capacité "+S().capaciteMinJour+" min "+(charge>S().capaciteMinJour?bd("SURCHARGE","bad"):bd("OK","ok"))+"</span></div>"+
+    tbl([["Tâche"],["OF lié"],["Durée","num"],["Responsable"],["Fait"],[""]],taches.map(p=>["<b>"+esc(p.tache)+"</b>",p.ofId&&of(p.ofId)?of(p.ofId).numero:"—",(p.dureeMin||0)+" min",esc(p.responsable||"—"),
+      '<input type="checkbox" '+(p.fait?"checked":"")+' onchange="toggleTache(\''+p.id+'\',this.checked)">',
+      '<button class="btn sm danger" onclick="delTache(\''+p.id+'\')">✕</button>']))+"</div>"+
+    '<div class="card"><h2>🧮 Besoins matières jusqu\'au '+fmtD(d)+' (OF planifiés − stock)</h2>'+
+    tbl([["Article"],["Besoin","num"],["Stock","num"],["Manque","num"]],besoins.map(b=>{const a=article(b.articleId);
+      return ["<b>"+esc(a.nom)+"</b>",fmtQ(b.besoin,a.unite),fmtQ(b.stock,a.unite),b.manque>0?bd(fmtQ(b.manque,a.unite),"warn"):bd("couvert","ok")]}))+"</div>";
+}
+function editTache(){
+  openModal("+ Tâche de planning",fld("Date",inp("date",UI.planDate,"date"))+fld("Tâche",inp("tache","","text",'required maxlength="80"'))+
+    fld("OF lié (optionnel)",'<select class="inp" name="ofId"><option value="">—</option>'+selOpts(DB.ofs.map(o=>[o.id,o.numero+" — "+famille(o.familleId).nom]),"")+"</select>")+
+    '<div class="row r2">'+fld("Durée (min)",inp("dureeMin","60","number",'min="0"'))+fld("Responsable",inp("responsable","","text",'maxlength="30"'))+"</div>",
+    fd=>{DB.planning.push({id:uid("pl"),date:fd.get("date"),tache:fd.get("tache"),ofId:fd.get("ofId"),dureeMin:num(fd.get("dureeMin")),responsable:fd.get("responsable"),fait:false});save();toast("Tâche ajoutée.","ok")});
+}
+function toggleTache(id,v){DB.planning.find(p=>p.id===id).fait=v;save();refresh()}
+async function delTache(id){if(await confirmDlg("Supprimer cette tâche ?")){DB.planning=DB.planning.filter(p=>p.id!==id);save();refresh()}}
+/* ================= VUE : SIMULATION PRIX ================= */
+function vSimulation(){
+  const vers=DB.versions.filter(v=>v.active);
+  if(!vers.find(v=>v.id===UI.simVer))UI.simVer=vers.length?vers[0].id:"";
+  const v=version(UI.simVer);
+  let corps='<div class="callout info">Créez d\'abord une recette.</div>';
+  if(v){const f=famille(v.familleId),a=f.produitId?article(f.produitId):null;
+    if(!UI.simPV&&a)UI.simPV=a.pvHT;
+    const c=coutVersion(v.id);
+    const coutSim=c.total*(1+UI.simMat/100), portionSim=c.rendementNet>0?coutSim/c.rendementNet:0;
+    const marge=UI.simPV-portionSim, taux=UI.simPV>0?marge/UI.simPV*100:0;
+    corps='<div class="grid g2"><div class="card"><h3>Hypothèses</h3>'+
+      fld("Recette (version active)",'<select class="inp" onchange="UI.simVer=this.value;UI.simPV=0;render()">'+selOpts(vers.map(x=>[x.id,famille(x.familleId).nom]),UI.simVer)+"</select>")+
+      fld("Prix de vente HT simulé : <b>"+M(UI.simPV)+"</b>",'<input type="range" min="0" max="'+Math.max(500,portionSim*5)+'" step="10" value="'+UI.simPV+'" style="width:100%" oninput="UI.simPV=num(this.value);render()">')+
+      fld("Variation du coût matières : <b>"+(UI.simMat>=0?"+":"")+UI.simMat+" %</b>",'<input type="range" min="-30" max="100" step="1" value="'+UI.simMat+'" style="width:100%" oninput="UI.simMat=num(this.value);render()">')+
+      '<p class="small muted">Coût de base : '+M(c.coutPortion)+' / '+c.unit+' → coût simulé : <b>'+M(portionSim)+'</b></p></div>'+
+      '<div class="card"><h3>Résultat</h3><div class="grid g2">'+
+      kpi("Marge / portion",M(marge),fmtN(taux,1)+" %",marge>=0?"#12b76a":"#f04438")+
+      kpi("Coefficient",c.coutPortion>0?"× "+fmtN(UI.simPV/c.coutPortion,2):"—","PV ÷ coût","#7c3aed")+"</div>"+
+      "<h3>Prix conseillés (coût simulé × coef)</h3>"+
+      tbl([["Coef","num"],["Prix HT","num"],["Marge","num"]],[2.5,3,3.5].map(k=>["× "+k,M(portionSim*k),M(portionSim*k-portionSim)]))+"</div></div>";
+  }
+  // Impact hausse : article + nouveau prix
+  return '<div class="card"><h2>🧮 Simulation de prix & marge</h2>'+corps+"</div>"+
+    '<div class="card"><h2>💥 Impact d\'une hausse fournisseur</h2><div class="toolbar">'+
+    '<select class="inp" id="simArt" style="max-width:260px">'+artOptions(["matiere"],UI.simArt||"MP-BEU")+'</select>'+
+    '<input class="inp" id="simPrix" type="number" step="any" placeholder="Nouveau prix…" style="max-width:160px">'+
+    '<button class="btn primary" onclick="impactHausse()">Calculer l\'impact</button></div><div id="impactBox"></div></div>';
+}
+function impactHausse(){
+  const aid=document.getElementById("simArt").value,np=num(document.getElementById("simPrix").value);
+  const recs=recettesImpactees(aid);
+  if(!np||!recs.length){document.getElementById("impactBox").innerHTML='<div class="callout warn">Saisissez un prix et vérifiez que des recettes actives utilisent cet article.</div>';return}
+  const ap=lastPrice(aid)||cumpOf(aid);
+  const rows=recs.map(v=>{const c=coutVersion(v.id);let delta=0;
+    v.ingredients.forEach(ing=>{if(ing.t==="a"&&ing.id===aid)delta+=(np-ap)*ing.q*(1+(ing.parage||0)/100)});
+    const dp=c.rendementNet>0?delta/c.rendementNet:0;
+    return ["<b>"+esc(famille(v.familleId).nom)+"</b>",M(c.coutPortion),M(c.coutPortion+dp),"<b>+"+M(dp)+"</b>"]});
+  document.getElementById("impactBox").innerHTML='<div class="callout warn">Hausse '+esc(article(aid).nom)+' : '+M(ap)+' → '+M(np)+' ('+fmtN(ap?(np-ap)/ap*100:0,1)+' %). <b>'+recs.length+' recette(s) impactée(s)</b>.</div>'+
+    tbl([["Recette"],["Coût actuel","num"],["Nouveau coût","num"],["Delta / portion","num"]],rows);
+}
+/* ================= VUE : SITES & TRANSFERTS ================= */
+function vSites(){
+  const rows=DB.transferts.slice().reverse().map(t=>[fmtD(t.date),esc(site(t.fromSite).nom)+" → <b>"+esc(site(t.toSite).nom)+"</b>",
+    t.lignes.map(l=>esc(article(l.articleId).nom)+" × "+fmtN(l.qty)+(l.manquant?" "+bd("manquant "+fmtN(l.manquant),"bad"):"")).join("<br>"),esc(t.motif||"—")]);
+  const stockSite=DB.sites.map(s=>{
+    const arts=DB.articles.filter(a=>stockOf(a.id,s.id)>0.0001);
+    return '<div class="card"><h3>🏪 '+esc(s.nom)+'</h3>'+(arts.length?tbl([["Article"],["Stock","num"]],arts.map(a=>["<b>"+esc(a.nom)+"</b>",fmtQ(stockOf(a.id,s.id),a.unite)])):"<p class='muted small'>Aucun stock.</p>")+"</div>"}).join("");
+  return '<div class="toolbar"><button class="btn primary" onclick="editSite(\'\')">+ Site</button><button class="btn primary" onclick="editTransfert()">🚚 Nouveau transfert</button></div>'+
+    '<div class="card"><h2>🚚 Transferts inter-sites</h2>'+tbl([["Date"],["Trajet"],["Lignes"],["Motif"]],rows)+"</div>"+
+    '<div class="grid g2">'+stockSite+"</div>";
+}
+function editSite(id){
+  const s=id?site(id):{id:"",nom:""};
+  openModal(id?"✏️ Site":"+ Nouveau site",fld("Nom du site",inp("nom",s.nom,"text",'required maxlength="60"')),
+    fd=>{if(id)site(id).nom=fd.get("nom");else DB.sites.push({id:uid("site"),nom:fd.get("nom")});save();toast("Site enregistré.","ok")});
+}
+let TR_TMP=null;
+function editTransfert(){
+  TR_TMP={date:today(),fromSite:"S1",toSite:"S2",motif:"",lignes:[{articleId:"PF-CRO",qty:10}]};
+  openModal("🚚 Nouveau transfert",'<div id="trBody"></div>',()=>{
+    if(TR_TMP.fromSite===TR_TMP.toSite){toast("Sites identiques !","bad");return false}
+    addTransfert(TR_TMP);toast("Transfert enregistré (FEFO, manquants éventuels alertés).","ok")},{wide:true});
+  drawTR();
+}
+function drawTR(){
+  const el=document.getElementById("trBody");if(!el)return;
+  el.innerHTML='<div class="row r3">'+fld("Date",'<input class="inp" type="date" value="'+TR_TMP.date+'" onchange="TR_TMP.date=this.value">')+
+    fld("De",'<select class="inp" onchange="TR_TMP.fromSite=this.value">'+selOpts(DB.sites.map(s=>[s.id,s.nom]),TR_TMP.fromSite)+"</select>")+
+    fld("Vers",'<select class="inp" onchange="TR_TMP.toSite=this.value">'+selOpts(DB.sites.map(s=>[s.id,s.nom]),TR_TMP.toSite)+"</select>")+"</div>"+
+    fld("Motif",'<input class="inp" value="'+esc(TR_TMP.motif)+'" onchange="TR_TMP.motif=this.value" maxlength="80">')+
+    tbl([["Article"],["Qté","num"],["Stock départ","num"],[""]],TR_TMP.lignes.map((l,i)=>{const a=article(l.articleId);
+      return ['<select class="inp" onchange="TR_TMP.lignes['+i+'].articleId=this.value;drawTR()">'+artOptions(["produit","matiere","semifini","emballage"],l.articleId)+"</select>",
+      '<input class="inp" type="number" step="any" value="'+l.qty+'" onchange="TR_TMP.lignes['+i+'].qty=num(this.value)">',
+      fmtQ(stockOf(l.articleId,TR_TMP.fromSite),a.unite),
+      '<button type="button" class="btn sm danger" onclick="TR_TMP.lignes.splice('+i+',1);drawTR()">✕</button>']}))+
+    '<button type="button" class="btn sm" onclick="TR_TMP.lignes.push({articleId:\'PF-CRO\',qty:10});drawTR()">+ Ligne</button>';
+}
+/* ================= VUE : DONNÉES & PARAMÈTRES ================= */
+function vDonnees(){
+  const s=S();
+  return '<div class="grid g2"><div class="card"><h2>⚙️ Paramètres du laboratoire</h2>'+
+    '<div class="row r2">'+fld("Nom du laboratoire",'<input class="inp" id="p_lab" value="'+esc(s.labName)+'">')+fld("Adresse",'<input class="inp" id="p_adr" value="'+esc(s.adresse||"")+'">')+"</div>"+
+    '<div class="row r3">'+fld("Téléphone",'<input class="inp" id="p_tel" value="'+esc(s.tel||"")+'">')+fld("NIF / RC",'<input class="inp" id="p_nif" value="'+esc(s.nif||"")+'">')+fld("TVA par défaut %",'<input class="inp" id="p_tva" type="number" step="any" value="'+s.tvaDefaut+'">')+"</div>"+
+    '<div class="row r3">'+fld("Devise",'<input class="inp" id="p_dev" value="'+esc(s.devise)+'">')+fld("Symbole",'<input class="inp" id="p_sym" value="'+esc(s.deviseSym)+'">')+fld("Coef. conseillé",'<input class="inp" id="p_coef" type="number" step="any" value="'+s.coefConseille+'">')+"</div>"+
+    '<div class="row r3">'+fld("Taux horaire MO",'<input class="inp" id="p_th" type="number" step="any" value="'+s.tauxHoraireMO+'">')+fld("Taux de charges (0,35 = 35%)",'<input class="inp" id="p_ch" type="number" step="any" value="'+s.chargesRate+'">')+fld("Acompte min cake %",'<input class="inp" id="p_ac" type="number" step="any" value="'+s.acompteMinPct+'">')+"</div>"+
+    '<div class="row r3">'+fld("Alerte DLC (jours)",'<input class="inp" id="p_dlc" type="number" step="1" value="'+s.alerteDlcJours+'">')+fld("Alerte hausse prix %",'<input class="inp" id="p_ha" type="number" step="any" value="'+s.alerteHaussePct+'">')+fld("Capacité jour (min)",'<input class="inp" id="p_cap" type="number" step="1" value="'+s.capaciteMinJour+'">')+"</div>"+
+    '<button class="btn primary" onclick="saveParams()">💾 Enregistrer les paramètres</button></div>'+
+    '<div><div class="card"><h2>💾 Sauvegarde & exports</h2>'+
+    '<p class="small muted">Vos données sont stockées <b>localement</b> dans ce navigateur (fonctionne hors-ligne). Sauvegardez régulièrement le fichier JSON.</p>'+
+    '<div class="toolbar"><button class="btn ok" onclick="quickBackup()">⬇️ Sauvegarde JSON complète</button><button class="btn" onclick="document.getElementById(\'impFile\').click()">⬆️ Restaurer JSON</button><input type="file" id="impFile" accept=".json" style="display:none" onchange="restoreFile(this)"></div>'+
+    '<div class="toolbar"><button class="btn sm" onclick="exportMouvements()">Mouvements CSV</button><button class="btn sm" onclick="exportCompta()">Export comptable CSV</button><button class="btn sm" onclick="exportVentes()">Ventes CSV</button></div></div>'+
+    '<div class="card"><h2>🗑️ Zone sensible</h2><div class="toolbar"><button class="btn danger" onclick="viderDemo()">Recharger la démo</button><button class="btn danger" onclick="toutEffacer()">Tout effacer (partir de zéro)</button></div>'+
+    '<p class="tiny muted">« Recharger la démo » restaure le jeu d\'essai. « Tout effacer » vide les données mais garde les paramètres.</p></div></div></div>';
+}
+function saveParams(){
+  const g=id=>document.getElementById(id).value;
+  Object.assign(S(),{labName:g("p_lab"),adresse:g("p_adr"),tel:g("p_tel"),nif:g("p_nif"),tvaDefaut:num(g("p_tva")),devise:g("p_dev"),deviseSym:g("p_sym"),coefConseille:num(g("p_coef")),tauxHoraireMO:num(g("p_th")),chargesRate:num(g("p_ch")),acompteMinPct:num(g("p_ac")),alerteDlcJours:num(g("p_dlc")),alerteHaussePct:num(g("p_ha")),capaciteMinJour:num(g("p_cap"))});
+  save();refresh();toast("Paramètres enregistrés.","ok");
+}
+function restoreFile(input){
+  const f=input.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{try{const o=JSON.parse(r.result);if(!o.settings||!o.articles)throw 0;DB=o;save();refresh();toast("Restauration réussie. Bienvenue !","ok")}catch(e){toast("Fichier invalide.","bad")}};
+  r.readAsText(f);input.value="";
+}
+function exportCompta(){
+  const rows=[["Date","Ticket","Article","Qté","PU HT","TVA %","Total HT","Total TTC","Site"]];
+  DB.ventes.forEach(v=>v.lignes.forEach(l=>{const a=article(l.articleId);
+    rows.push([v.date,v.ticket,a.nom,l.qty,l.puHT,l.tva,l.qty*l.puHT,l.qty*l.puHT*(1+l.tva/100),site(v.siteId).nom])}));
+  download("patisgest-comptable.csv",toCSV(rows),"text/csv");toast("Export comptable téléchargé (à transmettre au comptable).","ok");
+}
+function exportVentes(){
+  const rows=[["N°","Ticket","Date","Site","Source","Total HT","Total TTC"]];
+  DB.ventes.forEach(v=>rows.push([v.numero,v.ticket,v.date,site(v.siteId).nom,v.source,v.totalHT,v.totalTTC]));
+  download("patisgest-ventes.csv",toCSV(rows),"text/csv");toast("Export ventes téléchargé.","ok");
+}
+async function viderDemo(){if(await confirmDlg("Recharger le jeu de démonstration ? (vos données actuelles seront remplacées)","Recharger")){resetDemo();refresh();toast("Démo rechargée.","ok")}}
+async function toutEffacer(){if(await confirmDlg("TOUT effacer et repartir de zéro (paramètres conservés) ?","Tout effacer")){const s=S();DB=seedDB();DB.settings=s;DB.familles=[];DB.versions=[];save();refresh();toast("Base vidée. Créez vos articles, puis vos recettes.","warn")}}
+/* ================= VUE : GUIDE ================= */
+function vGuide(){
+  return '<div class="card"><h2>❓ Guide — du site au logiciel</h2>'+
+  "<h3>1 · Votre quotidien (dans l'ordre)</h3><ol class='small'><li><b>Achats</b> : fournisseurs + bons de commande, réceptionnez (lots + DLC).</li><li><b>Recettes</b> : vérifiez coûts et marges (formules corrigées de l'audit).</li><li><b>Production</b> : créez un OF, lancez (conso FEFO multi-lots), validez la quantité réelle.</li><li><b>Ventes</b> : encaissez au comptoir ou importez le ticket Z de caisse.</li><li><b>Clôture</b> : chaque soir, les 6 flux + taux de perte.</li><li><b>HACCP</b> : températures + nettoyage chaque jour.</li></ol>"+
+  "<h3>2 · Règles d'or (issues de l'audit des 5 cahiers des charges)</h3><ul class='small'><li><b>Alerte, jamais blocage</b> : un manquant n'empêche jamais de vendre ou produire, il est signalé.</li><li><b>Lot obligatoire + FEFO</b> : DLC la plus proche d'abord, sur plusieurs lots si besoin.</li><li><b>Coût VRAI</b> : matière au lot + emballage + MO chargée + énergie + frais généraux. Pas de TVA.</li><li><b>Parage ↑ consommation, cuisson ↓ rendement.</b></li><li><b>Marge toujours sur HT.</b> Clôture en 6 flux, taux de perte = (jeté + casse) ÷ fabriqué.</li><li><b>Recettes versionnées</b> : les OF gardent un snapshot figé ; les sous-recettes pointent une version figée.</li></ul>"+
+  "<h3>3 · Transformer ce site en logiciel (3 options)</h3><ol class='small'><li><b>Option A — Application bureau (recommandé)</b> : installez Node.js, puis dans le dossier <b>patisgest-desktop</b> (fourni avec ce fichier) lancez <b>npm install</b> puis <b>npm start</b>. Pour un installateur Windows : <b>npm run dist</b>. Votre fichier HTML devient un vrai logiciel avec icône.</li><li><b>Option B — Application mobile/tablette (PWA)</b> : hébergez ce fichier sur Netlify/Vercel (glisser-déposer gratuit), ouvrez-le sur la tablette du labo puis « Ajouter à l'écran d'accueil ». Fonctionne hors-ligne.</li><li><b>Option C — Vrai logiciel multi-utilisateur (V2)</b> : reprenez vos fichiers Next.js + PostgreSQL + Drizzle déjà prêts, et recréez chaque écran avec les mêmes règles de calcul (voir le tableau de correspondance dans le guide fourni).</li></ol>"+
+  "<h3>4 · Sauvegarde</h3><p class='small'>Données stockées localement (hors-ligne). Téléchargez la sauvegarde JSON chaque semaine (bouton 💾 en haut). Gardez une copie sur clé USB.</p></div>"+
+  '<div class="card"><h2>🗺️ Modules couverts (27 de l\'audit → 15 écrans)</h2>'+
+  tbl([["Écran"],["Modules de l'audit couverts"]],
+  [["🏠 Tableau de bord","Dashboard & rapports, pilotage"],["📦 Articles & Stocks","Structure 3 niveaux, lots & FEFO, stock & inventaire"],["🧾 Achats","Achats & fournisseurs, aide à la décision (hausses, recettes impactées)"],["📖 Recettes","Recettes & versionnage, coût de revient complet"],["👨‍🍳 Production","Ordres de fabrication (snapshot, FEFO, validation partielle)"],["💰 Ventes","Ventes & import Z, retours & avoirs"],["📊 Clôture","Clôture 6 flux & anti-gaspi"],["🎂 Cake Studio","Cake Design (configurateur, acompte bloquant, rétroplanning, CGV)"],["🌡️ HACCP","HACCP-lite, températures, nettoyage, non-conformités"],["🏷️ Étiquettes","Allergènes & INCO (ordre décroissant, DLC/DDM)"],["🔍 Traçabilité","Traçabilité amont/aval, rappel lot"],["📅 Planning","Planification, besoins, capacité"],["🧮 Simulation","Simulation prix, impact hausses"],["🏪 Sites","Multi-sites & transferts"],["💾 Données","Exports, onboarding, sauvegarde"]])+"</div>";
+}
+/* ================= NAVIGATION ================= */
+const VIEWS=[
+ {sec:"Pilotage"},
+ {id:"dashboard",label:"Tableau de bord",ico:"🏠",fn:vDashboard},
+ {id:"planning",label:"Planning",ico:"📅",fn:vPlanning},
+ {id:"simulation",label:"Simulation prix",ico:"🧮",fn:vSimulation},
+ {sec:"Atelier"},
+ {id:"articles",label:"Articles & Stocks",ico:"📦",fn:vArticles},
+ {id:"achats",label:"Achats & Fournisseurs",ico:"🧾",fn:vAchats},
+ {id:"recettes",label:"Recettes & Coûts",ico:"📖",fn:vRecettes},
+ {id:"production",label:"Production (OF)",ico:"👨‍🍳",fn:vProduction},
+ {sec:"Commerce"},
+ {id:"ventes",label:"Ventes & Caisse",ico:"💰",fn:vVentes},
+ {id:"cloture",label:"Clôture & Pertes",ico:"📊",fn:vCloture},
+ {id:"cake",label:"Cake Design Studio",ico:"🎂",fn:vCake},
+ {sec:"Qualité"},
+ {id:"haccp",label:"HACCP & Qualité",ico:"🌡️",fn:vHaccp},
+ {id:"etiquettes",label:"Étiquettes & Allergènes",ico:"🏷️",fn:vEtiquettes},
+ {id:"traca",label:"Traçabilité",ico:"🔍",fn:vTraca},
+ {sec:"Système"},
+ {id:"sites",label:"Sites & Transferts",ico:"🏪",fn:vSites},
+ {id:"donnees",label:"Données & Exports",ico:"💾",fn:vDonnees},
+ {id:"guide",label:"Guide logiciel",ico:"❓",fn:vGuide}
+];
+let CUR="dashboard";
+function go(id){if(location.hash==="#"+id)render();else location.hash="#"+id}
+function renderNav(){
+  document.getElementById("nav").innerHTML=VIEWS.map(v=>v.sec?'<div class="sec">'+v.sec+"</div>":'<a href="#'+v.id+'" class="'+(CUR===v.id?"on":"")+'">'+v.ico+" "+v.label+"</a>").join("");
+}
+function render(){
+  CUR=(location.hash||"#dashboard").slice(1);
+  if(!VIEWS.find(v=>v.id===CUR))CUR="dashboard";
+  const v=VIEWS.find(x=>x.id===CUR);
+  document.getElementById("viewTitle").textContent=v.ico+" "+v.label;
+  document.getElementById("topDate").textContent=fmtD(today())+" · "+S().labName;
+  document.getElementById("footLab").textContent=S().labName;
+  try{document.getElementById("content").innerHTML=v.fn()}catch(e){
+    document.getElementById("content").innerHTML='<div class="callout bad"><b>Erreur d\'affichage :</b> '+esc(e.message)+"<br><span class='tiny'>Essayez de recharger la page. Si le problème persiste, restaurez une sauvegarde JSON.</span></div>";
+    console.error(e);
+  }
+  renderNav();majAlertes();window.scrollTo(0,0);
+}
+window.addEventListener("hashchange",render);
+/* ================= DÉMARRAGE ================= */
+(function init(){
+  DB=load();
+  if(!DB||!DB.settings){DB=seedDB();seedLots();seedRecettes();seedMouvements();save();
+    setTimeout(()=>toast("👋 Bienvenue sur <b>PâtisGest</b> ! Données de démonstration chargées — explorez librement, puis repartez de zéro via Données & Exports.","ok"),600);
+  }
+  render();
+})();
+</script>
+</body>
+</html>
