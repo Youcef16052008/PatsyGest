@@ -559,3 +559,34 @@ test('Z import rejects malformed or unknown lines atomically and records shortag
   const {zImports,...old}=initial;
   assert.deepEqual(upgradeState(old).zImports,[]);
 });
+test('Z totals are exact cents: preview, Z record and imported sales always agree', () => {
+  const state=structuredClone(seed);
+  // Quantités décimales : arrondir chaque ligne puis sommer ne doit jamais diverger du total du Z.
+  const csv='PF-001;0,3333;10,00\nPF-001;0,3333;10,00\nPF-001;0,3334;10,00';
+  const preview=previewZ(state,'2026-11-17','C1','Z-9',csv);
+  const next=importZ(state,'2026-11-17','C1','Z-9',csv);
+  const z=next.zImports[0];
+  const sales=z.saleIds.map(sid=>next.sales.find(s=>s.id===sid));
+  assert.equal(sales.length,3);
+  const sumHT=sales.reduce((s,x)=>s+Math.round(x.totalHT*100),0)/100;
+  const sumTTC=sales.reduce((s,x)=>s+Math.round(x.totalTTC*100),0)/100;
+  assert.equal(preview.totalHT,z.totalHT);
+  assert.equal(preview.totalTTC,z.totalTTC);
+  assert.equal(sumHT,z.totalHT);
+  assert.equal(sumTTC,z.totalTTC);
+  // L'ancien calcul (somme puis arrondi) donnait 10,00 HT / 11,90 TTC pour un Z dont les ventes totalisent 9,99 / 11,91.
+  assert.equal(z.totalHT,9.99);
+  assert.equal(z.totalTTC,11.91);
+  for(const sale of sales){
+    assert.equal(sale.totalHT,Math.round(sale.totalHT*100)/100);
+    assert.equal(sale.totalTTC,Math.round(sale.totalTTC*100)/100);
+  }
+});
+test('POS sale rounds HT and TTC totals to the centime', () => {
+  const next=sell(structuredClone(seed),'eclair',0.3333);
+  const sale=next.sales[0];
+  assert.equal(sale.totalHT,83.33);
+  assert.equal(sale.totalTTC,99.16);
+  assert.equal(sale.totalHT,Math.round(sale.totalHT*100)/100);
+  assert.equal(sale.totalTTC,Math.round(sale.totalTTC*100)/100);
+});
