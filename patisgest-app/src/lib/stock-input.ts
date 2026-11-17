@@ -88,6 +88,48 @@ export function parseArticleInput(formData: FormData): ArticleInput {
   };
 }
 
+function futureDate(value: FormDataEntryValue | null, label: string): string {
+  const s = String(value ?? "").trim();
+  if (!DATE_RE.test(s) || Number.isNaN(Date.parse(s)) || new Date(s).toISOString().slice(0, 10) !== s) {
+    throw new Error(`${label} : date invalide (format AAAA-MM-JJ).`);
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  if (s < today) throw new Error(`${label} doit être aujourd'hui ou plus tard.`);
+  return s;
+}
+
+export type OfCreateInput = {
+  versionId: string;
+  siteId: string;
+  qtePrevue: number;
+  datePrevue: string;
+};
+
+export function parseOfCreateInput(formData: FormData): OfCreateInput {
+  return {
+    versionId: uuid(formData.get("versionId"), "Version"),
+    siteId: uuid(formData.get("siteId"), "Site"),
+    qtePrevue: number(formData.get("qtePrevue"), "Quantité prévue", 0.0001, 100_000_000),
+    datePrevue: futureDate(formData.get("datePrevue"), "Date prévue"),
+  };
+}
+
+export type OfFinishInput = {
+  ofId: string;
+  qte: number;
+  numeroLot: string;
+  dlc: string;
+};
+
+export function parseOfFinishInput(formData: FormData): OfFinishInput {
+  return {
+    ofId: uuid(formData.get("ofId"), "OF"),
+    qte: number(formData.get("qte"), "Quantité réalisée", 0.0001, 100_000_000),
+    numeroLot: text(formData.get("numeroLot"), "N° de lot", 80),
+    dlc: futureDate(formData.get("dlc"), "DLC"),
+  };
+}
+
 export type SaleInput = {
   articleId: string;
   siteId: string;

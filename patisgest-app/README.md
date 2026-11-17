@@ -26,6 +26,8 @@ Exécuter **une fois** dans Supabase → SQL Editor, dans l'ordre :
    (rôles propriétaire + labo, isolement strict par client, réception atomique RPC).
 6. `supabase/06-ventes-caisse-fefo.sql` — ventes de caisse via la RPC `vendre_article`
    (FEFO atomique, idempotence par ticket, tous les rôles authentifiés).
+7. `supabase/07-of-production.sql` — cycle OF via `creer_of` / `demarrer_of` /
+   `terminer_of` (besoins figés côté serveur, FEFO au lancement, coût connu à la clôture).
 
 Le jeu de données métier du projet pilote distant n'est pas intégralement reproduit par
 le seed local.
@@ -58,7 +60,7 @@ npm ci
 npm run dev            # http://localhost:3000
 npm run typecheck      # TypeScript
 npm run lint           # ESLint
-npm test               # 53 tests unitaires (Node ≥ 22)
+npm test               # 55 tests unitaires (Node ≥ 22)
 npm run test:smoke     # tests HTTP : gardes de routes, login/démo, cookie forgé, logout
 npm run build          # build de production (celui que Vercel exécute)
 ```
@@ -93,10 +95,12 @@ src/lib/patisgest-store.ts              → moteur de démonstration local (test
 src/lib/stock-input.ts                  → validation pure des saisies stocks (tests dedans)
 src/lib/actions-stock.ts                → server actions d'écriture réelle (RLS)
 src/lib/actions-caisse.ts               → vente réelle via RPC FEFO
+src/lib/actions-of.ts                   → cycle OF réel (créer / lancer / clôturer)
 src/components/stock-write-forms.tsx    → formulaires article / réception (page Stocks)
 src/components/sale-form.tsx            → formulaire de vente (page Caisse)
+src/components/of-forms.tsx             → formulaires OF (page Production)
 src/db/schema.ts                        → tables Drizzle (miroir du SQL)
-supabase/01..06-*.sql                   → socle, seed, modules, lecture, écritures RLS
+supabase/01..07-*.sql                   → socle, seed, modules, lecture, écritures RLS
 middleware.ts                           → rafraîchit la session Supabase
 tests/store.test.mjs                    → tests unitaires du moteur local
 tests/stock-input.test.mjs              → tests unitaires de validation des saisies

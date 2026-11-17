@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArticleInput, parseReceptionInput, parseSaleInput } from '../src/lib/stock-input.ts';
+import { parseArticleInput, parseReceptionInput, parseSaleInput, parseOfCreateInput, parseOfFinishInput } from '../src/lib/stock-input.ts';
 
 const articleForm = (overrides = {}) => {
   const fd = new FormData();
@@ -75,6 +75,45 @@ test('parseSaleInput rejects invalid sales', () => {
   assert.throws(() => parseSaleInput(saleForm({ qte: '0' })), /Quantité/);
   assert.throws(() => parseSaleInput(saleForm({ qte: '-2' })), /Quantité/);
   assert.throws(() => parseSaleInput(saleForm({ qte: 'abc' })), /Quantité/);
+});
+
+const tomorrow = () => {
+  const d = new Date(Date.now() + 86400000);
+  return d.toISOString().slice(0, 10);
+};
+
+const ofCreateForm = (overrides = {}) => {
+  const fd = new FormData();
+  const base = { versionId: '6ab9eba2-7f1d-469d-a87c-814880c2bf41', siteId: '22222222-2222-4222-8222-222222222201', qtePrevue: '12', datePrevue: tomorrow() };
+  for (const [k, v] of Object.entries({ ...base, ...overrides })) fd.set(k, v);
+  return fd;
+};
+
+test('parseOfCreateInput accepts a valid OF', () => {
+  const input = parseOfCreateInput(ofCreateForm());
+  assert.equal(input.versionId, '6ab9eba2-7f1d-469d-a87c-814880c2bf41');
+  assert.equal(input.qtePrevue, 12);
+  assert.equal(input.datePrevue, tomorrow());
+  assert.throws(() => parseOfCreateInput(ofCreateForm({ versionId: 'nope' })), /Version/);
+  assert.throws(() => parseOfCreateInput(ofCreateForm({ qtePrevue: '0' })), /Quantité/);
+  assert.throws(() => parseOfCreateInput(ofCreateForm({ datePrevue: '2020-01-01' })), /Date/);
+  assert.throws(() => parseOfCreateInput(ofCreateForm({ datePrevue: 'pas-un-date' })), /Date/);
+});
+
+const ofFinishForm = (overrides = {}) => {
+  const fd = new FormData();
+  const base = { ofId: 'ee8bb422-1a6d-40d4-b3d6-a33cf3a4da2f', qte: '12', numeroLot: 'LOT-101', dlc: tomorrow() };
+  for (const [k, v] of Object.entries({ ...base, ...overrides })) fd.set(k, v);
+  return fd;
+};
+
+test('parseOfFinishInput accepts a valid closure and rejects bad ones', () => {
+  const input = parseOfFinishInput(ofFinishForm());
+  assert.equal(input.qte, 12);
+  assert.equal(input.numeroLot, 'LOT-101');
+  assert.throws(() => parseOfFinishInput(ofFinishForm({ ofId: '' })), /OF/);
+  assert.throws(() => parseOfFinishInput(ofFinishForm({ numeroLot: ' ' })), /N° de lot/);
+  assert.throws(() => parseOfFinishInput(ofFinishForm({ dlc: '2020-01-01' })), /DLC/);
 });
 
 test('parseReceptionInput rejects invalid receptions', () => {
