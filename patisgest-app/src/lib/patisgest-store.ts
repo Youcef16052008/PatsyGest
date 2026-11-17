@@ -7,6 +7,9 @@ export type Sale = { id: string; articleId: string; qty: number; totalHT: number
 export type State = { articles: Article[]; lots: Lot[]; movements: Movement[]; sales: Sale[]; suppliers: string[]; purchases: PurchaseOrder[]; productions: ProductionOrder[]; transfers: Transfer[]; recipes: Recipe[]; closings: DailyClosing[]; temperatures: TemperatureReading[]; cleanings: CleaningRecord[]; incidents: QualityIncident[]; cakes: CakeOrder[]; lotEvents: LotEvent[]; planningTasks: PlanningTask[]; dailyCapacity:number; zImports: ZImport[] };
 const today = () => new Date().toISOString().slice(0, 10);
 const id = () => crypto.randomUUID();
+/** Arrondi monétaire au centime, calculé en centimes entiers : le total d'un ticket Z est toujours la somme exacte de ses lignes. */
+const moneyCents = (n: number) => Math.round(n * 100);
+const roundMoney = (n: number) => moneyCents(n) / 100;
 export const seed: State = {
   articles: [
     { id:'farine',code:'MAT-001',nom:'Farine pâtissière',niveau:'matiere',unite:'kg',seuil:10,prix:0,tva:19 },
@@ -39,7 +42,7 @@ export function sell(state: State, articleId: string, qty: number): State {
   const ticket = id();
   const movements = used.map(({lot,qty}) => ({id:id(),lotId:lot.id,articleId,qte:-qty,reference:'Vente '+ticket,date:today()}));
   if (rest > 0) movements.push({id:id(),lotId:'',articleId,qte:-rest,reference:'Écart de vente '+ticket,date:today()});
-  return { ...state, lots:state.lots.map(l=>{const u=used.find(x=>x.lot.id===l.id); return u ? {...l,qte:Math.round((l.qte-u.qty)*10000)/10000}:l;}), movements:[...state.movements,...movements], sales:[{id:ticket,articleId,qty,totalHT:qty*article.prix,totalTTC:qty*article.prix*(1+article.tva/100),missing:rest,lots:used.map(x=>x.lot.numero),lotDetails:used.map(x=>({lotId:x.lot.id,qty:x.qty})),date:today()},...state.sales] };
+  return { ...state, lots:state.lots.map(l=>{const u=used.find(x=>x.lot.id===l.id); return u ? {...l,qte:Math.round((l.qte-u.qty)*10000)/10000}:l;}), movements:[...state.movements,...movements], sales:[{id:ticket,articleId,qty,totalHT:moneyCents(qty*article.prix)/100,totalTTC:moneyCents(qty*article.prix*(1+article.tva/100))/100,missing:rest,lots:used.map(x=>x.lot.numero),lotDetails:used.map(x=>({lotId:x.lot.id,qty:x.qty})),date:today()},...state.sales] };
 }
 /** Une version est figée ; chaque changement crée une nouvelle version active. */
 export type RecipeIngredient = {articleId:string; qty:number; parage:number};
@@ -208,7 +211,7 @@ export function addDailyClosing(state:State, date:string, site:string, lines:Clo
 export function closingStats(closing:DailyClosing) {
   const unitSet=new Set(closing.lines.map(l=>l.unit));
   const totals=closing.lines.reduce((acc,l)=>({produit:acc.produit+l.produit,vendu:acc.vendu+l.vendu,reporte:acc.reporte+l.reporte,jete:acc.jete+l.jete,casse:acc.casse+l.casse,offert:acc.offert+l.offert,caHT:acc.caHT+l.vendu*l.priceHT,manque:acc.manque+(l.jete+l.casse)*l.priceHT}),{produit:0,vendu:0,reporte:0,jete:0,casse:0,offert:0,caHT:0,manque:0});
-  return {...totals,unit:unitSet.size===1?closing.lines[0].unit:null,lossRate:unitSet.size===1 && totals.produit>0?(totals.jete+totals.casse)/totals.produit*100:null};
+  return {...totals,caHT:roundMoney(totals.caHT),manque:roundMoney(totals.manque),unit:unitSet.size===1?closing.lines[0].unit:null,lossRate:unitSet.size===1 && totals.produit>0?(totals.jete+totals.casse)/totals.produit*100:null};
 }
 
 /** Registre HACCP de démonstration : seuil maximum saisi par l'utilisateur, pas un avis réglementaire. */
@@ -398,7 +401,6 @@ export function simulatePrice(state:State, recipeId:string, price:number, materi
 export type ZInputLine={code:string; qty:number; priceHT:number; articleId:string; vatPercent:number};
 export type ZImport={id:string; date:string; site:'Boutique'; register:string; zNumber:string; lines:ZInputLine[]; totalHT:number; totalTTC:number; saleIds:string[]; importedAt:string};
 export type ZPreview={lines:ZInputLine[]; totalHT:number; totalTTC:number; similar:ZImport[]};
-const roundMoney=(n:number)=>Math.round((n+Number.EPSILON)*100)/100;
 /** Format strict : une ligne code;quantité;prix unitaire HT, sans en-tête ni guillemets. */
 export function previewZ(state:State,date:string,register:string,zNumber:string,csv:string):ZPreview {
   if (!isValidDate(date) || !requiredText(register,80) || !requiredText(zNumber,80) || !requiredText(csv,50000)) throw new Error('Date, caisse, numéro Z et données sont obligatoires.');
@@ -416,8 +418,9 @@ export function previewZ(state:State,date:string,register:string,zNumber:string,
     if (!Number.isFinite(article.tva) || article.tva<0 || article.tva>100) throw new Error(`TVA invalide pour ${article.code}.`);
     return {code:article.code,qty,priceHT,articleId:article.id,vatPercent:article.tva};
   });
-  const totalHT=roundMoney(lines.reduce((s,l)=>s+l.qty*l.priceHT,0));
-  const totalTTC=roundMoney(lines.reduce((s,l)=>s+l.qty*l.priceHT*(1+l.vatPercent/100),0));
+  // Somme des lignes arrondies au centime : identique à la somme des ventes créées à l'import.
+  const totalHT=lines.reduce((s,l)=>s+moneyCents(l.qty*l.priceHT),0)/100;
+  const totalTTC=lines.reduce((s,l)=>s+moneyCents(l.qty*l.priceHT*(1+l.vatPercent/100)),0)/100;
   const similar=state.zImports.filter(z=>z.date===date && z.site==='Boutique' && Math.abs(z.totalHT-totalHT)<0.005);
   return {lines,totalHT,totalTTC,similar};
 }
@@ -429,7 +432,7 @@ export function importZ(state:State,date:string,register:string,zNumber:string,c
   for (const line of preview.lines) {
     const saleId=id(), reference=`Vente ${saleId}`;
     const result=consume(next,line.articleId,line.qty,'Boutique',reference);
-    const sale:Sale={id:saleId,articleId:line.articleId,qty:line.qty,totalHT:roundMoney(line.qty*line.priceHT),totalTTC:roundMoney(line.qty*line.priceHT*(1+line.vatPercent/100)),missing:result.missing,lots:result.used.map(u=>u.numero),lotDetails:result.used.map(u=>({lotId:u.lotId,qty:u.qty})),date,source:'z-import',unitPriceHT:line.priceHT,vatPercent:line.vatPercent};
+    const sale:Sale={id:saleId,articleId:line.articleId,qty:line.qty,totalHT:moneyCents(line.qty*line.priceHT)/100,totalTTC:moneyCents(line.qty*line.priceHT*(1+line.vatPercent/100))/100,missing:result.missing,lots:result.used.map(u=>u.numero),lotDetails:result.used.map(u=>({lotId:u.lotId,qty:u.qty})),date,source:'z-import',unitPriceHT:line.priceHT,vatPercent:line.vatPercent};
     next={...result.next,sales:[sale,...result.next.sales]};saleIds.push(saleId);
   }
   const z:ZImport={id:zId,date,site:'Boutique',register:register.trim(),zNumber:zNumber.trim(),lines:preview.lines,totalHT:preview.totalHT,totalTTC:preview.totalTTC,saleIds,importedAt:new Date().toISOString()};

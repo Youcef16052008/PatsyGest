@@ -21,7 +21,13 @@ Ces comptes et leur mot de passe sont publics et ne conviennent pas à des donn�
 - Démo : planning avec date prévue pour chaque nouvel OF, tâches liées facultativement à un OF, capacité journalière et alerte de surcharge. Les besoins cumulés jusqu'à la date choisie utilisent les snapshots des OF planifiés non lancés et le stock actuel non bloqué du labo. Aucune réservation, commande ou réception future n'est prise en compte ; les anciens OF sans date sont exclus jusqu'à leur datation. Les lots périmés ne sont pas exclus.
 - Démo : simulation HT sur la version active d'une recette, avec variation appliquée uniquement aux matières, frais constants, marge sur prix et coefficients. Elle utilise le premier prix FEFO courant et reste indicative ; les prix manquants ou incomplets empêchent l'affichage du résultat. Elle ne modifie aucun prix.
 - Les données des anciennes sessions locales sont migrées à la lecture. Ce stockage n'est ni synchronisé ni protégé contre les modifications concurrentes dans plusieurs onglets.
-- Tests : `npm run typecheck`, `npm run lint`, `npm test` (Node 22 ou supérieur pour le test TypeScript natif).
+- Tests : `npm run typecheck`, `npm run lint`, `npm test` (47 tests unitaires, Node 22 ou supérieur pour le test TypeScript natif), `npm run test:smoke` (6 tests HTTP : redirections non authentifiées, connexion de démonstration par server action, cookie forgé rejeté, 13 modules, 404, déconnexion avec effacement du cookie), `npm run build` (build de production).
+
+## Vérifié et non vérifié (2026-11-17)
+
+Vérifié dans cette session : `typecheck`, `lint`, 47 tests unitaires et `next build` passent ; 6 tests HTTP de bout en bout passent (gardes de routes, connexion et déconnexion de démonstration, cookie forgé rejeté) ; le projet Vercel déploie en production (Root Directory `patisgest-app`, build READY) ; le projet Supabase distant a les 20 tables avec RLS activées, des politiques de lecture par client et aucune écriture métier autorisée, et les 3 comptes Auth correspondent aux lignes `utilisateurs`.
+
+Non vérifié : connexion Supabase Auth réelle de bout en bout (jamais exécutée — `last_sign_in_at` nul et réseau Supabase inaccessible depuis la sandbox ; à tester depuis le déploiement ou un navigateur), comportement en production Vercel sans variables d'environnement Supabase (le login affiche alors une erreur), tests navigateur/complets (accessibilité, responsive), concurrence, sauvegardes, audit de sécurité RLS exhaustif (rôles, deux tenants, IDs falsifiés), et toute écriture transactionnelle. Le pilote n'est pas jugé prêt pour la production.
 
 ## Restant
 
