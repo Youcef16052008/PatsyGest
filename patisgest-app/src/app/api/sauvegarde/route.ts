@@ -3,7 +3,8 @@ import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { messageUtilisateur } from "@/lib/erreurs-db";
 import {
-  ORDRE_RESTAURATION, construireSauvegarde, nomFichierSauvegarde, type TableSauvegardee,
+  ORDRE_RESTAURATION, colonneTenant, construireSauvegarde, nomFichierSauvegarde,
+  type TableSauvegardee,
 } from "@/lib/sauvegarde";
 
 export const dynamic = "force-dynamic";
@@ -26,10 +27,12 @@ export async function GET() {
     const echecs: string[] = [];
 
     for (const table of ORDRE_RESTAURATION) {
+      // `clients` s'isole par `id`, toutes les autres par `client_id` :
+      // filtrer clients sur client_id fait échouer la sauvegarde entière.
       const { data, error } = await supabase
         .from(table)
         .select("*")
-        .eq("client_id", ctx.clientId)
+        .eq(colonneTenant(table), ctx.clientId)
         .limit(50000);
       if (error) {
         // Une table illisible ne doit pas produire une sauvegarde silencieusement

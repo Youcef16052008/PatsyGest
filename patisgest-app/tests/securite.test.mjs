@@ -180,3 +180,25 @@ test('sécu : une sauvegarde ne contient aucun secret', () => {
   assert.ok(/proprietaire/.test(route), 'export complet réservé au propriétaire');
   assert.ok(/no-store/.test(route));
 });
+
+test('sécu : aucune route ne filtre `clients` sur client_id (colonne inexistante)', () => {
+  // Bug livré : /api/sauvegarde filtrait clients sur client_id -> 500 permanent.
+  // `clients` s'isole par `id`. On refuse la récidive dans tout le code.
+  const fichiers = [
+    ...fichiersSuivis('src/app/api', ['.ts']),
+    ...fichiersSuivis('src/lib', ['.ts']),
+  ];
+  assert.ok(fichiers.length > 10);
+  for (const f of fichiers) {
+    const src = read(f);
+    // Toute occurrence de from("clients") suivie d'un eq("client_id"…) est fautive.
+    const fautif = /from\(\s*["']clients["']\s*\)[\s\S]{0,160}?\.eq\(\s*["']client_id["']/.test(src);
+    assert.equal(fautif, false, `${f} filtre clients sur client_id (la colonne est id)`);
+  }
+});
+
+test('sécu : la sauvegarde isole chaque table par sa vraie colonne tenant', () => {
+  const route = read('src/app/api/sauvegarde/route.ts');
+  assert.ok(/colonneTenant\(/.test(route), 'la route doit utiliser colonneTenant(), pas client_id en dur');
+  assert.equal(/\.eq\(\s*["']client_id["']/.test(route), false, 'plus de client_id en dur dans la sauvegarde');
+});

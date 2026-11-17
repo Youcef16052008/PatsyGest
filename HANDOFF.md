@@ -89,12 +89,12 @@ reset role; rollback;
 
 ## 5. Chiffres à retrouver (rejouer `npm test`)
 
-**239 tests** (vérifié fichier par fichier) : store47 · stock-input10 ·
+**246 tests** (vérifié fichier par fichier) : store47 · stock-input10 ·
 journal-input15 · purchase-input6 · z-input6 · price-alerts6 · reconciliation5 ·
 label-model5 · version-input6 · cost-sheet10 · rc-reference13 · fefo-cost6 ·
 quality-alerts8 · sale-queue6 · of-queue5 · permissions3 · **allergenes11** ·
-**csv12** · **onboarding8** · **erreurs-db8** · **securite13** · **etablissement15** ·
-**sauvegarde15** ·
+**csv12** · **onboarding8** · **erreurs-db8** · **securite15** · **etablissement15** ·
+**sauvegarde19** · **erreurs-db9** ·
 smoke **10/10** (séparé, dont `/api/export` et `/api/sauvegarde`).
 
 > ⚠️ Correction de revue (2026-11-17) : la version précédente listait
@@ -403,9 +403,13 @@ FNV-1a, 15 tests), `/api/sauvegarde` (export JSON propriétaire),
 `actions-restauration.ts` (analyser → confirmer en tapant RESTAURER),
 `SauvegardePanel`.
 
-**CA-15 « sauvegarde → restauration sur base vide = données identiques » :
-prouvé sur la base réelle.** Scénario joué en transaction (rollback, base
-intacte après coup — vérifié) :
+> ⚠️ **Cette preuve était incomplète** — voir §12 : `clients` n'était pas
+> exporté et la restauration échouait sur une base vierge. Le scénario corrigé
+> est en §12.4 (53 lignes / 15 tables, empreinte identique).
+
+**CA-15 « sauvegarde → restauration = données identiques » (scénario initial,
+8 tables, `clients` exclué) :** joué en transaction (rollback, base intacte
+après coup — vérifié) :
 
 | Étape | Résultat |
 |---|---|
@@ -438,3 +442,93 @@ d'exécution, `public_exec = 0`.
 - `utilisateurs` n'est pas dans le dump (rattachés à `auth.users`) — les
   comptes se recréent côté Supabase Auth, c'est documenté dans le fichier.
 - Les 3 critères humains de §10.4 restent ouverts.
+
+---
+
+## 12. Revue de mon propre travail (même jour) — 3 bugs livrés, corrigés
+
+Relire ce qu'on vient de pousser vaut mieux que le relire jamais. Trois défauts
+**réels** trouvés dans mon propre code de la §11, tous invisibles pour les tests
+que j'avais écrits, parce que ces tests ne touchaient pas la base.
+
+### 12.1 `clients` filtré sur `client_id` — la sauvegarde ne marchait pas
+
+`clients` n'a **pas** de colonne `client_id` : sa clé est `id`, et ce sont les
+21 autres tables qui la référencent par `client_id`. Ma route `/api/sauvegarde`
+faisait `.eq("client_id", …)` sur **toutes** les tables, `clients` compris.
+PostgREST répond alors `400 column clients.client_id does not exist`, que je
+transformais en **500** : la sauvegarde échouait à chaque appel, et le message
+ne disait pas pourquoi.
+
+Correction : `colonneTenant(table)` dans `src/lib/sauvegarde.ts` (module pur,
+testé), utilisée par la route. Deux tests de régression, dont un invariant de
+sécurité qui refuse désormais tout `from("clients").…eq("client_id")` dans
+`src/`.
+
+### 12.2 `z_imports` restauré avant `ventes` — violation de clé étrangère
+
+Mon ordre de restauration plaçait `z_imports` **avant** `ventes`, alors que
+`z_imports.vente_id` référence `ventes.id`. Sur une base où les deux tables ont
+des lignes, la restauration échouait. Mes tests ne l'ont pas vu : **je n'avais
+testé que 8 tables sur les 15 peuplées**, et `z_imports` était vide.
+
+`z_imports` est maintenant après `ventes`. Un test énumère **27 paires de FK**
+relevées sur la base et vérifie que l'ordre les respecte toutes.
+
+### 12.3 La restauration échoue sur une base vierge — `clients` est la racine
+
+Conséquence du 12.1, et c'était plus grave que je ne l'avais écrit : puisque
+`clients` n'était jamais exporté, une restauration sur base vide violait la clé
+étrangère `articles.client_id → clients.id` dès la première table. Autrement
+dit, **mon « CA-15 prouvé » de la §11.2 ne prouvait rien** : mes deux scripts de
+test excluaient le vidage de `clients` pour rester dans une transaction
+annulable — ce qui masquait exactement le cas « base vide » du critère.
+
+`clients` est désormais exporté (colonne `id`), et la fonction SQL vérifie que
+le client existe avant de restaurer, avec un message explicite au lieu d'une
+violation de FK au milieu du parcours.
+
+### 12.4 CA-15 refait, honnêtement, sur les 15 tables peuplées
+
+Scénario rejoué en transaction annulée (base vérifiée intacte après) :
+
+| Étape | Résultat |
+|---|---|
+| Dump | **53 lignes / 15 tables** (clients exclu de la restauration : racine préexistante) |
+| Vidage | articles 0 · ventes 0 · lots 0 |
+| `restaurer_sauvegarde(dump)` | **53 lignes réinsérées**, 0 ignorée |
+| Empreinte métier par table, avant/après | **IDENTIQUE sur les 15 tables** |
+
+Test de conflit partiel (le cas réel : base déjà utilisée) : seuls les lots
+vidés → `insere={lots:12}`, `ignore={sites:2, articles:16}`, état final complet
+sans doublon.
+
+Test d'atomicité : un lot volontairement incomplet (colonne `pu` NULL) échoue
+en `23502`, et la base reste **inchangée** (12 lots avant, 12 après).
+
+### 12.5 Deux défauts d'usage corrigés
+
+- **Panneau de restauration** : il fallait **re-sélectionner le fichier** entre
+  « analyser » et « confirmer » — un `<input type="file">` se vide après envoi.
+  Le fichier est maintenant gardé en état React, `FormData` construit à la
+  main, bouton de confirmation désactivé tant que `RESTAURER` n'est pas tapé.
+- **`23502`** (NOT NULL) tombait dans le message générique ; il dit maintenant
+  « le fichier est incomplet ou a été modifié », sans jargon Postgres.
+
+### 12.6 Ce que la revue confirme comme correct
+
+- Seules `parametres_couts` et `recette_versions` ont un SELECT restreint par
+  rôle, et ce sont **exactement** les deux tables marquées `cout: true` dans
+  `TABLES_EXPORT` : un vendeur ne peut exporter aucune donnée de coût.
+- Toutes les tables ont une policy SELECT ; les 11 tables sans INSERT passent
+  bien par la RPC de restauration.
+- Les 2 FK en `SET NULL` (`lots.fournisseur_id`, `mouvements.lot_id`) imposent
+  `fournisseurs` avant `lots` : l'ordre le respecte.
+
+### 12.7 Portes après correction
+
+`typecheck` 0 · `lint` 0 · `test` **246/246** · `build` OK · `smoke` **10/10**.
+
+**Ce qui reste faux malgré tout** : ces preuves tournent en transaction annulée
+sur la base du pilote, pas sur une base de production réellement vierge, et
+jamais dans un navigateur. La §10.4 reste la référence de ce qui n'est pas fait.

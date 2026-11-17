@@ -4,6 +4,7 @@ import {
   FORMAT_SAUVEGARDE, VERSION_FORMAT, ORDRE_RESTAURATION, TABLES_EXCLUES,
   empreinte, canonique, construireSauvegarde, validerSauvegarde,
   resumeSauvegarde, totalLignes, nomFichierSauvegarde,
+  colonneTenant, TABLE_RACINE, estTableRacine,
 } from '../src/lib/sauvegarde.ts';
 
 /**
@@ -145,4 +146,69 @@ test('sauvegarde : aller-retour JSON = données identiques (CA-15, volet automat
   assert.equal(canonique(relu.tables), canonique(
     [...relu.tables].sort((a, b) => ORDRE_RESTAURATION.indexOf(a.table) - ORDRE_RESTAURATION.indexOf(b.table)),
   ));
+});
+
+// --- Régressions trouvées en revue de mon propre travail --------------------
+
+test('RÉGRESSION : `clients` n’a pas de client_id — sa colonne d’isolation est id', () => {
+  // Bug livré : la route de sauvegarde filtrait clients sur client_id.
+  // PostgREST renvoie alors 400 « column clients.client_id does not exist »,
+  // donc la sauvegarde ENTIÈRE échouait en 500 à chaque appel.
+  assert.equal(colonneTenant('clients'), 'id');
+  assert.equal(colonneTenant('sites'), 'client_id');
+  assert.equal(colonneTenant('articles'), 'client_id');
+  assert.equal(colonneTenant('ventes'), 'client_id');
+  // Toute table de l'ordre de restauration sauf clients s'isole par client_id.
+  for (const t of ORDRE_RESTAURATION) {
+    const attendu = t === 'clients' ? 'id' : 'client_id';
+    assert.equal(colonneTenant(t), attendu, `${t} mal isolée`);
+  }
+});
+
+test('RÉGRESSION : z_imports porte une FK vers ventes et doit la suivre', () => {
+  // Bug livré : z_imports était restauré AVANT ventes.
+  // Sur une base où les deux tables ont des lignes, la clé étrangère
+  // z_imports.vente_id -> ventes.id faisait échouer la restauration.
+  const iVentes = ORDRE_RESTAURATION.indexOf('ventes');
+  const iZ = ORDRE_RESTAURATION.indexOf('z_imports');
+  assert.ok(iVentes >= 0 && iZ >= 0);
+  assert.ok(iVentes < iZ, 'z_imports doit venir APRÈS ventes');
+});
+
+test('RÉGRESSION : clients est la racine — on la vérifie, on ne l’insère pas', () => {
+  // 21 clés étrangères pointent vers clients.id : sur une base vierge, la
+  // ligne client doit préexister, sinon tout échoue par violation de FK.
+  assert.equal(TABLE_RACINE, 'clients');
+  assert.equal(estTableRacine('clients'), true);
+  assert.equal(estTableRacine('sites'), false);
+  // La racine reste exportée (elle porte l'identité légale)…
+  assert.equal(ORDRE_RESTAURATION.includes('clients'), true);
+});
+
+test('RÉGRESSION : l’ordre de restauration respecte toutes les FK du schéma', () => {
+  // Relevé de pg_constraint sur la base (42 FK). Les paires parent→enfant
+  // ci-dessous sont celles qui peuvent coexister dans un dump.
+  const fk = [
+    ['clients', 'sites'], ['clients', 'articles'], ['clients', 'ventes'],
+    ['clients', 'lots'], ['clients', 'cakes'], ['clients', 'clotures'],
+    ['clients', 'z_imports'], ['clients', 'fournisseurs'],
+    ['sites', 'lots'], ['sites', 'ventes'], ['sites', 'clotures'],
+    ['sites', 'ordres_fabrication'], ['sites', 'z_imports'],
+    ['sites', 'transferts'], ['sites', 'mouvements'],
+    ['fournisseurs', 'lots'], ['fournisseurs', 'bons_commande'],
+    ['fournisseurs', 'historique_prix'],
+    ['articles', 'lots'], ['articles', 'mouvements'],
+    ['articles', 'historique_prix'], ['articles', 'recette_familles'],
+    ['lots', 'mouvements'],
+    ['recette_familles', 'recette_versions'], ['recette_familles', 'ordres_fabrication'],
+    ['recette_versions', 'ordres_fabrication'],
+    ['ventes', 'z_imports'],
+  ];
+  for (const [parent, enfant] of fk) {
+    const ip = ORDRE_RESTAURATION.indexOf(parent);
+    const ie = ORDRE_RESTAURATION.indexOf(enfant);
+    assert.ok(ip >= 0, `${parent} absent de l'ordre`);
+    assert.ok(ie >= 0, `${enfant} absent de l'ordre`);
+    assert.ok(ip < ie, `${parent} doit précéder ${enfant} (FK)`);
+  }
 });

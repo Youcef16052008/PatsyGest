@@ -38,9 +38,9 @@ export const ORDRE_RESTAURATION = [
   "bons_commande",
   "ordres_fabrication",
   "ventes",
+  "z_imports", // FK vers ventes : doit suivre ventes, pas le précéder
   "clotures",
   "transferts",
-  "z_imports",
   "cakes",
   "releve_temperatures",
   "nettoyages",
@@ -52,6 +52,34 @@ export const ORDRE_RESTAURATION = [
 export const TABLES_EXCLUES: { table: string; raison: string }[] = [
   { table: "utilisateurs", raison: "rattachés à des comptes Auth Supabase (auth.users) — à recréer côté Auth" },
 ];
+
+/**
+ * Colonne d'isolation multi-tenant, par table.
+ *
+ * `clients` n'a **pas** de `client_id` : sa clé est `id`, et toutes les autres
+ * tables la référencent par `client_id`. Filtrer `clients` sur `client_id`
+ * produit une erreur PostgREST (« column does not exist ») et fait échouer la
+ * sauvegarde entière. Ce piège a été livré une fois ; il est désormais testé.
+ */
+export const COLONNE_TENANT: Record<string, "client_id" | "id"> = {
+  clients: "id",
+};
+
+export function colonneTenant(table: string): "client_id" | "id" {
+  return COLONNE_TENANT[table] ?? "client_id";
+}
+
+/**
+ * Tables racines : elles ne s'insèrent pas, elles existent déjà. Sur une base
+ * vierge, `clients` doit être créé avant toute ligne enfant, sinon les 21 clés
+ * étrangères vers `clients.id` échouent. La restauration vérifie donc que le
+ * client existe, au lieu de tenter un insert.
+ */
+export const TABLE_RACINE = "clients";
+
+export function estTableRacine(table: string): boolean {
+  return table === TABLE_RACINE;
+}
 
 export type TableSauvegardee = { table: string; lignes: Record<string, unknown>[] };
 

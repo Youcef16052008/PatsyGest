@@ -44,8 +44,8 @@ declare
   v_ordre  text[] := array[
     'sites','fournisseurs','articles','conversions','parametres_couts',
     'recette_familles','recette_versions','lots','mouvements','historique_prix',
-    'bons_commande','ordres_fabrication','ventes','clotures','transferts',
-    'z_imports','cakes','releve_temperatures','nettoyages','non_conformites',
+    'bons_commande','ordres_fabrication','ventes','z_imports','clotures',
+    'transferts','cakes','releve_temperatures','nettoyages','non_conformites',
     'taches_planning'
   ];
 begin
@@ -66,6 +66,13 @@ begin
   end if;
   if jsonb_typeof(p_dump->'tables') <> 'array' then
     raise exception 'Sauvegarde sans tables.';
+  end if;
+
+  -- La racine doit exister : 21 cles etrangeres pointent vers clients.id.
+  -- Une base vierge sans la ligne clients ne peut pas etre restauree ; on le
+  -- dit explicitement au lieu d'echouer sur une violation de FK a mi-parcours.
+  if not exists (select 1 from public.clients where id = v_client) then
+    raise exception 'Etablissement introuvable : creez la fiche client avant de restaurer.';
   end if;
 
   foreach v_tbl in array v_ordre loop
@@ -112,12 +119,12 @@ begin
         insert into public.ordres_fabrication select r.* from jsonb_populate_recordset(null::public.ordres_fabrication, v_lignes) r;
       elsif v_tbl = 'ventes' then
         insert into public.ventes select r.* from jsonb_populate_recordset(null::public.ventes, v_lignes) r;
+      elsif v_tbl = 'z_imports' then
+        insert into public.z_imports select r.* from jsonb_populate_recordset(null::public.z_imports, v_lignes) r;
       elsif v_tbl = 'clotures' then
         insert into public.clotures select r.* from jsonb_populate_recordset(null::public.clotures, v_lignes) r;
       elsif v_tbl = 'transferts' then
         insert into public.transferts select r.* from jsonb_populate_recordset(null::public.transferts, v_lignes) r;
-      elsif v_tbl = 'z_imports' then
-        insert into public.z_imports select r.* from jsonb_populate_recordset(null::public.z_imports, v_lignes) r;
       elsif v_tbl = 'cakes' then
         insert into public.cakes select r.* from jsonb_populate_recordset(null::public.cakes, v_lignes) r;
       elsif v_tbl = 'releve_temperatures' then

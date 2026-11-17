@@ -41,6 +41,10 @@ export function messageUtilisateur(e: ErreurBase, contexte: string): string {
     // amont par nos RPC, donc ici c'est un cas limite de concurrence.
     return `${contexte} : cette opération existe déjà ou viole une règle de gestion. Vérifiez la saisie puis réessayez.`;
   }
+  if (code === "23502") {
+    // NOT NULL : typiquement une sauvegarde incomplète ou un fichier édité.
+    return `${contexte} : une valeur obligatoire manque. Le fichier est incomplet ou a été modifié.`;
+  }
   if (code === "42501" || code === "42P01" || code === "42703") {
     return `${contexte} : accès refusé ou configuration incomplète. Contactez l'administrateur.`;
   }

@@ -61,3 +61,9 @@ test('erreurs : le détail technique reste disponible pour les logs', () => {
   assert.equal(detailTechnique({ code: '23505', message: 'duplicate key' }), '23505 duplicate key');
   assert.equal(detailTechnique(null), 'sans-code sans message');
 });
+
+test('erreurs-db : un NOT NULL (23502) parle de fichier incomplet, sans jargon Postgres', () => {
+  const m = messageUtilisateur({ code: '23502', message: 'null value in column "pu" violates not-null constraint' }, 'Restauration refusée');
+  assert.ok(/incomplet|modifié/.test(m), 'le message doit orienter vers la cause réelle');
+  assert.equal(/column|constraint|pu\b/.test(m), false, 'aucun jargon Postgres à l’écran');
+});
