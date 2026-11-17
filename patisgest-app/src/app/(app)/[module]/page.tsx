@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
-import { canWrite, requireSession } from "@/lib/auth";
+import { canReadCosts, canWrite, requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import DemoModule from "@/components/demo-module";
 import StockWriteForms from "@/components/stock-write-forms";
@@ -108,7 +108,7 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
       />
       <LabelMaker produits={labelProduits} recipes={recipes} lots={lots} />
     </>;
-  } else if (key==='simulation') {
+  } else if (key==='simulation' && canReadCosts(ctx.role)) {
     // Simulation réelle : version active + besoins étendus + coût FEFO.
     const [famRes, sArtRes]=await Promise.all([
       supabase.from('recette_familles').select('produit_id').eq('client_id',ctx.clientId),

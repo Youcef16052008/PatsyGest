@@ -38,9 +38,9 @@ Dernier état vert : commit `171702c` (Vercel SUCCESS sur chaque commit).
 
 ## 3. Base de données — état distant (source de vérité = Supabase)
 
-Les migrations **05→16** ont été appliquées **à distance** (connector
+Les migrations **05→17** ont été appliquées **à distance** (connector
 Supabase, `execute_query`) ET sont rejouables depuis `patisgest-app/supabase/`
-(01..16). Points de contrôle à re-vérifier en SQL (TX `begin; … rollback;`) :
+(01..17). Points de contrôle à re-vérifier en SQL (TX `begin; … rollback;`) :
 
 | # | Vérification attendue |
 |---|---|
@@ -89,11 +89,11 @@ reset role; rollback;
 
 ## 5. Chiffres à retrouver (rejouer `npm test`)
 
-**154 tests** (vérifié : la somme ci-dessous fait bien 154) : store47 ·
+**157 tests** (vérifié : la somme ci-dessous fait bien 157) : store47 ·
 stock-input10 · journal-input15 · purchase-input6 · z-input6 · price-alerts6 ·
 reconciliation5 · label-model5 · version-input6 · **cost-sheet10** ·
 **rc-reference13** · **fefo-cost6** · **quality-alerts8** · **sale-queue6** ·
-**of-queue5** · smoke **6/6** (séparé).
+**of-queue5** · **permissions3** · smoke **6/6** (séparé).
 
 > ⚠️ Correction de revue (2026-11-17) : la version précédente listait
 > `cost-sheet13`/`rc-reference11` et omettait `version-input6` — le total
@@ -191,7 +191,7 @@ Production Vercel : `dpl_CYJsfVea…` **READY / PROMOTED**, alias
 `patsy-gest-all-intelligence.vercel.app`, commit `5b21144` (= base de cette branche).
 `ssoProtection` désormais `null` (la protection SSO signalée en SPRINT2 est levée).
 
-### 9.4 ⚠️ Écart RLS réel — confidentialité des coûts (à corriger, non bloquant pour le pilote démo)
+### 9.4 ✅ Écart RLS — confidentialité des coûts (**corrigé**, migration 17)
 
 Vérifié en SQL, **non couvert par les tests** :
 
@@ -212,10 +212,42 @@ C'est exactement le risque déjà écrit dans `SPRINT2.md` §7 (« Les politique
 actuelles isolent les clients mais ne restreignent pas encore la lecture des
 coûts par rôle »). La mention « RLS3 » dans `SPRINT3.md` désigne 3 *policies*
 (select/insert/update), **pas** une restriction par rôle — la formulation prête
-à confusion. L'IHM masque les coûts au vendeur, mais la donnée reste lisible par
-l'API REST avec le JWT du vendeur. Correctif suggéré (migration 17) : ajouter
-`and patisgest_mon_role() in ('proprietaire','labo')` aux deux SELECT, et
-exposer une vue `recette_versions_caisse` (nom, code, PV) pour la caisse.
+à confusion. L'IHM masque les coûts au vendeur, mais la donnée restait lisible
+par l'API REST avec le JWT du vendeur.
+
+**Correctif appliqué** — `supabase/17-confidentialite-couts-rls.sql`
+(appliquée à distance via `create_migration`) et miroir dans le code :
+
+| Niveau | Avant | Après |
+|---|---|---|
+| RLS `parametres_couts` SELECT | tenant seul | + `patisgest_mon_role() in ('proprietaire','labo')` |
+| RLS `recette_versions` SELECT | tenant seul | + même garde rôle (policy renommée `recette_versions_cost_read`) |
+| RPC `simuler_recette` (SECURITY DEFINER, contourne la RLS) | aucun contrôle de rôle | refus explicite hors propriétaire/labo |
+| `ficheCoutReal` / `simulerReal` (actions serveur) | aucun contrôle de rôle | `canReadCosts(ctx.role)` |
+| Navigation | `/recettes` + `/simulation` affichés à tous | masqués au vendeur |
+| Rendu module `simulation` | `select('*')` sur les tables de coûts pour tous | conditionné à `canReadCosts` |
+
+Bonus de surface trouvés en chemin, corrigés dans la même migration :
+
+- `creer_of(uuid,uuid,numeric,date)` (4 args) — surcharge historique encore
+  joignable **par `anon`**, qui créait un OF **sans l'idempotence `client_ref`**
+  de la migration 16 : supprimée (l'app n'appelle que la version 5 args).
+- `rls_auto_enable()` — utilitaire de DDL exécutable par `anon`/`authenticated` :
+  révoqué.
+- Le droit par défaut `=X` (PUBLIC) rendait `creer_of` 5 args exécutable par
+  `anon` malgré le `grant` nominatif : révoqué aussi.
+
+Mesures après migration, avec le JWT du vendeur :
+`parametres_couts=0` · `recette_versions=0` · `simuler_recette → « Role non
+autorise »`. Non-régression vérifiée : propriétaire et labo lisent toujours
+(`rv=2`, `mo_min=30.00`), l'écriture des paramètres fonctionne, M-f (idempotence
+OF, `same_id=true`, 1 seul OF) et la caisse vendeur (`vendre_article`,
+`totalTTC=101.15`) sont intacts.
+
+Nouveau test de garde : `tests/permissions.test.mjs` (3) sur
+`src/lib/permissions.ts` — module pur extrait de `auth.ts` (qui importe
+`next/headers`, donc non testable par `node --test`). La règle est ainsi
+vérifiée automatiquement au lieu de dépendre de la RLS seule.
 
 ### 9.5 Autres constats de documentation
 
@@ -233,6 +265,11 @@ exposer une vue `recette_versions_caisse` (nom, code, PV) pour la caisse.
 Le livré **tient le plan** sur les points vérifiables en sandbox : formules
 gravées conformes, 10 recettes au centime justes, sous-recettes/conversions
 exactes, idempotence OF réelle, cascade de rappel correcte, RLS de rôle correcte
-en écriture. **Le pilote n'est toujours PAS « production-ready »** : E2E
-navigateur avec Auth réelle, journée sans internet en vrai navigateur et revue
-humaine des coûts restent à faire par l'utilisateur (§1, §9.4).
+en **écriture** — et, depuis la migration 17, en **lecture des coûts** aussi
+(§9.4). Portes : typecheck 0 · lint 0 · **157/157** · build OK · smoke 6/6.
+
+**Le pilote n'est toujours PAS « production-ready »** : E2E navigateur avec Auth
+réelle sur l'URL prod, « journée sans internet » dans un vrai navigateur et
+« 3 pâtissiers retrouvent leurs coûts à la main » restent à faire par
+l'utilisateur (§1). Aucun de ces trois critères n'est couvrable en sandbox :
+ils ne doivent pas être déclarés faits.

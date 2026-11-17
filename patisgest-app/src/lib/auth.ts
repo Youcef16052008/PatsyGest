@@ -3,7 +3,10 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "./supabase/server";
 
-export type Role = "proprietaire" | "labo" | "vendeur";
+import { canWrite, canReadCosts, type Role } from "./permissions";
+
+export { canWrite, canReadCosts };
+export type { Role };
 
 export interface SessionContext {
   authUserId: string;
@@ -140,7 +143,5 @@ export async function requireRole(
   return ctx;
 }
 
-/** Qui peut écrire (stocks, recettes, OF...) : propriétaire + labo. */
-export function canWrite(role: Role): boolean {
-  return role === "proprietaire" || role === "labo";
-}
+// `canWrite` / `canReadCosts` sont définis dans ./permissions (pur, testé)
+// et ré-exportés en tête de fichier : une seule source de vérité.

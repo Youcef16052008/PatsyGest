@@ -15,10 +15,12 @@
 - [x] **Paramètres de coûts** (migration15 `parametres_couts`, 3 policies
       select/insert/update) : taux horaire + charges % (RC-04), formulaire sur
       le module Simulation.
-      > ⚠️ Revue 2026-11-17 : la **lecture** n'est pas restreinte par rôle — un
-      > vendeur peut lire `parametres_couts` et les coûts de `recette_versions`
-      > via l'API REST (vérifié en SQL). Écriture bien restreinte
-      > (proprietaire/labo). À corriger en migration17 (cf. HANDOFF §9.4).
+      > ✅ Revue 2026-11-17 : trou trouvé puis **corrigé** — la lecture n'était pas
+      > restreinte par rôle (un vendeur lisait `parametres_couts` et les coûts de
+      > `recette_versions` via l'API REST). Depuis la **migration 17** :
+      > policies SELECT par rôle + garde dans `simuler_recette` + `canReadCosts`
+      > dans les actions serveur et la navigation. Vérifié en SQL : le vendeur
+      > lit 0 ligne. Cf. HANDOFF §9.4.
 - [x] **Fiche de coût interactive** (`cost-sheet-form.tsx` + `actions-couts.ts`)
       : version active → matières FEFO (RC-01/RC-09) → RC-02..RC-06,
       pertes RC-07/08 saisies, garde-fous RC-10 (référence optionnelle).
@@ -33,11 +35,11 @@
 
 ## Tests
 
-`npm test` → **154** : store(47) + inputs(43 : stock10, journal15, purchase6,
+`npm test` → **157** (154 + `permissions`3) : store(47) + inputs(43 : stock10, journal15, purchase6,
 z6, version6) + alerts(24 : price-alerts6, reconciliation5, label-model5,
 quality-alerts8) + **RC formules(10) + recettes de référence(13, dont les 10
-recettes CA-04)** + fefo-cost(6) + **file de ventes(6)** + **file OF(5)**.
-+ smoke(6/6) séparé.
+recettes CA-04)** + fefo-cost(6) + **file de ventes(6)** + **file OF(5)**
++ **permissions(3)**. + smoke(6/6) séparé.
 
 > Correction de revue (2026-11-17) : la ligne précédente annonçait
 > « RC formules(12) +10 recettes » et omettait `version-input` — réel mesuré

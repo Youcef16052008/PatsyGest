@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { canWrite, getSessionContext } from "./auth";
+import { canWrite, canReadCosts, getSessionContext } from "./auth";
 import {
   aggregatePertes, computeFicheCout, rc07TauxPerte, rc08ManqueAJagner, rc10GardeFous,
   type ClotureLigne, type GardeFou,
@@ -68,6 +68,7 @@ export async function sauverParamsCoutsReal(_prev: CoutsState, formData: FormDat
 export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Promise<CoutsState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
+  if (!canReadCosts(ctx.role)) return { erreur: "Coûts de revient réservés aux rôles propriétaire et labo." };
   const produitId = String(formData.get("produitId") ?? "").trim();
   const qte = Number(formData.get("qte"));
   const jete = Number(formData.get("jete") ?? 0);
