@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import DemoModule from "@/components/demo-module";
 import StockWriteForms from "@/components/stock-write-forms";
 import SaleForm from "@/components/sale-form";
+import ZImportForm from "@/components/z-import-form";
 import OfForms, { type OfOrder } from "@/components/of-forms";
 import TransferForm from "@/components/transfer-form";
 import ClotureForm from "@/components/cloture-form";
@@ -57,10 +58,13 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
       supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
       supabase.from('articles').select('id, code, nom').eq('client_id',ctx.clientId).eq('niveau','produit').order('code'),
     ]);
-    writeForms=<SaleForm
-      articles={((produitsRes.data??[]) as {id:string;code:string;nom:string}[]).map(a=>({id:a.id,label:`${a.code} · ${a.nom}`}))}
-      sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
-    />;
+    writeForms=<>
+      <SaleForm
+        articles={((produitsRes.data??[]) as {id:string;code:string;nom:string}[]).map(a=>({id:a.id,label:`${a.code} · ${a.nom}`}))}
+        sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
+      />
+      {canWrite(ctx.role) && <ZImportForm sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))} />}
+    </>;
   } else if (key==='production' && canWrite(ctx.role)) {
     // OF réels : création (besoins figés), lancement FEFO, clôture au coût connu.
     const [sitesRes,famRes,verRes]=await Promise.all([
@@ -81,9 +85,51 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
       supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
       supabase.from('articles').select('id, code, nom').eq('client_id',ctx.clientId).order('code'),
     ]);
-    writeForms=<TransferForm
-      articles={((artRes.data??[]) as {id:string;code:string;nom:string}[]).map(a=>({id:a.id,label:`${a.code} · ${a.nom}`}))}
+
+  } else if (key==='cloture' && canWrite(ctx.role)) {
+    // Clôture six flux (RPC saisir_cloture) : révisions et enrichissement côté serveur.
+    const [sitesRes,artRes]=await Promise.all([
+      supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
+      supabase.from('articles').select('id, code, nom, pu_ht').eq('client_id',ctx.clientId).eq('niveau','produit').eq('actif',true).order('nom'),
+    ]);
+    writeForms=<ClotureForm
       sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
+      articles={((artRes.data??[]) as {id:string;code:string;nom:string;pu_ht:number}[]).map(a=>({id:a.id,label:`${a.code} — ${a.nom} (${Number(a.pu_ht).toLocaleString('fr-FR')} DA)`}))}
+    />;
+  } else if (key==='qualite' && canWrite(ctx.role)) {
+    // HACCP : relevés/nettoyages/NC en RLS + clôture NC tracée (RPC maj_non_conformite).
+    const ncRows=((results.find(r=>r.label==='Non-conformités')?.data??[]) as {id:string;statut:string;type:string;description:string;action:string}[])
+      .map(n=>({id:n.id,statut:n.statut,type:n.type,description:n.description,action:n.action}));
+    writeForms=<QualityForms ncs={ncRows}/>;
+  } else if (key==='planning' && canWrite(ctx.role)) {
+    // Tâches réelles (insert + bascule fait).
+    const [tasksRes,ofsRes]=await Promise.all([
+      supabase.from('taches_planning').select('id, date_tache, tache, of_numero, fait').eq('client_id',ctx.clientId).order('date_tache').limit(100),
+      supabase.from('ordres_fabrication').select('numero').eq('client_id',ctx.clientId).order('numero',{ascending:false}).limit(50),
+    ]);
+    writeForms=<PlanningForms
+      tasks={((tasksRes.data??[]) as {id:string;date_tache:string;tache:string;of_numero:string;fait:boolean}[]).map(t=>({id:t.id,date:t.date_tache,tache:t.tache,ofNumero:t.of_numero,fait:t.fait}))}
+      ofNumeros={((ofsRes.data??[]) as {numero:string}[]).map(o=>o.numero)}
+    />;
+  } else if (key==='cake-design') {
+    // Cake Design : tous les rôles (démo), RPC creer_cake/evoluer_cake.
+    const cakeRows=((results.find(r=>r.label==='Devis et commandes')?.data??[]) as {id:string;numero:string;statut:string;client_nom:string;prix_ht:number;acompte:number}[])
+      .map(c=>({id:c.id,numero:c.numero,statut:c.statut,clientNom:c.client_nom,prixHt:c.prix_ht,acompte:c.acompte}));
+    writeForms=<CakeForms cakes={cakeRows}/>;
+  } else if (key==='achats' && canWrite(ctx.role)) {
+    // BC multi-lignes + réceptions partielles/totales (RPC creer/recevoir_commande).
+    const [artRes,sitesRes]=await Promise.all([
+      supabase.from('articles').select('id, code, nom, pu_ht').eq('client_id',ctx.clientId).eq('actif',true).order('nom').limit(150),
+      supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
+    ]);
+    const fourRows=((results.find(r=>r.label==='Fournisseurs')?.data??[]) as {id:string;nom:string}[]);
+    const fourById=new Map(fourRows.map(f=>[f.id,f.nom]));
+    const cmdRows=((results.find(r=>r.label==='Bons de commande')?.data??[]) as {id:string;numero:string;statut:string;lignes:{articleId:string;qte:number;pu:number;recu:number}[]|null;fournisseur_id:string}[]);
+    writeForms=<CommandeForms
+      fournisseurs={fourRows.map(f=>({id:f.id,label:f.nom}))}
+      articles={((artRes.data??[]) as {id:string;code:string;nom:string;pu_ht:number}[]).map(a=>({id:a.id,label:`${a.code} — ${a.nom} (${Number(a.pu_ht).toLocaleString('fr-FR')} DA)`}))}
+      sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
+      commandes={cmdRows.map(c=>({id:c.id,numero:c.numero,statut:c.statut,fournisseur:fourById.get(c.fournisseur_id)??"",lignes:c.lignes??[]}))}
     />;
   }
   return <div>{writeForms}<p className="text-xs font-bold uppercase tracking-widest text-violet-600">{writeForms ? 'Supabase · Écritures sécurisées + lecture' : 'Supabase · Lecture seule'}</p><h1 className="mt-2 text-3xl font-black">{info.title}</h1><p className="mt-2 text-sm text-slate-500">{writeForms ? 'Les écritures ci-dessus sont transactionnelles et isolées par RLS.' : key==='simulation' ? 'La simulation interactive est disponible uniquement dans la démo locale ; voici les données distantes en lecture seule.' : 'Les opérations d’écriture sécurisées sont en cours de développement.'}</p><div className="mt-6 grid gap-5">{results.map(({label,data,error})=><section key={label} className="rounded-2xl border bg-white p-5"><h2 className="mb-3 font-bold">{label} · {data?.length ?? 0}</h2>{error ? <p role="alert" className="text-sm text-red-700">Impossible de charger les données : {error.message}</p> : data?.length ? <div className="overflow-auto"><table className="w-full text-left text-sm"><thead><tr>{Object.keys(data[0]).filter(k=>!['client_id','created_at'].includes(k)).map(k=><th className="border-b p-2 text-xs text-slate-500" key={k}>{k}</th>)}</tr></thead><tbody>{data.map((row,i)=><tr key={i}>{Object.entries(row).filter(([k])=>!['client_id','created_at'].includes(k)).map(([k,v])=><td key={k} className="max-w-xs border-b p-2 align-top">{typeof v==='object' ? JSON.stringify(v) : String(v ?? '—')}</td>)}</tr>)}</tbody></table></div> : <p className="text-sm text-slate-500">Aucune donnée.</p>}</section>)}</div></div>;

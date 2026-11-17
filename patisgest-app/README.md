@@ -62,7 +62,7 @@ npm ci
 npm run dev            # http://localhost:3000
 npm run typecheck      # TypeScript
 npm run lint           # ESLint
-npm test               # 78 tests unitaires (Node ≥ 22)
+npm test               # 84 tests unitaires (Node ≥ 22)
 npm run test:smoke     # tests HTTP : gardes de routes, login/démo, cookie forgé, logout
 npm run build          # build de production (celui que Vercel exécute)
 ```
@@ -97,6 +97,7 @@ src/lib/patisgest-store.ts              → moteur de démonstration local (test
 src/lib/stock-input.ts                  → validation pure des saisies stocks (tests dedans)
 src/lib/journal-input.ts                → validation pure clôture/qualité/planning/cakes (tests dedans)
 src/lib/purchase-input.ts               → validation pure commandes multi-lignes/réceptions (tests dedans)
+src/lib/z-input.ts                       → validation pure du format d'import Z (tests dedans)
 src/lib/actions-stock.ts                → server actions d'écriture réelle (RLS)
 src/lib/actions-caisse.ts               → vente réelle via RPC FEFO
 src/lib/actions-of.ts                   → cycle OF réel (créer / lancer / clôturer)
