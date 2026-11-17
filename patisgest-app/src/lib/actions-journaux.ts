@@ -228,6 +228,58 @@ export async function toggleTask(_prev: JournalState, formData: FormData): Promi
   }
 }
 
+/** Édition d'un devis (RPC editer_cake, statut devis uniquement) — tous les rôles. */
+export async function editerCakeReal(_prev: JournalState, formData: FormData): Promise<JournalState> {
+  const ctx = await getSessionContext();
+  if (!ctx) return { erreur: "Session requise." };
+  const id = String(formData.get("id") ?? "").trim();
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return { erreur: "Devis invalide." };
+  const clientNom = String(formData.get("clientNom") ?? "").trim();
+  const telephone = String(formData.get("telephone") ?? "").trim();
+  const dateEvent = String(formData.get("dateEvent") ?? "").trim();
+  const nbParts = Number(formData.get("nbParts"));
+  const prixHt = Number(formData.get("prixHt"));
+  const tvaPct = Number(formData.get("tvaPct") ?? 0);
+  const notes = String(formData.get("notes") ?? "").trim();
+  if (clientNom.length < 1 || clientNom.length > 100) return { erreur: "Nom du client requis (100 max)." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateEvent)) return { erreur: "Date d'événement invalide." };
+  if (!Number.isInteger(nbParts) || nbParts < 1 || nbParts > 10000) return { erreur: "Parts :1 à10000." };
+  if (!Number.isFinite(prixHt) || prixHt <= 0) return { erreur: "Prix HT invalide." };
+  if (!Number.isFinite(tvaPct) || tvaPct < 0 || tvaPct > 100) return { erreur: "TVA :0 à100." };
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("editer_cake", {
+      p_id: id, p_client_nom: clientNom, p_telephone: telephone || null,
+      p_date_event: dateEvent, p_nb_parts: nbParts, p_prix_ht: prixHt,
+      p_tva_pct: tvaPct, p_notes: notes || null, p_options: null,
+    });
+    if (error) return { erreur: mapError(error) };
+    revalidatePath("/cake-design");
+    return { succes: "Devis modifié." };
+  } catch {
+    return { erreur: "Supabase est inaccessible depuis ce serveur." };
+  }
+}
+
+/** Preuve d'acceptation des CGV (RPC accepter_cgv) — tous les rôles. */
+export async function accepterCgvReal(_prev: JournalState, formData: FormData): Promise<JournalState> {
+  const ctx = await getSessionContext();
+  if (!ctx) return { erreur: "Session requise." };
+  const id = String(formData.get("id") ?? "").trim();
+  const version = String(formData.get("version") ?? "").trim();
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return { erreur: "Devis invalide." };
+  if (version.length < 1 || version.length > 50) return { erreur: "Version des CGV requise (50 max)." };
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("accepter_cgv", { p_id: id, p_version: version });
+    if (error) return { erreur: mapError(error) };
+    revalidatePath("/cake-design");
+    return { succes: `CGV acceptées (${version}) — horodatage enregistré.` };
+  } catch {
+    return { erreur: "Supabase est inaccessible depuis ce serveur." };
+  }
+}
+
 /** Devis Cake Design (RPC creer_cake) — tous les rôles. */
 export async function createCakeReal(_prev: JournalState, formData: FormData): Promise<JournalState> {
   const denied = await requireAnyRole();
