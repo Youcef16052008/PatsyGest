@@ -18,6 +18,7 @@ import { computeReconciliation, type ClosingRecord, type SaleRecord } from "@/li
 import ReconPanel from "@/components/recon-panel";
 import LabelMaker from "@/components/label-maker";
 import VersionForm, { type VersionRow } from "@/components/version-form";
+import RecallForm from "@/components/recall-form";
 import type { LabelIngredient, LabelLot, LabelProduct } from "@/lib/label-model";
 
 const modules = {
@@ -76,6 +77,16 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
       />
       <LabelMaker produits={labelProduits} recipes={recipes} lots={lots} />
     </>;
+  } else if (key==='tracabilite') {
+    // Rapport de rappel + blocage en cascade (lecture pour tous les rôles).
+    const lotRes=await supabase.from('lots')
+      .select('id, numero, article_id, articles!inner(nom, code, niveau)')
+      .eq('client_id',ctx.clientId).order('numero');
+    type ArtEmbed={nom:string;code:string;niveau:string};
+    const lotRows=((lotRes.data??[]) as {id:string;numero:string;articles:ArtEmbed|ArtEmbed[]}[])
+      .map(l=>({...l,fam:Array.isArray(l.articles)?l.articles[0]:l.articles}))
+      .filter(l=>l.fam);
+    writeForms=<RecallForm lots={lotRows.map(l=>({id:l.id,label:`${l.numero} · ${l.fam.code} ${l.fam.nom}`}))} />;
   } else if (key==='recettes' && canWrite(ctx.role)) {
     // Versions immuables : articles ou sous-recettes figées + activation.
     const artRes=await supabase.from('articles').select('id, code, nom, niveau, unite').eq('client_id',ctx.clientId).order('nom').limit(150);
