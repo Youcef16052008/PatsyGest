@@ -13,6 +13,7 @@ import QualityForms, { type NcRow } from "@/components/quality-forms";
 import PlanningForms, { type TaskRow } from "@/components/planning-forms";
 import CakeForms, { type CakeRow } from "@/components/cake-forms";
 import CommandeForms, { type CommandeRow } from "@/components/commande-forms";
+import { computePriceAlerts, type PricePoint } from "@/lib/price-alerts";
 
 const modules = {
   stocks: { title:'Articles & stocks', tables:[['articles','Articles'],['lots','Lots']] },
@@ -118,14 +119,18 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
     writeForms=<CakeForms cakes={cakeRows}/>;
   } else if (key==='achats' && canWrite(ctx.role)) {
     // BC multi-lignes + réceptions partielles/totales (RPC creer/recevoir_commande).
-    const [artRes,sitesRes]=await Promise.all([
+    const [artRes,sitesRes,histRes]=await Promise.all([
       supabase.from('articles').select('id, code, nom, pu_ht').eq('client_id',ctx.clientId).eq('actif',true).order('nom').limit(150),
       supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
+      supabase.from('historique_prix').select('article_id, fournisseur_id, date_prix, pu').eq('client_id',ctx.clientId).order('date_prix',{ascending:false}).limit(300),
     ]);
+    const priceAlerts=computePriceAlerts(((histRes.data??[]) as {article_id:string;fournisseur_id:string;date_prix:string;pu:number}[])
+      .map(h=>({articleId:h.article_id,fournisseurId:h.fournisseur_id,datePrix:h.date_prix,pu:Number(h.pu)})));
     const fourRows=((results.find(r=>r.label==='Fournisseurs')?.data??[]) as {id:string;nom:string}[]);
     const fourById=new Map(fourRows.map(f=>[f.id,f.nom]));
     const cmdRows=((results.find(r=>r.label==='Bons de commande')?.data??[]) as {id:string;numero:string;statut:string;lignes:{articleId:string;qte:number;pu:number;recu:number}[]|null;fournisseur_id:string}[]);
     writeForms=<CommandeForms
+      alerts={priceAlerts}
       fournisseurs={fourRows.map(f=>({id:f.id,label:f.nom}))}
       articles={((artRes.data??[]) as {id:string;code:string;nom:string;pu_ht:number}[]).map(a=>({id:a.id,label:`${a.code} — ${a.nom} (${Number(a.pu_ht).toLocaleString('fr-FR')} DA)`}))}
       sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
