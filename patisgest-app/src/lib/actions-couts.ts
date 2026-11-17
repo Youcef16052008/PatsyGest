@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { canWrite, getSessionContext } from "./auth";
 import {
-  computeFicheCout, rc07TauxPerte, rc08ManqueAJagner, rc10GardeFous,
-  type GardeFou,
+  aggregatePertes, computeFicheCout, rc07TauxPerte, rc08ManqueAJagner, rc10GardeFous,
+  type ClotureLigne, type GardeFou,
 } from "./cost-sheet";
 import { computeFefoCost, type FefoLot } from "./fefo-cost";
 import { createClient } from "./supabase/server";
@@ -32,7 +32,7 @@ export type CoutsState = {
   pvHt?: number;
   marge?: number;
   taux?: number;
-  perte?: { taux: number; manque: number };
+  perte?: { taux: number; manque: number; source?: string };
   gardeFous?: GardeFou[];
 };
 
@@ -81,7 +81,8 @@ export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Prom
   try {
     const supabase = await createClient();
 
-    const [simRes, verRes, paramsRes, artRes] = await Promise.all([
+    const trenteJours = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+    const [simRes, verRes, paramsRes, artRes, cloRes] = await Promise.all([
       supabase.rpc("simuler_recette", { p_produit_id: produitId, p_qte: qte }),
       supabase
         .from("recette_versions")
@@ -90,7 +91,8 @@ export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Prom
         .eq("active", true)
         .limit(1),
       supabase.from("parametres_couts").select("taux_horaire, charges_pct").eq("client_id", ctx.clientId).limit(1),
-      supabase.from("articles").select("pu_ht").eq("id", produitId).limit(1),
+      supabase.from("articles").select("code, pu_ht").eq("id", produitId).limit(1),
+      supabase.from("clotures").select("lignes").eq("client_id", ctx.clientId).gte("date_cloture", trenteJours).limit(60),
     ]);
     if (simRes.error) return { erreur: `Fiche impossible : ${simRes.error.message}` };
     const sim = simRes.data as {
@@ -109,7 +111,9 @@ export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Prom
     const params = ((paramsRes.data ?? [])[0] ?? null) as { taux_horaire: number; charges_pct: number } | null;
     const tauxHoraire = Number(params?.taux_horaire ?? 0);
     const chargesPct = Number(params?.charges_pct ?? 0);
-    const pvHt = Number(((artRes.data ?? [])[0] ?? null)?.pu_ht ?? 0);
+    const artRow = ((artRes.data ?? [])[0] ?? null) as { code: string; pu_ht: number } | null;
+    const pvHt = Number(artRow?.pu_ht ?? 0);
+    const articleCode = artRow?.code ?? "";
 
     const lignes = await Promise.all(
       (sim.besoins ?? []).map(async (b) => {
@@ -144,10 +148,26 @@ export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Prom
       pvHt,
     });
 
-    const pertes = {
-      taux: rc07TauxPerte(jete, casse, fabrique > 0 ? fabrique : 1),
-      manque: rc08ManqueAJagner(jete, casse, pvHt),
-    };
+    // RC-07/08 : données réelles des clôtures30 j (source de vérité),
+    // repli sur la saisie manuelle si aucune clôture pour ce produit.
+    const clotureLignes: ClotureLigne[] = [];
+    for (const c of ((cloRes.data ?? []) as { lignes: unknown }[])) {
+      if (Array.isArray(c.lignes)) {
+        for (const l of c.lignes as Record<string, unknown>[]) {
+          clotureLignes.push({
+            code: String(l.code ?? ""),
+            produit: Number(l.produit ?? 0),
+            jete: Number(l.jete ?? 0),
+            casse: Number(l.casse ?? 0),
+          });
+        }
+      }
+    }
+    const reel = aggregatePertes(clotureLignes, articleCode);
+    const perteReelle = reel.produit > 0;
+    const pertes = perteReelle
+      ? { taux: reel.taux, manque: rc08ManqueAJagner(reel.jete, reel.casse, pvHt), source: `réelles30 j (clôtures, ${reel.produit} fabriqués)` as string }
+      : { taux: rc07TauxPerte(jete, casse, fabrique > 0 ? fabrique : 1), manque: rc08ManqueAJagner(jete, casse, pvHt), source: "saisies manuellement" as string };
     const gardeFous = rc10GardeFous(fiche.rc03Total, reference, pvHt, null);
     if (lignes.some((l) => l.insuffisant)) {
       gardeFous.push({ code: "RC-10-x10", message: "Stock FEFO insuffisant pour certains besoins — coût partiel." });

@@ -146,3 +146,42 @@ export function computeFicheCout(input: FicheCoutInput): FicheCout {
   const marge = rc06Marge(input.pvHt, parPortion);
   return { rc02RendementNet: rendementNet, rc04Mo: mo, rc03Total: total, rc05ParPortion: parPortion, rc06: marge };
 }
+
+export type ClotureLigne = {
+  /** Clé de rapprochement : uuid produit (test) ou code article (clôtures réelles). */
+  produitId?: string;
+  code?: string;
+  produit: number;
+  jete: number;
+  casse: number;
+};
+
+/**
+ * RC-07 sur données RÉELLES : agrège les lignes de clôture
+ * (saisir_cloture) d'un produit — jeté, casse, fabriqué, taux de perte.
+ * Les lignes réelles portent aussi `code` et `pvHT` (RC-08 direct).
+ * Le manque à gagner (RC-08) se déduit : rc08ManqueAJagner(jete, casse, pvHt).
+ */
+export function aggregatePertes(lignes: ClotureLigne[], produitId: string): {
+  produit: number; jete: number; casse: number; taux: number;
+} {
+  let produit = 0;
+  let jete = 0;
+  let casse = 0;
+  for (const l of lignes) {
+    const cible = l.produitId ?? l.code;
+    if (cible !== produitId) continue;
+    produit += Number(l.produit) || 0;
+    jete += Number(l.jete) || 0;
+    casse += Number(l.casse) || 0;
+  }
+  const p = round4(produit);
+  const j = round4(jete);
+  const c = round4(casse);
+  return {
+    produit: p,
+    jete: j,
+    casse: c,
+    taux: p > 0 ? round4((j + c) / p) : 0,
+  };
+}

@@ -138,6 +138,7 @@ export default function CostSheetForm({ produits }: { produits: Option[] }) {
                 <li className="flex justify-between"><span>Taux de perte (jeté+casse÷fabriqué)</span>
                   <b>{(((state.perte?.taux ?? 0) * 100)).toFixed(2)} %</b></li>
                 <li className="flex justify-between"><span>Manque à gagner (× PV HT)</span><b>{da(state.perte?.manque ?? 0)}</b></li>
+                <li className="text-xs text-slate-500">Source : {state.perte?.source ?? "—"}</li>
               </ul>
             </div>
             <div className="rounded-lg border p-3 text-sm">

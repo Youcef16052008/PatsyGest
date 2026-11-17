@@ -68,3 +68,21 @@ test('Fiche complète : RC-02..06 cohérents', () => {
   assert.equal(f.rc05ParPortion, 57.5);              //2300 ÷40
   assert.deepEqual(f.rc06, { marge: 442.5, taux: 0.885 }); //500−57.5=442.5
 });
+
+test('RC-07 réel : agrégation des clôtures par produit', async () => {
+  const { aggregatePertes, rc08ManqueAJagner } = await import('../src/lib/cost-sheet.ts');
+  const clotures = [
+    { produitId: 'PF-CRO', produit: 78, jete: 4, casse: 2 },
+    { produitId: 'PF-CRO', produit: 10, jete: 1, casse: 0 },
+    { produitId: 'PF-MIL', produit: 24, jete: 1, casse: 1 },
+    { produitId: 'PF-CRO', produit: 0, jete: 0, casse: 0 },
+  ];
+  const r = aggregatePertes(clotures, 'PF-CRO');
+  assert.equal(r.produit, 88);
+  assert.equal(r.jete, 5);
+  assert.equal(r.casse, 2);
+  assert.equal(r.taux, 0.0795); //7 ÷88 =0,079545…→0,0795
+  assert.equal(rc08ManqueAJagner(r.jete, r.casse, 250), 1750);
+  // produit absent → tout à0, pas de division par0
+  assert.deepEqual(aggregatePertes(clotures, 'PF-XXX'), { produit: 0, jete: 0, casse: 0, taux: 0 });
+});
