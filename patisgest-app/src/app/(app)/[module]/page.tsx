@@ -13,7 +13,9 @@ import QualityForms, { type NcRow } from "@/components/quality-forms";
 import PlanningForms, { type TaskRow } from "@/components/planning-forms";
 import CakeForms, { type CakeRow } from "@/components/cake-forms";
 import CommandeForms, { type CommandeRow } from "@/components/commande-forms";
-import { computePriceAlerts, type PricePoint } from "@/lib/price-alerts";
+import { computePriceAlerts } from "@/lib/price-alerts";
+import { computeReconciliation, type ClosingRecord, type SaleRecord } from "@/lib/reconciliation";
+import ReconPanel from "@/components/recon-panel";
 
 const modules = {
   stocks: { title:'Articles & stocks', tables:[['articles','Articles'],['lots','Lots']] },
@@ -89,14 +91,25 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
 
   } else if (key==='cloture' && canWrite(ctx.role)) {
     // Clôture six flux (RPC saisir_cloture) : révisions et enrichissement côté serveur.
-    const [sitesRes,artRes]=await Promise.all([
+    const [sitesRes,artRes,clotRes,ventesRes]=await Promise.all([
       supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
       supabase.from('articles').select('id, code, nom, pu_ht').eq('client_id',ctx.clientId).eq('niveau','produit').eq('actif',true).order('nom'),
+      supabase.from('clotures').select('id, date_cloture, site_id, revision, lignes').eq('client_id',ctx.clientId).order('date_cloture',{ascending:false}).limit(30),
+      supabase.from('ventes').select('site_id, date_vente, lignes').eq('client_id',ctx.clientId).order('date_vente',{ascending:false}).limit(500),
     ]);
-    writeForms=<ClotureForm
-      sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
-      articles={((artRes.data??[]) as {id:string;code:string;nom:string;pu_ht:number}[]).map(a=>({id:a.id,label:`${a.code} — ${a.nom} (${Number(a.pu_ht).toLocaleString('fr-FR')} DA)`}))}
-    />;
+    const siteLabels=Object.fromEntries(((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>[s.id,s.nom]));
+    const clotures=((clotRes.data??[]) as {id:string;date_cloture:string;site_id:string;revision:number;lignes:{articleId:string;code?:string;name?:string;vendu:number}[]}[])
+      .map(c=>({id:c.id,date:c.date_cloture,siteId:c.site_id,revision:c.revision,lignes:c.lignes??[]}) as ClosingRecord);
+    const sales=((ventesRes.data??[]) as {site_id:string;date_vente:string;lignes:{articleId:string;qty:number}[]}[])
+      .map(v=>({siteId:v.site_id,date:v.date_vente,lignes:(v.lignes??[]).filter(l=>l.articleId&&typeof l.qty==='number')}) as SaleRecord);
+    const recon=computeReconciliation(clotures,sales);
+    writeForms=<>
+      <ClotureForm
+        sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
+        articles={((artRes.data??[]) as {id:string;code:string;nom:string;pu_ht:number}[]).map(a=>({id:a.id,label:`${a.code} — ${a.nom} (${Number(a.pu_ht).toLocaleString('fr-FR')} DA)`}))}
+      />
+      <ReconPanel entries={recon} siteLabels={siteLabels} />
+    </>;
   } else if (key==='qualite' && canWrite(ctx.role)) {
     // HACCP : relevés/nettoyages/NC en RLS + clôture NC tracée (RPC maj_non_conformite).
     const ncRows=((results.find(r=>r.label==='Non-conformités')?.data??[]) as {id:string;statut:string;type:string;description:string;action:string}[])
