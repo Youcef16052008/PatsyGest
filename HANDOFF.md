@@ -45,7 +45,7 @@ Supabase, `execute_query`) ET sont rejouables depuis `patisgest-app/supabase/`
 | # | Vérification attendue |
 |---|---|
 | M-a | `creer_of(Mill v2, qte12)` → besoins exacts `{SF-CPA1, SF-PFE1.2, MP-SUC0.15}` kg (régression seed) |
-| M-b | Sous-recette : conversion `g→kg` + version SF → `creer_of(Croissant v2,40)` → `MP-FAR0.45` + `MP-SUC0.15` (fusion0.05+0.1) |
+| M-b | Sous-recette : **scénario constructif** (la v1 du croissant seedée est plate : 3 kg farine + 0,8 beurre + 0,3 sucre + 1,2 L lait). Créer `RF-SOUSSUCRE` (1 kg sucre) + un `creer_version` croissant v2 à 40 pcs avec 3 lignes : farine **450 `g`** (conversion g→kg), sucre 0,05 kg **direct**, sucre 0,05 kg **via `subVersionId`** → `patisgest_besoins_de_version` doit rendre **`MP-FAR=0.45 kg`** et **`MP-SUC=0.10 kg`** (fusion) |
 | M-c | Anti-cycle : `creer_version` avec sub→propre famille → `'Cycle de sous-recettes detecte.'` ; auto-réf → `'Auto-reference…'` ; conversion manquante → `'Conversion d unite manquante…'` ; vendeur → `'Role non autorise.'` |
 | M-d | `rappel_lot` : transfert réel → transferts départ/arrivée + descendant miroir ; `bloquer_lot(descendants=true)` → les2 bloqués ; déblocage → source OFF, miroir **reste** bloqué ; vendeur rappel OK / bloquer refusé |
 | M-e | `editer_cake` : OK sur `devis`, refusé après `payer` ; `accepter_cgv` → `cgv_accepted_at` non nul + version |
@@ -89,10 +89,16 @@ reset role; rollback;
 
 ## 5. Chiffres à retrouver (rejouer `npm test`)
 
-**154 tests** : store47 · stock-input10 · journal-input15 · purchase-input6 ·
-z-input6 · price-alerts6 · reconciliation5 · label-model5 · **cost-sheet13** ·
-**rc-reference11** · **fefo-cost6** · **quality-alerts8** · **sale-queue6** ·
+**154 tests** (vérifié : la somme ci-dessous fait bien 154) : store47 ·
+stock-input10 · journal-input15 · purchase-input6 · z-input6 · price-alerts6 ·
+reconciliation5 · label-model5 · version-input6 · **cost-sheet10** ·
+**rc-reference13** · **fefo-cost6** · **quality-alerts8** · **sale-queue6** ·
 **of-queue5** · smoke **6/6** (séparé).
+
+> ⚠️ Correction de revue (2026-11-17) : la version précédente listait
+> `cost-sheet13`/`rc-reference11` et omettait `version-input6` — le total
+> annoncé (154) était juste mais la répartition était fausse
+> (13+11+6+6+… = 156). Chiffres ci-dessus mesurés fichier par fichier.
 
 ## 6. Incidents connus (ne pas refaire, à connaître)
 
@@ -119,9 +125,13 @@ z-input6 · price-alerts6 · reconciliation5 · label-model5 · **cost-sheet13**
 
 ## 7. Accès & sécurité
 
-- Démo (pilote, choix utilisateur) : `amina@patisserie.dz` (labo),
-  `sara@patisserie.dz` (vendeur), `amine@patisserie.dz` (propriétaire),
+- Démo (pilote, choix utilisateur) : `amina@patisserie.dz` (**propriétaire**),
+  `sara@patisserie.dz` (**labo**), `amine@patisserie.dz` (**vendeur**),
   mdp `PatisGest2026!`.
+
+  > ⚠️ Correction de revue (2026-11-17) : le handoff précédent inversait
+  > sara (labo) et amine (vendeur). Source de vérité = `02-seed-pilote.sql`
+  > lignes 4-6 et 81-83, confirmée en SQL sur `public.utilisateurs`.
 - **Rotation de la clé service_role : REPORTÉE à la fin du projet** (décision
   utilisateur) — ne pas la tourner maintenant, ne jamais l'imprimer/commiter.
 - Pas de `PATISGEST_DEMO_MODE` en prod ; la démo locale reste opt-in.
@@ -139,3 +149,90 @@ z-input6 · price-alerts6 · reconciliation5 · label-model5 · **cost-sheet13**
    c'est le cœur « tout écart est un bug bloquant ».
 5. Vérifier que rien ne prétend « production-ready » (SPRINT*.md, PR, README).
 6. E2E restants à faire par l'utilisateur : §1 fin.
+
+---
+
+## 9. Résultats de la revue indépendante (2026-11-17, branche `arena/a08c81da-patsygest`)
+
+### 9.1 Portes (§2) — toutes revérifiées vertes
+
+| Porte | Résultat |
+|---|---|
+| `npm ci` | OK |
+| `npm run typecheck` | **0 erreur** |
+| `npm run lint` | **0 erreur** |
+| `npm test` | **154/154**, 0 échec |
+| `npm run build` | **Compiled successfully** (5 routes) |
+| `npm run test:smoke` | **6/6** |
+
+### 9.2 `cost-sheet.ts` vs cahier §4 — conforme
+
+RC-01..RC-10 relus ligne à ligne : formules identiques au tableau gravé
+(parage, cuisson, total, MO chargée, coût/portion **sans TVA**, marge **sur HT**,
+taux de perte, manque à gagner, FEFO délégué à `fefo-cost.ts`, garde-fous
+non bloquants). Les **10 recettes de référence ont été recalculées à la main**
+(R1..R10, `tests/rc-reference.test.mjs`) : les valeurs attendues sont des
+valeurs dérivées des formules, pas des copies de la sortie du code. **Aucun écart.**
+
+### 9.3 Matrices SQL — 8/8 conformes (rejouées en TX + rollback)
+
+| # | Verdict | Preuve mesurée |
+|---|---|---|
+| M-a | ✅ | Millefeuille v2 × 12 → `SF-CPA=1`, `SF-PFE=1.2`, `MP-SUC=0.15` kg |
+| M-b | ✅ | 450 `g` → **0.4500 kg** ; sucre 0,05+0,05 → **0.1000 kg** (fusion, 2 lignes) |
+| M-c | ✅ | cycle, auto-référence, conversion manquante, vendeur → 4 refus exacts |
+| M-d | ✅ | rappel : `transferts=2`, `descendants=1` ; blocage propagé aux 2 ; après déblocage **source=false / miroir=reste true** ; vendeur rappel OK, blocage refusé |
+| M-e | ✅ | `editer_cake` OK en `devis`, refusé en `acompte` (« Edition possible uniquement depuis le devis ») ; `accepter_cgv` → `cgv_accepted_at` non nul + `cgv_version='2026-11'` |
+| M-f | ✅ | 2 appels `creer_of(...,'REF-MF-001')` → **même `of_id`**, `duplicate:true` au 2e, 1 seul OF |
+| M-g | ✅ | `conversions`/`parametres_couts` : insert labo OK, vendeur refusé par RLS |
+| M-h | ✅ | résidus nuls : OF=2, mouvements=0, transferts=0, lots bloqués=0, versions=2 (état seed) |
+
+Production Vercel : `dpl_CYJsfVea…` **READY / PROMOTED**, alias
+`patsy-gest-all-intelligence.vercel.app`, commit `5b21144` (= base de cette branche).
+`ssoProtection` désormais `null` (la protection SSO signalée en SPRINT2 est levée).
+
+### 9.4 ⚠️ Écart RLS réel — confidentialité des coûts (à corriger, non bloquant pour le pilote démo)
+
+Vérifié en SQL, **non couvert par les tests** :
+
+```
+select_pc        on parametres_couts  for select using (client_id = patisgest_mon_client())
+recette_versions_tenant_read on recette_versions for select using (client_id IN (...))
+```
+
+Les deux policies SELECT ne filtrent que le **tenant**, pas le **rôle**.
+Un compte **vendeur** lit donc :
+
+```
+parametres_couts_lus=1   (taux horaire + charges %)
+recette_versions_lues=2  (mo_min=30.00, énergie, frais généraux, emballage)
+```
+
+C'est exactement le risque déjà écrit dans `SPRINT2.md` §7 (« Les politiques
+actuelles isolent les clients mais ne restreignent pas encore la lecture des
+coûts par rôle »). La mention « RLS3 » dans `SPRINT3.md` désigne 3 *policies*
+(select/insert/update), **pas** une restriction par rôle — la formulation prête
+à confusion. L'IHM masque les coûts au vendeur, mais la donnée reste lisible par
+l'API REST avec le JWT du vendeur. Correctif suggéré (migration 17) : ajouter
+`and patisgest_mon_role() in ('proprietaire','labo')` aux deux SELECT, et
+exposer une vue `recette_versions_caisse` (nom, code, PV) pour la caisse.
+
+### 9.5 Autres constats de documentation
+
+- Le repo local est un **clone superficiel** (`git rev-list --count HEAD` = 1,
+  `.git/shallow` = `5b21144`) : l'étape §8.1 (`git log … b9f34a5..171702c`) est
+  **impossible** ici ; il faut `git fetch --unshallow` (ou relire la PR #2).
+- `SPRINT3.md` §Tests annonce « RC formules(12) +10 recettes » ; le réel est
+  **10** (`cost-sheet.test`) + **13** (`rc-reference.test`, dont 10 recettes).
+  Total global correct, répartition approximative.
+- Corrections appliquées dans ce handoff : §5 (répartition des 154 tests),
+  §7 (rôles sara=labo / amine=vendeur), §3 M-b (scénario constructif).
+
+### 9.6 Verdict
+
+Le livré **tient le plan** sur les points vérifiables en sandbox : formules
+gravées conformes, 10 recettes au centime justes, sous-recettes/conversions
+exactes, idempotence OF réelle, cascade de rappel correcte, RLS de rôle correcte
+en écriture. **Le pilote n'est toujours PAS « production-ready »** : E2E
+navigateur avec Auth réelle, journée sans internet en vrai navigateur et revue
+humaine des coûts restent à faire par l'utilisateur (§1, §9.4).
