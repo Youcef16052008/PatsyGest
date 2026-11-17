@@ -16,6 +16,8 @@ import CommandeForms, { type CommandeRow } from "@/components/commande-forms";
 import { computePriceAlerts } from "@/lib/price-alerts";
 import { computeReconciliation, type ClosingRecord, type SaleRecord } from "@/lib/reconciliation";
 import ReconPanel from "@/components/recon-panel";
+import LabelMaker from "@/components/label-maker";
+import type { LabelIngredient, LabelLot, LabelProduct } from "@/lib/label-model";
 
 const modules = {
   stocks: { title:'Articles & stocks', tables:[['articles','Articles'],['lots','Lots']] },
@@ -45,16 +47,34 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
   // Écritures réelles (RLS) : uniquement sur Stocks et pour les rôles autorisés.
   let writeForms: ReactNode = null;
   if (key==='stocks' && canWrite(ctx.role)) {
-    const [sitesRes,fournRes]=await Promise.all([
+    const [sitesRes,fournRes,recRes,lotRes]=await Promise.all([
       supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
       supabase.from('fournisseurs').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
+      supabase.from('recette_familles').select('produit_id, recette_versions!inner(ingredients)').eq('client_id',ctx.clientId).eq('recette_versions.active',true),
+      supabase.from('lots').select('article_id, numero, dlc, qte_rest, articles!inner(niveau)').eq('client_id',ctx.clientId).gt('qte_rest',0).eq('articles.niveau','produit').order('dlc',{ascending:true}).limit(300),
     ]);
-    const articleRows=(results.find(r=>r.label==='Articles')?.data ?? []) as {id:string;code:string;nom:string}[];
-    writeForms=<StockWriteForms
-      articles={articleRows.map(a=>({id:a.id,label:`${a.code} · ${a.nom}`}))}
-      sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
-      fournisseurs={((fournRes.data??[]) as {id:string;nom:string}[]).map(f=>({id:f.id,label:f.nom}))}
-    />;
+    const articleRows=(results.find(r=>r.label==='Articles')?.data ?? []) as {id:string;code:string;nom:string;allergenes?:string[];traces?:string[]}[];
+    const labelProduits: (LabelProduct & {id:string})[]=articleRows
+      .filter(a=>a.code && a.nom)
+      .map(a=>({id:a.id,code:a.code,nom:a.nom,allergenes:a.allergenes??[],traces:a.traces??[]}));
+    const recipes: Record<string,LabelIngredient[]>={};
+    for (const row of ((recRes.data??[]) as {produit_id:string;recette_versions:{ingredients:LabelIngredient[]}[]|{ingredients:LabelIngredient[]}|null}[])) {
+      if (!row.produit_id) continue;
+      const v=Array.isArray(row.recette_versions)?row.recette_versions[0]:row.recette_versions;
+      if (v?.ingredients) recipes[row.produit_id]=v.ingredients;
+    }
+    const lots: Record<string,LabelLot[]>={};
+    for (const row of ((lotRes.data??[]) as {article_id:string;numero:string;dlc:string|null}[])) {
+      (lots[row.article_id] ??= []).push({numero:row.numero,dlc:row.dlc});
+    }
+    writeForms=<>
+      <StockWriteForms
+        articles={articleRows.map(a=>({id:a.id,label:`${a.code} · ${a.nom}`}))}
+        sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
+        fournisseurs={((fournRes.data??[]) as {id:string;nom:string}[]).map(f=>({id:f.id,label:f.nom}))}
+      />
+      <LabelMaker produits={labelProduits} recipes={recipes} lots={lots} />
+    </>;
   } else if (key==='caisse') {
     // Vente réelle : tous les rôles authentifiés (le vendeur est le rôle caisse).
     const [sitesRes,produitsRes]=await Promise.all([
@@ -93,7 +113,7 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
     // Clôture six flux (RPC saisir_cloture) : révisions et enrichissement côté serveur.
     const [sitesRes,artRes,clotRes,ventesRes]=await Promise.all([
       supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
-      supabase.from('articles').select('id, code, nom, pu_ht').eq('client_id',ctx.clientId).eq('niveau','produit').eq('actif',true).order('nom'),
+      supabase.from('articles').select('id, code, nom, pu_ht').eq('client_id',ctx.clientId).eq('niveau','produit').order('nom'),
       supabase.from('clotures').select('id, date_cloture, site_id, revision, lignes').eq('client_id',ctx.clientId).order('date_cloture',{ascending:false}).limit(30),
       supabase.from('ventes').select('site_id, date_vente, lignes').eq('client_id',ctx.clientId).order('date_vente',{ascending:false}).limit(500),
     ]);
@@ -133,7 +153,7 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
   } else if (key==='achats' && canWrite(ctx.role)) {
     // BC multi-lignes + réceptions partielles/totales (RPC creer/recevoir_commande).
     const [artRes,sitesRes,histRes]=await Promise.all([
-      supabase.from('articles').select('id, code, nom, pu_ht').eq('client_id',ctx.clientId).eq('actif',true).order('nom').limit(150),
+      supabase.from('articles').select('id, code, nom, pu_ht').eq('client_id',ctx.clientId).order('nom').limit(150),
       supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
       supabase.from('historique_prix').select('article_id, fournisseur_id, date_prix, pu').eq('client_id',ctx.clientId).order('date_prix',{ascending:false}).limit(300),
     ]);
