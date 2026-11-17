@@ -64,12 +64,10 @@ create policy "clients_update_owner" on clients
     )
   );
 
--- utilisateurs : chacun lit/modifie sa propre ligne
+-- utilisateurs : chacun lit sa propre ligne ; rôle et client ne sont pas modifiables par l’utilisateur
 create policy "utilisateurs_select_own" on utilisateurs
   for select using (auth_user_id = auth.uid());
 
-create policy "utilisateurs_update_own" on utilisateurs
-  for update using (auth_user_id = auth.uid());
 
 -- sites : lecture = sites de son client
 create policy "sites_select_client" on sites

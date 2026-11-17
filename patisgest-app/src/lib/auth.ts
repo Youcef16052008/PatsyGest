@@ -1,3 +1,5 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "./supabase/server";
 
@@ -6,10 +8,12 @@ export type Role = "proprietaire" | "labo" | "vendeur";
 export interface SessionContext {
   authUserId: string;
   email: string;
+  nom: string;
   utilisateurId: string;
   clientId: string;
   clientNom: string;
   role: Role;
+  mode: "supabase" | "pilote-local";
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -18,31 +22,106 @@ export const ROLE_LABELS: Record<Role, string> = {
   vendeur: "Vendeur",
 };
 
-/** Session complète : compte Auth + ligne utilisateurs + client + rôle. */
+export const PILOT_ACCOUNTS: Record<
+  string,
+  {
+    authUserId: string;
+    utilisateurId: string;
+    email: string;
+    nom: string;
+    role: Role;
+    clientId: string;
+    clientNom: string;
+  }
+> = {
+  "amina@patisserie.dz": {
+    authUserId: "33333333-3333-4333-8333-333333333301",
+    utilisateurId: "44444444-3333-4333-8333-333333333301",
+    email: "amina@patisserie.dz",
+    nom: "Aïcha (Propriétaire)",
+    role: "proprietaire",
+    clientId: "11111111-1111-4111-8111-111111111111",
+    clientNom: "Pâtisserie El Yasmine — Oran",
+  },
+  "sara@patisserie.dz": {
+    authUserId: "33333333-3333-4333-8333-333333333302",
+    utilisateurId: "44444444-3333-4333-8333-333333333302",
+    email: "sara@patisserie.dz",
+    nom: "Sara (Responsable Labo)",
+    role: "labo",
+    clientId: "11111111-1111-4111-8111-111111111111",
+    clientNom: "Pâtisserie El Yasmine — Oran",
+  },
+  "amine@patisserie.dz": {
+    authUserId: "33333333-3333-4333-8333-333333333303",
+    utilisateurId: "44444444-3333-4333-8333-333333333303",
+    email: "amine@patisserie.dz",
+    nom: "Amine (Vendeur Caisse)",
+    role: "vendeur",
+    clientId: "11111111-1111-4111-8111-111111111111",
+    clientNom: "Pâtisserie El Yasmine — Oran",
+  },
+};
+
+export const PILOT_COOKIE_NAME = "patisgest_pilot_session";
+
+/** Le mode démo est explicite, non disponible en production, et isolé de Supabase. */
+export function demoEnabled(): boolean {
+  return process.env.NODE_ENV !== "production" && process.env.PATISGEST_DEMO_MODE === "true" && (process.env.PATISGEST_DEMO_SECRET?.length ?? 0) >= 32;
+}
+
+/** Session complète : compte Auth Supabase ou session Pilote (hors-ligne / sandbox). */
 export async function getSessionContext(): Promise<SessionContext | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user?.email) return null;
+  const cookieStore = await cookies();
+  const pilotCookie = cookieStore.get(PILOT_COOKIE_NAME)?.value;
 
-  const { data } = await supabase
-    .from("utilisateurs")
-    .select("id, client_id, role, clients ( nom )")
-    .eq("auth_user_id", user.id)
-    .single();
+  if (demoEnabled() && pilotCookie) {
+    const [payload, signature] = pilotCookie.split(".");
+    if (payload && signature) {
+      const expected = createHmac("sha256", process.env.PATISGEST_DEMO_SECRET!).update(payload).digest("hex");
+      const a = Buffer.from(signature); const b = Buffer.from(expected);
+      if (a.length === b.length && timingSafeEqual(a, b)) {
+        try {
+          const { email, expires } = JSON.parse(Buffer.from(payload, "base64url").toString());
+          const account = PILOT_ACCOUNTS[email as string];
+          if (account && typeof expires === "number" && expires > Date.now()) return { ...account, mode: "pilote-local" };
+        } catch { /* invalid cookie */ }
+      }
+    }
+  }
 
-  if (!data) return null;
-  const client = data.clients as unknown as { nom: string } | null;
+  try {
+    const supabase = await createClient();
+    const userRes = await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
+    ]);
 
-  return {
-    authUserId: user.id,
-    email: user.email,
-    utilisateurId: data.id as string,
-    clientId: data.client_id as string,
-    clientNom: client?.nom ?? "Ma pâtisserie",
-    role: data.role as Role,
-  };
+    if (!userRes || !userRes.data?.user?.email) return null;
+    const user = userRes.data.user;
+
+    const { data } = await supabase
+      .from("utilisateurs")
+      .select("id, nom, client_id, role, clients ( nom )")
+      .eq("auth_user_id", user.id)
+      .single();
+
+    if (!data) return null;
+    const client = data.clients as unknown as { nom: string } | null;
+
+    return {
+      authUserId: user.id,
+      email: user.email!,
+      nom: (data.nom as string) ?? user.email!,
+      utilisateurId: data.id as string,
+      clientId: data.client_id as string,
+      clientNom: client?.nom ?? "Pâtisserie El Yasmine — Oran",
+      role: data.role as Role,
+      mode: "supabase",
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** Exige une session (sinon → page de connexion). */
