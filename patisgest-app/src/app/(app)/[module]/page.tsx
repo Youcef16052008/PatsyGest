@@ -19,6 +19,7 @@ import ReconPanel from "@/components/recon-panel";
 import LabelMaker from "@/components/label-maker";
 import VersionForm, { type VersionRow } from "@/components/version-form";
 import RecallForm from "@/components/recall-form";
+import SimulationForm from "@/components/simulation-form";
 import type { LabelIngredient, LabelLot, LabelProduct } from "@/lib/label-model";
 
 const modules = {
@@ -77,6 +78,17 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
       />
       <LabelMaker produits={labelProduits} recipes={recipes} lots={lots} />
     </>;
+  } else if (key==='simulation') {
+    // Simulation réelle : version active + besoins étendus + coût FEFO.
+    const [famRes, sArtRes]=await Promise.all([
+      supabase.from('recette_familles').select('produit_id').eq('client_id',ctx.clientId),
+      supabase.from('articles').select('id, code, nom').eq('client_id',ctx.clientId).order('nom').limit(150),
+    ]);
+    const famProds=new Set(((famRes.data??[]) as {produit_id:string}[]).map(f=>f.produit_id));
+    const sProduits=((sArtRes.data??[]) as {id:string;code:string;nom:string}[])
+      .filter(a=>famProds.has(a.id))
+      .map(a=>({id:a.id,label:`${a.code} · ${a.nom}`}));
+    writeForms=<SimulationForm produits={sProduits} />;
   } else if (key==='tracabilite') {
     // Rapport de rappel + blocage en cascade (lecture pour tous les rôles).
     const lotRes=await supabase.from('lots')
