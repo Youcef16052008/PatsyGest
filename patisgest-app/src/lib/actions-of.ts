@@ -5,7 +5,12 @@ import { canWrite, getSessionContext } from "./auth";
 import { createClient } from "./supabase/server";
 import { parseOfCreateInput, parseOfFinishInput } from "./stock-input";
 
-export type OfState = { erreur?: string; succes?: string };
+export type OfState = {
+  erreur?: string;
+  succes?: string;
+  numero?: string;
+  duplicate?: boolean;
+};
 
 async function requireWriter(): Promise<{ erreur: string } | null> {
   const ctx = await getSessionContext();
@@ -32,6 +37,10 @@ export async function createOf(_prev: OfState, formData: FormData): Promise<OfSt
     return { erreur: e instanceof Error ? e.message : "Saisie invalide." };
   }
 
+  // Référence client (file hors-ligne) : idempotence creer_of.
+  const clientRefRaw = String(formData.get("clientRef") ?? "").trim();
+  const clientRef = /^[\w-]{1,64}$/.test(clientRefRaw) ? clientRefRaw : null;
+
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.rpc("creer_of", {
@@ -39,11 +48,16 @@ export async function createOf(_prev: OfState, formData: FormData): Promise<OfSt
       p_site_id: input.siteId,
       p_qte_prevue: input.qtePrevue,
       p_date_prevue: input.datePrevue,
+      p_client_ref: clientRef,
     });
     if (error) return { erreur: mapRpcError(error) };
-    const numero = (data as { numero?: string } | null)?.numero ?? "";
+    const r = data as { numero?: string; duplicate?: boolean } | null;
+    const numero = r?.numero ?? "";
     revalidatePath("/production");
-    return { succes: `OF ${numero} planifié avec les besoins figés de la recette.` };
+    if (r?.duplicate) {
+      return { succes: `OF ${numero} déjà enregistré (idempotence hors-ligne).`, numero, duplicate: true };
+    }
+    return { succes: `OF ${numero} planifié avec les besoins figés de la recette.`, numero, duplicate: false };
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur." };
   }

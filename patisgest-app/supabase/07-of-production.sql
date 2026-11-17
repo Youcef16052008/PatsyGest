@@ -31,7 +31,8 @@ create or replace function public.creer_of(
   p_version_id uuid,
   p_site_id uuid,
   p_qte_prevue numeric,
-  p_date_prevue date
+  p_date_prevue date,
+  p_client_ref text default null
 )
 returns jsonb
 language plpgsql
@@ -83,6 +84,19 @@ begin
   end if;
   if v_role not in ('proprietaire', 'labo') then
     raise exception 'Role non autorise a creer des OF.';
+  end if;
+
+  -- Idempotence hors-ligne : un meme client_ref ne cre jamais2 OF
+  -- (resynchronisation de la file sans reseau ->0 doublon).
+  if p_client_ref is not null and length(p_client_ref) between 1 and 64 then
+    select o.id, o.numero, o.besoins into v_of_id, v_numero, v_besoins
+      from public.ordres_fabrication o
+     where o.client_id = v_client and o.client_ref = p_client_ref
+     limit 1;
+    if v_of_id is not null then
+      return jsonb_build_object('of_id', v_of_id, 'numero', v_numero,
+        'besoins', coalesce(v_besoins, '[]'::jsonb), 'duplicate', true);
+    end if;
   end if;
 
   select s.client_id into v_site_client from public.sites s where s.id = p_site_id;
@@ -137,14 +151,16 @@ begin
   insert into public.ordres_fabrication
     (client_id, famille_id, version_id, site_id, numero, qte_prevue,
      qte_realisee, date_prevue, date_lancement, statut, snapshot, besoins,
-     consommations, manquants, lots_produits, cout_reel)
+     consommations, manquants, lots_produits, cout_reel, client_ref)
   values
     (v_client, v_famille, p_version_id, p_site_id, v_numero, p_qte_prevue,
      0, p_date_prevue, null, 'planifie', v_snapshot, v_besoins,
-     '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 0)
+     '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 0,
+     nullif(trim(coalesce(p_client_ref, '')), ''))
   returning id into v_of_id;
 
-  return jsonb_build_object('of_id', v_of_id, 'numero', v_numero, 'besoins', v_besoins);
+  return jsonb_build_object('of_id', v_of_id, 'numero', v_numero,
+    'besoins', v_besoins, 'duplicate', false);
 end;
 $$;
 

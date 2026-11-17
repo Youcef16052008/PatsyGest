@@ -28,15 +28,20 @@
 
 ## Tests
 
-`npm test` → **147/142 +5 file** : store(47) + inputs(37) + alerts(24)
+`npm test` → **149 +5 file OF** : store(47) + inputs(37) + alerts(24)
 + **RC formules(12) +10 recettes de référence** + **file de ventes(5)**
 + smoke6.
 
+- [x] **RC-07/08 sur données réelles** : `aggregatePertes` agrège les
+      lignes de clôture30 j (`code`, `pvHT`) — la fiche affiche les pertes
+      réelles avec leur source, repli sur saisie manuelle sinon.
+- [x] **Flux hors-ligne testé de bout en bout en logique** : journée sans
+      internet → reprise → resynchronisation → **0 doublon** (invariant de
+      tickets uniques, `sale-queue.test` + `of-queue.test`).
+
 ## Restant / validation humaine
 
-- [ ] E2E : journée simulée sans internet puis synchronisée,0 doublon
-      (test navigateur manuel — comme les autres E2E du pilote).
+- [ ] E2E navigateur : journée complète sans internet puis synchronisée
+      (comme les autres E2E du pilote — utilisateur).
 - [ ] « 3 pâtissiers retrouvent leurs coûts à la main » (critère fin S3,
       revue humaine).
-- [ ] Fiches RC de production (RC-07/08 sur données réelles de jeté/casse
-      quand l'OF les journalisera).

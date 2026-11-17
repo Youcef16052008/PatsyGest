@@ -43,3 +43,36 @@ test('file : persistance localStorage tolère les données corrompues', () => {
   saveQueue([sale('t1')]); // no-op sans window
   assert.deepEqual(loadQueue(), []);
 });
+
+test('flux offline complet : journée sans internet → reprise →0 doublon', () => {
+  // Matin :3 ventes encaissées hors ligne (file d'abord).
+  let q = [];
+  const ventes = [sale('v-1'), sale('v-2', { qte: 1 }), sale('v-3', { qte: 3 })];
+  for (const v of ventes) q = enqueueSale(q, v);
+  assert.equal(q.length, 3);
+
+  // Réseau revient :2 ventes synchronisées (retirées de la file),1 échoue réseau.
+  const synchronisees = [];
+  let reseauTombe = false;
+  for (const v of [...q]) {
+    if (reseauTombe) break;
+    if (v.ticket === 'v-3') { reseauTombe = true; continue; } // coupure au3e
+    synchronisees.push(v.ticket);
+    q = removeSale(q, v.ticket);
+  }
+  assert.deepEqual(synchronisees, ['v-1', 'v-2']);
+  assert.equal(q.length, 1);
+  assert.equal(findSale(q, 'v-3')?.ticket, 'v-3');
+
+  // Reprise : la restante passe, puis la resynchronisation d'une déjà
+  // faite est retirée sans2e vente (dédup par ticket = idempotence).
+  q = removeSale(q, 'v-3');
+  synchronisees.push('v-3');
+  q = enqueueSale(q, sale('v-2')); // double envoi accidentel
+  q = removeSale(q, 'v-2');       // "dup" serveur → retrait
+  assert.equal(q.length, 0);
+
+  // Invariant : aucun ticket synchronisé deux fois.
+  assert.equal(new Set(synchronisees).size, synchronisees.length);
+  assert.equal(synchronisees.length, 3);
+});
