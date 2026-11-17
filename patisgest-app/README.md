@@ -22,6 +22,8 @@ Exécuter **une fois** dans Supabase → SQL Editor, dans l'ordre :
 2. `supabase/02-seed-pilote.sql` — client, sites et comptes de démonstration.
 3. `supabase/03-sprint2-modules.sql` — 17 tables métier + politiques de lecture.
 4. `supabase/04-securite-lecture.sql` — retrait des politiques d'écriture larges.
+5. `supabase/05-ecritures-articles-lots.sql` — écritures réelles articles/lots/mouvements
+   (rôles propriétaire + labo, isolement strict par client, réception atomique RPC).
 
 Le jeu de données métier du projet pilote distant n'est pas intégralement reproduit par
 le seed local.
@@ -86,10 +88,14 @@ src/lib/supabase/{client,server}.ts     → clients Supabase (navigateur / serve
 src/lib/auth.ts                         → session : user Supabase ou cookie pilote local
 src/lib/actions-auth.ts                 → connexion / démo / déconnexion
 src/lib/patisgest-store.ts              → moteur de démonstration local (tests dedans)
+src/lib/stock-input.ts                  → validation pure des saisies stocks (tests dedans)
+src/lib/actions-stock.ts                → server actions d'écriture réelle (RLS)
+src/components/stock-write-forms.tsx    → formulaires article / réception (page Stocks)
 src/db/schema.ts                        → tables Drizzle (miroir du SQL)
-supabase/01..04-*.sql                   → socle, seed, modules,politiques lecture
+supabase/01..05-*.sql                   → socle, seed, modules, lecture, écritures RLS
 middleware.ts                           → rafraîchit la session Supabase
 tests/store.test.mjs                    → tests unitaires du moteur local
+tests/stock-input.test.mjs              → tests unitaires de validation des saisies
 tests/smoke-http.mjs                    → tests HTTP de bout en bout
 ```
 
