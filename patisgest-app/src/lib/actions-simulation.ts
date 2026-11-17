@@ -1,6 +1,7 @@
 "use server";
 
 import { canReadCosts, getSessionContext } from "./auth";
+import { messageUtilisateur } from "./erreurs-db";
 import { computeFefoCost, type FefoLot } from "./fefo-cost";
 import { createClient } from "./supabase/server";
 
@@ -47,7 +48,7 @@ export async function simulerReal(_prev: SimulationState, formData: FormData): P
     const { data, error } = await supabase.rpc("simuler_recette", {
       p_produit_id: produitId, p_qte: qte,
     });
-    if (error) return { erreur: `Simulation impossible : ${error.message}` };
+    if (error) return { erreur: messageUtilisateur(error, "Simulation impossible") };
     const r = data as {
       famille: { code: string; nom: string };
       version: number;

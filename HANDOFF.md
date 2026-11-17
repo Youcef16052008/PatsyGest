@@ -89,11 +89,12 @@ reset role; rollback;
 
 ## 5. Chiffres à retrouver (rejouer `npm test`)
 
-**157 tests** (vérifié : la somme ci-dessous fait bien 157) : store47 ·
-stock-input10 · journal-input15 · purchase-input6 · z-input6 · price-alerts6 ·
-reconciliation5 · label-model5 · version-input6 · **cost-sheet10** ·
-**rc-reference13** · **fefo-cost6** · **quality-alerts8** · **sale-queue6** ·
-**of-queue5** · **permissions3** · smoke **6/6** (séparé).
+**206 tests** (vérifié fichier par fichier) : store47 · stock-input10 ·
+journal-input15 · purchase-input6 · z-input6 · price-alerts6 · reconciliation5 ·
+label-model5 · version-input6 · cost-sheet10 · rc-reference13 · fefo-cost6 ·
+quality-alerts8 · sale-queue6 · of-queue5 · permissions3 · **allergenes11** ·
+**csv12** · **onboarding8** · **erreurs-db8** · **securite10** ·
+smoke **7/7** (séparé, dont un test réel de `/api/export`).
 
 > ⚠️ Correction de revue (2026-11-17) : la version précédente listait
 > `cost-sheet13`/`rc-reference11` et omettait `version-input6` — le total
@@ -273,3 +274,82 @@ réelle sur l'URL prod, « journée sans internet » dans un vrai navigateur et
 « 3 pâtissiers retrouvent leurs coûts à la main » restent à faire par
 l'utilisateur (§1). Aucun de ces trois critères n'est couvrable en sandbox :
 ils ne doivent pas être déclarés faits.
+
+---
+
+## 10. Sprints 5 & 6 — qualité/onboarding puis durcissement (2026-11-17)
+
+> Décision de session : poursuivre **le plan** (roadmap S5 → S6) au lieu de
+> s'arrêter au correctif RLS. Chaque livrable ci-dessous est accompagné de ce
+> qui **reste humain** et ne doit pas être déclaré fait.
+
+### 10.1 S5 — `patisgest-app/SPRINT5.md`
+
+**MOD-10 (allergènes matières → produits)** — la vraie lacune fonctionnelle.
+Avant, `articles.allergenes` était saisi **à la main** sur le produit fini.
+Mesuré sur le jeu pilote : `PF-CRO` (Croissant) déclarait `gluten, lait,
+oeufs` alors que sa recette v1 (farine, beurre, sucre, lait) **ne contient
+aucun œuf**. Le calcul est désormais dérivé des matières :
+`src/lib/allergenes.ts` (11 tests) — expansion récursive des sous-recettes
+(profondeur 3, anti-cycle), normalisation des 14 allergènes légaux, et
+distinction `manquants` (sous-déclaration = **bloquant**) / `enTrop`
+(sur-déclaration = avertissement). Vérifié par SQL indépendant sur la base :
+```
+PF-CRO  déclare {gluten,lait,oeufs}  dérive {gluten,lait}   → 1 en trop
+PF-MIL  déclare {gluten,lait,oeufs}  dérive {gluten,lait,oeufs} → conforme
+```
+Piège trouvé par le test : `œ`/`æ` sont des ligatures, **NFD ne les
+décompose pas** (« Œufs » ne matchait jamais le slug `oeufs`).
+
+**MOD-15 (exports CSV)** — `src/lib/csv.ts` (12 tests) + `/api/export`.
+Format **Excel FR** (séparateur `;`, virgule décimale, **BOM UTF-8** — sans
+lui, « é » devient « Ã© » chez le comptable), RFC 4180, et **injection de
+formule neutralisée** (OWASP : `=`, `+`, `-`, `@`, tab, CR préfixés d'une
+apostrophe). 11 tables ; les tables de coût sont réservées à
+propriétaire/labo (UI **et** route, 403). Test de fumée réel : 401 sans
+session, 403 vendeur sur `couts`/`recettes`.
+
+**MOD-15 (onboarding)** — `src/lib/onboarding.ts` (8 tests) : 6 étapes dans
+l'ordre US-15.3, compteurs réels sur le tableau de bord, prochaine action
+mise en avant, `pretAVendre` (matières + produits + recette active + 1re
+vente sont bloquantes ; fournisseurs et 1er OF recommandés seulement).
+
+### 10.2 S6 — `patisgest-app/SPRINT6.md`
+
+**Durcissement des messages d'erreur** — `src/lib/erreurs-db.ts` (8 tests).
+Constat : 10 sites renvoyaient `${error.message}` brut, ce qui exposait
+`duplicate key value violates unique constraint "ofs_client_ref_uniq"` ou
+`permission denied for table parametres_couts` à l'écran. Règle unifiée :
+seul `P0001` (nos `raise exception` métier, en français) est affiché ; les
+codes techniques (23505, 42501, 42P01, PGRST…) donnent un message
+actionnable + « contactez le support ». 5 helpers dupliqués fusionnés.
+
+**Revue sécurité outillée** — `tests/securite.test.mjs` (10) verrouille les
+régressions coûteuses : aucun secret/JWT en dur, `.env` ignoré, **aucune
+migration ne fait `grant … to anon`**, migration 17 présente avec gardes,
+`canReadCosts` dans le rendu/actions/navigation, tables de coût marquées
+`cout:true`, garde évaluée **avant** la requête dans `/api/export`, et
+`error.message` uniquement sous garde `P0001`.
+
+**Mentions légales / CGU** — `/mentions-legales` (TVA 19/9, conservation
+10 ans, loi 18-07, décret 13-378, rôles, mode hors-ligne) + lien en pied de
+page. Rédigée comme **modèle** : validation comptable + juriste requise.
+
+### 10.3 Portes après S5/S6
+
+`npm run typecheck` 0 · `lint` 0 · `test` **206/206** · `build` OK
+(6 routes dont `/api/export` et `/mentions-legales`) · `test:smoke` **7/7**.
+
+### 10.4 Ce qui reste et ne doit PAS être déclaré fait
+
+| Point | Statut |
+|---|---|
+| CA-15 « onboarding en < 1 h par un novice » | **non testé** (humain) |
+| US-15.2 **restauration** « en 2 clics » | **non livrée** — seul l'export (sauvegarde) existe ; l'import transactionnel table par table reste à spécifier (conflits d'identifiants) |
+| Check-list 60 cas (S6) | **non exécutée** (navigateur réel + 3 comptes + réseau prod) |
+| Revue sécurité 25 points (S6) | **partielle** : 10 invariants automatisés seulement |
+| Mentions légales | **modèle** — validation comptable/juriste requise |
+| Formation 5 pilotes, 1 semaine d'encaissement réel | **hors sandbox** |
+| E2E Auth réelle sur URL prod, journée sans internet | **hors sandbox** |
+
+**Aucun de ces points ne permet de dire « production-ready ».**

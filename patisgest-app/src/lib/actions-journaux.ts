@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { canWrite, getSessionContext } from "./auth";
+import { messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
 import {
   parseCakeActionInput,
@@ -31,10 +32,7 @@ async function requireAnyRole(): Promise<{ erreur: string } | null> {
 }
 
 function mapError(error: { code?: string; message: string }): string {
-  if (error.code === "P0001") return error.message;
-  if (error.code === "42501") return "Votre rôle n'autorise pas cette opération.";
-  if (error.code === "23505") return "Conflit de révision — réessayez.";
-  return `Opération refusée : ${error.message}`;
+  return messageUtilisateur(error, "Opération refusée");
 }
 
 /** Clôture six flux (RPC saisir_cloture) : révision gérée côté serveur. */

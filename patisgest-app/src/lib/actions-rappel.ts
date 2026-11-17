@@ -1,6 +1,7 @@
 "use server";
 
 import { canWrite, getSessionContext } from "./auth";
+import { messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
 
 export type RappelLot = {
@@ -41,7 +42,7 @@ export async function rappelLotReal(_prev: RappelState, formData: FormData): Pro
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.rpc("rappel_lot", { p_lot_id: lotId });
-    if (error) return { erreur: `Rapport impossible : ${error.message}` };
+    if (error) return { erreur: messageUtilisateur(error, "Rapport impossible") };
     return { report: data as RappelReport };
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur." };
@@ -66,7 +67,7 @@ export async function bloquerLotReal(_prev: RappelState, formData: FormData): Pr
     const { data, error } = await supabase.rpc("bloquer_lot", {
       p_lot_id: lotId, p_bloque: true, p_motif: motif, p_descendants: descendants,
     });
-    if (error) return { erreur: `Blocage refusé : ${error.message}` };
+    if (error) return { erreur: messageUtilisateur(error, "Blocage refusé") };
     const r = data as { touches?: number };
     return { succes: `Lot bloqué${descendants ? ` (+ ${Math.max((r?.touches ?? 1) - 1, 0)} descendant(s))` : ""}.`, touches: r?.touches };
   } catch {
@@ -85,7 +86,7 @@ export async function debloquerLotReal(_prev: RappelState, formData: FormData): 
     const { data, error } = await supabase.rpc("bloquer_lot", {
       p_lot_id: lotId, p_bloque: false, p_motif: null, p_descendants: false,
     });
-    if (error) return { erreur: `Déblocage refusé : ${error.message}` };
+    if (error) return { erreur: messageUtilisateur(error, "Déblocage refusé") };
     return { succes: "Lot débloqué (les descendants restent bloqués)." };
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur." };

@@ -158,3 +158,24 @@ test('la déconnexion efface la session et revient à /connexion', async () => {
   assert.ok(cleared, 'Le cookie doit être supprimé à la déconnexion');
   assert.ok(/Max-Age=0|Expires=Thu, 01 Jan 1970/i.test(cleared), 'Suppression de cookie invalide');
 });
+
+test('MOD-15 : export CSV refusé sans session (401) et pour un vendeur sur une table de coût (403)', async () => {
+  // Sans session : la route API répond, elle ne redirige pas.
+  const anon = await get('/api/export?table=ventes');
+  assert.equal(anon.status, 401);
+
+  // Vendeur : tables métier autorisées, tables de coût interdites.
+  const vendeur = `patisgest_pilot_session=${demoCookie('amine@patisserie.dz')}`;
+  const couts = await get('/api/export?table=couts', vendeur);
+  assert.equal(couts.status, 403, 'un vendeur ne doit pas exporter les coûts');
+  const recettes = await get('/api/export?table=recettes', vendeur);
+  assert.equal(recettes.status, 403, 'un vendeur ne doit pas exporter les recettes');
+  const inconnue = await get('/api/export?table=pas-une-table', vendeur);
+  assert.equal(inconnue.status, 403);
+
+  // Propriétaire : la table de coût est autorisée (peut échouer en 503 sans
+  // Supabase, mais jamais en 403).
+  const proprio = `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`;
+  const ok = await get('/api/export?table=couts', proprio);
+  assert.notEqual(ok.status, 403, 'le propriétaire doit pouvoir exporter les coûts');
+});

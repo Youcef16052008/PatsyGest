@@ -2,16 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { canWrite, getSessionContext } from "./auth";
+import { messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
 import { parseVersionInput } from "./version-input";
 
 export type RecettesState = { erreur?: string; succes?: string };
 
 function mapError(error: { code?: string; message: string }): string {
-  if (error.code === "P0001") return error.message;
-  if (error.code === "42501") return "Votre rôle n'autorise pas cette opération.";
-  if (error.code === "23505") return "Ce code de recette est déjà utilisé.";
-  return `Opération refusée : ${error.message}`;
+  return messageUtilisateur(error, "Opération refusée");
 }
 
 async function requireWriter(): Promise<RecettesState | null> {

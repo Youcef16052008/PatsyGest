@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { canWrite, getSessionContext } from "./auth";
+import { messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
 import { parseOfCreateInput, parseOfFinishInput } from "./stock-input";
 
@@ -20,9 +21,7 @@ async function requireWriter(): Promise<{ erreur: string } | null> {
 }
 
 function mapRpcError(error: { code?: string; message: string }): string {
-  if (error.code === "P0001") return error.message;
-  if (error.code === "42501") return "Votre rôle n'autorise pas cette opération.";
-  return `Opération refusée : ${error.message}`;
+  return messageUtilisateur(error, "Opération refusée");
 }
 
 /** Crée un OF : les besoins sont recalculés côté serveur (RPC creer_of). */
