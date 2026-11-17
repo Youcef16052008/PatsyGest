@@ -146,3 +146,37 @@ test('sécu : un seul traducteur d’erreurs, utilisé partout', () => {
   const erreursDb = read('src/lib/erreurs-db.ts');
   assert.ok(/CODE_METIER\s*=\s*"P0001"/.test(erreursDb));
 });
+
+// --- US-15.2 : la restauration est un point d'écriture massive -------------
+test('sécu : la restauration passe par la RPC, jamais par des INSERT directs', () => {
+  const src = read('src/lib/actions-restauration.ts');
+  // Un INSERT direct échouerait sur les 11 tables sans policy INSERT.
+  assert.ok(/rpc\(\s*["']restaurer_sauvegarde["']/.test(src), 'la restauration doit appeler la RPC dédiée');
+  assert.equal(/\.from\([^)]*\)\s*\.insert\(/.test(src), false, 'aucun INSERT direct depuis le client');
+  assert.ok(/proprietaire/.test(src), 'la garde de rôle doit être côté serveur aussi');
+  assert.ok(/confirmation/.test(src) && /RESTAURER/.test(src), 'confirmation explicite obligatoire');
+});
+
+test('sécu : la migration de restauration garde son rôle et ses révocations', () => {
+  const sql = read('supabase/18-restauration-sauvegarde.sql');
+  assert.ok(/security\s+definer/i.test(sql));
+  assert.ok(/set\s+search_path\s*=\s*''/i.test(sql), 'search_path vide : pas de détournement de schéma');
+  assert.ok(/role\s+is\s+distinct\s+from\s+'proprietaire'/i.test(sql), 'garde de rôle obligatoire');
+  assert.ok(/appartient a un autre etablissement/i.test(sql), 'refus multi-tenant');
+  assert.ok(/Ligne etrangere/i.test(sql), 'refus des lignes d’un autre client');
+  assert.ok(/revoke all on function[\s\S]*?from public,\s*anon/i.test(sql), 'aucun droit PUBLIC résiduel');
+  // La fonction doit couvrir les tables sans policy INSERT.
+  for (const t of ['ventes', 'clotures', 'recette_versions', 'ordres_fabrication']) {
+    assert.ok(new RegExp(`public\\.${t}\\b`).test(sql), `${t} doit être couverte par la restauration`);
+  }
+});
+
+test('sécu : une sauvegarde ne contient aucun secret', () => {
+  const dump = read('src/lib/sauvegarde.ts');
+  assert.equal(/service_role|SERVICE_ROLE|SERVICE_KEY/i.test(dump), false);
+  // Le dump exporte les tables métier, pas les comptes Auth.
+  assert.ok(/utilisateurs/.test(dump), 'l’exclusion des utilisateurs doit être documentée');
+  const route = read('src/app/api/sauvegarde/route.ts');
+  assert.ok(/proprietaire/.test(route), 'export complet réservé au propriétaire');
+  assert.ok(/no-store/.test(route));
+});

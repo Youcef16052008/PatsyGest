@@ -4,7 +4,7 @@ import { ROLE_LABELS, canReadCosts, requireSession } from "@/lib/auth";
 import { logout } from "@/lib/actions-auth";
 
 export const dynamic = "force-dynamic";
-const navBase = [["/tableau-de-bord","Vue d’ensemble"],["/stocks","Articles & stocks"],["/achats","Achats"],["/recettes","Recettes & coûts"],["/simulation","Simulation prix"],["/production","Production"],["/planning","Planning"],["/transferts","Transferts"],["/caisse","Caisse"],["/cloture","Clôture"],["/qualite","Qualité"],["/tracabilite","Traçabilité"],["/cake-design","Cake Design"]];
+const navBase = [["/tableau-de-bord","Vue d’ensemble"],["/stocks","Articles & stocks"],["/achats","Achats"],["/recettes","Recettes & coûts"],["/simulation","Simulation prix"],["/production","Production"],["/planning","Planning"],["/transferts","Transferts"],["/caisse","Caisse"],["/cloture","Clôture"],["/qualite","Qualité"],["/tracabilite","Traçabilité"],["/cake-design","Cake Design"],["/parametres","Paramètres"]];
 // Les modules de coûts (recettes, simulation) ne sont pas proposés au vendeur :
 // il encaisse, il ne lit pas le coût de revient (cf. lib/permissions.ts).
 const navCouts = new Set(["/recettes","/simulation"]);

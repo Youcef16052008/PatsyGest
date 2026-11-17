@@ -89,12 +89,13 @@ reset role; rollback;
 
 ## 5. Chiffres à retrouver (rejouer `npm test`)
 
-**206 tests** (vérifié fichier par fichier) : store47 · stock-input10 ·
+**239 tests** (vérifié fichier par fichier) : store47 · stock-input10 ·
 journal-input15 · purchase-input6 · z-input6 · price-alerts6 · reconciliation5 ·
 label-model5 · version-input6 · cost-sheet10 · rc-reference13 · fefo-cost6 ·
 quality-alerts8 · sale-queue6 · of-queue5 · permissions3 · **allergenes11** ·
-**csv12** · **onboarding8** · **erreurs-db8** · **securite10** ·
-smoke **7/7** (séparé, dont un test réel de `/api/export`).
+**csv12** · **onboarding8** · **erreurs-db8** · **securite13** · **etablissement15** ·
+**sauvegarde15** ·
+smoke **10/10** (séparé, dont `/api/export` et `/api/sauvegarde`).
 
 > ⚠️ Correction de revue (2026-11-17) : la version précédente listait
 > `cost-sheet13`/`rc-reference11` et omettait `version-input6` — le total
@@ -335,17 +336,18 @@ migration ne fait `grant … to anon`**, migration 17 présente avec gardes,
 10 ans, loi 18-07, décret 13-378, rôles, mode hors-ligne) + lien en pied de
 page. Rédigée comme **modèle** : validation comptable + juriste requise.
 
-### 10.3 Portes après S5/S6
+### 10.3 Portes après S5/S6 et la fin S6 (US-15.1 / US-15.2)
 
-`npm run typecheck` 0 · `lint` 0 · `test` **206/206** · `build` OK
-(6 routes dont `/api/export` et `/mentions-legales`) · `test:smoke` **7/7**.
+`npm run typecheck` 0 · `lint` 0 · `test` **239/239** · `build` OK
+(8 routes dont `/api/export`, `/api/sauvegarde`, `/mentions-legales`, `/parametres`)
+· `test:smoke` **10/10**.
 
 ### 10.4 Ce qui reste et ne doit PAS être déclaré fait
 
 | Point | Statut |
 |---|---|
 | CA-15 « onboarding en < 1 h par un novice » | **non testé** (humain) |
-| US-15.2 **restauration** « en 2 clics » | **non livrée** — seul l'export (sauvegarde) existe ; l'import transactionnel table par table reste à spécifier (conflits d'identifiants) |
+| US-15.2 **restauration** « en 2 clics » | **livrée et prouvée** (voir §11) — migration 18 `restaurer_sauvegarde(jsonb)`, une transaction, garde propriétaire. **Volet humain restant** : la manipulation réelle dans un navigateur sur la prod |
 | Check-list 60 cas (S6) | **non exécutée** (navigateur réel + 3 comptes + réseau prod) |
 | Revue sécurité 25 points (S6) | **partielle** : 10 invariants automatisés seulement |
 | Mentions légales | **modèle** — validation comptable/juriste requise |
@@ -353,3 +355,86 @@ page. Rédigée comme **modèle** : validation comptable + juriste requise.
 | E2E Auth réelle sur URL prod, journée sans internet | **hors sandbox** |
 
 **Aucun de ces points ne permet de dire « production-ready ».**
+
+---
+
+## 11. Fin de Sprint 6 — US-15.1 et US-15.2 (2026-11-17)
+
+Deux écarts réels mesurés avant de coder, pas des cases à cocher.
+
+### 11.1 US-15.1 — mentions légales de l'établissement
+
+**Écart constaté** : le ticket de caisse titrait « PâtisGest — Caisse ». Ni
+NIF, ni NIS, ni RC, ni adresse — alors que le §5 du cahier les exige sur
+facture et ticket. `clients` portait déjà `nif/nis/rc`, mais **aucun écran ne
+les éditait** : les valeurs seedées étaient définitives.
+
+**Livré** : `src/lib/etablissement.ts` (validation NIF/NIS 15 chiffres, RC
+wilaya/registre, en-tête, avertissements non bloquants) · `/parametres`
+(édition propriétaire, lecture seule pour les autres rôles) ·
+`sale-ticket.tsx` porte désormais l'en-tête légal complet via
+`enteteTicket()`, et n'invente **jamais** un identifiant absent.
+
+Politique retenue, conforme à « alerte, jamais blocage » : une identité
+incomplète **n'empêche pas d'encaisser**, elle affiche un avertissement et le
+ticket sort avec les mentions disponibles.
+
+**Limite honnête** : les données du pilote ne sont pas conformes —
+`NIF 123456789` et `NIS 987654321` font 9 chiffres, pas 15. L'application le
+signale en rouge dans `/parametres`, mais **c'est au propriétaire de fournir
+ses vrais identifiants**.
+
+### 11.2 US-15.2 — restauration, et pourquoi une migration était nécessaire
+
+**Découverte bloquante** : sur 22 tables, **11 n'ont aucune policy INSERT**
+(`ventes`, `clotures`, `recette_versions`, `recette_familles`,
+`ordres_fabrication`, `transferts`, `bons_commande`, `cakes`,
+`historique_prix`, `fournisseurs`, `z_imports`) : elles s'écrivent par des RPC
+`SECURITY DEFINER`. Une restauration par `INSERT` client aurait donc échoué au
+milieu du parcours et laissé la base **à moitié restaurée** en annonçant un
+succès partiel. C'est précisément le « données identiques » de CA-15.
+
+**Livré** : migration **18** `public.restaurer_sauvegarde(jsonb)` —
+`SECURITY DEFINER`, `search_path=''`, garde `proprietaire` explicite,
+`revoke all … from public, anon`, une seule transaction, ordre topologique
+imposé, refus de tout `client_id` étranger (au niveau du dump **et** de chaque
+ligne). Côté app : `src/lib/sauvegarde.ts` (format versionné, empreinte
+FNV-1a, 15 tests), `/api/sauvegarde` (export JSON propriétaire),
+`actions-restauration.ts` (analyser → confirmer en tapant RESTAURER),
+`SauvegardePanel`.
+
+**CA-15 « sauvegarde → restauration sur base vide = données identiques » :
+prouvé sur la base réelle.** Scénario joué en transaction (rollback, base
+intacte après coup — vérifié) :
+
+| Étape | Résultat |
+|---|---|
+| Dump JSON (8 tables métier) | `articles16 · lots12 · sites2 · ventes2 · OF2 · versions2 · familles2 · clotures1` |
+| Vidage total | `articles = 0` |
+| `restaurer_sauvegarde(dump)` | 39 lignes réinsérées, 0 ignorée |
+| Empreinte métier avant/après | **identiques** (`OUI`) |
+| Rejeu du même dump | 0 insérée, 39 ignorées — **idempotent** |
+
+Gardes testées en base, JWT simulé par `request.jwt.claims` :
+
+| Cas | Résultat |
+|---|---|
+| vendeur | `Role non autorise : restauration reservee au proprietaire.` |
+| labo | idem |
+| propriétaire + dump d'un autre tenant | `Cette sauvegarde appartient a un autre etablissement.` |
+| propriétaire + ligne `client_id` étranger | `Ligne etrangere detectee dans la table sites : restauration refusee.` |
+| sans JWT | `Non authentifie.` |
+| propriétaire + dump valide | accepté |
+
+Vérifié aussi : `secdef=true`, `owner=postgres`, `anon` **sans** droit
+d'exécution, `public_exec = 0`.
+
+### 11.3 Ce que cette livraison ne prouve pas
+
+- La restauration n'a **pas** été exercée dans un navigateur sur l'URL de
+  production : seulement la logique, la RPC et les gardes (5/5) en base.
+- La base de test a été vidée puis restaurée **dans une transaction annulée** ;
+  une restauration réelle sur une base de production vierge reste à faire.
+- `utilisateurs` n'est pas dans le dump (rattachés à `auth.users`) — les
+  comptes se recréent côté Supabase Auth, c'est documenté dans le fichier.
+- Les 3 critères humains de §10.4 restent ouverts.

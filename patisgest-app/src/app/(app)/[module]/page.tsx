@@ -181,14 +181,18 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
     writeForms=<VersionForm familles={familles} articles={articles} subVersions={subVersions} versions={versionRows} produits={produits} />;
   } else if (key==='caisse') {
     // Vente réelle : tous les rôles authentifiés (le vendeur est le rôle caisse).
-    const [sitesRes,produitsRes]=await Promise.all([
+    const [sitesRes,produitsRes,etabRes]=await Promise.all([
       supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
       supabase.from('articles').select('id, code, nom').eq('client_id',ctx.clientId).eq('niveau','produit').order('code'),
+      // Mentions légales du ticket (§5) : NIF, NIS, RC, adresse.
+      supabase.from('clients').select('nom, adresse, telephone, nif, nis, rc').eq('id',ctx.clientId).maybeSingle(),
     ]);
+    const etablissement={nom:(etabRes.data?.nom as string)??ctx.clientNom,adresse:(etabRes.data?.adresse as string|null)??null,telephone:(etabRes.data?.telephone as string|null)??null,nif:(etabRes.data?.nif as string|null)??null,nis:(etabRes.data?.nis as string|null)??null,rc:(etabRes.data?.rc as string|null)??null};
     writeForms=<>
       <SaleForm
         articles={((produitsRes.data??[]) as {id:string;code:string;nom:string}[]).map(a=>({id:a.id,label:`${a.code} · ${a.nom}`}))}
         sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
+        etablissement={etablissement}
       />
       {canWrite(ctx.role) && <ZImportForm sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))} />}
     </>;
