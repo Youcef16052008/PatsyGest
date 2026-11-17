@@ -356,6 +356,10 @@ page. Rédigée comme **modèle** : validation comptable + juriste requise.
 
 **Aucun de ces points ne permet de dire « production-ready ».**
 
+👉 Le mode opératoire clic par clic de tous ces points est dans
+[`GUIDE-PILOTE.md`](GUIDE-PILOTE.md) (7 étapes, ~2 h 30 hors journée réelle).
+
+
 ---
 
 ## 11. Fin de Sprint 6 — US-15.1 et US-15.2 (2026-11-17)
