@@ -89,11 +89,11 @@ reset role; rollback;
 
 ## 5. Chiffres à retrouver (rejouer `npm test`)
 
-**248 tests** (vérifié fichier par fichier) : store47 · stock-input10 ·
+**260 tests** (vérifié fichier par fichier) : store47 · stock-input10 ·
 journal-input15 · purchase-input6 · z-input6 · price-alerts6 · reconciliation5 ·
 label-model5 · version-input6 · cost-sheet10 · rc-reference13 · fefo-cost6 ·
 quality-alerts8 · sale-queue6 · of-queue5 · permissions3 · **allergenes11** ·
-**csv12** · **onboarding8** · **erreurs-db8** · **securite17** · **etablissement15** ·
+**csv12** · **onboarding8** · **erreurs-db8** · **securite17** · **rls-probe12** · **etablissement15** ·
 **sauvegarde19** · **erreurs-db9** ·
 smoke **10/10** (séparé, dont `/api/export` et `/api/sauvegarde`).
 
@@ -348,7 +348,7 @@ page. Rédigée comme **modèle** : validation comptable + juriste requise.
 |---|---|
 | CA-15 « onboarding en < 1 h par un novice » | **non testé** (humain) |
 | US-15.2 **restauration** « en 2 clics » | **livrée et prouvée** (voir §11) — migration 18 `restaurer_sauvegarde(jsonb)`, une transaction, garde propriétaire. **Volet humain restant** : la manipulation réelle dans un navigateur sur la prod |
-| Check-list 60 cas (S6) | **non exécutée** (navigateur réel + 3 comptes + réseau prod) |
+| Check-list 60 cas (S6) | **partiellement exécutée** — 6 cas métier + matrice RLS 4 personas mesurés en base (`CHECKLIST-60.md`). **Reste** : les cas navigateur (Auth réelle, hors-ligne, impression) |
 | Revue sécurité 25 points (S6) | **24/25** — voir `REVUE-SECURITE-25.md`. Le point 25 (intrusion réelle depuis l'extérieur sur l'URL de prod) reste **non fait** |
 | Mentions légales | **modèle** — validation comptable/juriste requise |
 | Formation 5 pilotes, 1 semaine d'encaissement réel | **hors sandbox** |
@@ -532,3 +532,52 @@ en `23502`, et la base reste **inchangée** (12 lots avant, 12 après).
 **Ce qui reste faux malgré tout** : ces preuves tournent en transaction annulée
 sur la base du pilote, pas sur une base de production réellement vierge, et
 jamais dans un navigateur. La §10.4 reste la référence de ce qui n'est pas fait.
+
+---
+
+## 13. Check-list 60 cas : deux pièges de protocole, et une matrice RLS réelle
+
+### 13.1 Deux tests RLS qui ne testaient rien
+
+En écrivant la check-list, mes premiers tests ont « prouvé » deux fuites :
+le labo modifiant le NIF de l'établissement, et le vendeur lisant les 2
+recettes (donc `mo_min`). **Les deux étaient faux**, et la cause est
+importante :
+
+1. **La session du connecteur SQL est `postgres`, superutilisateur.** Elle
+   contourne la RLS. Poser `request.jwt.claims` ne suffit pas.
+2. **`set_config('role','none',true)` ne change pas de rôle** — PostgreSQL
+   comprend « garde ton rôle actuel ». Il faut `authenticated` / `anon`.
+
+Après correction, les deux écarts disparaissent. Le protocole correct est
+encodé dans `src/lib/rls-probe.ts` (12 tests), avec un test qui **interdit**
+explicitement `set_config('role','none')` pour que l'erreur ne revienne pas.
+
+### 13.2 Matrice RLS des 4 personas (mesurée, 12/12 conformes)
+
+| Persona | Coûts (pc/rv) | Insert stock | Maj identité |
+|---|---|---|---|
+| vendeur | **0 / 0** | **42501 refusé** | **0 ligne** |
+| labo | 0 / **2** | accepté | **0 ligne** |
+| propriétaire | 0 / **2** | accepté | **1 ligne** |
+| anon | 0 | refusé | 0 |
+
+### 13.3 Cas métier mesurés
+
+Vente FEFO : `totalTTC` 202.30 pour 2 × 85 HT à 19 % — exact. Rejeu du même
+ticket : `duplicate: true`, **même `sale_id`**, une seule vente, stock
+inchangé. Vendeur sur `creer_of` : refusé en `P0001`.
+
+**Cas 3, à trancher avec le pilote** : vendre plus que le stock disponible
+**passe** et enregistre un `missing`. C'est un choix écrit dans la migration 06
+(« écart sans lot, jamais de stock négatif ») et cohérent avec « alerte,
+jamais blocage » — mais pour une gestion de stock stricte, c'est discutable.
+L'UI le signale ; je ne tranche pas à la place du métier.
+
+### 13.4 Portes
+
+`typecheck` 0 · `lint` 0 · `test` **260/260** · `build` OK · `smoke` 10/10.
+
+Reste non fait : les cas **navigateur** (Auth réelle, coupure réseau, impression
+80 mm, onboarding chronométré). Ils sont dans `CHECKLIST-60.md` §4 et restent
+la raison pour laquelle le produit n'est pas « production-ready ».
