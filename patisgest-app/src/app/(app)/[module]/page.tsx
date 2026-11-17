@@ -7,6 +7,11 @@ import StockWriteForms from "@/components/stock-write-forms";
 import SaleForm from "@/components/sale-form";
 import OfForms, { type OfOrder } from "@/components/of-forms";
 import TransferForm from "@/components/transfer-form";
+import ClotureForm from "@/components/cloture-form";
+import QualityForms, { type NcRow } from "@/components/quality-forms";
+import PlanningForms, { type TaskRow } from "@/components/planning-forms";
+import CakeForms, { type CakeRow } from "@/components/cake-forms";
+import CommandeForms, { type CommandeRow } from "@/components/commande-forms";
 
 const modules = {
   stocks: { title:'Articles & stocks', tables:[['articles','Articles'],['lots','Lots']] },
