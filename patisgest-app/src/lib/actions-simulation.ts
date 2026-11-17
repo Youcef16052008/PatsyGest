@@ -1,6 +1,7 @@
 "use server";
 
-import { getSessionContext } from "./auth";
+import { canReadCosts, getSessionContext } from "./auth";
+import { messageUtilisateur } from "./erreurs-db";
 import { computeFefoCost, type FefoLot } from "./fefo-cost";
 import { createClient } from "./supabase/server";
 
@@ -37,6 +38,7 @@ export type SimulationState = {
 export async function simulerReal(_prev: SimulationState, formData: FormData): Promise<SimulationState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
+  if (!canReadCosts(ctx.role)) return { erreur: "Coûts de revient réservés aux rôles propriétaire et labo." };
   const produitId = String(formData.get("produitId") ?? "").trim();
   const qte = Number(formData.get("qte"));
   if (!/^[0-9a-f-]{36}$/i.test(produitId)) return { erreur: "Produit invalide." };
@@ -46,7 +48,7 @@ export async function simulerReal(_prev: SimulationState, formData: FormData): P
     const { data, error } = await supabase.rpc("simuler_recette", {
       p_produit_id: produitId, p_qte: qte,
     });
-    if (error) return { erreur: `Simulation impossible : ${error.message}` };
+    if (error) return { erreur: messageUtilisateur(error, "Simulation impossible") };
     const r = data as {
       famille: { code: string; nom: string };
       version: number;

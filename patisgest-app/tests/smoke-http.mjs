@@ -158,3 +158,58 @@ test('la déconnexion efface la session et revient à /connexion', async () => {
   assert.ok(cleared, 'Le cookie doit être supprimé à la déconnexion');
   assert.ok(/Max-Age=0|Expires=Thu, 01 Jan 1970/i.test(cleared), 'Suppression de cookie invalide');
 });
+
+test('MOD-15 : export CSV refusé sans session (401) et pour un vendeur sur une table de coût (403)', async () => {
+  // Sans session : la route API répond, elle ne redirige pas.
+  const anon = await get('/api/export?table=ventes');
+  assert.equal(anon.status, 401);
+
+  // Vendeur : tables métier autorisées, tables de coût interdites.
+  const vendeur = `patisgest_pilot_session=${demoCookie('amine@patisserie.dz')}`;
+  const couts = await get('/api/export?table=couts', vendeur);
+  assert.equal(couts.status, 403, 'un vendeur ne doit pas exporter les coûts');
+  const recettes = await get('/api/export?table=recettes', vendeur);
+  assert.equal(recettes.status, 403, 'un vendeur ne doit pas exporter les recettes');
+  const inconnue = await get('/api/export?table=pas-une-table', vendeur);
+  assert.equal(inconnue.status, 403);
+
+  // Propriétaire : la table de coût est autorisée (peut échouer en 503 sans
+  // Supabase, mais jamais en 403).
+  const proprio = `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`;
+  const ok = await get('/api/export?table=couts', proprio);
+  assert.notEqual(ok.status, 403, 'le propriétaire doit pouvoir exporter les coûts');
+});
+
+test('US-15.2 : la sauvegarde est refusée sans session (401) et aux non-propriétaires (403)', async () => {
+  const anon = await get('/api/sauvegarde');
+  assert.equal(anon.status, 401, 'sans session, la sauvegarde doit répondre 401');
+
+  // Labo et vendeur n'ont pas à exfiltrer tout l'établissement.
+  for (const [email, role] of [['amine@patisserie.dz', 'vendeur'], ['sara@patisserie.dz', 'labo']]) {
+    const res = await get('/api/sauvegarde', `patisgest_pilot_session=${demoCookie(email)}`);
+    assert.equal(res.status, 403, `${role} ne doit pas pouvoir télécharger la sauvegarde`);
+  }
+
+  // Propriétaire : autorisé (peut échouer en 500/503 sans Supabase, jamais 401/403).
+  const proprio = await get('/api/sauvegarde', `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`);
+  assert.ok(![401, 403].includes(proprio.status), `le propriétaire est bloqué : ${proprio.status}`);
+});
+
+test('US-15.1 : la page Paramètres s’ouvre pour le propriétaire et reste protégée', async () => {
+  const anon = await get('/parametres');
+  assert.equal(anon.status, 307);
+  assert.equal(redirectPath(anon), '/connexion');
+
+  const proprio = await get('/parametres', `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`);
+  assert.equal(proprio.status, 200);
+  const html = await proprio.text();
+  assert.ok(/mentions légales/.test(html), 'la page Paramètres doit s’afficher');
+  assert.ok(/Identité de l’établissement/.test(html), 'le formulaire d’identité doit être présent');
+  assert.ok(/NIF/.test(html) && /NIS/.test(html) && /RC/.test(html), 'les 3 mentions légales doivent apparaître');
+});
+
+test('US-15.2 : la restauration n’est pas exposée par une route HTTP ouverte', async () => {
+  // La restauration est une server action protégée, pas une route GET.
+  const res = await get('/api/restauration');
+  assert.equal(res.status, 404, 'aucune route de restauration ne doit exister hors server action');
+});

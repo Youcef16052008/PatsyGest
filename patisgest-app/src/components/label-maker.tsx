@@ -5,10 +5,19 @@ import { buildLabelModel, type LabelIngredient, type LabelLot, type LabelProduct
 
 type ProduitRow = LabelProduct & { id: string };
 
+type DerivationAllergenes = {
+  derives: string[];
+  declares: string[];
+  enTrop: string[];
+  manquants: string[];
+};
+
 type Props = {
   produits: ProduitRow[];
   recipes: Record<string, LabelIngredient[]>;
   lots: Record<string, LabelLot[]>;
+  /** MOD-10 : allergènes dérivés des matières, comparés à la déclaration. */
+  allergenes?: Record<string, DerivationAllergenes>;
 };
 
 const field = "mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm";
@@ -20,11 +29,12 @@ const label = "block text-xs font-semibold text-slate-600";
  * traces du produit, lot + DLC (proche parmi les lots en stock), impression.
  * Lecture seule : aucune donnée n'est modifiée.
  */
-export default function LabelMaker({ produits, recipes, lots }: Props) {
+export default function LabelMaker({ produits, recipes, lots, allergenes }: Props) {
   const [selected, setSelected] = useState(produits[0]?.id ?? "");
   const produit = produits.find((p) => p.id === selected);
   if (!produit) return null;
   const model = buildLabelModel(produit, recipes[produit.id] ?? [], lots[produit.id] ?? []);
+  const derivation = allergenes?.[produit.id];
 
   return (
     <section className="mb-6 rounded-2xl border bg-white p-5">
@@ -66,14 +76,34 @@ export default function LabelMaker({ produits, recipes, lots }: Props) {
         </p>
         <p className="mb-1 text-sm">
           <b>Allergènes :</b>{" "}
-          {model.allergenes.length > 0
-            ? model.allergenes.map((a, i) => (
-                <span key={i}>{i > 0 && ", "}<span className="font-bold underline">{a}</span></span>
-              ))
-            : "aucun détecté."}
+          {/* MOD-10 : la liste imprimée est celle DÉRIVÉE des matières quand elle
+              est calculable — c'est elle qui est opposable (décret 13-378). */}
+          {(() => {
+            const liste = derivation && derivation.derives.length > 0
+              ? derivation.derives
+              : model.allergenes;
+            return liste.length > 0
+              ? liste.map((a, i) => (
+                  <span key={i}>{i > 0 && ", "}<span className="font-bold underline">{a}</span></span>
+                ))
+              : "aucun détecté.";
+          })()}
         </p>
         {model.traces.length > 0 && (
           <p className="mb-1 text-sm">Traces éventuelles : {model.traces.join(", ")}</p>
+        )}
+        {/* MOD-10 : cohérence entre la fiche produit et la recette réelle. */}
+        {derivation && derivation.manquants.length > 0 && (
+          <p role="alert" className="mt-2 rounded-lg bg-red-50 p-2 text-xs font-bold text-red-800">
+            ⛔ Sous-déclaration : {derivation.manquants.join(", ")} présent(s) dans les matières
+            mais absent(s) de la fiche produit. Corriger avant impression (décret 13-378).
+          </p>
+        )}
+        {derivation && derivation.manquants.length === 0 && derivation.enTrop.length > 0 && (
+          <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">
+            ⚠️ Sur-déclaration sur la fiche produit : {derivation.enTrop.join(", ")} n’est
+            présent dans aucune matière de la recette active. L’étiquette imprime la liste dérivée.
+          </p>
         )}
         <p className="text-sm">
           Lot : <b>{model.lot ?? "—"}</b> · DLC : <b>{model.dlc ?? "—"}</b>

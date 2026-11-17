@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { canWrite, getSessionContext } from "./auth";
+import { canWrite, canReadCosts, getSessionContext } from "./auth";
+import { messageUtilisateur } from "./erreurs-db";
 import {
   aggregatePertes, computeFicheCout, rc07TauxPerte, rc08ManqueAJagner, rc10GardeFous,
   type ClotureLigne, type GardeFou,
@@ -53,7 +54,7 @@ export async function sauverParamsCoutsReal(_prev: CoutsState, formData: FormDat
         { client_id: ctx.clientId, taux_horaire: taux, charges_pct: charges, updated_at: new Date().toISOString() },
         { onConflict: "client_id" },
       );
-    if (error) return { erreur: `Sauvegarde refusée : ${error.message}` };
+    if (error) return { erreur: messageUtilisateur(error, "Sauvegarde refusée") };
     revalidatePath("/simulation");
     return { succes: "Paramètres de coûts enregistrés.", tauxHoraire: taux, chargesPct: charges };
   } catch {
@@ -68,6 +69,7 @@ export async function sauverParamsCoutsReal(_prev: CoutsState, formData: FormDat
 export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Promise<CoutsState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
+  if (!canReadCosts(ctx.role)) return { erreur: "Coûts de revient réservés aux rôles propriétaire et labo." };
   const produitId = String(formData.get("produitId") ?? "").trim();
   const qte = Number(formData.get("qte"));
   const jete = Number(formData.get("jete") ?? 0);
@@ -94,7 +96,7 @@ export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Prom
       supabase.from("articles").select("code, pu_ht").eq("id", produitId).limit(1),
       supabase.from("clotures").select("lignes").eq("client_id", ctx.clientId).gte("date_cloture", trenteJours).limit(60),
     ]);
-    if (simRes.error) return { erreur: `Fiche impossible : ${simRes.error.message}` };
+    if (simRes.error) return { erreur: messageUtilisateur(simRes.error, "Fiche impossible") };
     const sim = simRes.data as {
       famille: { code: string; nom: string };
       version: number;

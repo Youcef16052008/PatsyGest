@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { canWrite, getSessionContext } from "./auth";
+import { messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
 import { parseSaleInput } from "./stock-input";
 import { parseZCsv } from "./z-input";
@@ -59,7 +60,7 @@ export async function sellProduct(_prev: SaleState, formData: FormData): Promise
       if (error.code === "P0001") return { erreur: error.message };
       if (error.code === "42501") return { erreur: "Votre rôle n'autorise pas cette vente." };
       if (error.code === "23505") return { erreur: "Ce ticket a déjà été enregistré." };
-      return { erreur: `Vente refusée : ${error.message}` };
+      return { erreur: messageUtilisateur(error, "Vente refusée") };
     }
 
     const result = data as SaleResult | null;
@@ -139,7 +140,7 @@ export async function importZReal(_prev: SaleState, formData: FormData): Promise
       if (error.code === "P0001") return { erreur: error.message };
       if (error.code === "42501") return { erreur: "Votre rôle n'autorise pas cet import." };
       if (error.code === "23505") return { erreur: "Ce Z a déjà été importé pour cette caisse et cette date." };
-      return { erreur: `Import refusé : ${error.message}` };
+      return { erreur: messageUtilisateur(error, "Import refusé") };
     }
     const r = data as ZImportResult | null;
     if (r?.duplicate) return { erreur: "Ce Z a déjà été importé pour cette caisse et cette date." };

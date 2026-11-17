@@ -21,7 +21,7 @@ const isDuplicate = (e?: string) => !!e && e.includes("déjà");
  * tombe, elle reste en file et l'État synchro la renvoie (idempotent par
  * ticket : un doublon de sync ne double jamais la vente).
  */
-export default function SaleForm({ articles, sites }: { articles: Option[]; sites: Option[] }) {
+export default function SaleForm({ articles, sites, etablissement }: { articles: Option[]; sites: Option[]; etablissement?: import("@/lib/etablissement").Etablissement | null }) {
   const [msg, setMsg] = useState<Msg | null>(null);
   const [lastSale, setLastSale] = useState<(SaleState & { articleLabel: string; siteLabel: string; qte: number; at: string }) | null>(null);
   const [pending, startTransition] = useTransition();
@@ -212,6 +212,7 @@ export default function SaleForm({ articles, sites }: { articles: Option[]; site
           totalTTC: lastSale.totalTTC ?? 0,
           lots: lastSale.lots ?? [],
           at: lastSale.at,
+          etablissement: etablissement ?? null,
         }} />
       )}
     </section>

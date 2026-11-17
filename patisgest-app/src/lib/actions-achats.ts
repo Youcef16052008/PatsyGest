@@ -4,13 +4,13 @@ import { revalidatePath } from "next/cache";
 import { canWrite, getSessionContext } from "./auth";
 import { createClient } from "./supabase/server";
 import { parseCommandeInput, parseReceptionLinesInput } from "./purchase-input";
+import { messageUtilisateur } from "./erreurs-db";
 
 export type AchatsState = { erreur?: string; succes?: string };
 
+/** Un seul traducteur d'erreurs pour toute l'application (cf. lib/erreurs-db). */
 function mapError(error: { code?: string; message: string }): string {
-  if (error.code === "P0001") return error.message;
-  if (error.code === "42501") return "Votre rôle n'autorise pas cette opération.";
-  return `Opération refusée : ${error.message}`;
+  return messageUtilisateur(error, "Opération refusée");
 }
 
 /** Bon de commande multi-lignes (RPC creer_commande) — propriétaire/labo. */

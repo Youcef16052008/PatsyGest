@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { canWrite, getSessionContext } from "./auth";
+import { messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
 import { parseArticleInput, parseReceptionInput, parseTransferInput } from "./stock-input";
 
@@ -11,8 +12,7 @@ function message(error: { code?: string | null; message: string }): string {
   if (error.code === "23505") return "Ce code article existe déjà pour votre pâtisserie.";
   if (error.code === "42501") return "Votre rôle n'autorise pas cette écriture.";
   if (error.code === "23514") return "Quantité invalide : le stock ne peut pas être négatif.";
-  if (error.code === "P0001") return error.message;
-  return `Enregistrement refusé : ${error.message}`;
+  return messageUtilisateur(error, "Enregistrement refusé");
 }
 
 /** Création d'un article — session réelle exigée, rôle propriétaire ou labo, RLS côté serveur. */
@@ -114,7 +114,7 @@ export async function transferReal(_prev: TransferState, formData: FormData): Pr
     if (error) {
       if (error.code === "P0001") return { erreur: error.message };
       if (error.code === "42501") return { erreur: "Votre rôle n'autorise pas ce transfert." };
-      return { erreur: `Transfert refusé : ${error.message}` };
+      return { erreur: messageUtilisateur(error, "Transfert refusé") };
     }
     const r = data as { ref?: string; lots?: number } | null;
     revalidatePath("/transferts");

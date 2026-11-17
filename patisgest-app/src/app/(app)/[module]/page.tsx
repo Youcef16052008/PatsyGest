@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
-import { canWrite, requireSession } from "@/lib/auth";
+import { canReadCosts, canWrite, requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import DemoModule from "@/components/demo-module";
 import StockWriteForms from "@/components/stock-write-forms";
@@ -24,6 +24,9 @@ import CostSheetForm from "@/components/cost-sheet-form";
 import QualityAlertsPanel from "@/components/quality-alerts-panel";
 import { computeQualityAlerts, type AlerteQualite } from "@/lib/quality-alerts";
 import type { LabelIngredient, LabelLot, LabelProduct } from "@/lib/label-model";
+import { allergenesDerives, verifierDeclaration } from "@/lib/allergenes";
+import ExportPanel from "@/components/export-panel";
+import { TABLES_EXPORT } from "@/lib/csv";
 
 const modules = {
   stocks: { title:'Articles & stocks', tables:[['articles','Articles'],['lots','Lots']] },
@@ -83,7 +86,7 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
     const [sitesRes,fournRes,recRes,lotRes]=await Promise.all([
       supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
       supabase.from('fournisseurs').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
-      supabase.from('recette_familles').select('produit_id, recette_versions!inner(ingredients)').eq('client_id',ctx.clientId).eq('recette_versions.active',true),
+      supabase.from('recette_familles').select('id, produit_id, recette_versions!inner(id, ingredients)').eq('client_id',ctx.clientId).eq('recette_versions.active',true),
       supabase.from('lots').select('article_id, numero, dlc, qte_rest, articles!inner(niveau)').eq('client_id',ctx.clientId).gt('qte_rest',0).eq('articles.niveau','produit').order('dlc',{ascending:true}).limit(300),
     ]);
     const articleRows=(results.find(r=>r.label==='Articles')?.data ?? []) as {id:string;code:string;nom:string;allergenes?:string[];traces?:string[]}[];
@@ -100,15 +103,44 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
     for (const row of ((lotRes.data??[]) as {article_id:string;numero:string;dlc:string|null}[])) {
       (lots[row.article_id] ??= []).push({numero:row.numero,dlc:row.dlc});
     }
+    // MOD-10 : allergènes DÉRIVÉS des matières (décret 13-378) au lieu de la
+    // seule saisie manuelle. On compare à la déclaration de la fiche produit
+    // pour signaler une sur-déclaration ou une sous-déclaration (bloquante).
+    const versionsRecette = ((recRes.data??[]) as {
+      produit_id:string;
+      recette_versions:{id:string;ingredients:LabelIngredient[]}[]|{id:string;ingredients:LabelIngredient[]}|null;
+    }[]).flatMap(row=>{
+      const v=Array.isArray(row.recette_versions)?row.recette_versions[0]:row.recette_versions;
+      return v?.id ? [{id:v.id, familleId:'', ingredients:v.ingredients as unknown as {articleId:string}[]}] : [];
+    });
+    const articlesAllergenes = articleRows
+      .filter(a=>a.code && a.nom)
+      .map(a=>({code:a.code, nom:a.nom, allergenes:a.allergenes??[]}));
+    const prodsParId = new Map(labelProduits.map(p=>[p.id,p]));
+    const allergenesParProduit: Record<string,{derives:string[];declares:string[];enTrop:string[];manquants:string[]}>={};
+    const produitParVersion = new Map<string,string>();
+    for (const row of ((recRes.data??[]) as {produit_id:string;recette_versions:{id:string}|{id:string}[]|null}[])) {
+      const v=Array.isArray(row.recette_versions)?row.recette_versions[0]:row.recette_versions;
+      if (v?.id && row.produit_id) produitParVersion.set(v.id, row.produit_id);
+    }
+    for (const [versionId, produitId] of produitParVersion) {
+      const p = prodsParId.get(produitId);
+      if (!p) continue;
+      const { derives, articlesLus } = allergenesDerives(versionId, versionsRecette, articlesAllergenes);
+      const d = verifierDeclaration(p.allergenes, derives, articlesLus);
+      allergenesParProduit[produitId] = {
+        derives: d.derives, declares: d.declares, enTrop: d.enTrop, manquants: d.manquants,
+      };
+    }
     writeForms=<>
       <StockWriteForms
         articles={articleRows.map(a=>({id:a.id,label:`${a.code} · ${a.nom}`}))}
         sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
         fournisseurs={((fournRes.data??[]) as {id:string;nom:string}[]).map(f=>({id:f.id,label:f.nom}))}
       />
-      <LabelMaker produits={labelProduits} recipes={recipes} lots={lots} />
+      <LabelMaker produits={labelProduits} recipes={recipes} lots={lots} allergenes={allergenesParProduit} />
     </>;
-  } else if (key==='simulation') {
+  } else if (key==='simulation' && canReadCosts(ctx.role)) {
     // Simulation réelle : version active + besoins étendus + coût FEFO.
     const [famRes, sArtRes]=await Promise.all([
       supabase.from('recette_familles').select('produit_id').eq('client_id',ctx.clientId),
@@ -149,14 +181,18 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
     writeForms=<VersionForm familles={familles} articles={articles} subVersions={subVersions} versions={versionRows} produits={produits} />;
   } else if (key==='caisse') {
     // Vente réelle : tous les rôles authentifiés (le vendeur est le rôle caisse).
-    const [sitesRes,produitsRes]=await Promise.all([
+    const [sitesRes,produitsRes,etabRes]=await Promise.all([
       supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
       supabase.from('articles').select('id, code, nom').eq('client_id',ctx.clientId).eq('niveau','produit').order('code'),
+      // Mentions légales du ticket (§5) : NIF, NIS, RC, adresse.
+      supabase.from('clients').select('nom, adresse, telephone, nif, nis, rc').eq('id',ctx.clientId).maybeSingle(),
     ]);
+    const etablissement={nom:(etabRes.data?.nom as string)??ctx.clientNom,adresse:(etabRes.data?.adresse as string|null)??null,telephone:(etabRes.data?.telephone as string|null)??null,nif:(etabRes.data?.nif as string|null)??null,nis:(etabRes.data?.nis as string|null)??null,rc:(etabRes.data?.rc as string|null)??null};
     writeForms=<>
       <SaleForm
         articles={((produitsRes.data??[]) as {id:string;code:string;nom:string}[]).map(a=>({id:a.id,label:`${a.code} · ${a.nom}`}))}
         sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
+        etablissement={etablissement}
       />
       {canWrite(ctx.role) && <ZImportForm sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))} />}
     </>;
@@ -201,6 +237,7 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
         articles={((artRes.data??[]) as {id:string;code:string;nom:string;pu_ht:number}[]).map(a=>({id:a.id,label:`${a.code} — ${a.nom} (${Number(a.pu_ht).toLocaleString('fr-FR')} DA)`}))}
       />
       <ReconPanel entries={recon} siteLabels={siteLabels} />
+      <ExportPanel tables={TABLES_EXPORT.filter(t=>!t.cout||canReadCosts(ctx.role)).map(t=>({cle:t.cle,titre:t.titre,cout:t.cout}))} />
     </>;
   } else if (key==='qualite' && canWrite(ctx.role)) {
     // HACCP : relevés/nettoyages/NC en RLS + clôture NC tracée (RPC maj_non_conformite)
