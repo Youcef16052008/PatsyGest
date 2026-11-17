@@ -8,7 +8,7 @@ Application Next.js 16 pour pâtisseries artisanales : connexion Supabase à tro
 > locales** stockées dans le `localStorage` du navigateur. Les pages des comptes Supabase
 > réels affichent des tables **lecture seule**. Les écritures transactionnelles Supabase,
 > le rapprochement caisse/clôture et le rappel réel ne sont pas encore implémentés —
-> voir `SPRINT2.md` pour la liste complète et les limites. Ce pilote n'est **pas** prêt
+> voir `SPRINT2.md` et `SPRINT3.md` pour la liste complète et les limites. Ce pilote n'est **pas** prêt
 > pour des données réelles.
 
 ## Mise en route
@@ -62,7 +62,7 @@ npm ci
 npm run dev            # http://localhost:3000
 npm run typecheck      # TypeScript
 npm run lint           # ESLint
-npm test               # 120 tests unitaires (Node ≥ 22)
+npm test               # 147 tests unitaires (Node ≥ 22)
 npm run test:smoke     # tests HTTP : gardes de routes, login/démo, cookie forgé, logout
 npm run build          # build de production (celui que Vercel exécute)
 ```
@@ -104,6 +104,8 @@ src/lib/label-model.ts                    → modèle d'étiquette produit / all
 src/lib/version-input.ts                   → validation pure des versions de recette (tests dedans)
 src/lib/fefo-cost.ts                       → coût FEFO pur (ordre congelé/DLC/réception, tests dedans)
 src/lib/quality-alerts.ts                  → rappels qualité HACCP purs (tests dedans)
+src/lib/cost-sheet.ts                      → formules RC-01..RC-10 gravées (tests dedans)
+src/lib/sale-queue.ts                      → file de ventes hors-ligne + store React (tests dedans)
 src/lib/actions-stock.ts                → server actions d'écriture réelle (RLS)
 src/lib/actions-caisse.ts               → vente réelle via RPC FEFO
 src/lib/actions-of.ts                   → cycle OF réel (créer / lancer / clôturer)

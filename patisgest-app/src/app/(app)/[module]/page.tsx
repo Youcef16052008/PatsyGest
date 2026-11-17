@@ -20,6 +20,7 @@ import LabelMaker from "@/components/label-maker";
 import VersionForm, { type VersionRow } from "@/components/version-form";
 import RecallForm from "@/components/recall-form";
 import SimulationForm from "@/components/simulation-form";
+import CostSheetForm from "@/components/cost-sheet-form";
 import QualityAlertsPanel from "@/components/quality-alerts-panel";
 import { computeQualityAlerts, type AlerteQualite } from "@/lib/quality-alerts";
 import type { LabelIngredient, LabelLot, LabelProduct } from "@/lib/label-model";
@@ -117,7 +118,7 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
     const sProduits=((sArtRes.data??[]) as {id:string;code:string;nom:string}[])
       .filter(a=>famProds.has(a.id))
       .map(a=>({id:a.id,label:`${a.code} · ${a.nom}`}));
-    writeForms=<SimulationForm produits={sProduits} />;
+    writeForms=<><CostSheetForm produits={sProduits}/><SimulationForm produits={sProduits} /></>;
   } else if (key==='tracabilite') {
     // Rapport de rappel + blocage en cascade (lecture pour tous les rôles).
     const lotRes=await supabase.from('lots')

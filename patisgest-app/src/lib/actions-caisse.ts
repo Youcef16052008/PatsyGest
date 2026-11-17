@@ -6,7 +6,15 @@ import { createClient } from "./supabase/server";
 import { parseSaleInput } from "./stock-input";
 import { parseZCsv } from "./z-input";
 
-export type SaleState = { erreur?: string; succes?: string };
+export type SaleState = {
+  erreur?: string;
+  succes?: string;
+  ticket?: string;
+  totalHT?: number;
+  totalTTC?: number;
+  lots?: string[];
+  manquant?: number;
+};
 
 type SaleResult = {
   sale_id: string;
@@ -35,11 +43,17 @@ export async function sellProduct(_prev: SaleState, formData: FormData): Promise
 
   try {
     const supabase = await createClient();
+    // Ticket fourni par le client pour la file hors-ligne (idempotence +
+    // dédup à la synchronisation) ; sinon généré ici.
+    const ticketRaw = String(formData.get("ticket") ?? "").trim();
+    const pTicket = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ticketRaw)
+      ? ticketRaw
+      : crypto.randomUUID();
     const { data, error } = await supabase.rpc("vendre_article", {
       p_article_id: input.articleId,
       p_site_id: input.siteId,
       p_qte: input.qte,
-      p_ticket: crypto.randomUUID(),
+      p_ticket: pTicket,
     });
     if (error) {
       if (error.code === "P0001") return { erreur: error.message };
@@ -60,6 +74,11 @@ export async function sellProduct(_prev: SaleState, formData: FormData): Promise
         `Vente enregistrée — ${result?.totalHT} HT / ${result?.totalTTC} TTC.` +
         (lots ? ` Lots : ${lots}.` : "") +
         (missing > 0 ? ` Manquant : ${missing} (signalé, stock jamais négatif).` : ""),
+      ticket: pTicket,
+      totalHT: Number(result?.totalHT ?? 0),
+      totalTTC: Number(result?.totalTTC ?? 0),
+      lots: (result?.lots ?? []).map((l) => `${l.numero} × ${l.qty}`),
+      manquant: missing,
     };
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur." };
