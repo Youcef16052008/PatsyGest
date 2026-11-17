@@ -20,6 +20,8 @@ import LabelMaker from "@/components/label-maker";
 import VersionForm, { type VersionRow } from "@/components/version-form";
 import RecallForm from "@/components/recall-form";
 import SimulationForm from "@/components/simulation-form";
+import QualityAlertsPanel from "@/components/quality-alerts-panel";
+import { computeQualityAlerts, type AlerteQualite } from "@/lib/quality-alerts";
 import type { LabelIngredient, LabelLot, LabelProduct } from "@/lib/label-model";
 
 const modules = {
@@ -37,6 +39,33 @@ const modules = {
   caisse: { title:'Caisse', tables:[['ventes','Ventes']] },
 } as const;
 type Module = keyof typeof modules;
+async function buildQualiteAlerts(supabase: Awaited<ReturnType<typeof createClient>>, clientId: string): Promise<AlerteQualite[]> {
+  const [tRes, nRes, ncRes, lRes, tkRes] = await Promise.all([
+    supabase.from('releve_temperatures').select('frigo_nom, date_releve, temperature, seuil_max').eq('client_id', clientId).order('date_releve', { ascending: false }).limit(300),
+    supabase.from('nettoyages').select('zone, date_nettoyage, fait').eq('client_id', clientId).order('date_nettoyage', { ascending: false }).limit(200),
+    supabase.from('non_conformites').select('type, lot_numero, statut, date_nc').eq('client_id', clientId).order('date_nc', { ascending: false }).limit(200),
+    supabase.from('lots').select('numero, dlc, qte_rest, bloque, articles!inner(code, nom)').eq('client_id', clientId).gt('qte_rest', 0).order('dlc').limit(500),
+    supabase.from('taches_planning').select('tache, date_tache, fait').eq('client_id', clientId).order('date_tache', { ascending: false }).limit(200),
+  ]);
+  type ArtEmb = { code: string; nom: string };
+  const lots = (((lRes.data ?? []) as { numero: string; dlc: string | null; qte_rest: number; bloque: boolean; articles: ArtEmb | ArtEmb[] }[]))
+    .map(l => ({ ...l, art: Array.isArray(l.articles) ? l.articles[0] : l.articles }))
+    .filter(l => l.art)
+    .map(l => ({ numero: l.numero, code: l.art.code, nom: l.art.nom, dlc: l.dlc, qteRest: l.qte_rest, bloque: l.bloque }));
+  return computeQualityAlerts({
+    today: new Date().toISOString().slice(0, 10),
+    temperatures: ((tRes.data ?? []) as { frigo_nom: string; date_releve: string; temperature: number; seuil_max: number }[])
+      .map(t => ({ frigoNom: t.frigo_nom, dateReleve: t.date_releve, temperature: t.temperature, seuilMax: t.seuil_max })),
+    nettoyages: ((nRes.data ?? []) as { zone: string; date_nettoyage: string; fait: boolean }[])
+      .map(n => ({ zone: n.zone, dateNettoyage: n.date_nettoyage, fait: n.fait })),
+    nonConformites: ((ncRes.data ?? []) as { type: string; lot_numero: string | null; statut: string; date_nc: string }[])
+      .map(n => ({ type: n.type, lotNumero: n.lot_numero, statut: n.statut, dateNc: n.date_nc })),
+    lots,
+    taches: ((tkRes.data ?? []) as { tache: string; date_tache: string; fait: boolean }[])
+      .map(t => ({ tache: t.tache, dateTache: t.date_tache, fait: t.fait })),
+  });
+}
+
 export default async function ModulePage({ params }: { params: Promise<{module:string}> }) {
   const {module} = await params;
   if (!Object.hasOwn(modules,module)) notFound();
@@ -173,10 +202,16 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
       <ReconPanel entries={recon} siteLabels={siteLabels} />
     </>;
   } else if (key==='qualite' && canWrite(ctx.role)) {
-    // HACCP : relevés/nettoyages/NC en RLS + clôture NC tracée (RPC maj_non_conformite).
+    // HACCP : relevés/nettoyages/NC en RLS + clôture NC tracée (RPC maj_non_conformite)
+    // + rappels qualité calculés côté serveur.
     const ncRows=((results.find(r=>r.label==='Non-conformités')?.data??[]) as {id:string;statut:string;type:string;description:string;action:string}[])
       .map(n=>({id:n.id,statut:n.statut,type:n.type,description:n.description,action:n.action}));
-    writeForms=<QualityForms ncs={ncRows}/>;
+    const alertes=await buildQualiteAlerts(supabase, ctx.clientId);
+    writeForms=<><QualityAlertsPanel alerts={alertes}/><QualityForms ncs={ncRows}/></>;
+  } else if (key==='qualite') {
+    // Rappels qualité visibles même en lecture (vendeur).
+    const alertes=await buildQualiteAlerts(supabase, ctx.clientId);
+    writeForms=<QualityAlertsPanel alerts={alertes}/>;
   } else if (key==='planning' && canWrite(ctx.role)) {
     // Tâches réelles (insert + bascule fait).
     const [tasksRes,ofsRes]=await Promise.all([

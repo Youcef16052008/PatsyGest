@@ -62,7 +62,7 @@ npm ci
 npm run dev            # http://localhost:3000
 npm run typecheck      # TypeScript
 npm run lint           # ESLint
-npm test               # 112 tests unitaires (Node ≥ 22)
+npm test               # 120 tests unitaires (Node ≥ 22)
 npm run test:smoke     # tests HTTP : gardes de routes, login/démo, cookie forgé, logout
 npm run build          # build de production (celui que Vercel exécute)
 ```
@@ -103,6 +103,7 @@ src/lib/reconciliation.ts                 → rapprochement caisse/clôture (tes
 src/lib/label-model.ts                    → modèle d'étiquette produit / allergènes (tests dedans)
 src/lib/version-input.ts                   → validation pure des versions de recette (tests dedans)
 src/lib/fefo-cost.ts                       → coût FEFO pur (ordre congelé/DLC/réception, tests dedans)
+src/lib/quality-alerts.ts                  → rappels qualité HACCP purs (tests dedans)
 src/lib/actions-stock.ts                → server actions d'écriture réelle (RLS)
 src/lib/actions-caisse.ts               → vente réelle via RPC FEFO
 src/lib/actions-of.ts                   → cycle OF réel (créer / lancer / clôturer)
