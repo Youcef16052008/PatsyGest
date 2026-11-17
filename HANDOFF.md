@@ -89,11 +89,11 @@ reset role; rollback;
 
 ## 5. Chiffres à retrouver (rejouer `npm test`)
 
-**246 tests** (vérifié fichier par fichier) : store47 · stock-input10 ·
+**248 tests** (vérifié fichier par fichier) : store47 · stock-input10 ·
 journal-input15 · purchase-input6 · z-input6 · price-alerts6 · reconciliation5 ·
 label-model5 · version-input6 · cost-sheet10 · rc-reference13 · fefo-cost6 ·
 quality-alerts8 · sale-queue6 · of-queue5 · permissions3 · **allergenes11** ·
-**csv12** · **onboarding8** · **erreurs-db8** · **securite15** · **etablissement15** ·
+**csv12** · **onboarding8** · **erreurs-db8** · **securite17** · **etablissement15** ·
 **sauvegarde19** · **erreurs-db9** ·
 smoke **10/10** (séparé, dont `/api/export` et `/api/sauvegarde`).
 
@@ -349,7 +349,7 @@ page. Rédigée comme **modèle** : validation comptable + juriste requise.
 | CA-15 « onboarding en < 1 h par un novice » | **non testé** (humain) |
 | US-15.2 **restauration** « en 2 clics » | **livrée et prouvée** (voir §11) — migration 18 `restaurer_sauvegarde(jsonb)`, une transaction, garde propriétaire. **Volet humain restant** : la manipulation réelle dans un navigateur sur la prod |
 | Check-list 60 cas (S6) | **non exécutée** (navigateur réel + 3 comptes + réseau prod) |
-| Revue sécurité 25 points (S6) | **partielle** : 10 invariants automatisés seulement |
+| Revue sécurité 25 points (S6) | **24/25** — voir `REVUE-SECURITE-25.md`. Le point 25 (intrusion réelle depuis l'extérieur sur l'URL de prod) reste **non fait** |
 | Mentions légales | **modèle** — validation comptable/juriste requise |
 | Formation 5 pilotes, 1 semaine d'encaissement réel | **hors sandbox** |
 | E2E Auth réelle sur URL prod, journée sans internet | **hors sandbox** |

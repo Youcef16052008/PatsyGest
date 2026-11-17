@@ -202,3 +202,32 @@ test('sécu : la sauvegarde isole chaque table par sa vraie colonne tenant', () 
   assert.ok(/colonneTenant\(/.test(route), 'la route doit utiliser colonneTenant(), pas client_id en dur');
   assert.equal(/\.eq\(\s*["']client_id["']/.test(route), false, 'plus de client_id en dur dans la sauvegarde');
 });
+
+// --- Revue sécurité 25 points (REVUE-SECURITE-25.md) -----------------------
+test('sécu : toute migration révoque PUBLIC avant de donner un droit', () => {
+  // Un `grant execute` sans `revoke` préalable laisse le droit PUBLIC hérité
+  // (=X) : anon peut alors appeler une fonction SECURITY DEFINER. C'est
+  // exactement le trou corrigé en migration 17 pour rls_auto_enable().
+  const migrations = fichiersSuivis('supabase', ['.sql']);
+  assert.ok(migrations.length >= 18, `seulement ${migrations.length} migrations`);
+  for (const f of migrations) {
+    const src = read(f);
+    const grants = src.match(/grant\s+execute\s+on\s+function[^;]*;/gi) ?? [];
+    for (const g of grants) {
+      assert.ok(
+        /revoke\s+(all|execute)\s+on\s+function/i.test(src),
+        `${f} donne un droit d'exécution sans révoquer PUBLIC d'abord`,
+      );
+      assert.equal(/to\s+(public|anon)\b/i.test(g), false, `${f} : ${g.slice(0, 60)}… donne le droit à anon/PUBLIC`);
+    }
+  }
+});
+
+test('sécu : la restauration est SECURITY DEFINER mais gardée', () => {
+  const sql = read('supabase/18-restauration-sauvegarde.sql');
+  // SECURITY DEFINER contourne la RLS : la garde doit être dans le corps.
+  assert.ok(/security\s+definer/i.test(sql));
+  assert.ok(/select u\.client_id, u\.role[\s\S]{0,200}where u\.auth_user_id = v_auth/i.test(sql),
+    'la fonction doit résoudre le rôle depuis auth.uid()');
+  assert.ok(/set\s+search_path\s*=\s*''/i.test(sql), 'search_path vide contre le détournement de schéma');
+});
