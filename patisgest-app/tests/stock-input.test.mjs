@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArticleInput, parseReceptionInput } from '../src/lib/stock-input.ts';
+import { parseArticleInput, parseReceptionInput, parseSaleInput } from '../src/lib/stock-input.ts';
 
 const articleForm = (overrides = {}) => {
   const fd = new FormData();
@@ -52,6 +52,29 @@ test('parseReceptionInput accepts a valid reception and optional fields', () => 
   const empty = parseReceptionInput(receptionForm({ dlc: '', ref: '' }));
   assert.equal(empty.dlc, null);
   assert.equal(empty.ref, null);
+});
+
+const saleForm = (overrides = {}) => {
+  const fd = new FormData();
+  const base = { articleId: '8c7a59fd-bbf2-49bc-a264-81eb85f8a31a', siteId: '22222222-2222-4222-8222-222222222202', qte: '2' };
+  for (const [k, v] of Object.entries({ ...base, ...overrides })) fd.set(k, v);
+  return fd;
+};
+
+test('parseSaleInput accepts a valid sale', () => {
+  const input = parseSaleInput(saleForm());
+  assert.equal(input.articleId, '8c7a59fd-bbf2-49bc-a264-81eb85f8a31a');
+  assert.equal(input.siteId, '22222222-2222-4222-8222-222222222202');
+  assert.equal(input.qte, 2);
+  assert.equal(parseSaleInput(saleForm({ qte: '0.5' })).qte, 0.5);
+});
+
+test('parseSaleInput rejects invalid sales', () => {
+  assert.throws(() => parseSaleInput(saleForm({ articleId: 'x' })), /Article/);
+  assert.throws(() => parseSaleInput(saleForm({ siteId: '' })), /Site/);
+  assert.throws(() => parseSaleInput(saleForm({ qte: '0' })), /Quantité/);
+  assert.throws(() => parseSaleInput(saleForm({ qte: '-2' })), /Quantité/);
+  assert.throws(() => parseSaleInput(saleForm({ qte: 'abc' })), /Quantité/);
 });
 
 test('parseReceptionInput rejects invalid receptions', () => {

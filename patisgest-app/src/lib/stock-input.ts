@@ -88,6 +88,20 @@ export function parseArticleInput(formData: FormData): ArticleInput {
   };
 }
 
+export type SaleInput = {
+  articleId: string;
+  siteId: string;
+  qte: number;
+};
+
+export function parseSaleInput(formData: FormData): SaleInput {
+  return {
+    articleId: uuid(formData.get("articleId"), "Article"),
+    siteId: uuid(formData.get("siteId"), "Site"),
+    qte: number(formData.get("qte"), "Quantité", 0.0001, 100_000_000),
+  };
+}
+
 export function parseReceptionInput(formData: FormData): ReceptionInput {
   return {
     articleId: uuid(formData.get("articleId"), "Article"),

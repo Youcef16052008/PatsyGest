@@ -24,6 +24,8 @@ Exécuter **une fois** dans Supabase → SQL Editor, dans l'ordre :
 4. `supabase/04-securite-lecture.sql` — retrait des politiques d'écriture larges.
 5. `supabase/05-ecritures-articles-lots.sql` — écritures réelles articles/lots/mouvements
    (rôles propriétaire + labo, isolement strict par client, réception atomique RPC).
+6. `supabase/06-ventes-caisse-fefo.sql` — ventes de caisse via la RPC `vendre_article`
+   (FEFO atomique, idempotence par ticket, tous les rôles authentifiés).
 
 Le jeu de données métier du projet pilote distant n'est pas intégralement reproduit par
 le seed local.
@@ -56,7 +58,7 @@ npm ci
 npm run dev            # http://localhost:3000
 npm run typecheck      # TypeScript
 npm run lint           # ESLint
-npm test               # 47 tests unitaires (Node ≥ 22)
+npm test               # 53 tests unitaires (Node ≥ 22)
 npm run test:smoke     # tests HTTP : gardes de routes, login/démo, cookie forgé, logout
 npm run build          # build de production (celui que Vercel exécute)
 ```
@@ -90,9 +92,11 @@ src/lib/actions-auth.ts                 → connexion / démo / déconnexion
 src/lib/patisgest-store.ts              → moteur de démonstration local (tests dedans)
 src/lib/stock-input.ts                  → validation pure des saisies stocks (tests dedans)
 src/lib/actions-stock.ts                → server actions d'écriture réelle (RLS)
+src/lib/actions-caisse.ts               → vente réelle via RPC FEFO
 src/components/stock-write-forms.tsx    → formulaires article / réception (page Stocks)
+src/components/sale-form.tsx            → formulaire de vente (page Caisse)
 src/db/schema.ts                        → tables Drizzle (miroir du SQL)
-supabase/01..05-*.sql                   → socle, seed, modules, lecture, écritures RLS
+supabase/01..06-*.sql                   → socle, seed, modules, lecture, écritures RLS
 middleware.ts                           → rafraîchit la session Supabase
 tests/store.test.mjs                    → tests unitaires du moteur local
 tests/stock-input.test.mjs              → tests unitaires de validation des saisies
