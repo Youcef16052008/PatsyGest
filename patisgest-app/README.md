@@ -28,6 +28,8 @@ Exécuter **une fois** dans Supabase → SQL Editor, dans l'ordre :
    (FEFO atomique, idempotence par ticket, tous les rôles authentifiés).
 7. `supabase/07-of-production.sql` — cycle OF via `creer_of` / `demarrer_of` /
    `terminer_of` (besoins figés côté serveur, FEFO au lancement, coût connu à la clôture).
+8. `supabase/08-transferts.sql` — transferts entre sites via `transferer_article`
+   (FEFO au départ, lots miroirs à l'arrivée, stock insuffisant refusé).
 
 Le jeu de données métier du projet pilote distant n'est pas intégralement reproduit par
 le seed local.
@@ -60,7 +62,7 @@ npm ci
 npm run dev            # http://localhost:3000
 npm run typecheck      # TypeScript
 npm run lint           # ESLint
-npm test               # 55 tests unitaires (Node ≥ 22)
+npm test               # 57 tests unitaires (Node ≥ 22)
 npm run test:smoke     # tests HTTP : gardes de routes, login/démo, cookie forgé, logout
 npm run build          # build de production (celui que Vercel exécute)
 ```
@@ -99,8 +101,9 @@ src/lib/actions-of.ts                   → cycle OF réel (créer / lancer / cl
 src/components/stock-write-forms.tsx    → formulaires article / réception (page Stocks)
 src/components/sale-form.tsx            → formulaire de vente (page Caisse)
 src/components/of-forms.tsx             → formulaires OF (page Production)
+src/components/transfer-form.tsx        → formulaire de transfert (page Transferts)
 src/db/schema.ts                        → tables Drizzle (miroir du SQL)
-supabase/01..07-*.sql                   → socle, seed, modules, lecture, écritures RLS
+supabase/01..08-*.sql                   → socle, seed, modules, lecture, écritures RLS
 middleware.ts                           → rafraîchit la session Supabase
 tests/store.test.mjs                    → tests unitaires du moteur local
 tests/stock-input.test.mjs              → tests unitaires de validation des saisies

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArticleInput, parseReceptionInput, parseSaleInput, parseOfCreateInput, parseOfFinishInput } from '../src/lib/stock-input.ts';
+import { parseArticleInput, parseReceptionInput, parseSaleInput, parseOfCreateInput, parseOfFinishInput, parseTransferInput } from '../src/lib/stock-input.ts';
 
 const articleForm = (overrides = {}) => {
   const fd = new FormData();
@@ -114,6 +114,27 @@ test('parseOfFinishInput accepts a valid closure and rejects bad ones', () => {
   assert.throws(() => parseOfFinishInput(ofFinishForm({ ofId: '' })), /OF/);
   assert.throws(() => parseOfFinishInput(ofFinishForm({ numeroLot: ' ' })), /N° de lot/);
   assert.throws(() => parseOfFinishInput(ofFinishForm({ dlc: '2020-01-01' })), /DLC/);
+});
+
+const transferForm = (overrides = {}) => {
+  const fd = new FormData();
+  const base = { articleId: '8b36f40d-f0ab-40ae-9014-6f38da463665', fromSiteId: '22222222-2222-4222-8222-222222222201', toSiteId: '22222222-2222-4222-8222-222222222202', qte: '5', motif: 'Réassort' };
+  for (const [k, v] of Object.entries({ ...base, ...overrides })) fd.set(k, v);
+  return fd;
+};
+
+test('parseTransferInput accepts a valid transfer', () => {
+  const input = parseTransferInput(transferForm());
+  assert.equal(input.qte, 5);
+  assert.equal(input.motif, 'Réassort');
+  assert.equal(parseTransferInput(transferForm({ motif: '' })).motif, null);
+});
+
+test('parseTransferInput rejects invalid transfers', () => {
+  assert.throws(() => parseTransferInput(transferForm({ toSiteId: '22222222-2222-4222-8222-222222222201' })), /différents/);
+  assert.throws(() => parseTransferInput(transferForm({ qte: '0' })), /Quantité/);
+  assert.throws(() => parseTransferInput(transferForm({ articleId: 'x' })), /Article/);
+  assert.throws(() => parseTransferInput(transferForm({ motif: 'x'.repeat(121) })), /Motif/);
 });
 
 test('parseReceptionInput rejects invalid receptions', () => {

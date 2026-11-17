@@ -130,6 +130,29 @@ export function parseOfFinishInput(formData: FormData): OfFinishInput {
   };
 }
 
+export type TransferInput = {
+  articleId: string;
+  fromSiteId: string;
+  toSiteId: string;
+  qte: number;
+  motif: string | null;
+};
+
+export function parseTransferInput(formData: FormData): TransferInput {
+  const articleId = uuid(formData.get("articleId"), "Article");
+  const fromSiteId = uuid(formData.get("fromSiteId"), "Site de départ");
+  const toSiteId = uuid(formData.get("toSiteId"), "Site d'arrivée");
+  if (fromSiteId === toSiteId) throw new Error("Sites de départ et d'arrivée différents requis.");
+  const motifRaw = String(formData.get("motif") ?? "").trim();
+  return {
+    articleId,
+    fromSiteId,
+    toSiteId,
+    qte: number(formData.get("qte"), "Quantité", 0.0001, 100_000_000),
+    motif: motifRaw === "" ? null : text(motifRaw, "Motif", 120),
+  };
+}
+
 export type SaleInput = {
   articleId: string;
   siteId: string;

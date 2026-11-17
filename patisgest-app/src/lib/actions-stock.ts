@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { canWrite, getSessionContext } from "./auth";
 import { createClient } from "./supabase/server";
-import { parseArticleInput, parseReceptionInput } from "./stock-input";
+import { parseArticleInput, parseReceptionInput, parseTransferInput } from "./stock-input";
 
 export type StockState = { erreur?: string; succes?: string };
 
@@ -81,4 +81,46 @@ export async function receiveLot(_prev: StockState, formData: FormData): Promise
 
   revalidatePath("/stocks");
   return { succes: `Lot ${input.numero} réceptionné (${input.qte}).` };
+}
+
+export type TransferState = { erreur?: string; succes?: string };
+
+/**
+ * Transfert de stock réel : FEFO au départ, lots miroirs à l'arrivée
+ * (meme numero, DLC, PU), deux mouvements — tout dans une transaction
+ * SQL (RPC transferer_article). Le stock insuffisant est refusé.
+ */
+export async function transferReal(_prev: TransferState, formData: FormData): Promise<TransferState> {
+  const ctx = await getSessionContext();
+  if (!ctx) return { erreur: "Session requise." };
+  if (!canWrite(ctx.role)) return { erreur: "Réservé aux rôles propriétaire et labo." };
+
+  let input;
+  try {
+    input = parseTransferInput(formData);
+  } catch (e) {
+    return { erreur: e instanceof Error ? e.message : "Saisie invalide." };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("transferer_article", {
+      p_article_id: input.articleId,
+      p_from_site_id: input.fromSiteId,
+      p_to_site_id: input.toSiteId,
+      p_qte: input.qte,
+      p_motif: input.motif,
+    });
+    if (error) {
+      if (error.code === "P0001") return { erreur: error.message };
+      if (error.code === "42501") return { erreur: "Votre rôle n'autorise pas ce transfert." };
+      return { erreur: `Transfert refusé : ${error.message}` };
+    }
+    const r = data as { ref?: string; lots?: number } | null;
+    revalidatePath("/transferts");
+    revalidatePath("/stocks");
+    return { succes: `Transfert enregistré (${r?.ref}) — ${r?.lots ?? 0} lot(s) déplacé(s) en FEFO.` };
+  } catch {
+    return { erreur: "Supabase est inaccessible depuis ce serveur." };
+  }
 }
