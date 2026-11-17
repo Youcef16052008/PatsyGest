@@ -1,19 +1,37 @@
 import { createServerClient, type CookieMethodsServer } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-/** Rafraîchit la session Supabase à chaque requête (cookies à jour). */
+/**
+ * Rafraîchit la session Supabase à chaque requête (cookies à jour).
+ * En mode hors-ligne / pare-feu (ex: environnement isolé), ne bloque jamais la requête
+ * conformément au principe architectural « Hors-ligne par conception / Alerte, jamais blocage ».
+ */
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    return supabaseResponse;
+  }
+
+  // Si une session pilote locale est active, inutile d'attendre un appel réseau bloqué
+  if (process.env.NODE_ENV !== "production" && process.env.PATISGEST_DEMO_MODE === "true" && request.cookies.get("patisgest_pilot_session")?.value) {
+    return supabaseResponse;
+  }
+
+  try {
+    const supabase = createServerClient(url, anonKey, {
       cookies: {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll: (async (cookiesToSet: Parameters<NonNullable<CookieMethodsServer["setAll"]>>[0]) => {
+        setAll: (async (
+          cookiesToSet: Parameters<
+            NonNullable<CookieMethodsServer["setAll"]>
+          >[0]
+        ) => {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
@@ -23,10 +41,15 @@ export async function middleware(request: NextRequest) {
           );
         }) as NonNullable<CookieMethodsServer["setAll"]>,
       },
-    }
-  );
+    });
 
-  await supabase.auth.getUser();
+    await Promise.race([
+      supabase.auth.getUser(),
+      new Promise((resolve) => setTimeout(resolve, 1200)),
+    ]);
+  } catch {
+    // Mode hors-ligne / sandbox : la session locale prend le relais
+  }
 
   return supabaseResponse;
 }

@@ -1,96 +1,21 @@
-import { ROLE_LABELS, canWrite, requireSession } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-
+import Link from "next/link";
+import { requireSession, ROLE_LABELS } from "@/lib/auth";
 export const dynamic = "force-dynamic";
-
-const MODULES_SPRINT2 = [
-  "📦 Articles & stocks FEFO",
-  "🧾 Achats & fournisseurs",
-  "📖 Recettes & coûts",
-  "👨‍🍳 Production (OF)",
-  "💰 Caisse & clôture",
+const cards = [
+  ['/stocks','📦','Articles & stocks','Articles, lots et ordre FEFO'],
+  ['/achats','🧾','Achats','Fournisseurs et réception de lots'],
+  ['/recettes','📖','Recettes & coûts','Rendement, parage et coût par portion'],
+  ['/simulation','🧮','Simulation prix','Hypothèses de marge et coût matières'],
+  ['/production','👨‍🍳','Production','Ordres de fabrication et lots produits'],
+  ['/planning','📅','Planning','Charge, tâches et besoins matières'],
+  ['/transferts','🚚','Transferts','Mouvements entre les sites'],
+  ['/caisse','💰','Caisse','Ventes et consommation de lots'],
+  ['/cloture','📊','Clôture & pertes','Six flux et taux de perte'],
+  ['/qualite','🌡️','HACCP & qualité','Températures, nettoyage et non-conformités'],
+  ['/tracabilite','🔍','Traçabilité','Lots, mouvements et simulation de rappel'],
+  ['/cake-design','🎂','Cake Design','Devis, acompte et rétroplanning'],
 ];
-
-export default async function TableauDeBordPage() {
-  const ctx = await requireSession();
-  const supabase = await createClient();
-  const { data: sites } = await supabase
-    .from("sites")
-    .select("id, nom, type")
-    .order("nom");
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold">
-          👋 Bienvenue, {ctx.clientNom}
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Sprint 1 : socle en place — connexion, rôle{" "}
-          <strong>{ROLE_LABELS[ctx.role]}</strong>, isolement client actif.
-        </p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <div className="text-xs font-bold uppercase text-slate-400">
-            Mon rôle
-          </div>
-          <div className="mt-1 text-xl font-extrabold text-violet-900">
-            {ROLE_LABELS[ctx.role]}
-          </div>
-          <div className="mt-1 text-xs text-slate-500">
-            {canWrite(ctx.role)
-              ? "Tu peux écrire (stocks, recettes, production)."
-              : "Accès caisse + lecture."}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <div className="text-xs font-bold uppercase text-slate-400">
-            Mes sites
-          </div>
-          <div className="mt-1 text-xl font-extrabold text-violet-900">
-            {sites?.length ?? 0}
-          </div>
-          <div className="mt-1 text-xs text-slate-500">
-            {(sites ?? []).map((s) => s.nom).join(" · ") || "Aucun site"}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <div className="text-xs font-bold uppercase text-slate-400">
-            Sécurité
-          </div>
-          <div className="mt-1 text-xl font-extrabold text-emerald-700">
-            🔒 RLS active
-          </div>
-          <div className="mt-1 text-xs text-slate-500">
-            Tu ne vois que les données de ta boutique.
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h2 className="font-extrabold">✅ Sprint 1 — validé</h2>
-        <ul className="mt-2 space-y-1 text-sm text-slate-600">
-          <li>☑ Connexion e-mail + mot de passe</li>
-          <li>☑ 3 rôles : propriétaire, labo, vendeur</li>
-          <li>☑ Isolement client (RLS sur toutes les tables)</li>
-          <li>☑ Déconnexion + garde des pages privées</li>
-        </ul>
-      </div>
-
-      <div className="rounded-2xl border border-violet-200 bg-violet-50 p-5">
-        <h2 className="font-extrabold text-violet-900">
-          🚀 Sprint 2 — bientôt
-        </h2>
-        <ul className="mt-2 space-y-1 text-sm text-violet-900">
-          {MODULES_SPRINT2.map((m) => (
-            <li key={m}>☐ {m}</li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
+export default async function Dashboard() {
+  const ctx=await requireSession();
+  return <div><p className="text-xs font-bold uppercase tracking-widest text-violet-600">Pâtisserie El Yasmine · Pilote</p><h1 className="mt-2 text-3xl font-black">Bonjour {ctx.nom.split(' (')[0]} 👋</h1><p className="mt-2 text-slate-500">Votre espace de gestion · {ROLE_LABELS[ctx.role]}</p><div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{cards.map(([href,icon,title,desc])=><Link key={href} href={href} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-violet-300"><span className="text-3xl">{icon}</span><h2 className="mt-4 font-bold">{title}</h2><p className="mt-1 text-sm text-slate-500">{desc}</p><p className="mt-5 text-sm font-bold text-violet-700">Ouvrir →</p></Link>)}</div><div className="mt-8 rounded-2xl border border-violet-100 bg-white p-5 text-sm text-slate-600"><b className="text-violet-800">Sprint 2 en construction</b><p className="mt-2">{ctx.mode==='pilote-local' ? 'Les opérations ci-dessus sont des simulations locales. Elles ne modifient pas la base distante.' : 'Les données Supabase sont affichées en lecture seule pendant le développement des opérations transactionnelles.'} D’autres modules restent à porter.</p></div></div>;
 }
