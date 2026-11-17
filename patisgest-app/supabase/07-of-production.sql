@@ -121,30 +121,10 @@ begin
 
   v_scale := case when coalesce(v_rendement, 0) > 0 then p_qte_prevue / v_rendement else 1 end;
 
-  for b in select value from jsonb_array_elements(v_ingredients) loop
-    v_code := nullif(b->>'code', '');
-    if v_code is null then
-      raise exception 'Ingredient sans code article.';
-    end if;
-    v_qty := round(coalesce((b->>'q')::numeric, 0) * v_scale
-                   * (1 + coalesce((b->>'parage')::numeric, 0) / 100), 4);
-    if v_qty <= 0 then
-      raise exception 'Quantite ingredient invalide.';
-    end if;
-    select a.id into v_article from public.articles a
-     where a.client_id = v_client and a.code = v_code
-     limit 1;
-    if v_article is null then
-      raise exception '%', 'Article ingredient introuvable : ' || v_code;
-    end if;
-    v_besoins := v_besoins || jsonb_build_object(
-      'articleId', v_article,
-      'code', v_code,
-      'nom', coalesce(b->>'nom', v_code),
-      'qty', v_qty,
-      'unit', coalesce(b->>'u', '')
-    );
-  end loop;
+  -- Besoins etendus cote serveur : articles (avec parage + conversions
+  -- d'unites) OU sous-recettes en version figee (profondeur max3), doublons
+  -- fusionnes. Le client ne fournit jamais les besoins.
+  v_besoins := public.patisgest_besoins_de_version(v_client, p_version_id, v_scale, 0);
 
   v_numero := 'OF-' || upper(substr(md5(gen_random_uuid()::text), 1, 8));
   v_snapshot := jsonb_build_object(

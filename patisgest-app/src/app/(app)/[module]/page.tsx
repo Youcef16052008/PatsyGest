@@ -17,6 +17,7 @@ import { computePriceAlerts } from "@/lib/price-alerts";
 import { computeReconciliation, type ClosingRecord, type SaleRecord } from "@/lib/reconciliation";
 import ReconPanel from "@/components/recon-panel";
 import LabelMaker from "@/components/label-maker";
+import VersionForm, { type VersionRow } from "@/components/version-form";
 import type { LabelIngredient, LabelLot, LabelProduct } from "@/lib/label-model";
 
 const modules = {
@@ -75,6 +76,24 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
       />
       <LabelMaker produits={labelProduits} recipes={recipes} lots={lots} />
     </>;
+  } else if (key==='recettes' && canWrite(ctx.role)) {
+    // Versions immuables : articles ou sous-recettes figées + activation.
+    const artRes=await supabase.from('articles').select('id, code, nom, niveau, unite').eq('client_id',ctx.clientId).order('nom').limit(150);
+    const verRes=await supabase.from('recette_versions')
+      .select('id, famille_id, version, active, rendement_qte, rendement_unite, recette_familles!inner(nom, code, produit_id)')
+      .eq('client_id',ctx.clientId).order('version',{ascending:false});
+    const artRows=((artRes.data??[]) as {id:string;code:string;nom:string;niveau:string;unite:string}[]);
+    const articles=artRows.map(a=>({id:a.id,label:`${a.code} · ${a.nom} (${a.unite})`}));
+    const produits=artRows.map(a=>({id:a.id,label:`${a.code} · ${a.nom} — ${a.niveau}`}));
+    type FamEmbed={nom:string;code:string;produit_id:string};
+    const verRows=((verRes.data??[]) as {id:string;famille_id:string;version:number;active:boolean;rendement_qte:number;rendement_unite:string;recette_familles:FamEmbed|FamEmbed[]}[])
+      .map(v=>({...v,fam:Array.isArray(v.recette_familles)?v.recette_familles[0]:v.recette_familles}))
+      .filter(v=>v.fam);
+    const famRows=((results.find(r=>r.label==='Recettes')?.data??[]) as {id:string;code:string;nom:string;produit_id:string}[]);
+    const familles=famRows.map(f=>({id:f.id,label:`${f.code} — ${f.nom}`}));
+    const subVersions=verRows.map(v=>({id:v.id,label:`${v.fam.nom} · v${v.version} (${v.rendement_qte} ${v.rendement_unite})`}));
+    const versionRows: VersionRow[]=verRows.map(v=>({id:v.id,familleId:v.famille_id,version:v.version,active:v.active,label:`${v.fam.nom} · v${v.version} (${v.rendement_qte} ${v.rendement_unite})`}));
+    writeForms=<VersionForm familles={familles} articles={articles} subVersions={subVersions} versions={versionRows} produits={produits} />;
   } else if (key==='caisse') {
     // Vente réelle : tous les rôles authentifiés (le vendeur est le rôle caisse).
     const [sitesRes,produitsRes]=await Promise.all([
