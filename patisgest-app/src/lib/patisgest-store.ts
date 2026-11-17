@@ -3,8 +3,8 @@ export type Article = { id: string; code: string; nom: string; niveau: 'matiere'
 export type Lot = { id: string; articleId: string; site: string; numero: string; qte: number; pu: number; dlc: string; date: string; bloque: boolean; congele: boolean; costEstimated?: boolean; origin?: LotOrigin };
 export type LotOrigin = {type:'purchase'; purchaseId:string; supplier:string} | {type:'production'; productionId:string} | {type:'transfer'; fromLotId:string; transferId:string};
 export type Movement = { id: string; lotId: string; articleId: string; qte: number; reference: string; date: string };
-export type Sale = { id: string; articleId: string; qty: number; totalHT: number; totalTTC: number; missing: number; lots: string[]; lotDetails?: {lotId:string; qty:number}[]; date: string };
-export type State = { articles: Article[]; lots: Lot[]; movements: Movement[]; sales: Sale[]; suppliers: string[]; purchases: PurchaseOrder[]; productions: ProductionOrder[]; transfers: Transfer[]; recipes: Recipe[]; closings: DailyClosing[]; temperatures: TemperatureReading[]; cleanings: CleaningRecord[]; incidents: QualityIncident[]; cakes: CakeOrder[]; lotEvents: LotEvent[]; planningTasks: PlanningTask[]; dailyCapacity:number };
+export type Sale = { id: string; articleId: string; qty: number; totalHT: number; totalTTC: number; missing: number; lots: string[]; lotDetails?: {lotId:string; qty:number}[]; date: string; source?: 'caisse'|'z-import'; unitPriceHT?:number; vatPercent?:number };
+export type State = { articles: Article[]; lots: Lot[]; movements: Movement[]; sales: Sale[]; suppliers: string[]; purchases: PurchaseOrder[]; productions: ProductionOrder[]; transfers: Transfer[]; recipes: Recipe[]; closings: DailyClosing[]; temperatures: TemperatureReading[]; cleanings: CleaningRecord[]; incidents: QualityIncident[]; cakes: CakeOrder[]; lotEvents: LotEvent[]; planningTasks: PlanningTask[]; dailyCapacity:number; zImports: ZImport[] };
 const today = () => new Date().toISOString().slice(0, 10);
 const id = () => crypto.randomUUID();
 export const seed: State = {
@@ -20,7 +20,7 @@ export const seed: State = {
     { id:'l3',articleId:'beurre',site:'Labo',numero:'BEU-01',qte:8,pu:700,dlc:'2027-01-01',date:'2026-11-01',bloque:false,congele:false },
     { id:'l4',articleId:'sucre',site:'Labo',numero:'SUC-01',qte:30,pu:120,dlc:'2027-06-01',date:'2026-11-01',bloque:false,congele:false },
     { id:'l5',articleId:'eclair',site:'Boutique',numero:'ECL-01',qte:20,pu:100,dlc:'2027-01-02',date:'2026-11-01',bloque:false,congele:false },
-  ], movements: [], sales: [], suppliers: ['Moulins d’Oran', 'Laiterie El Bahdja', 'Épicerie Pro'], purchases:[], productions:[], transfers:[], recipes:[defaultRecipe()], closings:[], temperatures:[], cleanings:[], incidents:[], cakes:[], lotEvents:[], planningTasks:[], dailyCapacity:480
+  ], movements: [], sales: [], suppliers: ['Moulins d’Oran', 'Laiterie El Bahdja', 'Épicerie Pro'], purchases:[], productions:[], transfers:[], recipes:[defaultRecipe()], closings:[], temperatures:[], cleanings:[], incidents:[], cakes:[], lotEvents:[], planningTasks:[], dailyCapacity:480, zImports:[]
 };
 export function fefo(lots: Lot[], articleId: string, site?: string): Lot[] {
   return lots.filter(l => l.articleId === articleId && (!site || l.site === site) && !l.bloque && l.qte > 0)
@@ -100,7 +100,7 @@ export type Transfer = { id:string; date:string; articleId:string; qty:number; f
 
 // Existing browser data from the first iteration can be opened without losing edits.
 export function upgradeState(raw: State): State {
-  return {...raw, purchases:raw.purchases ?? [], productions:raw.productions ?? [], transfers:raw.transfers ?? [], recipes:raw.recipes ?? [defaultRecipe()], closings:raw.closings ?? [], temperatures:raw.temperatures ?? [], cleanings:raw.cleanings ?? [], incidents:raw.incidents ?? [], cakes:raw.cakes ?? [], lotEvents:raw.lotEvents ?? [], planningTasks:raw.planningTasks ?? [], dailyCapacity:raw.dailyCapacity ?? 480};
+  return {...raw, purchases:raw.purchases ?? [], productions:raw.productions ?? [], transfers:raw.transfers ?? [], recipes:raw.recipes ?? [defaultRecipe()], closings:raw.closings ?? [], temperatures:raw.temperatures ?? [], cleanings:raw.cleanings ?? [], incidents:raw.incidents ?? [], cakes:raw.cakes ?? [], lotEvents:raw.lotEvents ?? [], planningTasks:raw.planningTasks ?? [], dailyCapacity:raw.dailyCapacity ?? 480, zImports:raw.zImports ?? []};
 }
 const round4 = (n:number) => Math.round(n*10000)/10000;
 const positive = (n:number) => Number.isFinite(n) && n >= 0.0001 && Math.abs(round4(n)-n)<1e-9;
@@ -393,4 +393,45 @@ export function simulatePrice(state:State, recipeId:string, price:number, materi
   const unitCost=simulatedTotal/cost.yieldNet;
   const margin=price-unitCost;
   return {missingPrices:[],result:{baseUnitCost:cost.perUnit,simulatedMaterials,simulatedTotal,unitCost,margin,marginRate:price>0?margin/price*100:null,coefficient:unitCost>0?price/unitCost:null,suggestions:[2.5,3,3.5].map(coefficient=>({coefficient,price:unitCost*coefficient,margin:unitCost*(coefficient-1)}))}};
+}
+
+export type ZInputLine={code:string; qty:number; priceHT:number; articleId:string; vatPercent:number};
+export type ZImport={id:string; date:string; site:'Boutique'; register:string; zNumber:string; lines:ZInputLine[]; totalHT:number; totalTTC:number; saleIds:string[]; importedAt:string};
+export type ZPreview={lines:ZInputLine[]; totalHT:number; totalTTC:number; similar:ZImport[]};
+const roundMoney=(n:number)=>Math.round((n+Number.EPSILON)*100)/100;
+/** Format strict : une ligne code;quantité;prix unitaire HT, sans en-tête ni guillemets. */
+export function previewZ(state:State,date:string,register:string,zNumber:string,csv:string):ZPreview {
+  if (!isValidDate(date) || !requiredText(register,80) || !requiredText(zNumber,80) || !requiredText(csv,50000)) throw new Error('Date, caisse, numéro Z et données sont obligatoires.');
+  if (state.zImports.some(z=>z.date===date && z.site==='Boutique' && z.register.toLocaleUpperCase()===register.trim().toLocaleUpperCase() && z.zNumber.toLocaleUpperCase()===zNumber.trim().toLocaleUpperCase())) throw new Error('Ce numéro Z a déjà été importé pour cette caisse et cette date.');
+  const rows=csv.split(/\r?\n/).map(r=>r.trim()).filter(Boolean);
+  if (!rows.length || rows.length>100) throw new Error('Ajoutez entre 1 et 100 lignes.');
+  const lines=rows.map((row,index)=>{
+    const parts=row.split(';').map(s=>s.trim());
+    if (parts.length!==3 || !parts[0] || !/^\d+(?:[.,]\d{1,4})?$/.test(parts[1]) || !/^\d+(?:[.,]\d{1,2})?$/.test(parts[2])) throw new Error(`Ligne ${index+1} invalide : utilisez code;quantité;prix HT (sans en-tête).`);
+    const qty=Number(parts[1].replace(',','.')), priceHT=Number(parts[2].replace(',','.'));
+    if (!positive(qty) || qty>1e6 || !Number.isFinite(priceHT) || priceHT<0 || priceHT>1e9) throw new Error(`Quantité ou prix invalide à la ligne ${index+1}.`);
+    const matches=state.articles.filter(a=>a.code.toLocaleUpperCase()===parts[0].toLocaleUpperCase() && a.niveau==='produit');
+    if (matches.length!==1) throw new Error(`Code produit inconnu ou ambigu à la ligne ${index+1} : ${parts[0]}. Aucun import n'a été effectué.`);
+    const article=matches[0];
+    if (!Number.isFinite(article.tva) || article.tva<0 || article.tva>100) throw new Error(`TVA invalide pour ${article.code}.`);
+    return {code:article.code,qty,priceHT,articleId:article.id,vatPercent:article.tva};
+  });
+  const totalHT=roundMoney(lines.reduce((s,l)=>s+l.qty*l.priceHT,0));
+  const totalTTC=roundMoney(lines.reduce((s,l)=>s+l.qty*l.priceHT*(1+l.vatPercent/100),0));
+  const similar=state.zImports.filter(z=>z.date===date && z.site==='Boutique' && Math.abs(z.totalHT-totalHT)<0.005);
+  return {lines,totalHT,totalTTC,similar};
+}
+/** Toutes les lignes sont validées avant les mouvements : aucune ligne inconnue n'est ignorée. */
+export function importZ(state:State,date:string,register:string,zNumber:string,csv:string,confirmSimilar=false):State {
+  const preview=previewZ(state,date,register,zNumber,csv);
+  if (preview.similar.length && !confirmSimilar) throw new Error('Un autre Z du même jour a le même total HT. Vérifiez et confirmez cet import distinct.');
+  let next=state;const zId=id(), saleIds:string[]=[];
+  for (const line of preview.lines) {
+    const saleId=id(), reference=`Vente ${saleId}`;
+    const result=consume(next,line.articleId,line.qty,'Boutique',reference);
+    const sale:Sale={id:saleId,articleId:line.articleId,qty:line.qty,totalHT:roundMoney(line.qty*line.priceHT),totalTTC:roundMoney(line.qty*line.priceHT*(1+line.vatPercent/100)),missing:result.missing,lots:result.used.map(u=>u.numero),lotDetails:result.used.map(u=>({lotId:u.lotId,qty:u.qty})),date,source:'z-import',unitPriceHT:line.priceHT,vatPercent:line.vatPercent};
+    next={...result.next,sales:[sale,...result.next.sales]};saleIds.push(saleId);
+  }
+  const z:ZImport={id:zId,date,site:'Boutique',register:register.trim(),zNumber:zNumber.trim(),lines:preview.lines,totalHT:preview.totalHT,totalTTC:preview.totalTTC,saleIds,importedAt:new Date().toISOString()};
+  return {...next,zImports:[...next.zImports,z]};
 }

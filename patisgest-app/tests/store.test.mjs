@@ -516,3 +516,46 @@ test('simulation handles zero sale price and zero cost without division by zero'
   assert.equal(result.coefficient,null);
   assert.equal(result.suggestions[0].price,0);
 });
+
+import { previewZ, importZ } from '../src/lib/patisgest-store.ts';
+test('Z preview validates mappings and decimals without changing state', () => {
+  const state=structuredClone(seed), original=structuredClone(state);
+  const p=previewZ(state,'2026-11-17','Caisse 1','Z-1','PF-001;2,5;250,00\nPF-001;1;200');
+  assert.equal(p.lines.length,2);
+  assert.equal(p.totalHT,825);
+  assert.equal(p.totalTTC,981.75);
+  assert.equal(p.lines[0].articleId,'eclair');
+  assert.deepEqual(state,original);
+});
+test('Z import consumes FEFO, records sales and traces, and refuses duplicate IDs', () => {
+  let state=structuredClone(seed);
+  state=importZ(state,'2026-11-17',' Caisse 1 ','Z-1','PF-001;2;123,45');
+  assert.equal(state.zImports.length,1);
+  assert.equal(state.lots.find(l=>l.id==='l5').qte,18);
+  const sale=state.sales[0];
+  assert.equal(sale.date,'2026-11-17'); assert.equal(sale.source,'z-import');
+  assert.equal(sale.totalHT,246.9); assert.equal(sale.totalTTC,293.81);
+  assert.equal(traceLot(state,'l5').sales[0].sale.id,sale.id);
+  assert.throws(()=>importZ(state,'2026-11-17','caisse 1','z-1','PF-001;2;123,45'));
+  assert.equal(state.lots.find(l=>l.id==='l5').qte,18);
+});
+test('similar Z totals require explicit confirmation but allow legitimate distinct references', () => {
+  let state=importZ(structuredClone(seed),'2026-11-17','C1','001','PF-001;1;250');
+  assert.equal(previewZ(state,'2026-11-17','C2','002','PF-001;1;250').similar.length,1);
+  assert.throws(()=>importZ(state,'2026-11-17','C2','002','PF-001;1;250'));
+  state=importZ(state,'2026-11-17','C2','002','PF-001;1;250',true);
+  assert.equal(state.zImports.length,2);
+  assert.equal(state.lots.find(l=>l.id==='l5').qte,18);
+  assert.throws(()=>importZ(state,'2026-11-17','C2','002','PF-001;1;250',true));
+});
+test('Z import rejects malformed or unknown lines atomically and records shortages', () => {
+  const initial=structuredClone(seed), original=structuredClone(initial);
+  for(const csv of ['PF-001;1;250\nABSENT;1;10','PF-001;1;250;extra','code;quantité;prix','PF-001;0;200','PF-001;1.12345;250','PF-001;1;-1','MAT-001;1;2']) assert.throws(()=>importZ(initial,'2026-11-17','C1','001',csv));
+  assert.deepEqual(initial,original);
+  const next=importZ(initial,'2026-11-17','C1','001','PF-001;25;250');
+  assert.equal(next.sales[0].missing,5);
+  assert.equal(next.movements.at(-1).lotId,'');
+  assert.equal(next.lots.find(l=>l.id==='l5').qte,0);
+  const {zImports,...old}=initial;
+  assert.deepEqual(upgradeState(old).zImports,[]);
+});
