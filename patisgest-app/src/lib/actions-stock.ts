@@ -47,6 +47,7 @@ export async function createArticle(_prev: StockState, formData: FormData): Prom
   }
 
   revalidatePath("/stocks");
+  revalidatePath("/tableau-de-bord");
   return { succes: `Article « ${input.nom} » créé.` };
 }
 

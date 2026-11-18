@@ -81,12 +81,88 @@ test('sécu : la migration 17 (confidentialité des coûts) existe et garde le r
   assert.ok(/simuler_recette[\s\S]*?role not in/.test(sql), 'simuler_recette sans garde de rôle');
 });
 
-test('sécu : les modules de coût sont gardés par canReadCosts dans le rendu', () => {
+test('sécu : les URL de coût sont protégées avant tout rendu ou lecture métier', () => {
   const page = read('src/app/(app)/[module]/page.tsx');
-  assert.ok(
-    /key==='simulation'\s*&&\s*canReadCosts\(ctx\.role\)/.test(page),
-    'le module simulation doit exiger canReadCosts',
-  );
+  const rendu = page.slice(page.indexOf('export default async function ModulePage'));
+  assert.match(page, /const modulesCout\s*=\s*new Set<Module>\(\[\s*'recettes',\s*'simulation'\s*\]\)/);
+  const role = rendu.search(/const coutsAutorises\s*=\s*canReadCosts\(ctx\.role\)/);
+  const garde = rendu.search(/if\s*\(modulesCout\.has\(key\)\s*&&\s*!coutsAutorises\)\s*redirect\('\/tableau-de-bord'\)/);
+  assert.ok(role >= 0 && role < garde, 'la redirection doit dépendre du rôle de session');
+  for (const premier of ['<DemoModule', 'await createClient()', 'supabase.from(']) {
+    assert.ok(garde < rendu.indexOf(premier), `garde absente ou après ${premier}`);
+  }
+});
+
+test('sécu : les listes excluent les tables de coût pour le vendeur et projettent seulement les métadonnées', () => {
+  const page = read('src/app/(app)/[module]/page.tsx');
+  const projections = page.match(/const tablesCout\s*=\s*\{([^}]+)\}/)?.[1];
+  assert.ok(projections, 'liste blanche de colonnes absente');
+  const colonnes = Object.fromEntries([...projections.matchAll(/(\w+):\s*'([^']*)'/g)]
+    .map((m) => [m[1], m[2].split(',').map((c) => c.trim())]));
+  assert.deepEqual(colonnes.recette_familles, ['id', 'code', 'nom', 'produit_id']);
+  assert.deepEqual(colonnes.recette_versions, ['id', 'famille_id', 'version', 'active', 'rendement_qte', 'rendement_unite']);
+  assert.deepEqual(colonnes.parametres_couts, ['id']);
+  assert.match(page, /Object\.hasOwn\(tablesCout,\s*table\)/);
+  assert.match(page, /const tables\s*=\s*info\.tables\.filter\(\(\[table\]\)\s*=>\s*coutsAutorises\s*\|\|\s*!estTableCout\(table\)\)/);
+  assert.match(page, /Promise\.all\(tables\.map\(/);
+  assert.match(page, /const colonnes\s*=\s*estTableCout\(table\)\s*\?\s*tablesCout\[table\]\s*:\s*'\*'/);
+  assert.match(page, /supabase\.from\(table\)\.select\(colonnes\)/);
+  assert.doesNotMatch(page, /supabase\.from\(table\)\s*\.select\(\s*(?:['"]\*['"])?\s*\)/);
+});
+
+test('sécu : les lectures spécifiques de recettes sont aussi gardées et sans joker', () => {
+  const page = read('src/app/(app)/[module]/page.tsx');
+  const branches = [...page.matchAll(/\bif\s*\(key==='([^']+)'([^\n]*)/g)];
+  const lectures = [...page.matchAll(/\.from\(\s*['"](recette_familles|recette_versions|parametres_couts)['"]\s*\)/g)];
+  for (const lecture of lectures) {
+    const avant = page.slice(0, lecture.index);
+    const branche = branches.findLast(({ index }) => index < lecture.index);
+    assert.ok(
+      /coutsAutorises\s*\?\s*supabase$/.test(avant) || /&&\s*coutsAutorises\b/.test(branche?.[2] ?? ''),
+      `lecture de ${lecture[1]} sans garde dans ${branche?.[1] ?? 'ModulePage'}`,
+    );
+    const select = page.slice(lecture.index + lecture[0].length).match(/^\s*\.select\(\s*(['"])([^'"]+)\1/);
+    assert.ok(select && !select[2].includes('*'), `liste de colonnes attendue pour ${lecture[1]}`);
+    assert.doesNotMatch(select[2], /\b(mo_min|energie|emballage|frais_generaux|cuisson_perte_pct)\b/);
+  }
+});
+
+test('sécu : le mode guidé ne lit les recettes que pour un rôle autorisé', () => {
+  const page = read('src/app/(app)/[module]/page.tsx');
+  assert.match(page, /const cleGuide\s*=\s*coutsAutorises && canWrite\(ctx\.role\) \? etapePourModule/);
+  const dashboard = read('src/app/(app)/tableau-de-bord/page.tsx');
+  assert.match(dashboard, /const coutsAutorises\s*=\s*canReadCosts\(ctx\.role\)/);
+  assert.match(dashboard, /const afficheOnboarding\s*=\s*ctx.mode === 'supabase' && coutsAutorises && canWrite\(ctx\.role\)/);
+  assert.match(dashboard, /afficheOnboarding \? compterGuide\(ctx, db\) : null/);
+  for (const f of ['src/components/module-guide.tsx', 'src/lib/onboarding-server.ts']) {
+    const source = read(f);
+    const garde = source.search(/if\s*\(ctx.mode !== "supabase" \|\| !canReadCosts\(ctx\.role\) \|\| !canWrite\(ctx\.role\)\) return null/);
+    const lecture = source.search(/\.from\("recette_(?:familles|versions)"\)/);
+    assert.ok(garde >= 0 && lecture > garde, `${f} lit les recettes sans contrôle préalable`);
+    assert.doesNotMatch(source, /\.select\(\s*["']\*["']/);
+  }
+});
+
+test('sécu : la création d’un fournisseur est bornée au tenant et au rôle', () => {
+  const action = read('src/lib/actions-achats.ts');
+  assert.match(action, /if\s*\(!ctx \|\| ctx.mode !== "supabase"\)/);
+  const role = action.indexOf('if (!canWrite(ctx.role))');
+  const insert = action.indexOf('.from("fournisseurs").insert({ client_id: ctx.clientId, nom })');
+  assert.ok(role >= 0 && insert > role);
+  const sql = read('supabase/20-creation-fournisseur.sql');
+  assert.match(sql, /for insert to authenticated with check\s*\(\s*client_id = public\.patisgest_mon_client\(\)\s+and public\.patisgest_mon_role\(\) in \('proprietaire', 'labo'\)/i);
+  assert.match(sql, /revoke insert on public\.fournisseurs from public, anon, authenticated/i);
+  assert.match(sql, /grant insert \(client_id, nom\) on public\.fournisseurs to authenticated/i);
+  assert.doesNotMatch(sql, /for (?:all|update|delete)/i);
+});
+
+test('sécu : la RLS des familles de recette remplace la lecture par tenant seul', () => {
+  const sql = read('supabase/19-confidentialite-familles-recettes.sql');
+  assert.match(sql, /drop policy if exists recette_familles_tenant_read on public\.recette_familles/i);
+  assert.match(sql, /create policy recette_familles_cost_read on public\.recette_familles\s+for select to authenticated using\s*\(\s*client_id\s*=\s*public\.patisgest_mon_client\(\)\s+and public\.patisgest_mon_role\(\) in \('proprietaire', 'labo'\)/i);
+});
+
+test('sécu : les actions de coût vérifient le rôle', () => {
   const actionsCouts = read('src/lib/actions-couts.ts');
   assert.ok(/canReadCosts\(ctx\.role\)/.test(actionsCouts), 'ficheCoutReal sans garde de rôle');
   const actionsSimu = read('src/lib/actions-simulation.ts');
@@ -230,4 +306,18 @@ test('sécu : la restauration est SECURITY DEFINER mais gardée', () => {
   assert.ok(/select u\.client_id, u\.role[\s\S]{0,200}where u\.auth_user_id = v_auth/i.test(sql),
     'la fonction doit résoudre le rôle depuis auth.uid()');
   assert.ok(/set\s+search_path\s*=\s*''/i.test(sql), 'search_path vide contre le détournement de schéma');
+});
+
+test('sécu : inventaire et production projettent les quantités sans coûts ni snapshots pour le vendeur', () => {
+  const queries = read('src/lib/workspace-read.ts');
+  const lots = queries.match(/\.from\("lots"\)\.select\("([^"]+)"\)/)?.[1];
+  assert.ok(lots?.includes('qte_rest'));
+  assert.doesNotMatch(lots, /\bpu\b|\*/);
+  assert.match(queries, /titre:snapshot->>recette/);
+  assert.doesNotMatch(queries, /cout_reel|besoins|consommations/);
+  const prod = read('src/components/production-workspace.tsx');
+  assert.match(prod, /const canEdit = canReadCosts\(ctx\.role\) && canWrite\(ctx\.role\)/);
+  assert.match(prod, /canEdit \? db\.from\("recette_versions"\)/);
+  const stocks = read('src/components/stock-workspace.tsx');
+  assert.match(stocks, /peutEcrire && canReadCosts\(ctx\.role\)\s*\? db\.from\("recette_familles"\)/);
 });

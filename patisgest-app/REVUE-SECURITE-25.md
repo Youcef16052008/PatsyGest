@@ -27,7 +27,11 @@ Exécutée le 2026-11-17 sur la base `evepzygucfxarpdnflzv`.
 | 7 | `parametres_couts` lisible seulement par propriétaire/labo | ✅ | policy `select_pc` avec `patisgest_mon_role() IN (…)` |
 | 8 | `recette_versions` (mo_min, énergie…) idem | ✅ | policy `recette_versions_cost_read` |
 | 9 | `simuler_recette` refuse les autres rôles | ✅ | garde ajoutée en migration 17 (elle est `SECURITY DEFINER`) |
-| 10 | Export CSV des coûts réservé | ✅ | `cout: true` = exactement les 2 tables restreintes ; 403 mesuré en smoke |
+| 10 | Export CSV des coûts réservé | ✅ | `cout: true` sur les exports de versions et paramètres de coût ; les familles ne sont pas dans le catalogue CSV ; 403 mesuré en smoke |
+
+La migration 19 étend la restriction de lecture aux familles de recettes. Elle
+complète les redirections serveur de `/recettes` et `/simulation` et doit être
+appliquée à la base pilote pour fermer également la lecture directe par son API.
 
 ## C. Fonctions `SECURITY DEFINER` (11-15)
 

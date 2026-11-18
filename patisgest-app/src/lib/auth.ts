@@ -44,7 +44,7 @@ export const PILOT_ACCOUNTS: Record<
     nom: "Aïcha (Propriétaire)",
     role: "proprietaire",
     clientId: "11111111-1111-4111-8111-111111111111",
-    clientNom: "Pâtisserie El Yasmine — Oran",
+    clientNom: "Maison Amande",
   },
   "sara@patisserie.dz": {
     authUserId: "33333333-3333-4333-8333-333333333302",
@@ -53,7 +53,7 @@ export const PILOT_ACCOUNTS: Record<
     nom: "Sara (Responsable Labo)",
     role: "labo",
     clientId: "11111111-1111-4111-8111-111111111111",
-    clientNom: "Pâtisserie El Yasmine — Oran",
+    clientNom: "Maison Amande",
   },
   "amine@patisserie.dz": {
     authUserId: "33333333-3333-4333-8333-333333333303",
@@ -62,7 +62,7 @@ export const PILOT_ACCOUNTS: Record<
     nom: "Amine (Vendeur Caisse)",
     role: "vendeur",
     clientId: "11111111-1111-4111-8111-111111111111",
-    clientNom: "Pâtisserie El Yasmine — Oran",
+    clientNom: "Maison Amande",
   },
 };
 
@@ -118,7 +118,7 @@ export async function getSessionContext(): Promise<SessionContext | null> {
       nom: (data.nom as string) ?? user.email!,
       utilisateurId: data.id as string,
       clientId: data.client_id as string,
-      clientNom: client?.nom ?? "Pâtisserie El Yasmine — Oran",
+      clientNom: client?.nom ?? "Votre établissement",
       role: data.role as Role,
       mode: "supabase",
     };

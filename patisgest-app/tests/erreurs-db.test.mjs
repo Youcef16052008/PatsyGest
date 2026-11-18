@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { messageUtilisateur, estErreurMetier, detailTechnique } from '../src/lib/erreurs-db.ts';
+import { messageUtilisateur, estErreurMetier, detailTechnique, echecHttpReessayable } from '../src/lib/erreurs-db.ts';
 
 /**
  * Sprint 6 — durcissement : ne jamais exposer le schéma Postgres à l'écran.
@@ -66,4 +66,9 @@ test('erreurs-db : un NOT NULL (23502) parle de fichier incomplet, sans jargon P
   const m = messageUtilisateur({ code: '23502', message: 'null value in column "pu" violates not-null constraint' }, 'Restauration refusée');
   assert.ok(/incomplet|modifié/.test(m), 'le message doit orienter vers la cause réelle');
   assert.equal(/column|constraint|pu\b/.test(m), false, 'aucun jargon Postgres à l’écran');
+});
+
+test('erreurs : un retour réseau incertain n’efface pas une opération en attente', () => {
+  for (const statut of [0, 401, 429, 500, 502, 503, 504]) assert.equal(echecHttpReessayable(statut), true);
+  for (const statut of [200, 400, 403, 409, 422]) assert.equal(echecHttpReessayable(statut), false);
 });

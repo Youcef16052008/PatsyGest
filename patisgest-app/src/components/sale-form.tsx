@@ -2,18 +2,20 @@
 
 import { useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { sellProduct, type SaleState } from "@/lib/actions-caisse";
-import { enqueueSale, getQueue, getServerQueue, removeSale, setQueue, subscribeQueue, type QueuedSale } from "@/lib/sale-queue";
+import type { Etablissement } from "@/lib/etablissement";
+import { enqueueSale, getQueue, removeSale, setQueue, subscribeQueue, type QueuedSale } from "@/lib/sale-queue";
 import SaleTicket from "./sale-ticket";
+import FormulaireGuide, { champGuide } from "./guide-form";
+import SaleComposer from "./sale-composer";
+import { Notice } from "./workspace-ui";
+import { quantite, siteCaisse, type CatalogProduct, type SiteStock, type WorkspaceSite } from "@/lib/workspace-data";
 
-type Option = { id: string; label: string };
-
-const field = "mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm";
+const noQueue: QueuedSale[] = [];
 const label = "block text-xs font-semibold text-slate-600";
 
 type Msg = { kind: "err" | "ok" | "info"; text: string };
 
-const isNetworkError = (e?: string) => !!e && e.includes("inaccessible");
-const isDuplicate = (e?: string) => !!e && e.includes("déjà");
+type VenteAffichee = SaleState & { articleLabel: string; siteLabel: string; qte: number; at: string; etablissement: Etablissement | null };
 
 /**
  * Vente de caisse avec file hors-ligne : la vente est d'abord écrite dans la
@@ -21,11 +23,14 @@ const isDuplicate = (e?: string) => !!e && e.includes("déjà");
  * tombe, elle reste en file et l'État synchro la renvoie (idempotent par
  * ticket : un doublon de sync ne double jamais la vente).
  */
-export default function SaleForm({ articles, sites, etablissement }: { articles: Option[]; sites: Option[]; etablissement?: import("@/lib/etablissement").Etablissement | null }) {
+export default function SaleForm({ articles, sites, stock = null, etablissement, guide = false, guideTermine = false }: {
+  articles: CatalogProduct[]; sites: WorkspaceSite[]; stock?: SiteStock | null; etablissement?: Etablissement | null;
+  guide?: boolean; guideTermine?: boolean;
+}) {
   const [msg, setMsg] = useState<Msg | null>(null);
-  const [lastSale, setLastSale] = useState<(SaleState & { articleLabel: string; siteLabel: string; qte: number; at: string }) | null>(null);
+  const [lastSale, setLastSale] = useState<VenteAffichee | null>(null);
   const [pending, startTransition] = useTransition();
-  const formRef = useRef<HTMLFormElement>(null);
+  const lock = useRef(false);
 
   const online = useSyncExternalStore(
     (cb) => {
@@ -40,7 +45,7 @@ export default function SaleForm({ articles, sites, etablissement }: { articles:
     () => true,
   );
 
-  const queued = useSyncExternalStore(subscribeQueue, getQueue, getServerQueue);
+  const queued = useSyncExternalStore(subscribeQueue, getQueue, () => noQueue);
 
   const commitQueue = (q: QueuedSale[]) => {
     setQueue(q);
@@ -53,23 +58,39 @@ export default function SaleForm({ articles, sites, etablissement }: { articles:
     fd.set("siteId", sale.siteId);
     fd.set("qte", String(sale.qte));
     fd.set("ticket", sale.ticket);
-    const state = await sellProduct({}, fd);
+    let state: SaleState;
+    try {
+      state = await sellProduct({}, fd);
+    } catch {
+      // Une réponse perdue ne doit pas effacer une vente de la file.
+      return { status: "network", state: {} };
+    }
+    if (state.duplicate) return { status: "dup", state };
     if (state.succes) return { status: "ok", state };
-    if (isDuplicate(state.erreur)) return { status: "dup", state };
-    if (isNetworkError(state.erreur)) return { status: "network", state };
+    if (state.reessayer) return { status: "network", state };
     return { status: "business", state };
+  }
+
+  function ticketVente(state: SaleState, { articleLabel, siteLabel, qte }: QueuedSale): VenteAffichee | null {
+    return state.ticket ? {
+      ...state, articleLabel, siteLabel, qte, at: state.enregistreeA ?? new Date().toISOString(),
+      etablissement: etablissement ?? null,
+    } : null;
   }
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    // Tant que la première vente est en attente, réutiliser son ticket.
+    if (lock.current || (guide && (guideTermine || getQueue().length > 0))) return;
+    const formulaire = e.currentTarget;
+    const fd = new FormData(formulaire);
     const articleId = String(fd.get("articleId") ?? "");
     const siteId = String(fd.get("siteId") ?? "");
     const qte = Number(fd.get("qte"));
-    const articleLabel = articles.find((a) => a.id === articleId)?.label ?? articleId;
-    const siteLabel = sites.find((s) => s.id === siteId)?.label ?? siteId;
-    if (!articleId || !siteId || !Number.isFinite(qte) || qte <= 0) {
-      setMsg({ kind: "err", text: "Saisie invalide." });
+    const articleLabel = articles.find((a) => a.id === articleId)?.label;
+    const siteLabel = sites.find((s) => s.id === siteId)?.label;
+    if (!articleLabel || !siteLabel || !Number.isFinite(qte) || qte < 0.0001 || qte > 100_000_000) {
+      setMsg({ kind: "err", text: "Choisissez un produit, un site et une quantité valide." });
       return;
     }
     const sale: QueuedSale = {
@@ -77,28 +98,31 @@ export default function SaleForm({ articles, sites, etablissement }: { articles:
       articleId, articleLabel, siteId, siteLabel, qte,
       queuedAt: new Date().toISOString(),
     };
+    lock.current = true;
     commitQueue(enqueueSale(getQueue(), sale));
     setMsg({ kind: "info", text: "Vente en file — synchronisation…" });
     startTransition(async () => {
       const { status, state } = await trySync(sale);
       if (status === "ok" || status === "dup") {
         commitQueue(removeSale(getQueue(), sale.ticket));
-        setLastSale({
-          ...state, articleLabel, siteLabel, qte, at: new Date().toISOString(),
-        });
-        setMsg({ kind: "ok", text: status === "dup" ? "Déjà enregistrée (idempotence ticket)." : (state.succes ?? "Vente enregistrée.") });
-        formRef.current?.reset();
+        const ticket = ticketVente(state, sale);
+        if (ticket) setLastSale(ticket);
+        setMsg({ kind: "ok", text: status === "dup" ? "Vente déjà enregistrée. Aucun doublon créé." : (state.manquant ?? 0) > 0
+          ? `Vente enregistrée. Stock manquant : ${quantite(state.manquant ?? 0)}. Vérifiez l’inventaire.` : "Vente enregistrée." });
+        formulaire.reset();
       } else if (status === "network") {
-        setMsg({ kind: "info", text: "Hors ligne — vente conservée dans la file locale (état synchro ci-dessous)." });
+        setMsg({ kind: "info", text: "Vente conservée dans la file locale. Reprenez la synchronisation dès que la connexion est rétablie." });
       } else {
         commitQueue(removeSale(getQueue(), sale.ticket));
         setMsg({ kind: "err", text: state.erreur ?? "Vente refusée." });
       }
+      lock.current = false;
     });
   }
 
   function syncAll() {
-    if (queued.length === 0) return;
+    if (lock.current || queued.length === 0) return;
+    lock.current = true;
     setMsg({ kind: "info", text: `Synchronisation de ${queued.length} vente(s)…` });
     startTransition(async () => {
       let q = getQueue();
@@ -106,7 +130,7 @@ export default function SaleForm({ articles, sites, etablissement }: { articles:
       let dup = 0;
       const errs: string[] = [];
       let stopped = false;
-      let firstOk: (SaleState & { articleLabel: string; siteLabel: string; qte: number; at: string }) | null = null;
+      let firstOk: VenteAffichee | null = null;
       for (const sale of [...q]) {
         const { status, state } = await trySync(sale);
         if (status === "network") {
@@ -117,9 +141,7 @@ export default function SaleForm({ articles, sites, etablissement }: { articles:
           q = removeSale(q, sale.ticket);
           if (status === "ok") ok++;
           else dup++;
-          if (!firstOk) {
-            firstOk = { ...state, articleLabel: sale.articleLabel, siteLabel: sale.siteLabel, qte: sale.qte, at: new Date().toISOString() };
-          }
+          firstOk ??= ticketVente(state, sale);
         } else {
           q = removeSale(q, sale.ticket);
           errs.push(`${sale.articleLabel} × ${sale.qte} : ${state.erreur ?? "refusée"}`);
@@ -132,58 +154,46 @@ export default function SaleForm({ articles, sites, etablissement }: { articles:
       if (dup > 0) parts.push(`${dup} déjà enregistrée(s)`);
       if (errs.length > 0) parts.push(`${errs.length} refusée(s) : ${errs.join(" ; ")}`);
       if (stopped) parts.push("réseau indisponible — le reste reste en file");
-      setMsg({ kind: errs.length > 0 ? "err" : "ok", text: parts.join(" · ") || "File vide." });
+      setMsg({ kind: errs.length > 0 ? "err" : stopped ? "info" : "ok", text: parts.join(" · ") || "File vide." });
+      lock.current = false;
     });
   }
 
+  if (guideTermine && !lastSale && !msg && queued.length === 0) return null;
+
+  const produit = <label className={label}>Produit
+    <select name="articleId" required className={champGuide} disabled={articles.length === 0}>
+      <option value="">Choisir un produit</option>
+      {articles.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+    </select>
+  </label>;
+  const site = <label className={label}>Site
+    <select name="siteId" required className={champGuide} defaultValue={siteCaisse(sites)}>
+      {sites.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+    </select>
+  </label>;
+  const quantiteGuide = <label className={`${label} max-w-xs`}>Quantité
+    <input name="qte" type="number" min={0.0001} max={100_000_000} step="any" required defaultValue={1} className={champGuide} />
+  </label>;
+
   return (
-    <section className="mb-6 rounded-2xl border bg-white p-5">
-      <div className="flex flex-wrap items-center gap-3">
-        <h2 className="font-bold">Nouvelle vente · caisse réelle</h2>
-        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${online ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-          {online ? "en ligne" : "hors ligne"}
-        </span>
-        {queued.length > 0 && (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
-            {queued.length} en attente
-          </span>
-        )}
-      </div>
-      <p className="mb-3 mt-1 text-xs text-slate-500">
-        File hors-ligne : la vente part d&apos;abord dans la file locale puis se synchronise —
-        sans réseau elle reste en attente et l&apos;État synchro la renvoie (idempotent par ticket,
-        aucun doublon). FEFO atomique, stock jamais négatif, ventes non modifiables.
-      </p>
-      <form ref={formRef} onSubmit={onSubmit} className="flex flex-wrap items-end gap-3">
-        <label className={`${label} min-w-52 flex-1`}>Produit
-          <select name="articleId" required className={field} disabled={articles.length === 0}>
-            {articles.length === 0 && <option value="">— aucun produit —</option>}
-            {articles.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
-          </select>
-        </label>
-        <label className={`${label} min-w-44 flex-1`}>Site
-          <select name="siteId" required className={field}>
-            {sites.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-          </select>
-        </label>
-        <label className={`${label} w-32`}>Quantité
-          <input name="qte" type="number" min={0.0001} step="any" required defaultValue={1} className={field} />
-        </label>
-        <button disabled={pending || articles.length === 0} className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
-          {pending ? "Encaissement…" : "Encaisser"}
-        </button>
-      </form>
-      {msg && (
-        <p role={msg.kind === "err" ? "alert" : "status"}
-          className={`mt-3 text-sm ${msg.kind === "err" ? "text-red-700" : msg.kind === "ok" ? "text-emerald-700" : "text-slate-600"}`}>
-          {msg.text}
-        </p>
-      )}
+    <div className="pg-stack">
+      {!guideTermine && (guide ? (
+        <FormulaireGuide onSubmit={onSubmit} pending={pending} valider="Encaisser" indisponible={!articles.length || !sites.length || queued.length > 0}
+          groupes={[
+            { nom: "Produit et site", titre: "Que vendez-vous ?", contenu: <div className="grid gap-3 sm:grid-cols-2">{produit}{site}</div> },
+            { nom: "Quantité", titre: "Quelle quantité vendez-vous ?", aide: "Enregistrez uniquement une vente réellement encaissée.", contenu: quantiteGuide },
+          ]} />
+      ) : (
+        <SaleComposer articles={articles} sites={sites} stock={stock} onSubmit={onSubmit} busy={pending}
+          status={!online ? <span className="pg-badge" data-tone="warning">Hors ligne</span> : queued.length > 0 ? <span className="pg-badge" data-tone="warning">{queued.length} en attente</span> : undefined} />
+      ))}
+      {msg && <Notice kind={msg.kind === "err" ? "error" : msg.kind === "ok" ? "success" : "info"}>{msg.text}</Notice>}
 
       {queued.length > 0 && (
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-bold text-amber-800">État synchro — {queued.length} vente(s) en attente</h3>
+            <h3 className="text-sm font-bold text-amber-800">Ventes à synchroniser · {queued.length}</h3>
             <button type="button" onClick={syncAll} disabled={pending}
               className="ml-auto rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">
               Synchroniser maintenant
@@ -195,7 +205,7 @@ export default function SaleForm({ articles, sites, etablissement }: { articles:
                 <span className="font-bold">{s.articleLabel}</span>
                 <span>× {s.qte}</span>
                 <span className="opacity-70">{s.siteLabel}</span>
-                <span className="ml-auto font-mono opacity-70">{s.ticket.slice(0, 8)} · {new Date(s.queuedAt).toLocaleTimeString("fr-FR")}</span>
+                <span className="ml-auto opacity-70">{new Date(s.queuedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>
               </li>
             ))}
           </ul>
@@ -204,7 +214,7 @@ export default function SaleForm({ articles, sites, etablissement }: { articles:
 
       {lastSale && (
         <SaleTicket data={{
-          ticket: lastSale.ticket ?? "",
+          numero: lastSale.numero,
           articleLabel: lastSale.articleLabel,
           siteLabel: lastSale.siteLabel,
           qte: lastSale.qte,
@@ -212,9 +222,9 @@ export default function SaleForm({ articles, sites, etablissement }: { articles:
           totalTTC: lastSale.totalTTC ?? 0,
           lots: lastSale.lots ?? [],
           at: lastSale.at,
-          etablissement: etablissement ?? null,
+          etablissement: lastSale.etablissement,
         }} />
       )}
-    </section>
+    </div>
   );
 }

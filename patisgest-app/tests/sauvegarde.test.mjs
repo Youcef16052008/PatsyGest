@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   FORMAT_SAUVEGARDE, VERSION_FORMAT, ORDRE_RESTAURATION, TABLES_EXCLUES,
   empreinte, canonique, construireSauvegarde, validerSauvegarde,
   resumeSauvegarde, totalLignes, nomFichierSauvegarde,
-  colonneTenant, TABLE_RACINE, estTableRacine,
+  colonneTenant, TABLE_RACINE, estTableRacine, lireFichierSauvegarde, MAX_OCTETS_SAUVEGARDE,
 } from '../src/lib/sauvegarde.ts';
 
 /**
@@ -147,6 +148,65 @@ test('sauvegarde : aller-retour JSON = données identiques (CA-15, volet automat
     [...relu.tables].sort((a, b) => ORDRE_RESTAURATION.indexOf(a.table) - ORDRE_RESTAURATION.indexOf(b.table)),
   ));
 });
+
+test('RÉGRESSION : une sauvegarde complète, reçue en multipart, peut être analysée et renvoyée', async () => {
+  // Fixture synthétique de la taille du cas pilote (22 tables / 58 lignes).
+  const clientId = 'test-atelier';
+  const comptes = { clients: 1, sites: 2, fournisseurs: 3, articles: 16, lots: 12,
+    recette_familles: 2, recette_versions: 2, mouvements: 12, ordres_fabrication: 2, ventes: 6 };
+  const donnees = ORDRE_RESTAURATION.map((table) => ({
+    table,
+    lignes: Array.from({ length: comptes[table] ?? 0 }, (_, i) => ({
+      id: `${table}-${i}`, nom: `Élément fictif ${i}`, client_id: clientId,
+      ...(table === 'mouvements' ? { commentaire: 'Mouvement fictif. '.repeat(149) } : {}),
+    })),
+  }));
+  const originale = construireSauvegarde(clientId, 'Pâtisserie de test', donnees);
+  const fichier = new File([JSON.stringify(originale, null, 2)], 'sauvegarde-test.json', { type: 'application/json' });
+  async function envoyer(confirmation) {
+    const form = new FormData();
+    form.set('fichier', fichier);
+    if (confirmation) form.set('confirmation', confirmation);
+    const requete = new Request('http://patisgest.test/parametres', { method: 'POST', body: form });
+    const recu = await requete.formData();
+    return lireFichierSauvegarde(recu.get('fichier'), clientId);
+  }
+  const analyse = await envoyer();
+  assert.ok(analyse.dump, analyse.erreur);
+  assert.equal(analyse.dump.tables.length, 22);
+  assert.equal(totalLignes(analyse.dump), 58);
+  const resume = Object.fromEntries(resumeSauvegarde(analyse.dump).map((a) => [a.table, a.lignes]));
+  assert.equal(resume.articles, 16);
+  assert.equal(resume.lots, 12);
+  assert.deepEqual(await envoyer('RESTAURER'), analyse);
+});
+
+test('RÉGRESSION : un fichier absent, illisible ou trop gros donne une erreur explicite', async () => {
+  assert.match((await lireFichierSauvegarde(null, 'c1')).erreur, /Choisissez un fichier/);
+  assert.match((await lireFichierSauvegarde(new File(['{'], 'tronque.json'), 'c1')).erreur, /Fichier illisible/);
+  const volumineux = new File([new Uint8Array(MAX_OCTETS_SAUVEGARDE + 1)], 'lourd.json');
+  assert.match((await lireFichierSauvegarde(volumineux, 'c1')).erreur, /trop volumineux/);
+});
+
+test('RÉGRESSION : l’upload refuse une empreinte modifiée ou un autre établissement', async () => {
+  const fichier = (dump) => new File([JSON.stringify(dump)], 'test.json');
+  const dump = construireSauvegarde('c1', 'X', tables);
+  assert.match((await lireFichierSauvegarde(fichier(dump), 'c2')).erreur, /autre établissement/);
+  assert.match((await lireFichierSauvegarde(fichier({ ...dump, empreinte: 'invalide' }), 'c1')).erreur, /Empreinte invalide/);
+});
+
+// Optionnel : valider le fichier pilote original sans ajouter de données métier à Git.
+if (process.env.PATISGEST_TEST_SAUVEGARDE) {
+  test('RÉGRESSION : la sauvegarde pilote du 17/11/2026 est valide (fichier local)', async () => {
+    const json = readFileSync(process.env.PATISGEST_TEST_SAUVEGARDE);
+    const { client_id } = JSON.parse(json);
+    const lecture = await lireFichierSauvegarde(new File([json], 'pilote.json'), client_id);
+    assert.ok(lecture.dump, lecture.erreur);
+    assert.equal(lecture.dump.tables.length, 22);
+    assert.equal(totalLignes(lecture.dump), 58);
+    assert.equal(lecture.dump.empreinte, 'bf2e4173');
+  });
+}
 
 // --- Régressions trouvées en revue de mon propre travail --------------------
 

@@ -1,8 +1,8 @@
 # GUIDE-PILOTE.md — ce qu'il te reste à faire, clic par clic
 
-Sept choses restent ouvertes. Elles ne sont **pas** automatisables depuis la
-sandbox (pas de route réseau vers Vercel/Supabase, pas de navigateur, pas
-d'imprimante). Voici comment les faire toi-même, dans l'ordre.
+Ce guide décrit les vérifications à faire dans le navigateur sur le pilote.
+Les tests locaux ne remplacent pas la vérification avec les vrais comptes,
+la base du pilote et l'imprimante de caisse.
 
 **Temps total estimé : ~2 h 30**, étalées sur environ une semaine pour la
 partie « pilote réel ».
@@ -24,32 +24,26 @@ pouvoir être connecté en propriétaire dans l'un et en vendeur dans l'autre.
 
 ---
 
-## ÉTAPE 1 — Mettre le code en production (10 min)
+## ÉTAPE 1 — Vérifier la version déployée (10 min)
 
-Le code est prêt sur la branche, la production est encore sur l'ancienne
-version.
+La PR #3 est déjà mergée. Les nouveaux correctifs et le guide B doivent être
+mis en ligne avant le retest sur le pilote.
 
-1. Va sur **https://github.com/Youcef16052008/PatsyGest/pull/3**
-2. Lis la description jusqu'à la section « Ce que cette PR ne permet PAS de
-   déclarer » — c'est volontaire, ne la saute pas.
-3. Clique sur l'onglet **Conversation**, puis sur le bouton vert
-   **« Merge pull request »** en bas.
-4. Clique **« Confirm merge »**.
-5. Dans **Vercel** (https://vercel.com/all-intelligence/patsy-gest), onglet
-   **Deployments** : attends qu'un déploiement `production` passe en **Ready**
-   (environ 1 min). Le commit doit être `1a86696` ou plus récent.
-6. Ouvre **https://patsy-gest-all-intelligence.vercel.app** → la page de
+1. Sur la base pilote déjà en migration 18, appliquer dans l'ordre :
+   - [`19-confidentialite-familles-recettes.sql`](patisgest-app/supabase/19-confidentialite-familles-recettes.sql) : ferme la lecture des familles de recettes au vendeur, y compris via l'API de la base.
+   - [`20-creation-fournisseur.sql`](patisgest-app/supabase/20-creation-fournisseur.sql) : autorise propriétaire et labo à ajouter un fournisseur dans leur établissement.
+2. Dans **Vercel** (https://vercel.com/all-intelligence/patsy-gest), onglet
+   **Deployments** : vérifier qu'un déploiement `production` contenant les
+   correctifs est **Ready**.
+3. Ouvrir **https://patsy-gest-all-intelligence.vercel.app** → la page de
    connexion doit s'afficher.
-
-> ⚠️ Si le bouton de merge est grisé : c'est un conflit. Ne force rien,
-> dis-le-moi.
 
 ---
 
 ## ÉTAPE 2 — E2E avec la vraie authentification (25 min)
 
-C'était le point n°1 manquant : personne n'a encore testé l'application avec
-la vraie connexion Supabase, seulement avec des sessions de test.
+Utilise les vrais comptes du pilote pour vérifier ce que chaque rôle voit,
+en plus des tests HTTP locaux.
 
 **2.1 — Connexion propriétaire**
 
@@ -65,10 +59,11 @@ la vraie connexion Supabase, seulement avec des sessions de test.
 5. Connecte-toi avec `amine@patisserie.dz` / `PatisGest2026!` (vendeur).
 6. Sur le tableau de bord, cherche les tuiles **« Recettes & coûts »** et
    **« Simulation prix »** : elles doivent être **absentes**. ✅ attendu
-7. Tape directement dans la barre d'adresse :
-   `https://patsy-gest-all-intelligence.vercel.app/recettes`
-   → tu dois voir une page **sans** coût, ou un refus. ❌ Si tu vois
-   `mo_min`, `énergie` ou un coût de revient : **c'est une fuite, note-le**.
+7. Tape directement `/recettes`, puis `/simulation`, dans la barre d'adresse.
+   Les deux doivent te ramener à **`/tableau-de-bord`**. Afficher seulement
+   « Versions · 0 » ou les noms des recettes n'est **pas** un résultat valide.
+   Refais le test en **propriétaire** : les deux pages et leurs formulaires
+   doivent s'ouvrir normalement.
 
 **2.3 — Vérifier que le labo ne peut pas changer les mentions légales**
 
@@ -95,15 +90,19 @@ la vraie connexion Supabase, seulement avec des sessions de test.
 17. Va sur **Caisse**, vends 1 produit.
 18. Le ticket 80 mm doit afficher **ton nom, adresse, NIF, NIS, RC** en haut
     (plus « PâtisGest — Caisse »).
-19. Clique **Imprimer le ticket** (ou Ctrl+P) : vérifie que seul le ticket
-    s'imprime, largeur 80 mm.
+19. Dans **Chrome**, clique **Imprimer le ticket** (ou Ctrl+P) →
+    **Enregistrer en PDF**. Attendu : **une seule page** avec le ticket complet
+    (nom, adresse, NIF, NIS, RC, numéro, article, HT et TTC), sans le pied de
+    page de l'application. Refais le test dans **Firefox**. Pour l'imprimante,
+    choisis le papier **80 mm** et désactive les en-têtes et pieds de page du
+    navigateur si l'URL ou la date d'impression y est ajoutée.
 
 ---
 
 ## ÉTAPE 3 — Sauvegarde et restauration (20 min)
 
-C'était le point le plus risqué : la restauration n'a jamais été exercée
-depuis un navigateur.
+La confirmation de restauration doit rester indisponible tant que le fichier
+choisi n'a pas été analysé avec succès. La taille maximale est de **4 Mio**.
 
 **3.1 — Sauvegarder**
 
@@ -123,9 +122,11 @@ scénario sûr :
 5. Toujours dans Paramètres, clique sur **« Restaurer une sauvegarde… »**.
 6. Choisis le fichier téléchargé à l'étape 3.
 7. Clique **« 1. Analyser le fichier »**.
-8. Tu dois voir la liste « articles : 16 · lots : 12 … » et le nombre total de
-   lignes. ✅ Si tu vois « Sauvegarde refusée », note le message exact.
-9. Tape **RESTAURER** dans le champ, puis clique
+8. Le bouton doit sortir de l'état « Analyse… » et afficher le résumé. Avec
+   le fichier pilote du 17/11/2026, vérifie **58 lignes**, dont **16 articles**
+   et **12 lots**. Si l'analyse échoue, elle affiche une erreur et la
+   confirmation reste inactive.
+9. **Sans sélectionner à nouveau le fichier**, tape **RESTAURER**, puis clique
    **« 2. Confirmer la restauration »**.
 10. Message attendu : **« Restauration terminée : 0 ligne(s) réinsérée(s) ·
     N table(s) déjà présente(s) ignorée(s) »**.
@@ -133,9 +134,18 @@ scénario sûr :
 11. Retourne sur **Stocks** : le nombre d'articles doit être **identique**
     à avant (aucun doublon).
 
-> ⚠️ Ne teste **pas** la suppression de données pour voir si ça restaure.
-> Si tu veux vraiment tester, fais-le sur une copie de la base, pas sur le
-> pilote.
+**Retest sans écriture :** après une analyse valide, choisis un autre fichier
+`.json` qui contient seulement `{`. Le résumé précédent doit disparaître.
+Clique **Analyser** : l'erreur « Fichier illisible » doit apparaître et la
+confirmation rester inactive. Resélectionne le bon fichier et réanalyse-le :
+le résumé doit revenir.
+
+> ⚠️ Ne supprime aucune donnée pour tester la restauration. Pour un scénario
+> d'insertion, utilise une copie de la base, pas le pilote.
+
+Le fichier original du 17/11 peut aussi être testé localement, sans l'ajouter
+à Git : depuis `patisgest-app`, lance
+`PATISGEST_TEST_SAUVEGARDE=/chemin/vers/sauvegarde-pilote.json npm test`.
 
 ---
 
@@ -188,19 +198,40 @@ fait vraiment de la pâtisserie.
 
 ---
 
-## ÉTAPE 6 — Chronométrer l'onboarding (30 min)
+## ÉTAPE 6 — Vérifier et chronométrer le guide B
 
-Le critère dit « un novice termine en moins d'une heure ».
+La [maquette B (page 2)](P%C3%A2tisGest-Documents/06-Maquettes-Onboarding.pdf)
+est celle retenue : un groupe de champs à la fois, dans chaque module.
 
-1. Trouve quelqu'un qui **ne connaît pas** l'application (pas toi).
-2. Chronomètre au moment où il clique **Se connecter**.
-3. Laisse-le faire **sans l'aider** : il doit créer une matière, un produit,
-   une recette, un ordre de fabrication, une vente.
-4. Son guide : l'encadré **« Premiers pas »** sur le tableau de bord, qui
-   indique la prochaine action.
-5. Arrête le chrono à la première vente réussie.
-6. ✅ Objectif : moins de 60 minutes. Note le temps réel et **où il a
-   bloqué** — c'est ça qui est utile.
+**Retest fonctionnel** — utilise un établissement de test vide, déjà initialisé
+avec un compte propriétaire ou labo et au moins un site. Ne crée pas de vente
+fictive dans la caisse du pilote. Si les six étapes sont déjà terminées dans
+un établissement, l'encadré « Premiers pas » n'y apparaît plus.
+
+1. Tableau de bord → **Premiers pas**, compteur **0 / 6**. Déplie **Voir les
+   6 étapes**, puis clique **Me guider**.
+2. Dans **Stocks**, vérifie le focus sur **Nom**. Saisis un nom et un code,
+   puis clique **Continuer**. Seuls le type et l'unité sont affichés maintenant.
+   Le compteur reste à **0 / 6**. **Retour** doit garder le nom et le code.
+3. Passe à **Enregistrer**, puis crée l'ingrédient. Attends **1 / 6**. Avec
+   **Quitter le guide**, vérifie que le tableau de bord propose le produit
+   fini. **Formulaire complet** ouvre la vue habituelle du module.
+4. Termine le produit, le fournisseur, la recette et l'ordre de fabrication.
+   La fiche recette seule ne suffit pas : crée et active une version avec
+   ses ingrédients. **Passer pour l’instant** ne valide ni le fournisseur ni
+   l'OF. Ils resteront à terminer pour obtenir **6 / 6**.
+5. À la dernière étape, encaisse une vente dans l'établissement de test.
+   Si la connexion est coupée, la vente (ou l'OF) reste en attente : le
+   compteur ne monte pas tant que l'opération n'est pas enregistrée en base.
+   Après le retour du réseau, **Synchroniser maintenant**, sans recréer
+   l'opération ; vérifie qu'il n'y a qu'un enregistrement et que le ticket
+   de vente s'affiche. Termine à **6 / 6** et reviens au tableau de bord.
+
+**Critère humain CA-15 — moins de 60 minutes.** Confie le parcours à quelqu'un
+qui n'a jamais utilisé PâtisGest. Lance le chrono à **Se connecter**, laisse-le
+avancer sans aide et arrête le chrono à **6 / 6**, avec le ticket affiché.
+Note le temps réel et les groupes où il a hésité. Les tests automatisés
+vérifient le fonctionnement, pas la rapidité d'un novice.
 
 ---
 
@@ -224,7 +255,7 @@ aucune valeur tant qu'un professionnel ne l'a pas relu.
 
 | Quand | Quoi | Durée |
 |---|---|---|
-| Maintenant | Étape 1 (merge + déploiement) | 10 min |
+| Après la mise en ligne | Étape 1 (migration et version déployée) | 10 min |
 | Maintenant | Étape 2 (E2E auth réelle) | 25 min |
 | Maintenant | Étape 3 (sauvegarde/restauration) | 20 min |
 | Cette semaine | Étape 4.1 (coupure simulée) | 5 min |

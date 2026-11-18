@@ -6,7 +6,7 @@ import { messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
 import { parseVersionInput } from "./version-input";
 
-export type RecettesState = { erreur?: string; succes?: string };
+export type RecettesState = { erreur?: string; succes?: string; familleId?: string };
 
 function mapError(error: { code?: string; message: string }): string {
   return messageUtilisateur(error, "Opération refusée");
@@ -36,7 +36,8 @@ export async function createFamilleReal(_prev: RecettesState, formData: FormData
     });
     if (error) return { erreur: mapError(error) };
     revalidatePath("/recettes");
-    return { succes: `Famille ${code} créée.` };
+    const resultat = data as { famille_id?: string } | null;
+    return { succes: `Famille ${code} créée.`, familleId: resultat?.famille_id };
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur." };
   }
@@ -79,6 +80,7 @@ export async function createVersionReal(_prev: RecettesState, formData: FormData
     if (error) return { erreur: mapError(error) };
     const r = data as { version?: number; active?: boolean } | null;
     revalidatePath("/recettes");
+    revalidatePath("/tableau-de-bord");
     return { succes: `Version ${r?.version} créée${r?.active ? " et activée" : ""}.` };
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur." };
@@ -97,6 +99,7 @@ export async function activateVersionReal(_prev: RecettesState, formData: FormDa
     if (error) return { erreur: mapError(error) };
     const r = data as { version?: number } | null;
     revalidatePath("/recettes");
+    revalidatePath("/tableau-de-bord");
     return { succes: `Version ${r?.version} activée (les autres sont désactivées).` };
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur." };

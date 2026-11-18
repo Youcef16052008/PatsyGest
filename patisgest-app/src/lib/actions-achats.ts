@@ -13,6 +13,27 @@ function mapError(error: { code?: string; message: string }): string {
   return messageUtilisateur(error, "Opération refusée");
 }
 
+/** Fiche minimale pour la traçabilité des lots (migration 20). */
+export async function createFournisseur(_prev: AchatsState, formData: FormData): Promise<AchatsState> {
+  const ctx = await getSessionContext();
+  if (!ctx || ctx.mode !== "supabase") return { erreur: "Connexion au pilote requise." };
+  if (!canWrite(ctx.role)) return { erreur: "Réservé aux rôles propriétaire et labo." };
+  const nom = String(formData.get("nom") ?? "").trim();
+  if (nom.length < 1 || nom.length > 120) return { erreur: "Renseignez un nom de 1 à 120 caractères." };
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.from("fournisseurs").insert({ client_id: ctx.clientId, nom });
+    if (error) return { erreur: mapError(error) };
+    revalidatePath("/achats");
+    revalidatePath("/stocks");
+    revalidatePath("/tableau-de-bord");
+    return { succes: `Fournisseur « ${nom} » ajouté.` };
+  } catch {
+    return { erreur: "Supabase est inaccessible depuis ce serveur." };
+  }
+}
+
 /** Bon de commande multi-lignes (RPC creer_commande) — propriétaire/labo. */
 export async function createCommandeReal(_prev: AchatsState, formData: FormData): Promise<AchatsState> {
   const ctx = await getSessionContext();

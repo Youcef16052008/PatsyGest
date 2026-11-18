@@ -21,6 +21,8 @@
 
 export const FORMAT_SAUVEGARDE = "patisgest-sauvegarde";
 export const VERSION_FORMAT = 1;
+// Laisse une marge pour l’enveloppe multipart (Next.js et hébergeur).
+export const MAX_OCTETS_SAUVEGARDE = 4 * 1024 * 1024;
 
 /** Ordre de restauration : chaque table ne dépend que de celles avant elle. */
 export const ORDRE_RESTAURATION = [
@@ -196,7 +198,31 @@ export function validerSauvegarde(brut: unknown): { ok: boolean; problemes: Prob
   return { ok: problemes.length === 0, problemes };
 }
 
-/** Résumé lisible avant de restaurer : ce que l'on va écraser. */
+/** Lit et vérifie le fichier reçu, à l'analyse comme à la confirmation. */
+export async function lireFichierSauvegarde(
+  fichier: FormDataEntryValue | null,
+  clientId: string,
+): Promise<{ dump: Sauvegarde } | { erreur: string }> {
+  if (!(fichier instanceof File) || fichier.size === 0) return { erreur: "Choisissez un fichier de sauvegarde." };
+  if (fichier.size > MAX_OCTETS_SAUVEGARDE) return { erreur: "Fichier trop volumineux (4 Mio maximum)." };
+
+  try {
+    const brut: unknown = JSON.parse(await fichier.text());
+    const validation = validerSauvegarde(brut);
+    if (!validation.ok) {
+      return { erreur: `Sauvegarde refusée : ${validation.problemes.map((p) => p.message).join(" ")}` };
+    }
+    const dump = brut as Sauvegarde;
+    if (dump.client_id !== clientId) {
+      return { erreur: "Cette sauvegarde appartient à un autre établissement : restauration interdite." };
+    }
+    return { dump };
+  } catch {
+    return { erreur: "Fichier illisible : ce n'est pas du JSON valide ou traitable." };
+  }
+}
+
+/** Résumé lisible avant d'ajouter les lignes manquantes. */
 export function resumeSauvegarde(s: Sauvegarde): { table: string; lignes: number }[] {
   return s.tables.map((t) => ({ table: t.table, lignes: t.lignes.length }));
 }
