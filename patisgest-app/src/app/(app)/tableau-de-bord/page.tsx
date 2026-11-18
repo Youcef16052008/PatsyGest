@@ -1,12 +1,13 @@
 import { canReadCosts, canWrite, requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { compterGuide } from "@/lib/onboarding-server";
-import { articleAffiche, lireArticles, lireLots, lireProduction, lireSites, lireVentesJours } from "@/lib/workspace-read";
-import { jourUTC, serieVentes } from "@/lib/workspace-data";
+import { articleAffiche, lireArticles, lireArticlesQuantites, lireLots, lireProduction, lireSites, lireVentesJours } from "@/lib/workspace-read";
+import { serieVentes } from "@/lib/workspace-data";
 import DashboardWorkspace from "@/components/dashboard-workspace";
 import DemoDashboard from "@/components/demo-dashboard";
 import OnboardingPanel from "@/components/onboarding-panel";
 import { CashPanel, lireIdentiteCaisse } from "@/components/cash-workspace";
+import PilotDashboard from "@/components/pilot-dashboard";
 import { Notice } from "@/components/workspace-ui";
 
 export const dynamic = "force-dynamic";
@@ -17,11 +18,27 @@ export default async function Dashboard() {
   const coutsAutorises = canReadCosts(ctx.role);
   const nom = ctx.nom.split(" (")[0];
   const seller = ctx.role === "vendeur";
-  if (ctx.mode === "pilote-local") return <DemoDashboard nom={nom} shop={ctx.clientNom} seller={seller}/>;
+  if (ctx.mode === "pilote-local") return <DemoDashboard nom={nom} shop={ctx.clientNom} role={ctx.role}/>;
 
-  const today = jourUTC();
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Algiers", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const db = await createClient();
   const { clientId } = ctx;
+  if (ctx.role === "proprietaire" || ctx.role === "labo") {
+    const owner=ctx.role === "proprietaire";
+    const sitesPromise=lireSites(db,clientId);
+    const [articles,lots,sites,orders,ventes,close] = await Promise.all([
+      lireArticlesQuantites(db,clientId), lireLots(db,clientId), sitesPromise,
+      sitesPromise.then(s=>lireProduction(db,clientId,s,today)),
+      owner ? lireVentesJours(db,clientId,today) : null,
+      owner ? db.from("clotures").select("site_id, caisse_bilan, revision").eq("client_id",clientId).eq("date_cloture",today).limit(1000) : null,
+    ]);
+    const boutiques=sites?.filter(s=>s.type==='boutique');
+    const closing=owner && boutiques && close && !close.error && (close.data?.length??0)<1000 ? boutiques.map(s=>{
+      const entries=(close.data??[]).filter(c=>c.site_id===s.id).sort((a,b)=>Number(b.revision??0)-Number(a.revision??0));
+      return {id:s.id,site:s.label,closed:entries.length>0,cashDeclared:entries[0]?.caisse_bilan!=null};
+    }) : null;
+    return <PilotDashboard nom={nom} shop={ctx.clientNom} today={today} owner={owner} articles={articles} lots={lots} orders={orders} series={ventes ? serieVentes(ventes,today):null} closing={closing}/>;
+  }
   const afficheOnboarding = ctx.mode === 'supabase' && coutsAutorises && canWrite(ctx.role);
   const guide = afficheOnboarding ? compterGuide(ctx, db) : null;
   const sitesPromise = lireSites(db, clientId);

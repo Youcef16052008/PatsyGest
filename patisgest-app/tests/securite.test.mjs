@@ -321,3 +321,18 @@ test('sécu : inventaire et production projettent les quantités sans coûts ni 
   const stocks = read('src/components/stock-workspace.tsx');
   assert.match(stocks, /peutEcrire && canReadCosts\(ctx\.role\)\s*\? db\.from\("recette_familles"\)/);
 });
+
+test('sécu : migration 21 protège historique_prix et bons_commande du vendeur et garde lireDemainAuLabo', () => {
+  const m21 = read('supabase/21-prix-demain-panier.sql');
+  assert.match(m21, /create policy historique_prix_cout_read on public\.historique_prix[\s\S]{0,200}\('proprietaire',\s*'labo'\)/i);
+  assert.match(m21, /create policy bons_commande_cout_read on public\.bons_commande[\s\S]{0,200}\('proprietaire',\s*'labo'\)/i);
+  assert.match(m21, /alter table public\.demandes_reassort enable row level security/i);
+  assert.match(m21, /create or replace function public\.vendre_panier/i);
+  assert.match(m21, /p_ticket/i);
+
+  // lireDemainAuLabo retourne avant toute lecture de recettes/OF si !canReadCosts(role)
+  const tomorrow = read('src/lib/tomorrow-lab-server.ts');
+  const guardIdx = tomorrow.indexOf('if (!canReadCosts(role))');
+  const recipeIdx = tomorrow.indexOf('.from("recette_versions")');
+  assert.ok(guardIdx > 0 && recipeIdx > guardIdx, 'la garde canReadCosts doit précéder toute lecture de recettes');
+});

@@ -43,6 +43,7 @@ export const ORDRE_RESTAURATION = [
   "z_imports", // FK vers ventes : doit suivre ventes, pas le précéder
   "clotures",
   "transferts",
+  "demandes_reassort", // FK vers clients, sites, articles, ordres_fabrication, transferts
   "cakes",
   "releve_temperatures",
   "nettoyages",

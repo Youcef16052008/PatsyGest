@@ -173,7 +173,7 @@ test('RÉGRESSION : une sauvegarde complète, reçue en multipart, peut être an
   }
   const analyse = await envoyer();
   assert.ok(analyse.dump, analyse.erreur);
-  assert.equal(analyse.dump.tables.length, 22);
+  assert.equal(analyse.dump.tables.length, 23);
   assert.equal(totalLignes(analyse.dump), 58);
   const resume = Object.fromEntries(resumeSauvegarde(analyse.dump).map((a) => [a.table, a.lignes]));
   assert.equal(resume.articles, 16);

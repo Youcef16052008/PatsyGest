@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { demoEnabled } from "@/lib/auth";
 import LoginForm from "./login-form";
 import { quickDemoLogin } from "@/lib/actions-auth";
@@ -14,7 +15,14 @@ export default function ConnexionPage() {
       <div className="pg-login-heading"><div><p className="pg-kicker">Bienvenue</p><h1>Votre espace PâtisGest</h1></div><QuickColorMode/></div>
       <p className="pg-page-description">Connectez-vous pour retrouver vos stocks, vos ventes et vos commandes de gâteaux.</p>
       <LoginForm/>
-      {demoEnabled() && <div className="pg-login-demo"><h2>Découvrir sans compte</h2><p>Démo locale avec des données fictives, sans connexion à votre établissement.</p>
+      <div className="pg-login-demo">
+        <h2>Outil libre sans compte</h2>
+        <p>Calculez vos parts, tailles de moule, coût de revient et prix juste en DA sans inscription.</p>
+        <Link href="/estimation" className="pg-button pg-button-secondary">
+          Calculateur parts, moules &amp; prix (DA) <Icon name="arrow" size={17}/>
+        </Link>
+      </div>
+      {demoEnabled() && <div className="pg-login-demo"><h2>Découvrir l’atelier en démo</h2><p>Démo locale avec des données fictives, sans connexion à votre établissement.</p>
         {[["amina@patisserie.dz", "Propriétaire"],["sara@patisserie.dz", "Laboratoire"],["amine@patisserie.dz", "Vendeur"]].map(([email, label]) => <form key={email} action={quickDemoLogin}>
           <input type="hidden" name="email" value={email}/><button type="submit" className="pg-button pg-button-secondary">Essayer · {label} <Icon name="arrow" size={17}/></button>
         </form>)}

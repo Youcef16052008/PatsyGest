@@ -147,6 +147,80 @@ export function computeFicheCout(input: FicheCoutInput): FicheCout {
   return { rc02RendementNet: rendementNet, rc04Mo: mo, rc03Total: total, rc05ParPortion: parPortion, rc06: marge };
 }
 
+export type ActiveProductVersion = {
+  produitId: string;
+  code: string;
+  nom: string;
+  version?: number;
+  rendementQte: number;
+  moMin: number;
+  energie: number;
+  emballage: number;
+  fraisGeneraux: number;
+  cuissonPct: number;
+};
+
+/**
+ * Sélectionne strictement la version active rattachée au produit demandé.
+ * Empêche qu'une requête multi-produits applique les charges d'un autre produit.
+ */
+export function selectProductVersion<T extends { produitId: string; active?: boolean }>(
+  versions: readonly T[],
+  produitId: string,
+): T | null {
+  if (!produitId) return null;
+  return versions.find((v) => v.produitId === produitId && (v.active ?? true)) ?? null;
+}
+
+/**
+ * Fiche de coût mise à l'échelle pour une quantité cible `qte` lorsque les
+ * besoins matières (`matiereFefo`) ont déjà été calculés pour `qte`.
+ * Quand `qte === version.rendementQte`, le facteur vaut 1 (identité exacte RC-02..06).
+ */
+export function computeScaledFicheCout(params: {
+  version: ActiveProductVersion;
+  qte: number;
+  matiereFefo: number;
+  tauxHoraire: number;
+  chargesPct: number;
+  pvHt: number;
+}): FicheCout & {
+  scale: number;
+  emballageScaled: number;
+  moMinScaled: number;
+  energieScaled: number;
+  fraisGenerauxScaled: number;
+} {
+  const { version, qte, matiereFefo, tauxHoraire, chargesPct, pvHt } = params;
+  pct(qte, "Quantité simulée", 0.0001, 100_000_000);
+  pct(version.rendementQte, "RC-02 rendement de base", 0.0001, 100_000_000);
+  const scale = qte / version.rendementQte;
+  const emballageScaled = round2(version.emballage * scale);
+  const moMinScaled = round4(version.moMin * scale);
+  const energieScaled = round2(version.energie * scale);
+  const fraisGenerauxScaled = round2(version.fraisGeneraux * scale);
+  const fiche = computeFicheCout({
+    matiereFefo,
+    emballage: emballageScaled,
+    moMin: moMinScaled,
+    tauxHoraire,
+    chargesPct,
+    energie: energieScaled,
+    fraisGeneraux: fraisGenerauxScaled,
+    rendementBrut: qte,
+    cuissonPct: version.cuissonPct,
+    pvHt,
+  });
+  return {
+    ...fiche,
+    scale: round4(scale),
+    emballageScaled,
+    moMinScaled,
+    energieScaled,
+    fraisGenerauxScaled,
+  };
+}
+
 export type ClotureLigne = {
   /** Clé de rapprochement : uuid produit (test) ou code article (clôtures réelles). */
   produitId?: string;

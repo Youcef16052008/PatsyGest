@@ -1,7 +1,9 @@
 /**
  * Coût FEFO pur : consomme les lots dans l'ordre FEFO (congelé d'abord,
  * DLC croissante, réception en secours) pour couvrir une quantité demandée.
- * Même ordre que `patisgest_lots_fefo` côté SQL.
+ * Même ordre que les RPC SQL ; lorsque `asOf` (AAAA-MM-JJ) est fourni,
+ * les lots bloqués ou dont la DLC est strictement antérieure à `asOf`
+ * sont explicitement exclus (RC-09).
  */
 
 export type FefoLot = {
@@ -11,6 +13,7 @@ export type FefoLot = {
   dlc: string | null;
   date_reception: string | null;
   congele: boolean;
+  bloque?: boolean;
 };
 
 export type FefoLine = { lotId: string; qte: number; pu: number };
@@ -21,12 +24,28 @@ export type FefoResult = {
   cout: number;
   /** Quantité réellement couverte (peut être < demandée si stock insuffisant). */
   couvert: number;
-  /** true si le stock ne suffit pas à couvrir la demande. */
+  /** true si le stock éligible ne suffit pas à couvrir la demande. */
   insuffisant: boolean;
+  /** Quantité exclue car périmée avant `asOf` (0 si `asOf` non fourni). */
+  perimeExclu: number;
 };
 
+const DATE_ISO = /^\d{4}-\d{2}-\d{2}$/;
 const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Vérifie qu'un lot est utilisable à la date `asOf` (non bloqué, qte > 0, non périmé). */
+export function isFefoLotEligible(
+  lot: Pick<FefoLot, "qte_rest" | "dlc" | "bloque">,
+  asOf?: string,
+): boolean {
+  if (lot.bloque) return false;
+  if (!(lot.qte_rest > 0)) return false;
+  if (asOf && DATE_ISO.test(asOf) && lot.dlc && lot.dlc.slice(0, 10) < asOf) {
+    return false;
+  }
+  return true;
+}
 
 /** Ordre FEFO identique au SQL : congelé d'abord, DLC asc (nulls last), réception asc, id asc. */
 export function sortFefo<T extends FefoLot>(lots: T[]): T[] {
@@ -44,9 +63,10 @@ export function sortFefo<T extends FefoLot>(lots: T[]): T[] {
 
 /**
  * Couvre `qty` (unité de l'article) avec les lots disponibles (qte_rest > 0,
- * non bloqués). Les lots en `pu <= 0` sont ignorés (pas de coût connu).
+ * non bloqués, et DLC >= `asOf` lorsque `asOf` est fourni).
+ * Les lots en `pu <= 0` sont ignorés (pas de coût connu).
  */
-export function computeFefoCost(lots: FefoLot[], qty: number): FefoResult {
+export function computeFefoCost(lots: FefoLot[], qty: number, asOf?: string): FefoResult {
   if (!Number.isFinite(qty) || qty <= 0) {
     throw new Error("Quantité de simulation invalide.");
   }
@@ -54,9 +74,16 @@ export function computeFefoCost(lots: FefoLot[], qty: number): FefoResult {
   let reste = round4(qty);
   let cout = 0;
   let couvert = 0;
+  let perimeExclu = 0;
+  const checkDate = Boolean(asOf && DATE_ISO.test(asOf));
+
   for (const lot of sortFefo(lots)) {
-    if (reste <= 0) break;
-    if (!(lot.qte_rest > 0) || !(lot.pu > 0)) continue;
+    if (lot.bloque || !(lot.qte_rest > 0)) continue;
+    if (checkDate && lot.dlc && lot.dlc.slice(0, 10) < asOf!) {
+      perimeExclu = round4(perimeExclu + lot.qte_rest);
+      continue;
+    }
+    if (reste <= 0 || !(lot.pu > 0)) continue;
     const take = Math.min(round4(lot.qte_rest), reste);
     if (take <= 0) continue;
     lignes.push({ lotId: lot.id, qte: take, pu: lot.pu });
@@ -69,5 +96,6 @@ export function computeFefoCost(lots: FefoLot[], qty: number): FefoResult {
     cout: round2(cout),
     couvert: round4(couvert),
     insuffisant: reste > 1e-9,
+    perimeExclu,
   };
 }

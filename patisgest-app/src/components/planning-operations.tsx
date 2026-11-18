@@ -2,6 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { planningOverview, createPlanningTask, markPlanningTask, removePlanningTask, setDailyCapacity, rescheduleProduction, type State } from '@/lib/patisgest-store';
+import { TomorrowLabDemo } from './tomorrow-lab-panel';
 
 const box='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
 const field='w-full rounded-lg border border-slate-300 bg-white p-2 text-sm';
@@ -16,7 +17,8 @@ export function PlanningOperations(props:Props) {
   function addTask(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);act(()=>createPlanningTask(data,{date,name:String(f.get('name')),duration:Number(f.get('duration')),responsible:String(f.get('responsible')),orderId:String(f.get('order'))}),props,'Tâche ajoutée à la démo.');}
   function setCapacity(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);act(()=>setDailyCapacity(data,Number(f.get('capacity'))),props,'Capacité journalière mise à jour.');}
   function reschedule(e:FormEvent<HTMLFormElement>,id:string){e.preventDefault();const f=new FormData(e.currentTarget);act(()=>rescheduleProduction(data,id,String(f.get('date'))),props,'Date de l’ordre mise à jour.');}
-  return <><div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Prévision locale indicative : aucun stock n’est réservé ni consommé, aucune tâche ni commande n’est créée automatiquement. Vérifiez toujours les besoins avant production.</div>
+  return <><TomorrowLabDemo state={data} canValidate={canEdit} apply={(fn, ok) => { try { if (props.save(fn(data))) { props.notify(ok); return true; } return false; } catch (err) { props.notify(err instanceof Error ? err.message : 'Opération impossible.'); return false; } }}/>
+    <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Planning détaillé des tâches : aucun stock n’est réservé tant qu’un OF n’est pas démarré.</div>
     <section className={box}><div className="flex flex-wrap items-end gap-4"><label className="text-sm font-semibold">Date du planning<input type="date" value={date} onChange={e=>{if(e.target.value) setDate(e.target.value);}} className={field}/></label><div className="rounded-xl bg-slate-50 p-3 text-sm"><b className={overview.overloaded?'text-red-700':'text-emerald-700'}>{overview.load} / {overview.capacity} min · {overview.overloaded?'Surcharge':'Capacité non dépassée'}</b><p className="text-xs text-slate-500">{overview.outstanding} min à faire · la charge comprend aussi les tâches terminées</p></div></div>
       {canEdit && <form onSubmit={setCapacity} className="mt-4 flex flex-wrap items-end gap-2"><label className="text-xs text-slate-500">Capacité journalière globale (min)<input name="capacity" type="number" min="1" max="100000" step="1" defaultValue={data.dailyCapacity} required className={field}/></label><button className="rounded-lg border px-3 py-2 text-sm font-bold">Modifier</button></form>}
     </section>

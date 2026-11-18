@@ -2,7 +2,7 @@ import "server-only";
 import Link from "next/link";
 import { canWrite, type SessionContext } from "@/lib/auth";
 import { articleAffiche, lireArticles, lireHistoriqueCaisse, lireLots, lireSites, produitCaisse, type ArticleRow, type WorkspaceDB } from "@/lib/workspace-read";
-import { stockParSite, type StockLot, type WorkspaceSite } from "@/lib/workspace-data";
+import { jourUTC, stockParSite, stockPerimeParSite, type StockLot, type WorkspaceSite } from "@/lib/workspace-data";
 import type { Etablissement } from "@/lib/etablissement";
 import SaleForm from "./sale-form";
 import SaleHistory from "./sale-history";
@@ -20,8 +20,9 @@ export function CashPanel({ articles, sites, lots, identite }: {
   articles: ArticleRow[] | null; sites: WorkspaceSite[] | null; lots: StockLot[] | null; identite: Etablissement;
 }) {
   if (articles === null || sites === null) return <Notice kind="error">Impossible de charger les produits ou les sites. Rechargez la page avant d’encaisser.</Notice>;
+  const today = jourUTC();
   return <SaleForm articles={articles.filter(a => a.niveau === "produit").map(produitCaisse)} sites={sites}
-    stock={lots ? stockParSite(lots) : null} etablissement={identite}/>;
+    stock={lots ? stockParSite(lots, today) : null} expiredStock={lots ? stockPerimeParSite(lots, today) : null} etablissement={identite}/>;
 }
 
 export default async function CashWorkspace({ ctx, db }: { ctx: SessionContext; db: WorkspaceDB }) {
@@ -31,7 +32,7 @@ export default async function CashWorkspace({ ctx, db }: { ctx: SessionContext; 
   ]);
   const sales = await lireHistoriqueCaisse(db, clientId, (articles ?? []).map(articleAffiche), sites ?? []);
   return <>
-    <PageIntro title="Caisse" label="Boutique" description="Choisissez un produit, vérifiez la quantité et enregistrez la vente."
+    <PageIntro title="Caisse" label="Boutique" description="Composez le panier client (un ou plusieurs produits), choisissez le mode de règlement et enregistrez le ticket."
       actions={<Link href="/stocks" className="pg-button pg-button-secondary"><Icon name="box" size={18}/> Voir les stocks</Link>}/>
     <div className="pg-stack">
       <CashPanel articles={articles} sites={sites} lots={lots} identite={identite}/>

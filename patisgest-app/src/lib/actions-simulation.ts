@@ -17,6 +17,7 @@ export type SimuRow = SimuBesoins & {
   couvert: number;
   cout: number;
   insuffisant: boolean;
+  perimeExclu: number;
 };
 
 export type SimulationState = {
@@ -33,7 +34,8 @@ export type SimulationState = {
 
 /**
  * Simulation de prix réelle : version active du produit, besoins étendus
- * (sous-recettes + conversions inclus), coût FEFO sur les lots disponibles.
+ * (sous-recettes + conversions inclus), coût FEFO sur les lots éligibles
+ * (hors lots bloqués ET hors lots à DLC dépassée).
  */
 export async function simulerReal(_prev: SimulationState, formData: FormData): Promise<SimulationState> {
   const ctx = await getSessionContext();
@@ -45,8 +47,10 @@ export async function simulerReal(_prev: SimulationState, formData: FormData): P
   if (!Number.isFinite(qte) || qte <= 0 || qte > 100_000_000) return { erreur: "Quantité invalide." };
   try {
     const supabase = await createClient();
+    const today = new Date().toISOString().slice(0, 10);
     const { data, error } = await supabase.rpc("simuler_recette", {
-      p_produit_id: produitId, p_qte: qte,
+      p_produit_id: produitId,
+      p_qte: qte,
     });
     if (error) return { erreur: messageUtilisateur(error, "Simulation impossible") };
     const r = data as {
@@ -60,19 +64,26 @@ export async function simulerReal(_prev: SimulationState, formData: FormData): P
       (r.besoins ?? []).map(async (b) => {
         const lotsRes = await supabase
           .from("lots")
-          .select("id, qte_rest, pu, dlc, date_reception, congele")
+          .select("id, qte_rest, pu, dlc, date_reception, congele, bloque")
           .eq("client_id", ctx.clientId)
           .eq("article_id", b.articleId)
           .eq("bloque", false)
           .gt("qte_rest", 0)
-          .limit(200);
-        const lots = ((lotsRes.data ?? []) as (FefoLot & { id: string })[]);
-        const fefo = computeFefoCost(lots, b.qty);
-        return { ...b, couvert: fefo.couvert, cout: fefo.cout, insuffisant: fefo.insuffisant };
+          .limit(300);
+        const lots = (lotsRes.data ?? []) as (FefoLot & { id: string })[];
+        const fefo = computeFefoCost(lots, b.qty, today);
+        return {
+          ...b,
+          couvert: fefo.couvert,
+          cout: fefo.cout,
+          insuffisant: fefo.insuffisant,
+          perimeExclu: fefo.perimeExclu,
+        };
       }),
     );
     const total = Math.round(rows.reduce((s, x) => s + x.cout, 0) * 100) / 100;
     const manquant = rows.some((x) => x.insuffisant);
+    const perime = rows.some((x) => x.perimeExclu > 0);
     return {
       famille: `${r.famille.code} — ${r.famille.nom}`,
       version: r.version,
@@ -81,9 +92,11 @@ export async function simulerReal(_prev: SimulationState, formData: FormData): P
       rows,
       total,
       coutUnite: Math.round((total / qte) * 10000) / 10000,
-      succes: manquant
-        ? "Simulation calculée — stock FEFO insuffisant pour certains besoins (coût partiel)."
-        : "Simulation calculée (version active + coût FEFO réel).",
+      succes:
+        (manquant
+          ? "Simulation calculée — stock FEFO éligible insuffisant pour certains besoins (coût partiel)."
+          : "Simulation calculée (version active + coût FEFO éligible).") +
+        (perime ? " Lots à DLC dépassée exclus." : ""),
     };
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur." };

@@ -3,18 +3,33 @@
 import { revalidatePath } from "next/cache";
 import { canWrite, getSessionContext } from "./auth";
 import { echecHttpReessayable, messageUtilisateur } from "./erreurs-db";
+import { parseCartSaleInput, PAYMENT_MODE_LABELS, type PaymentMode } from "./pos-cart";
 import { createClient } from "./supabase/server";
 import { parseSaleInput } from "./stock-input";
 import { parseZCsv } from "./z-input";
+
+export type SaleReceiptLine = {
+  articleId: string;
+  nom: string;
+  qty: number;
+  puHT?: number;
+  tva?: number;
+  totalHT?: number;
+  totalTTC?: number;
+  missing?: number;
+  lots?: string[];
+};
 
 export type SaleState = {
   erreur?: string;
   succes?: string;
   ticket?: string;
   numero?: string;
+  modePaiement?: PaymentMode;
   totalHT?: number;
   totalTTC?: number;
   lots?: string[];
+  lignesTicket?: SaleReceiptLine[];
   manquant?: number;
   duplicate?: boolean;
   reessayer?: boolean;
@@ -23,43 +38,88 @@ export type SaleState = {
 
 type SaleResult = {
   sale_id: string;
+  numero?: string;
   duplicate: boolean;
   missing: number;
   totalHT: number;
   totalTTC: number;
-  lots: { lotId: string; numero: string; qty: number }[];
+  modePaiement?: PaymentMode;
+  lots: { lotId: string; numero: string; qty: number; articleId?: string }[];
 };
 
+function readTicketLines(raw: unknown): SaleReceiptLine[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((l) => {
+    if (!l || typeof l !== "object") return [];
+    const r = l as Record<string, unknown>;
+    const qty = Number(r.qty);
+    if (!Number.isFinite(qty) || qty <= 0) return [];
+    const lots = Array.isArray(r.lots)
+      ? (r.lots as { numero?: string; qty?: number }[]).map((x) => `${x.numero ?? "lot"} × ${x.qty ?? 0}`)
+      : [];
+    return [
+      {
+        articleId: String(r.articleId ?? ""),
+        nom: String(r.nom ?? r.code ?? "Produit"),
+        qty,
+        puHT: r.pu != null ? Number(r.pu) : undefined,
+        tva: r.tva != null ? Number(r.tva) : undefined,
+        totalHT: r.totalHT != null ? Number(r.totalHT) : undefined,
+        totalTTC: r.totalTTC != null ? Number(r.totalTTC) : undefined,
+        missing: r.missing != null ? Number(r.missing) : undefined,
+        lots,
+      },
+    ];
+  });
+}
+
 /**
- * Vente de caisse réelle : passe par la RPC vendre_article de la base
- * (consommation FEFO atomique, journal des mouvements, idempotence ticket).
- * Tous les rôles authentifiés peuvent vendre ; la base revalide tenant + rôle.
+ * Encaissement panier multiproduit (1 à 50 articles) via `vendre_panier` :
+ * transaction unique, FEFO éligible (hors lots bloqués et hors lots périmés),
+ * arrondi exact au centime par ligne, mode de règlement enregistré et
+ * idempotence stricte par `ticket` (reprise hors-ligne sans doublon).
  */
-export async function sellProduct(_prev: SaleState, formData: FormData): Promise<SaleState> {
+export async function sellCart(_prev: SaleState, formData: FormData): Promise<SaleState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise.", reessayer: true };
 
   let input;
   try {
-    input = parseSaleInput(formData);
+    input = parseCartSaleInput(formData);
   } catch (e) {
-    return { erreur: e instanceof Error ? e.message : "Saisie invalide." };
+    return { erreur: e instanceof Error ? e.message : "Panier invalide." };
   }
 
   try {
     const supabase = await createClient();
-    // Ticket fourni par le client pour la file hors-ligne (idempotence +
-    // dédup à la synchronisation) ; sinon généré ici.
-    const ticketRaw = String(formData.get("ticket") ?? "").trim();
-    const pTicket = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ticketRaw)
-      ? ticketRaw
-      : crypto.randomUUID();
-    const { data, error, status } = await supabase.rpc("vendre_article", {
-      p_article_id: input.articleId,
+    const pTicket = input.ticket ?? crypto.randomUUID();
+
+    let rpcRes = await supabase.rpc("vendre_panier", {
       p_site_id: input.siteId,
-      p_qte: input.qte,
+      p_lignes: input.lignes,
       p_ticket: pTicket,
+      p_mode_paiement: input.modePaiement,
     });
+
+    // Repli transitoire si la migration 21 n'a pas encore été appliquée sur la base distante :
+    // un ticket à 1 article continue de fonctionner via `vendre_article` ; un panier >1 article
+    // demande explicitement l'application de la migration 21.
+    if (rpcRes.error && (rpcRes.error.code === "PGRST202" || rpcRes.error.code === "42883")) {
+      if (input.lignes.length > 1) {
+        return {
+          erreur:
+            "Le panier multiproduit nécessite l’application de la migration SQL 21 sur la base Supabase.",
+        };
+      }
+      rpcRes = await supabase.rpc("vendre_article", {
+        p_article_id: input.lignes[0].articleId,
+        p_site_id: input.siteId,
+        p_qte: input.lignes[0].qte,
+        p_ticket: pTicket,
+      });
+    }
+
+    const { data, error, status } = rpcRes;
     if (error) {
       if (error.code === "P0001") return { erreur: error.message };
       if (error.code === "42501") return { erreur: "Votre rôle n'autorise pas cette vente." };
@@ -69,46 +129,86 @@ export async function sellProduct(_prev: SaleState, formData: FormData): Promise
 
     const result = data as SaleResult | null;
     revalidatePath("/caisse");
+    revalidatePath("/cloture");
     revalidatePath("/tableau-de-bord");
     revalidatePath("/stocks");
+    revalidatePath("/planning");
+
     if (result?.duplicate) {
-      // La première réponse a pu se perdre après l'encaissement. Relire le
-      // ticket enregistré, sans recalculer avec les tarifs d'aujourd'hui.
-      const { data: vente } = await supabase.from("ventes")
+      const { data: vente } = await supabase
+        .from("ventes")
         .select("numero, total_ht, total_ttc, lignes, created_at")
-        .eq("client_id", ctx.clientId).eq("site_id", input.siteId).eq("ticket", pTicket).maybeSingle();
-      const ligne = Array.isArray(vente?.lignes) ? vente.lignes[0] : null;
-      if (vente && ligne?.articleId === input.articleId && Number(ligne.qty) === input.qte) {
-        const lots: SaleResult["lots"] = Array.isArray(ligne.lots) ? ligne.lots : [];
+        .eq("client_id", ctx.clientId)
+        .eq("site_id", input.siteId)
+        .eq("ticket", pTicket)
+        .maybeSingle();
+      if (vente) {
+        const lignesTicket = readTicketLines(vente.lignes);
+        const allLots = lignesTicket.flatMap((l) => l.lots ?? []);
         return {
-          duplicate: true, ticket: pTicket, numero: vente.numero, enregistreeA: vente.created_at,
-          totalHT: Number(vente.total_ht), totalTTC: Number(vente.total_ttc),
-          lots: lots.map((l) => `${l.numero} × ${l.qty}`),
+          duplicate: true,
+          succes: `Ticket ${vente.numero} déjà enregistré — aucun doublon créé.`,
+          ticket: pTicket,
+          numero: vente.numero,
+          modePaiement: result.modePaiement ?? input.modePaiement,
+          enregistreeA: vente.created_at,
+          totalHT: Number(vente.total_ht),
+          totalTTC: Number(vente.total_ttc),
+          lots: allLots,
+          lignesTicket,
         };
       }
       return { duplicate: true, erreur: "Ce ticket a déjà été enregistré." };
     }
 
-    // Le numéro métier figure sur le ticket, pas l’UUID d’idempotence.
-    const { data: vente } = result?.sale_id ? await supabase.from("ventes").select("numero, created_at")
-      .eq("client_id", ctx.clientId).eq("id", result.sale_id).maybeSingle() : { data: null };
-    const lots = (result?.lots ?? []).map((l) => `${l.numero} × ${l.qty}`).join(", ");
+    const { data: vente } = result?.sale_id
+      ? await supabase
+          .from("ventes")
+          .select("numero, lignes, created_at")
+          .eq("client_id", ctx.clientId)
+          .eq("id", result.sale_id)
+          .maybeSingle()
+      : { data: null };
+
+    const lignesTicket = readTicketLines(vente?.lignes);
+    const lotsList = (result?.lots ?? []).map((l) => `${l.numero} × ${l.qty}`);
+    const lotsText = lotsList.join(", ");
     const missing = Number(result?.missing ?? 0);
+    const modeLabel = PAYMENT_MODE_LABELS[input.modePaiement];
     return {
       succes:
-        `Vente enregistrée — ${result?.totalHT} HT / ${result?.totalTTC} TTC.` +
-        (lots ? ` Lots : ${lots}.` : "") +
+        `Vente enregistrée (${input.lignes.length} produit${input.lignes.length > 1 ? "s" : ""}, ${modeLabel}) — ${result?.totalHT} HT / ${result?.totalTTC} TTC.` +
+        (lotsText ? ` Lots : ${lotsText}.` : "") +
         (missing > 0 ? ` Manquant : ${missing} (signalé, stock jamais négatif).` : ""),
       ticket: pTicket,
-      numero: vente?.numero,
+      numero: vente?.numero ?? result?.numero,
+      modePaiement: input.modePaiement,
       enregistreeA: vente?.created_at,
       totalHT: Number(result?.totalHT ?? 0),
       totalTTC: Number(result?.totalTTC ?? 0),
-      lots: (result?.lots ?? []).map((l) => `${l.numero} × ${l.qty}`),
+      lots: lotsList,
+      lignesTicket,
       manquant: missing,
     };
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur.", reessayer: true };
+  }
+}
+
+/** Compatibilité mono-produit : délègue au même flux sécurisé et idempotent. */
+export async function sellProduct(prev: SaleState, formData: FormData): Promise<SaleState> {
+  try {
+    const input = parseSaleInput(formData);
+    const cartData = new FormData();
+    cartData.set("siteId", input.siteId);
+    cartData.set("lignesJson", JSON.stringify([{ articleId: input.articleId, qte: input.qte }]));
+    const ticket = String(formData.get("ticket") ?? "").trim();
+    if (ticket) cartData.set("ticket", ticket);
+    const mode = String(formData.get("modePaiement") ?? "especes").trim();
+    if (mode) cartData.set("modePaiement", mode);
+    return sellCart(prev, cartData);
+  } catch (e) {
+    return { erreur: e instanceof Error ? e.message : "Saisie invalide." };
   }
 }
 
@@ -124,7 +224,7 @@ export type ZImportResult = {
 
 /**
  * Import de Z sécurisé : format strict revérifié côté serveur, codes articles
- * résolus et validés par la RPC `importer_z` (aucune ligne ignorée), FEFO,
+ * résolus et validés par la RPC `importer_z` (aucune ligne ignorée), FEFO éligible,
  * idempotence par (date, caisse, n° Z), confirmation exigée si un autre Z du
  * jour a le même total HT. Rôles propriétaire + labo.
  */
@@ -171,6 +271,7 @@ export async function importZReal(_prev: SaleState, formData: FormData): Promise
     const r = data as ZImportResult | null;
     if (r?.duplicate) return { erreur: "Ce Z a déjà été importé pour cette caisse et cette date." };
     revalidatePath("/caisse");
+    revalidatePath("/cloture");
     revalidatePath("/stocks");
     return {
       succes:

@@ -1,0 +1,29 @@
+import Link from 'next/link';
+import { dashboardInsights } from '@/lib/dashboard-insights';
+import { dateLisible, dinars, indexLots, quantite, stockArticle, type ProductionItem, type StockArticle, type StockLot, type VentesJour } from '@/lib/workspace-data';
+import ProductionBoard from './production-board';
+import SalesChart from './sales-chart';
+import { Notice } from './workspace-ui';
+
+type CloseStatus = { id: string; site: string; closed: boolean; cashDeclared: boolean }[] | null;
+export default function PilotDashboard({nom,shop,today,owner,articles,lots,orders,series,closing}:{
+  nom:string;shop:string;today:string;owner:boolean;articles:StockArticle[]|null;lots:StockLot[]|null;orders:ProductionItem[]|null;series:VentesJour[]|null;closing:CloseStatus;
+}) {
+  const insight=dashboardInsights(series,articles,lots,today);
+  const byArticle=indexLots(lots??[]);
+  const low=articles&&lots ? articles.map(a=>({a,...stockArticle(a,byArticle.get(a.id)??[],today)})).filter(x=>x.signals.some(s=>s.label==='Rupture'||s.label==='Stock bas')) : null;
+  const planned=orders?.filter(o=>o.statut==='planifie').length;
+  const inProgress=orders?.filter(o=>o.statut==='encours'||o.statut==='partiel').length;
+  return <div className="pg-dashboard">
+    <header className="pg-dashboard-lead"><div className="pg-dash-copy"><p className="pg-kicker">{shop} · {owner?'PILOTAGE PROPRIÉTAIRE':'LABORATOIRE'}</p><h1>Bonjour {nom}.</h1><p className="pg-page-description">{owner?'Ventes, stocks et journée : des indicateurs pour décider, pas une décision automatique.':'Quantités disponibles et fournées à préparer, sans indicateurs financiers.'}</p><div className="pg-dash-hero-actions"><Link className="pg-button" href="/stocks">Voir les stocks</Link><Link className="pg-button pg-button-secondary" href="/production">Voir la production</Link></div></div><span className="pg-dash-date">{dateLisible(today,'full')}</span><div className="pg-dash-photo" aria-hidden="true"/></header>
+    {owner && <>
+      <section className="pg-home-kpis" aria-label="Indicateurs commerciaux"><Metric label="Ventes aujourd’hui" value={series ? dinars(series.at(-1)?.ttc??0) : '—'} detail={series ? `${series.at(-1)?.tickets??0} tickets · TTC` : 'Lecture indisponible'}/><Metric label="7 derniers jours" value={insight.thisWeek===null?'—':dinars(insight.thisWeek)} detail="Chiffre d’affaires TTC enregistré"/><Metric label="Évolution des ventes" value={insight.variation===null?'—':`${insight.variation>=0?'+':''}${insight.variation.toFixed(1)} %`} detail={insight.lastWeek===null?'Lecture indisponible':insight.lastWeek===0?'Pas de base de comparaison':'Par rapport aux 7 jours précédents'}/><Metric label="Produits à surveiller" value={insight.shortages?.length??'—'} detail="Stock éligible au seuil ou en dessous"/></section>
+      <div className="pg-home-panels"><SalesChart series={series}/><section className="pg-card pg-card-pad"><h2>Fermeture de la journée</h2><p className="text-sm">Contrôlez chaque boutique et rapprochez la caisse. Un bilan saisi ne prouve pas que la caisse est juste ou que toutes les opérations sont terminées.</p>{closing===null?<Notice kind="warning">État de clôture indisponible.</Notice>:closing.length===0?<p>Aucune boutique configurée.</p>:<ul className="pg-home-rows">{closing.map(c=><li key={c.id}><b>{c.site}</b><span className="pg-badge">{!c.closed?'Clôture à saisir':c.cashDeclared?'Clôture et déclaration saisies':'Clôture saisie · caisse à vérifier'}</span></li>)}</ul>}<Link className="pg-text-link" href="/cloture">Vérifier les clôtures →</Link></section>
+      <section className="pg-card pg-card-pad"><h2>Santé économique</h2><p className="text-sm">Les ventes seules ne suffisent pas à calculer le bénéfice ou à recommander la fermeture de l’établissement. Les charges, dettes et autres dépenses ne sont pas toutes disponibles ici.</p><p className="mt-2 text-sm">{insight.variation===null?'Tendance insuffisante : comparaison impossible.':insight.variation<0?'Les ventes TTC ont diminué par rapport aux sept jours précédents. Vérifiez aussi les coûts et les jours d’ouverture.':'Les ventes TTC sont stables ou en hausse par rapport aux sept jours précédents. Vérifiez aussi les coûts et les jours d’ouverture.'}</p></section>
+      <section className="pg-card pg-card-pad"><h2>Produits à renforcer</h2><p className="text-sm">Écart au seuil configuré, tous sites confondus. Ce n’est pas une prévision de demande.</p>{insight.shortages===null?<Notice kind="warning">Stock indisponible.</Notice>:insight.shortages.length===0?<p>Aucun produit au-dessous de son seuil.</p>:<ul className="pg-home-rows">{insight.shortages.slice(0,5).map(a=><li key={a.id}><b>{a.nom}</b><span>{quantite(a.qty,a.unite)} disponibles · seuil {quantite(a.seuil,a.unite)}{a.manque>0?` · manque ${quantite(a.manque,a.unite)}`:''}</span></li>)}</ul>}</section></div>
+    </>}
+    {!owner && <><section className="pg-home-kpis" aria-label="Quantités et production"><Metric label="Articles à surveiller" value={low?.length??'—'} detail="Rupture ou seuil bas"/><Metric label="Fournées à lancer" value={planned??'—'} detail="Production planifiée"/><Metric label="Fournées en cours" value={inProgress??'—'} detail="À terminer"/></section><section className="pg-card pg-card-pad"><h2>Stocks à vérifier</h2>{low===null?<Notice kind="warning">Stock indisponible.</Notice>:low.length===0?<p>Aucune rupture ou alerte de seuil.</p>:<ul className="pg-home-rows">{low.slice(0,6).map(x=><li key={x.a.id}><b>{x.a.nom}</b><span>{quantite(x.quantity,x.a.unite)} · seuil {quantite(x.a.seuil,x.a.unite)}</span></li>)}</ul>}</section></>}
+    <ProductionBoard orders={orders} preview/>
+  </div>;
+}
+function Metric({label,value,detail}:{label:string;value:string|number;detail:string}){return <div className="pg-card pg-metric"><div><span>{label}</span></div><strong>{value}</strong><small>{detail}</small></div>;}

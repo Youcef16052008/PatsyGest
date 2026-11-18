@@ -5,11 +5,17 @@ import { createClient } from "@/lib/supabase/server";
 import DemoModule from "@/components/demo-module";
 import ClotureForm from "@/components/cloture-form";
 import QualityForms, { type NcRow } from "@/components/quality-forms";
-import PlanningForms, { type TaskRow } from "@/components/planning-forms";
-import CakeForms, { type CakeRow } from "@/components/cake-forms";
-import CommandeForms, { type CommandeRow } from "@/components/commande-forms";
+import PlanningForms from "@/components/planning-forms";
+import CakeForms from "@/components/cake-forms";
+import CommandeForms from "@/components/commande-forms";
+import TransferForm from "@/components/transfer-form";
+import { IngredientImpactConnected, type QuickPriceAlert } from "@/components/ingredient-impact-panel";
+import { TomorrowLabConnected } from "@/components/tomorrow-lab-panel";
 import { computePriceAlerts } from "@/lib/price-alerts";
-import { computeReconciliation, type ClosingRecord, type SaleRecord } from "@/lib/reconciliation";
+import { computeCashReconciliation, computeReconciliation, type CashDrawerDeclaration, type ClosingRecord, type SaleRecord } from "@/lib/reconciliation";
+import { lireVentesPeriode } from "@/lib/workspace-read";
+import { lireDemainAuLabo } from "@/lib/tomorrow-lab-server";
+import { jourUTC, plusJours } from "@/lib/workspace-data";
 import ReconPanel from "@/components/recon-panel";
 import VersionForm, { type VersionRow } from "@/components/version-form";
 import RecallForm from "@/components/recall-form";
@@ -58,19 +64,22 @@ const columnLabels: Record<string, string> = {
   numero: "Référence", nom: "Nom", statut: "État", code: "Code", qte: "Quantité", qte_rest: "Reste en stock", qte_init: "Quantité reçue",
   dlc: "DLC", date_reception: "Réception", pv_ht: "Prix de vente HT", prix_ht: "Montant HT", pu: "Prix unitaire", fait: "Terminé", bloque: "Bloqué",
   date_event: "Date de l’événement", client_nom: "Client", nb_parts: "Parts", rendement_qte: "Rendement", rendement_unite: "Unité",
+  responsable: "Responsable", motif: "Motif", mode_paiement: "Règlement",
 };
 const readableValue = (value: unknown) => value == null ? '—' : typeof value === 'boolean' ? value ? 'Oui' : 'Non'
   : Array.isArray(value) ? value.every(v => typeof v === 'string') ? value.join(', ') || '—' : '—' : typeof value === 'object' ? '—' : String(value);
 
 
 const modulesCout = new Set<Module>(['recettes', 'simulation']);
-// Le récapitulatif liste les références, pas les ingrédients ni le détail des
-// coûts. La fiche de coût les calcule séparément, via son action protégée.
+// Le récapitulatif liste les références, pas les ingrédients ni les coûts fournisseurs.
 const tablesCout = {
   recette_familles: 'id, code, nom, produit_id',
   recette_versions: 'id, famille_id, version, active, rendement_qte, rendement_unite',
   parametres_couts: 'id',
+  bons_commande: 'id, numero, statut, fournisseur_id, date_commande, notes',
+  historique_prix: 'id, article_id, fournisseur_id, date_prix, pu',
 } as const;
+const colonnesLotsSansCout = 'id, numero, article_id, site_id, qte_init, qte_rest, dlc, date_reception, bloque';
 
 function estTableCout(table: string): table is keyof typeof tablesCout {
   return Object.hasOwn(tablesCout, table);
@@ -103,9 +112,20 @@ async function buildQualiteAlerts(supabase: Awaited<ReturnType<typeof createClie
   });
 }
 
+function firstParam(v?: string | string[]): string | undefined {
+  return typeof v === 'string' ? v : Array.isArray(v) ? v[0] : undefined;
+}
+
 export default async function ModulePage({ params, searchParams }: {
   params: Promise<{ module: string }>;
-  searchParams: Promise<{ guide?: string | string[]; filtre?: string | string[] }>;
+  searchParams: Promise<{
+    guide?: string | string[];
+    filtre?: string | string[];
+    matiere?: string | string[];
+    ancien?: string | string[];
+    nouveau?: string | string[];
+    demain?: string | string[];
+  }>;
 }) {
   const {module} = await params;
   if (!Object.hasOwn(modules,module)) notFound();
@@ -126,20 +146,73 @@ export default async function ModulePage({ params, searchParams }: {
     const colonnes = estTableCout(table) ? tablesCout[table] : '*';
     const {data,error}=await supabase.from(table).select(colonnes).eq('client_id',ctx.clientId).limit(100)
       .overrideTypes<Record<string, unknown>[], { merge: false }>();
-    return {label,data,error};
+    return {label,data:table==='lots'&&!coutsAutorises?(data??[]).map(({pu: _pu,...rest})=>rest):data,error};
   }));
   let writeForms: ReactNode = null;
   if (key==='simulation' && coutsAutorises) {
-    // Simulation réelle : version active + besoins étendus + coût FEFO.
-    const [famRes, sArtRes]=await Promise.all([
+    // Impact d'une hausse matière + fiche RC-01..RC-10 + simulation globale.
+    const [famRes, sArtRes, histRes, fourRes]=await Promise.all([
       supabase.from('recette_familles').select('produit_id').eq('client_id',ctx.clientId),
-      supabase.from('articles').select('id, code, nom').eq('client_id',ctx.clientId).order('nom').limit(150),
+      supabase.from('articles').select('id, code, nom, niveau, unite').eq('client_id',ctx.clientId).order('nom').limit(300),
+      supabase.from('historique_prix').select('article_id, fournisseur_id, date_prix, pu').eq('client_id',ctx.clientId).order('date_prix',{ascending:false}).limit(300),
+      supabase.from('fournisseurs').select('id, nom').eq('client_id',ctx.clientId),
     ]);
+    const allArts=(sArtRes.data??[]) as {id:string;code:string;nom:string;niveau:string;unite:string}[];
+    const artById=new Map(allArts.map(a=>[a.id,a]));
+    const fourById=new Map(((fourRes.data??[]) as {id:string;nom:string}[]).map(f=>[f.id,f.nom]));
     const famProds=new Set(((famRes.data??[]) as {produit_id:string}[]).map(f=>f.produit_id));
-    const sProduits=((sArtRes.data??[]) as {id:string;code:string;nom:string}[])
+    const sProduits=allArts
       .filter(a=>famProds.has(a.id))
       .map(a=>({id:a.id,label:`${a.code} · ${a.nom}`}));
-    writeForms=<><CostSheetForm produits={sProduits}/><SimulationForm produits={sProduits} /></>;
+    const histRows=((histRes.data??[]) as {article_id:string;fournisseur_id:string;date_prix:string;pu:number}[]);
+    const rawAlerts=computePriceAlerts(histRows
+      .map(h=>({articleId:h.article_id,fournisseurId:h.fournisseur_id,datePrix:h.date_prix,pu:Number(h.pu)})));
+    const quickAlerts: QuickPriceAlert[]=rawAlerts.flatMap(al=>{
+      const art=artById.get(al.articleId);
+      if(!art||art.niveau==='produit') return [];
+      const fNom=fourById.get(al.fournisseurId)??'Fournisseur';
+      return [{articleId:al.articleId,label:`${art.code} · ${art.nom} (${fNom})`,ancienPu:al.previous,nouveauPu:al.latest,variationPct:al.deltaPct,sourceAncien:`Dernier prix ${fNom}`,sourceNouveau:`Réception du ${al.dateLatest} (${fNom})`}];
+    });
+    const alertByArt=new Map(quickAlerts.map(a=>[a.articleId,a]));
+    const latestByArt=new Map<string,{pu:number;date:string;fNom:string}>();
+    for(const h of histRows){if(!latestByArt.has(h.article_id)) latestByArt.set(h.article_id,{pu:Number(h.pu),date:h.date_prix,fNom:fourById.get(h.fournisseur_id)??'Fournisseur'});}
+    const ingredients=allArts
+      .filter(a=>a.niveau!=='produit')
+      .map(a=>{
+        const al=alertByArt.get(a.id);
+        const lt=latestByArt.get(a.id);
+        return {
+          id:a.id,
+          label:`${a.code} · ${a.nom}`,
+          unite:a.unite||'u',
+          defaultAncien:al?.ancienPu??lt?.pu??null,
+          sourceAncien:al?.sourceAncien??(lt?`Réception ${lt.date} (${lt.fNom})`:undefined),
+          defaultNouveau:al?.nouveauPu??null,
+          sourceNouveau:al?.sourceNouveau,
+        };
+      });
+    const pAnc = Number(firstParam(recherche.ancien));
+    const pNouv = Number(firstParam(recherche.nouveau));
+    writeForms=<>
+      <IngredientImpactConnected
+        ingredients={ingredients}
+        alerts={quickAlerts}
+        initialArticleId={firstParam(recherche.matiere)}
+        initialAncien={Number.isFinite(pAnc) && pAnc >= 0 ? pAnc : undefined}
+        initialNouveau={Number.isFinite(pNouv) && pNouv >= 0 ? pNouv : undefined}
+      />
+      <CostSheetForm produits={sProduits}/>
+      <SimulationForm produits={sProduits} />
+    </>;
+  } else if (key==='transferts' && canWrite(ctx.role)) {
+    const [tArtRes, tSitesRes] = await Promise.all([
+      supabase.from('articles').select('id, code, nom, unite').eq('client_id', ctx.clientId).order('nom').limit(300),
+      supabase.from('sites').select('id, nom').eq('client_id', ctx.clientId).order('nom'),
+    ]);
+    writeForms=<TransferForm
+      articles={((tArtRes.data??[]) as {id:string;code:string;nom:string;unite:string}[]).map(a=>({id:a.id,label:`${a.code} · ${a.nom} (${a.unite})`}))}
+      sites={((tSitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
+    />;
   } else if (key==='tracabilite') {
     // Rapport de rappel + blocage en cascade (lecture pour tous les rôles).
     const lotRes=await supabase.from('lots')
@@ -169,25 +242,53 @@ export default async function ModulePage({ params, searchParams }: {
     const versionRows: VersionRow[]=verRows.map(v=>({id:v.id,familleId:v.famille_id,version:v.version,active:v.active,label:`${v.fam.nom} · v${v.version} (${v.rendement_qte} ${v.rendement_unite})`}));
     writeForms=<VersionForm familles={familles} articles={articles} subVersions={subVersions} versions={versionRows} produits={produits} />;
   } else if (key==='cloture' && canWrite(ctx.role)) {
-    // Clôture six flux (RPC saisir_cloture) : révisions et enrichissement côté serveur.
-    const [sitesRes,artRes,clotRes,ventesRes]=await Promise.all([
+    // Clôture six flux + comptage tiroir-caisse séparé (repli pré-migration 21 sur caisse_bilan).
+    const loadClotures = async () => {
+      const full = await supabase
+        .from('clotures')
+        .select('id, date_cloture, site_id, revision, lignes, caisse_bilan')
+        .eq('client_id', ctx.clientId)
+        .order('date_cloture', { ascending: false })
+        .limit(60);
+      if (full.error && /caisse_bilan|column|42703/i.test(`${full.error.code ?? ''} ${full.error.message ?? ''}`)) {
+        return supabase
+          .from('clotures')
+          .select('id, date_cloture, site_id, revision, lignes')
+          .eq('client_id', ctx.clientId)
+          .order('date_cloture', { ascending: false })
+          .limit(60);
+      }
+      return full;
+    };
+    const [sitesRes,artRes,clotRes]=await Promise.all([
       supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
-      supabase.from('articles').select('id, code, nom, pu_ht').eq('client_id',ctx.clientId).eq('niveau','produit').order('nom'),
-      supabase.from('clotures').select('id, date_cloture, site_id, revision, lignes').eq('client_id',ctx.clientId).order('date_cloture',{ascending:false}).limit(30),
-      supabase.from('ventes').select('site_id, date_vente, lignes').eq('client_id',ctx.clientId).order('date_vente',{ascending:false}).limit(500),
+      supabase.from('articles').select('id, code, nom, pv_ht').eq('client_id',ctx.clientId).eq('niveau','produit').order('nom'),
+      loadClotures(),
     ]);
     const siteLabels=Object.fromEntries(((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>[s.id,s.nom]));
-    const clotures=((clotRes.data??[]) as {id:string;date_cloture:string;site_id:string;revision:number;lignes:{articleId:string;code?:string;name?:string;vendu:number}[]}[])
-      .map(c=>({id:c.id,date:c.date_cloture,siteId:c.site_id,revision:c.revision,lignes:c.lignes??[]}) as ClosingRecord);
-    const sales=((ventesRes.data??[]) as {site_id:string;date_vente:string;lignes:{articleId:string;qty:number}[]}[])
-      .map(v=>({siteId:v.site_id,date:v.date_vente,lignes:(v.lignes??[]).filter(l=>l.articleId&&typeof l.qty==='number')}) as SaleRecord);
+    const clotures=((clotRes.data??[]) as {id:string;date_cloture:string;site_id:string;revision:number;lignes:{articleId:string;code?:string;name?:string;vendu:number}[];caisse_bilan?:CashDrawerDeclaration|null}[])
+      .map(c=>({id:c.id,date:c.date_cloture,siteId:c.site_id,revision:c.revision,lignes:c.lignes??[],caisseBilan:c.caisse_bilan??null}) as ClosingRecord);
+    const dates = clotures.map(c => c.date).filter(Boolean).sort();
+    const ventesPeriode = dates.length > 0
+      ? await lireVentesPeriode(supabase, ctx.clientId, dates[0], dates[dates.length - 1])
+      : { rows: [], truncated: false };
+    const venteRows = ventesPeriode?.rows ?? [];
+    const sales: SaleRecord[] = venteRows.map(v=>({
+      siteId:v.siteId,
+      date:v.date,
+      lignes:v.lignes,
+      totalTTC:v.totalTTC,
+      modePaiement:v.modePaiement,
+      source:v.source,
+    }));
     const recon=computeReconciliation(clotures,sales);
+    const cashRecon=computeCashReconciliation(clotures,sales);
     writeForms=<>
       <ClotureForm
         sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
-        articles={((artRes.data??[]) as {id:string;code:string;nom:string;pu_ht:number}[]).map(a=>({id:a.id,label:`${a.code} — ${a.nom} (${Number(a.pu_ht).toLocaleString('fr-FR')} DA)`}))}
+        articles={((artRes.data??[]) as {id:string;code:string;nom:string;pv_ht:number|null}[]).map(a=>({id:a.id,label:`${a.code} — ${a.nom} (${Number(a.pv_ht??0).toLocaleString('fr-FR')} DA HT)`}))}
       />
-      <ReconPanel entries={recon} siteLabels={siteLabels} />
+      <ReconPanel entries={recon} cashEntries={cashRecon} siteLabels={siteLabels} ventesTronquees={Boolean(ventesPeriode?.truncated)} ventesChargees={venteRows.length} />
       <ExportPanel tables={TABLES_EXPORT.filter(t=>!t.cout||canReadCosts(ctx.role)).map(t=>({cle:t.cle,titre:t.titre,cout:t.cout}))} />
     </>;
   } else if (key==='qualite' && canWrite(ctx.role)) {
@@ -201,25 +302,48 @@ export default async function ModulePage({ params, searchParams }: {
     // Rappels qualité visibles même en lecture (vendeur).
     const alertes=await buildQualiteAlerts(supabase, ctx.clientId);
     writeForms=<QualityAlertsPanel alerts={alertes}/>;
-  } else if (key==='planning' && canWrite(ctx.role)) {
-    // Tâches réelles (insert + bascule fait).
-    const [tasksRes,ofsRes]=await Promise.all([
-      supabase.from('taches_planning').select('id, date_tache, tache, of_numero, fait').eq('client_id',ctx.clientId).order('date_tache').limit(100),
-      supabase.from('ordres_fabrication').select('numero').eq('client_id',ctx.clientId).order('numero',{ascending:false}).limit(50),
-    ]);
-    writeForms=<PlanningForms
-      tasks={((tasksRes.data??[]) as {id:string;date_tache:string;tache:string;of_numero:string;fait:boolean}[]).map(t=>({id:t.id,date:t.date_tache,tache:t.tache,ofNumero:t.of_numero,fait:t.fait}))}
-      ofNumeros={((ofsRes.data??[]) as {numero:string}[]).map(o=>o.numero)}
-    />;
+  } else if (key==='planning') {
+    // « Demain au labo » (propriétaire/labo) + demandes de réassort boutique (tous rôles, y compris vendeur).
+    const rawDate = firstParam(recherche.demain);
+    const targetDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : plusJours(jourUTC(), 1);
+    const demainData = await lireDemainAuLabo(supabase, ctx.clientId, ctx.role, targetDate);
+    const tomorrowProps = {
+      targetDate: demainData.targetDate,
+      boutiqueSites: demainData.boutiqueSites,
+      labSite: demainData.labSite,
+      products: demainData.products,
+      restockRequests: demainData.restockRequests,
+      plan: demainData.plan,
+    };
+    if (canWrite(ctx.role)) {
+      const [tasksRes,ofsRes]=await Promise.all([
+        supabase.from('taches_planning').select('id, date_tache, tache, of_numero, fait').eq('client_id',ctx.clientId).order('date_tache').limit(100),
+        supabase.from('ordres_fabrication').select('numero').eq('client_id',ctx.clientId).order('numero',{ascending:false}).limit(50),
+      ]);
+      writeForms=<>
+        <TomorrowLabConnected {...tomorrowProps} canValidate={canReadCosts(ctx.role)} />
+        <PlanningForms
+          tasks={((tasksRes.data??[]) as {id:string;date_tache:string;tache:string;of_numero:string;fait:boolean}[]).map(t=>({id:t.id,date:t.date_tache,tache:t.tache,ofNumero:t.of_numero,fait:t.fait}))}
+          ofNumeros={((ofsRes.data??[]) as {numero:string}[]).map(o=>o.numero)}
+        />
+      </>;
+    } else {
+      writeForms=<TomorrowLabConnected {...tomorrowProps} canValidate={false} />;
+    }
   } else if (key==='cake-design') {
-    // Cake Design : tous les rôles (démo), RPC creer_cake/evoluer_cake.
-    const cakeRows=((results.find(r=>r.label==='Devis et commandes')?.data??[]) as {id:string;numero:string;statut:string;client_nom:string;telephone:string|null;date_event:string;nb_parts:number;prix_ht:number;tva_pct:number;acompte:number;notes:string|null;cgv:boolean;cgv_version:string|null}[])
-      .map(c=>({id:c.id,numero:c.numero,statut:c.statut,clientNom:c.client_nom,telephone:c.telephone,dateEvent:c.date_event,nbParts:c.nb_parts,prixHt:c.prix_ht,tvaPct:Number(c.tva_pct??0),acompte:c.acompte,notes:c.notes,cgv:c.cgv,cgvVersion:c.cgv_version}));
-    writeForms=<CakeForms cakes={cakeRows}/>;
+    const [recipeRes, siteRes, linkRes] = await Promise.all([
+      supabase.rpc('cake_options_production'),
+      supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
+      supabase.rpc('cake_liens_production'),
+    ]);
+    const links = (linkRes.data ?? []) as {cake_id:string;of_numero:string;lots:{numero:string}[]}[];
+    const cakeRows=((results.find(r=>r.label==='Devis et commandes')?.data??[]) as {id:string;numero:string;statut:string;client_nom:string;telephone:string|null;date_event:string;nb_parts:number;prix_ht:number;tva_pct:number;acompte:number;notes:string|null;cgv:boolean;cgv_version:string|null;version_id:string|null;of_id:string|null}[])
+      .map(c=>{const lien=links.find(l=>l.cake_id===c.id);return {id:c.id,numero:c.numero,statut:c.statut,ofId:c.of_id??null,clientNom:c.client_nom,telephone:c.telephone,dateEvent:c.date_event,nbParts:c.nb_parts,prixHt:c.prix_ht,tvaPct:Number(c.tva_pct??0),acompte:c.acompte,notes:c.notes,cgv:c.cgv,cgvVersion:c.cgv_version,versionId:c.version_id,ofNumero:lien?.of_numero??null,lots:lien?.lots??[]};});
+    writeForms=<CakeForms cakes={cakeRows} recipes={(recipeRes.data??[]) as {version_id:string;nom:string;version:number;rendement_qte:number;rendement_unite:string}[]} sites={(siteRes.data??[]) as {id:string;nom:string}[]} optionsError={Boolean(recipeRes.error || siteRes.error || linkRes.error)}/>;
   } else if (key==='achats' && canWrite(ctx.role)) {
     // BC multi-lignes + réceptions partielles/totales (RPC creer/recevoir_commande).
     const [artRes,sitesRes,histRes]=await Promise.all([
-      supabase.from('articles').select('id, code, nom, pu_ht').eq('client_id',ctx.clientId).order('nom').limit(150),
+      supabase.from('articles').select('id, code, nom, pv_ht').eq('client_id',ctx.clientId).order('nom').limit(300),
       supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
       supabase.from('historique_prix').select('article_id, fournisseur_id, date_prix, pu').eq('client_id',ctx.clientId).order('date_prix',{ascending:false}).limit(300),
     ]);
@@ -227,11 +351,12 @@ export default async function ModulePage({ params, searchParams }: {
       .map(h=>({articleId:h.article_id,fournisseurId:h.fournisseur_id,datePrix:h.date_prix,pu:Number(h.pu)})));
     const fourRows=((results.find(r=>r.label==='Fournisseurs')?.data??[]) as {id:string;nom:string}[]);
     const fourById=new Map(fourRows.map(f=>[f.id,f.nom]));
-    const cmdRows=((results.find(r=>r.label==='Bons de commande')?.data??[]) as {id:string;numero:string;statut:string;lignes:{articleId:string;qte:number;pu:number;recu:number}[]|null;fournisseur_id:string}[]);
+    const bcRes=await supabase.from('bons_commande').select('id, numero, statut, lignes, fournisseur_id').eq('client_id',ctx.clientId).order('numero',{ascending:false}).limit(100);
+    const cmdRows=((bcRes.data??[]) as {id:string;numero:string;statut:string;lignes:{articleId:string;qte:number;pu:number;recu:number}[]|null;fournisseur_id:string}[]);
     writeForms=<><FournisseurForm /><CommandeForms
       alerts={priceAlerts}
       fournisseurs={fourRows.map(f=>({id:f.id,label:f.nom}))}
-      articles={((artRes.data??[]) as {id:string;code:string;nom:string;pu_ht:number}[]).map(a=>({id:a.id,label:`${a.code} — ${a.nom} (${Number(a.pu_ht).toLocaleString('fr-FR')} DA)`}))}
+      articles={((artRes.data??[]) as {id:string;code:string;nom:string;pv_ht:number|null}[]).map(a=>({id:a.id,label:a.pv_ht&&Number(a.pv_ht)>0?`${a.code} — ${a.nom} (PV ${Number(a.pv_ht).toLocaleString('fr-FR')} DA HT)`:`${a.code} — ${a.nom}`}))}
       sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
       commandes={cmdRows.map(c=>({id:c.id,numero:c.numero,statut:c.statut,fournisseur:fourById.get(c.fournisseur_id)??"",lignes:c.lignes??[]}))}
     /></>;

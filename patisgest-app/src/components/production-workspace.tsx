@@ -1,4 +1,5 @@
 import "server-only";
+import Link from "next/link";
 import { canReadCosts, canWrite, type SessionContext } from "@/lib/auth";
 import { lireProduction, lireSites, type WorkspaceDB } from "@/lib/workspace-read";
 import OfForms from "./of-forms";
@@ -18,7 +19,12 @@ export default async function ProductionWorkspace({ ctx, db }: { ctx: SessionCon
     return famille?.nom ? [{ id: v.id, label: `${famille.nom} · v${v.version}` }] : [];
   }).sort((a,b) => a.label.localeCompare(b.label,"fr"));
   return <>
-    <PageIntro title="Production" label="Laboratoire" description="Planifiez les quantités et voyez immédiatement où en est chaque fournée."/>
+    <PageIntro
+      title="Production"
+      label="Laboratoire"
+      description="Planifiez les quantités et voyez immédiatement où en est chaque fournée."
+      actions={<Link href="/planning" className="pg-button pg-button-secondary">Demain au labo →</Link>}
+    />
     <OfForms sites={sites ?? []} orders={orders} canEdit={canEdit} versions={versions} optionsIndisponibles={Boolean(versionsRes?.error || !sites)}/>
   </>;
 }

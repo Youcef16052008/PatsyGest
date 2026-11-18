@@ -253,3 +253,45 @@ test('Apparence : les cinq interfaces disposent d’un rendu clair et sombre ava
     }
   }
 });
+
+test('Volet A : /estimation est accessible sans compte ni cookie et affiche le calculateur DA', async () => {
+  const res = await get('/estimation');
+  assert.equal(res.status, 200, '/estimation doit répondre 200 sans session');
+  const html = await res.text();
+  assert.match(html, /Estimateur parts, moule &amp; prix en dinars/);
+  assert.match(html, /Outil libre · sans compte · DA/);
+  assert.match(html, /href="\/connexion"/);
+
+  // La page de connexion propose l'entrée directe vers /estimation
+  const loginRes = await get('/connexion');
+  assert.equal(loginRes.status, 200);
+  assert.match(await loginRes.text(), /href="\/estimation"/);
+});
+
+test('Volet A & B : gardes de rôles maintenues sur /simulation, /planning et /caisse', async () => {
+  const vendeur = `patisgest_pilot_session=${demoCookie('amine@patisserie.dz')}`;
+  const proprio = `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`;
+
+  // Vendeur bloqué sur /simulation (coûts & impact hausse matière)
+  const vSim = await get('/simulation', vendeur);
+  assert.ok(vSim.status >= 300 && vSim.status < 400);
+  assert.equal(redirectPath(vSim), '/tableau-de-bord');
+
+  // Vendeur autorisé sur /caisse et /planning (réassort boutique)
+  assert.equal((await get('/caisse', vendeur)).status, 200);
+  assert.equal((await get('/planning', vendeur)).status, 200);
+
+  // Propriétaire autorisé sur /simulation, /planning, /caisse, /cloture, /cake-design
+  for (const route of ['/simulation', '/planning', '/caisse', '/cloture', '/cake-design', '/transferts']) {
+    assert.equal((await get(route, proprio)).status, 200, `${route} doit répondre 200 pour propriétaire`);
+  }
+});
+
+test('accueils différenciés propriétaire et labo', async () => {
+  const owner = await (await get('/tableau-de-bord', `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`)).text();
+  const lab = await (await get('/tableau-de-bord', `patisgest_pilot_session=${demoCookie('sara@patisserie.dz')}`)).text();
+  assert.match(owner, /Santé économique/);
+  assert.match(owner, /Fermeture de la journée/);
+  assert.match(lab, /Stocks à vérifier/);
+  assert.doesNotMatch(lab, /Santé économique|Fermeture de la journée|Ventes aujourd’hui|Produits à renforcer/);
+});

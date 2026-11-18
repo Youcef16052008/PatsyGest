@@ -1,14 +1,19 @@
 /** Moteur de démonstration local. Aucune donnée n'est synchronisée avec Supabase. */
-export type Article = { id: string; code: string; nom: string; niveau: 'matiere' | 'produit'; unite: string; seuil: number; prix: number; tva: number };
+import type { PaymentMode } from './pos-cart.ts';
+import type { CashDrawerDeclaration } from './reconciliation.ts';
+
+export type Article = { id: string; code: string; nom: string; niveau: 'matiere' | 'sous_recette' | 'produit'; unite: string; seuil: number; prix: number; tva: number };
 export type Lot = { id: string; articleId: string; site: string; numero: string; qte: number; pu: number; dlc: string; date: string; bloque: boolean; congele: boolean; costEstimated?: boolean; origin?: LotOrigin };
 export type LotOrigin = {type:'purchase'; purchaseId:string; supplier:string} | {type:'production'; productionId:string} | {type:'transfer'; fromLotId:string; transferId:string};
 export type Movement = { id: string; lotId: string; articleId: string; qte: number; reference: string; date: string };
-export type Sale = { id: string; articleId: string; qty: number; totalHT: number; totalTTC: number; missing: number; lots: string[]; lotDetails?: {lotId:string; qty:number}[]; date: string; source?: 'caisse'|'z-import'; unitPriceHT?:number; vatPercent?:number };
-export type State = { articles: Article[]; lots: Lot[]; movements: Movement[]; sales: Sale[]; suppliers: string[]; purchases: PurchaseOrder[]; productions: ProductionOrder[]; transfers: Transfer[]; recipes: Recipe[]; closings: DailyClosing[]; temperatures: TemperatureReading[]; cleanings: CleaningRecord[]; incidents: QualityIncident[]; cakes: CakeOrder[]; lotEvents: LotEvent[]; planningTasks: PlanningTask[]; dailyCapacity:number; zImports: ZImport[] };
+export type SaleCartLine = { articleId: string; qty: number; unitPriceHT: number; vatPercent: number; totalHT: number; totalTTC: number; missing: number; lots: string[]; lotDetails: {lotId:string; qty:number}[] };
+export type Sale = { id: string; numero?: string; articleId: string; qty: number; totalHT: number; totalTTC: number; missing: number; lots: string[]; lotDetails?: {lotId:string; qty:number}[]; lines?: SaleCartLine[]; modePaiement?: PaymentMode; date: string; source?: 'caisse'|'z-import'; unitPriceHT?:number; vatPercent?:number };
+export type RestockRequest = { id: string; targetDate: string; site: string; articleId: string; qty: number; motif: string; demandeur: string; status: 'ouverte'|'planifiee'|'transferee'|'annulee'; ofId?: string; transferId?: string; createdAt: string };
+export type State = { articles: Article[]; lots: Lot[]; movements: Movement[]; sales: Sale[]; suppliers: string[]; purchases: PurchaseOrder[]; productions: ProductionOrder[]; transfers: Transfer[]; recipes: Recipe[]; closings: DailyClosing[]; temperatures: TemperatureReading[]; cleanings: CleaningRecord[]; incidents: QualityIncident[]; cakes: CakeOrder[]; lotEvents: LotEvent[]; planningTasks: PlanningTask[]; dailyCapacity:number; zImports: ZImport[]; restockRequests?: RestockRequest[] };
 const today = () => new Date().toISOString().slice(0, 10);
 const id = () => crypto.randomUUID();
-/** Arrondi monétaire au centime, calculé en centimes entiers : le total d'un ticket Z est toujours la somme exacte de ses lignes. */
-const moneyCents = (n: number) => Math.round(n * 100);
+/** Arrondi monétaire au centime, calculé en centimes entiers : le total d'un ticket Z ou panier est toujours la somme exacte de ses lignes. */
+const moneyCents = (n: number) => Math.round((n + Number.EPSILON) * 100);
 const roundMoney = (n: number) => moneyCents(n) / 100;
 export const seed: State = {
   articles: [
@@ -23,10 +28,11 @@ export const seed: State = {
     { id:'l3',articleId:'beurre',site:'Labo',numero:'BEU-01',qte:8,pu:700,dlc:'2027-01-01',date:'2026-11-01',bloque:false,congele:false },
     { id:'l4',articleId:'sucre',site:'Labo',numero:'SUC-01',qte:30,pu:120,dlc:'2027-06-01',date:'2026-11-01',bloque:false,congele:false },
     { id:'l5',articleId:'eclair',site:'Boutique',numero:'ECL-01',qte:20,pu:100,dlc:'2027-01-02',date:'2026-11-01',bloque:false,congele:false },
-  ], movements: [], sales: [], suppliers: ['Moulins d’Oran', 'Laiterie El Bahdja', 'Épicerie Pro'], purchases:[], productions:[], transfers:[], recipes:[defaultRecipe()], closings:[], temperatures:[], cleanings:[], incidents:[], cakes:[], lotEvents:[], planningTasks:[], dailyCapacity:480, zImports:[]
+  ], movements: [], sales: [], suppliers: ['Moulins d’Oran', 'Laiterie El Bahdja', 'Épicerie Pro'], purchases:[], productions:[], transfers:[], recipes:[defaultRecipe()], closings:[], temperatures:[], cleanings:[], incidents:[], cakes:[], lotEvents:[], planningTasks:[], dailyCapacity:480, zImports:[], restockRequests:[]
 };
-export function fefo(lots: Lot[], articleId: string, site?: string): Lot[] {
-  return lots.filter(l => l.articleId === articleId && (!site || l.site === site) && !l.bloque && l.qte > 0)
+/** Lots éligibles FEFO : exclut toujours les bloqués, et exclut les lots périmés (dlc < asOf) dès qu'une date de référence est fournie. */
+export function fefo(lots: Lot[], articleId: string, site?: string, asOf?: string): Lot[] {
+  return lots.filter(l => l.articleId === articleId && (!site || l.site === site) && !l.bloque && l.qte > 0 && (!asOf || !l.dlc || l.dlc >= asOf))
     .slice().sort((a,b) => Number(a.congele)-Number(b.congele) || (a.dlc || '9999').localeCompare(b.dlc || '9999') || a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 }
 export function receive(state: State, input: Omit<Lot, 'id'|'date'|'bloque'|'congele'>): State {
@@ -34,30 +40,146 @@ export function receive(state: State, input: Omit<Lot, 'id'|'date'|'bloque'|'con
   const lot: Lot = { ...input, id:id(), date:today(), bloque:false, congele:false };
   return { ...state, lots:[...state.lots,lot], movements:[...state.movements,{id:id(), lotId:lot.id, articleId:lot.articleId, qte:lot.qte, reference:'Réception '+lot.numero, date:today()}] };
 }
-export function sell(state: State, articleId: string, qty: number): State {
-  const article = state.articles.find(a => a.id === articleId && a.niveau === 'produit');
-  if (!article || !positive(qty)) throw new Error('Produit ou quantité invalide.');
-  let rest=qty; const used: { lot: Lot; qty: number }[]=[];
-  for (const lot of fefo(state.lots,articleId,'Boutique')) { if (rest <= 0) break; const take=Math.min(rest,lot.qte); used.push({lot,qty:take}); rest=Math.round((rest-take)*10000)/10000; }
-  const ticket = id();
-  const movements = used.map(({lot,qty}) => ({id:id(),lotId:lot.id,articleId,qte:-qty,reference:'Vente '+ticket,date:today()}));
-  if (rest > 0) movements.push({id:id(),lotId:'',articleId,qte:-rest,reference:'Écart de vente '+ticket,date:today()});
-  return { ...state, lots:state.lots.map(l=>{const u=used.find(x=>x.lot.id===l.id); return u ? {...l,qte:Math.round((l.qte-u.qty)*10000)/10000}:l;}), movements:[...state.movements,...movements], sales:[{id:ticket,articleId,qty,totalHT:moneyCents(qty*article.prix)/100,totalTTC:moneyCents(qty*article.prix*(1+article.tva/100))/100,missing:rest,lots:used.map(x=>x.lot.numero),lotDetails:used.map(x=>({lotId:x.lot.id,qty:x.qty})),date:today()},...state.sales] };
+/** Vente panier multiproduit atomique et idempotente par ticket (exclut lots bloqués et périmés). */
+export function sellCart(
+  state: State,
+  items: readonly { articleId: string; qty: number }[],
+  opts: { ticket?: string; modePaiement?: PaymentMode; date?: string; site?: string } = {},
+): State {
+  const ticketId = (opts.ticket ?? '').trim() || id();
+  // Idempotence : rejouer un ticket déjà enregistré retourne l'état intact, sans seconde sortie de stock.
+  if (state.sales.some(s => s.id === ticketId)) return state;
+  if (!items.length || items.length > 50) throw new Error('Le panier doit contenir entre 1 et 50 produits.');
+  const modePaiement: PaymentMode = opts.modePaiement && ['especes','carte','cheque_virement'].includes(opts.modePaiement) ? opts.modePaiement : 'especes';
+  const saleDate = opts.date && isValidDate(opts.date) ? opts.date : today();
+  const site = opts.site ?? 'Boutique';
+  // Fusionner les doublons éventuels avant validation et déstockage.
+  const merged = new Map<string, number>();
+  for (const it of items) {
+    if (!positive(it.qty)) throw new Error('Produit ou quantité invalide.');
+    const nextQty = round4((merged.get(it.articleId) ?? 0) + it.qty);
+    if (!positive(nextQty) || nextQty > 1e8) throw new Error('Produit ou quantité invalide.');
+    merged.set(it.articleId, nextQty);
+  }
+  const validated = [...merged.entries()].map(([articleId, qty]) => {
+    const article = state.articles.find(a => a.id === articleId && a.niveau === 'produit');
+    if (!article || !Number.isFinite(article.prix) || article.prix < 0 || !Number.isFinite(article.tva) || article.tva < 0 || article.tva > 100) {
+      throw new Error('Produit ou quantité invalide.');
+    }
+    return { article, qty };
+  });
+  let workingLots = state.lots;
+  const newMovements: Movement[] = [];
+  const saleLines: SaleCartLine[] = [];
+  let sumHT = 0, sumTTC = 0, sumMissing = 0, sumQty = 0;
+  const allLots: string[] = [];
+  const allDetails: {lotId:string; qty:number}[] = [];
+
+  for (const { article, qty } of validated) {
+    let rest = qty;
+    const used: { lot: Lot; qty: number }[] = [];
+    for (const lot of fefo(workingLots, article.id, site, saleDate)) {
+      if (rest <= 0) break;
+      const take = round4(Math.min(rest, lot.qte));
+      if (take <= 0) break;
+      used.push({ lot, qty: take });
+      rest = round4(rest - take);
+    }
+    workingLots = workingLots.map(l => {
+      const u = used.find(x => x.lot.id === l.id);
+      return u ? { ...l, qte: round4(l.qte - u.qty) } : l;
+    });
+    for (const u of used) {
+      newMovements.push({ id: id(), lotId: u.lot.id, articleId: article.id, qte: -u.qty, reference: 'Vente ' + ticketId, date: saleDate });
+      allLots.push(u.lot.numero);
+      allDetails.push({ lotId: u.lot.id, qty: u.qty });
+    }
+    if (rest > 0) {
+      newMovements.push({ id: id(), lotId: '', articleId: article.id, qte: -rest, reference: 'Écart de vente ' + ticketId, date: saleDate });
+    }
+    const cHT = moneyCents(qty * article.prix);
+    const cTTC = moneyCents(qty * article.prix * (1 + article.tva / 100));
+    sumHT += cHT;
+    sumTTC += cTTC;
+    sumMissing = round4(sumMissing + rest);
+    sumQty = round4(sumQty + qty);
+    saleLines.push({
+      articleId: article.id,
+      qty,
+      unitPriceHT: article.prix,
+      vatPercent: article.tva,
+      totalHT: cHT / 100,
+      totalTTC: cTTC / 100,
+      missing: rest,
+      lots: used.map(x => x.lot.numero),
+      lotDetails: used.map(x => ({ lotId: x.lot.id, qty: x.qty })),
+    });
+  }
+
+  const first = saleLines[0];
+  const numero = `TK-${ticketId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+  const sale: Sale = {
+    id: ticketId,
+    numero,
+    articleId: first.articleId,
+    qty: saleLines.length === 1 ? first.qty : sumQty,
+    totalHT: sumHT / 100,
+    totalTTC: sumTTC / 100,
+    missing: sumMissing,
+    lots: allLots,
+    lotDetails: allDetails,
+    lines: saleLines,
+    modePaiement,
+    date: saleDate,
+    source: 'caisse',
+  };
+  return { ...state, lots: workingLots, movements: [...state.movements, ...newMovements], sales: [sale, ...state.sales] };
+}
+export function sell(state: State, articleId: string, qty: number, modePaiement: PaymentMode = 'especes'): State {
+  return sellCart(state, [{ articleId, qty }], { modePaiement });
 }
 /** Une version est figée ; chaque changement crée une nouvelle version active. */
-export type RecipeIngredient = {articleId:string; qty:number; parage:number};
+export type RecipeIngredient = {articleId:string; qty:number; parage:number; unite?:string};
 export type RecipeVersion = {version:number; baseYield:number; lossPercent:number; labourMinutes:number; hourlyRate:number; chargesPercent:number; packaging:number; energy:number; overhead:number; ingredients:RecipeIngredient[]};
 export type Recipe = {id:string; name:string; productId:string; versions:RecipeVersion[]};
 export type RecipeInput = Omit<RecipeVersion, 'version'>;
 function defaultRecipe():Recipe {
   return {id:'recette-eclair',name:'Éclair chocolat',productId:'eclair',versions:[{version:1,baseYield:20,lossPercent:5,labourMinutes:60,hourlyRate:500,chargesPercent:25,packaging:200,energy:100,overhead:100,ingredients:[{articleId:'farine',qty:2,parage:0},{articleId:'beurre',qty:1,parage:5},{articleId:'sucre',qty:0.5,parage:0}]}]};
 }
-/** Parage augmente la consommation ; cuisson réduit le rendement ; coût hors TVA. */
-export function recipeCost(state:State, recipeId='recette-eclair', versionNumber?:number) {
+function unitFactor(from: string | undefined, to: string | undefined): number {
+  const a = (from ?? '').trim().toLowerCase(), b = (to ?? '').trim().toLowerCase();
+  if (!a || !b || a === b) return 1;
+  if (a === 'g' && b === 'kg') return 0.001;
+  if (a === 'kg' && b === 'g') return 1000;
+  if (a === 'ml' && b === 'l') return 0.001;
+  if (a === 'cl' && b === 'l') return 0.01;
+  if (a === 'l' && b === 'ml') return 1000;
+  return 1;
+}
+/** Parage augmente la consommation ; cuisson réduit le rendement ; coût hors TVA ; sous-recettes valorisées récursivement. */
+export function recipeCost(state:State, recipeId='recette-eclair', versionNumber?:number, asOf=today(), depth=0): {
+  lines: (RecipeIngredient & { id: string; article: string; unitPrice: number; costEstimated: boolean })[];
+  materials: number; labour: number; packaging: number; energy: number; overhead: number; yieldNet: number; total: number; perUnit: number; missingPrices: string[];
+} {
   const recipe=state.recipes.find(r=>r.id===recipeId);
   const version=versionNumber === undefined ? recipe?.versions.at(-1) : recipe?.versions.find(v=>v.version===versionNumber);
   if (!recipe || !version) throw new Error('Recette ou version introuvable.');
-  const lines=version.ingredients.map(i=>{const lot=fefo(state.lots,i.articleId,'Labo')[0]; return {...i,id:i.articleId,article:state.articles.find(a=>a.id===i.articleId)?.nom ?? i.articleId,unitPrice:lot?.pu ?? 0,costEstimated:!lot || lot.pu<=0 || !!lot.costEstimated};});
+  const lines=version.ingredients.map(i=>{
+    const art=state.articles.find(a=>a.id===i.articleId);
+    const factor=unitFactor(i.unite, art?.unite);
+    const lot=fefo(state.lots,i.articleId,'Labo',asOf)[0];
+    if (lot && lot.pu > 0) {
+      return {...i,id:i.articleId,article:art?.nom ?? i.articleId,unitPrice:lot.pu*factor,costEstimated:!!lot.costEstimated};
+    }
+    if (art?.niveau==='sous_recette' && depth < 3) {
+      const sub=state.recipes.find(r=>r.productId===art.id);
+      if (sub) {
+        const subCost=recipeCost(state,sub.id,undefined,asOf,depth+1);
+        return {...i,id:i.articleId,article:art.nom,unitPrice:subCost.perUnit*factor,costEstimated:subCost.missingPrices.length>0};
+      }
+    }
+    return {...i,id:i.articleId,article:art?.nom ?? i.articleId,unitPrice:0,costEstimated:true};
+  });
   const missingPrices=lines.filter(l=>l.costEstimated).map(l=>l.article);
   const materials=lines.reduce((sum,l)=>sum+l.qty*(1+l.parage/100)*l.unitPrice,0);
   const labour=version.labourMinutes/60*version.hourlyRate*(1+version.chargesPercent/100);
@@ -67,13 +189,13 @@ export function recipeCost(state:State, recipeId='recette-eclair', versionNumber
   return {lines,materials,labour,packaging,energy,overhead,yieldNet,total,perUnit:total/yieldNet,missingPrices};
 }
 function validateRecipe(state:State, productId:string, name:string, input:RecipeInput) {
-  if (!name.trim() || !state.articles.some(a=>a.id===productId && a.niveau==='produit')) throw new Error('Choisissez un nom et un produit fini.');
+  if (!name.trim() || !state.articles.some(a=>a.id===productId && (a.niveau==='produit' || a.niveau==='sous_recette'))) throw new Error('Choisissez un nom et un produit fini.');
   if (!positive(input.baseYield) || !Number.isFinite(input.lossPercent) || input.lossPercent<0 || input.lossPercent>=100 || !Number.isFinite(input.chargesPercent) || input.chargesPercent<0 || input.chargesPercent>1000) throw new Error('Rendement, perte de cuisson ou charges invalide.');
   if ([input.labourMinutes,input.hourlyRate,input.packaging,input.energy,input.overhead].some(x=>!Number.isFinite(x)||x<0||x>1e9)) throw new Error('Les coûts et la durée doivent être positifs ou nuls.');
   if (!input.ingredients.length || input.ingredients.length>100) throw new Error('Ajoutez au moins un ingrédient (100 maximum).');
   const ids=new Set<string>();
   for (const item of input.ingredients) {
-    if (!state.articles.some(a=>a.id===item.articleId && a.niveau==='matiere') || ids.has(item.articleId) || !positive(item.qty) || !Number.isFinite(item.parage) || item.parage<0 || item.parage>100) throw new Error('Ingrédient invalide ou en double : utilisez une matière, une quantité positive et un parage de 0 à 100 %.');
+    if (item.articleId===productId || !state.articles.some(a=>a.id===item.articleId && (a.niveau==='matiere' || a.niveau==='sous_recette')) || ids.has(item.articleId) || !positive(item.qty) || !Number.isFinite(item.parage) || item.parage<0 || item.parage>100) throw new Error('Ingrédient invalide ou en double : utilisez une matière, une quantité positive et un parage de 0 à 100 %.');
     ids.add(item.articleId);
   }
 }
@@ -95,15 +217,15 @@ export function addRecipeVersion(state:State, recipeId:string, input:RecipeInput
 export type PurchaseOrder = { id:string; numero:string; fournisseur:string; articleId:string; qty:number; received:number; pu:number; date:string; status:'commande'|'partiel'|'recu' };
 export type Consumption = { articleId:string; lotId:string; numero:string; qty:number; pu:number; costEstimated?:boolean };
 export type ProductionOrder = {
-  id:string; numero:string; date:string; plannedDate?:string; planned:number; completed:number; status:'planifie'|'encours'|'partiel'|'termine';
-  snapshot:{ productId:string; name:string; version:number; baseYield:number; ingredients:{articleId:string; qty:number; parage:number}[]; overhead:number };
+  id:string; numero:string; date:string; plannedDate?:string; planned:number; completed:number; status:'planifie'|'encours'|'partiel'|'termine'; clientRef?:string;
+  snapshot:{ productId:string; name:string; version:number; baseYield:number; ingredients:{articleId:string; qty:number; parage:number; unite?:string}[]; overhead:number };
   consumption:Consumption[]; shortages:{articleId:string; qty:number}[]; producedLotIds:string[];
 };
-export type Transfer = { id:string; date:string; articleId:string; qty:number; from:string; to:string; lotIds:string[] };
+export type Transfer = { id:string; ref?:string; date:string; articleId:string; qty:number; from:string; to:string; lotIds:string[]; lotNumbers?:string[]; responsable?:string; motif?:string };
 
 // Existing browser data from the first iteration can be opened without losing edits.
 export function upgradeState(raw: State): State {
-  return {...raw, purchases:raw.purchases ?? [], productions:raw.productions ?? [], transfers:raw.transfers ?? [], recipes:raw.recipes ?? [defaultRecipe()], closings:raw.closings ?? [], temperatures:raw.temperatures ?? [], cleanings:raw.cleanings ?? [], incidents:raw.incidents ?? [], cakes:raw.cakes ?? [], lotEvents:raw.lotEvents ?? [], planningTasks:raw.planningTasks ?? [], dailyCapacity:raw.dailyCapacity ?? 480, zImports:raw.zImports ?? []};
+  return {...raw, purchases:raw.purchases ?? [], productions:raw.productions ?? [], transfers:raw.transfers ?? [], recipes:raw.recipes ?? [defaultRecipe()], closings:raw.closings ?? [], temperatures:raw.temperatures ?? [], cleanings:raw.cleanings ?? [], incidents:raw.incidents ?? [], cakes:raw.cakes ?? [], lotEvents:raw.lotEvents ?? [], planningTasks:raw.planningTasks ?? [], dailyCapacity:raw.dailyCapacity ?? 480, zImports:raw.zImports ?? [], restockRequests:raw.restockRequests ?? []};
 }
 const round4 = (n:number) => Math.round(n*10000)/10000;
 const positive = (n:number) => Number.isFinite(n) && n >= 0.0001 && Math.abs(round4(n)-n)<1e-9;
@@ -120,29 +242,32 @@ export function receivePurchase(state:State, orderId:string, qty:number, numero:
   const receivedLotId=next.lots[next.lots.length-1].id;
   return {...next,lots:next.lots.map(l=>l.id===receivedLotId?{...l,origin:{type:'purchase',purchaseId:order.id,supplier:order.fournisseur}}:l),movements:next.movements.map((m,i)=>i===next.movements.length-1?{...m,reference:`Réception ${order.numero} · ${numero}`} :m),purchases:state.purchases.map(o=>o.id===orderId?{...o,received,status:received>=o.qty?'recu':'partiel'}:o)};
 }
-export function createProduction(state:State, qty:number, recipeId='recette-eclair', plannedDate=today()):State {
+export function createProduction(state:State, qty:number, recipeId='recette-eclair', plannedDate=today(), clientRef?:string, recipeVersion?:number):State {
   if (!isValidDate(plannedDate)) throw new Error('Date prévue invalide.');
   if (!positive(qty)) throw new Error('La quantité prévue doit être positive.');
-  const recipe=state.recipes.find(r=>r.id===recipeId), version=recipe?.versions.at(-1);
+  const cleanRef = (clientRef ?? '').trim();
+  // Idempotence : valider deux fois une proposition « Demain au labo » ne crée jamais de doublon.
+  if (cleanRef && (state.productions ?? []).some(o => o.clientRef === cleanRef)) return state;
+  const recipe=state.recipes.find(r=>r.id===recipeId), version=recipeVersion === undefined ? recipe?.versions.at(-1) : recipe?.versions.find(v=>v.version===recipeVersion);
   if (!recipe || !version) throw new Error('Recette introuvable.');
   validateRecipe(state,recipe.productId,recipe.name,version);
   const snapshot:ProductionOrder['snapshot']={productId:recipe.productId,name:recipe.name,version:version.version,baseYield:version.baseYield,ingredients:structuredClone(version.ingredients),overhead:version.labourMinutes/60*version.hourlyRate*(1+version.chargesPercent/100)+version.packaging+version.energy+version.overhead};
-  const order:ProductionOrder={id:id(),numero:`OF-${id().slice(0,8).toUpperCase()}`,date:today(),plannedDate,planned:qty,completed:0,status:'planifie',snapshot,consumption:[],shortages:[],producedLotIds:[]};
+  const order:ProductionOrder={id:id(),numero:`OF-${id().slice(0,8).toUpperCase()}`,date:today(),plannedDate,planned:qty,completed:0,status:'planifie',...(cleanRef?{clientRef:cleanRef}:{}),snapshot,consumption:[],shortages:[],producedLotIds:[]};
   return {...state,productions:[...(state.productions ?? []),order]};
 }
-/** Consomme des lots au coût réel ; les manques sont explicitement journalisés. */
-function consume(state:State, articleId:string, qty:number, site:string, reference:string) {
+/** Consomme des lots FEFO éligibles (non bloqués, non périmés) au coût réel ; les manques sont explicitement journalisés. */
+function consume(state:State, articleId:string, qty:number, site:string, reference:string, asOf=today()) {
   let remaining=qty;
   const used:Consumption[]=[];
-  for (const lot of fefo(state.lots,articleId,site)) {
+  for (const lot of fefo(state.lots,articleId,site,asOf)) {
     if (remaining<=0) break;
     const take=round4(Math.min(remaining,lot.qte));
     if (take<=0) break;
     used.push({articleId,lotId:lot.id,numero:lot.numero,qty:take,pu:lot.pu,costEstimated:lot.costEstimated || lot.pu<=0});
     remaining=round4(remaining-take);
   }
-  const movements:Movement[]=used.map(u=>({id:id(),lotId:u.lotId,articleId,qte:-u.qty,reference,date:today()}));
-  if (remaining>0) movements.push({id:id(),lotId:'',articleId,qte:-remaining,reference:reference+' — manquant',date:today()});
+  const movements:Movement[]=used.map(u=>({id:id(),lotId:u.lotId,articleId,qte:-u.qty,reference,date:asOf}));
+  if (remaining>0) movements.push({id:id(),lotId:'',articleId,qte:-remaining,reference:reference+' — manquant',date:asOf});
   const next={...state,lots:state.lots.map(l=>{const u=used.find(x=>x.lotId===l.id);return u?{...l,qte:round4(l.qte-u.qty)}:l;}),movements:[...state.movements,...movements]};
   return {next,used,missing:remaining};
 }
@@ -151,8 +276,9 @@ export function startProduction(state:State, orderId:string):State {
   if (!order || order.status!=='planifie') throw new Error('Cet ordre ne peut pas être lancé.');
   let next=state; const all:Consumption[]=[]; const shortages:ProductionOrder['shortages']=[];
   for (const ing of order.snapshot.ingredients) {
-    const qty=round4(ing.qty*(order.planned/order.snapshot.baseYield)*(1+ing.parage/100));
-    const result=consume(next,ing.articleId,qty,'Labo',order.numero);
+    const art=next.articles.find(a=>a.id===ing.articleId);
+    const qty=round4(ing.qty*unitFactor(ing.unite,art?.unite)*(order.planned/order.snapshot.baseYield)*(1+ing.parage/100));
+    const result=consume(next,ing.articleId,qty,'Labo',order.numero,today());
     next=result.next; all.push(...result.used);
     if (result.missing>0) shortages.push({articleId:ing.articleId,qty:result.missing});
   }
@@ -171,28 +297,81 @@ export function completeProduction(state:State, orderId:string, qty:number, nume
   const event:LotEvent={id:id(),at:new Date().toISOString(),lotId,action:'bloque',reason:`Production ${order.numero} : un lot consommé est bloqué`};
   return {...next,lotEvents:blockedInput?[...next.lotEvents,event]:next.lotEvents,movements:next.movements.map((m,i)=>i===next.movements.length-1?{...m,reference:`Production ${order.numero} · ${numero}`} :m),lots:next.lots.map(l=>l.id===lotId?{...l,bloque:blockedInput,costEstimated:order.shortages.length>0||order.consumption.some(c=>c.costEstimated),origin:{type:'production',productionId:order.id}}:l),productions:next.productions.map(o=>o.id===orderId?{...o,completed,status:completed>=o.planned?'termine':'partiel',producedLotIds:[...o.producedLotIds,lotId]}:o)};
 }
-export function transferStock(state:State,articleId:string,qty:number,from:string,to:string):State {
+export function transferStock(
+  state:State,
+  articleId:string,
+  qty:number,
+  from:string,
+  to:string,
+  meta: { responsable?: string; motif?: string; asOf?: string } = {},
+):State {
   if (!state.articles.some(a=>a.id===articleId) || !positive(qty) || !['Labo','Boutique'].includes(from) || !['Labo','Boutique'].includes(to) || from===to) throw new Error('Transfert invalide.');
-  const available=fefo(state.lots,articleId,from).reduce((n,l)=>n+l.qte,0);
-  // Transfers cannot fabricate inventory in the destination.
-  if (qty>round4(available)) throw new Error('Stock disponible insuffisant pour ce transfert.');
-  const transferId=id(), result=consume(state,articleId,qty,from,'Transfert '+transferId);
-  let next=result.next; const lotIds:string[]=[];
+  const refDate = meta.asOf && isValidDate(meta.asOf) ? meta.asOf : today();
+  const available=fefo(state.lots,articleId,from,refDate).reduce((n,l)=>n+l.qte,0);
+  // Transfers cannot fabricate inventory nor move blocked/expired stock.
+  if (qty>round4(available)) throw new Error('Stock éligible insuffisant pour ce transfert (lots bloqués ou périmés exclus).');
+  const responsable = (meta.responsable ?? '').trim().slice(0, 80);
+  const motif = (meta.motif ?? '').trim().slice(0, 160);
+  const transferId=id(), ref=`TR-${transferId.replace(/-/g,'').slice(0,8).toUpperCase()}`;
+  const result=consume(state,articleId,qty,from,'Transfert '+transferId,today());
+  let next=result.next; const lotIds:string[]=[]; const lotNumbers:string[]=[];
   for (const used of result.used) {
     const source=state.lots.find(l=>l.id===used.lotId)!;
+    lotNumbers.push(source.numero);
     next=receive(next,{articleId,site:to,numero:source.numero,qte:used.qty,pu:used.pu,dlc:source.dlc});
     // Preserve freeze status and link to source in the immutable movement reference.
     const newLot=next.lots[next.lots.length-1]; lotIds.push(newLot.id);
-    next={...next,lots:next.lots.map(l=>l.id===newLot.id?{...l,congele:source.congele,costEstimated:source.costEstimated,origin:{type:'transfer',fromLotId:source.id,transferId}}:l),movements:next.movements.map(m=>m.lotId===newLot.id?{...m,reference:`Transfert ${transferId} depuis ${source.numero} (${source.id})`} :m)};
+    next={...next,lots:next.lots.map(l=>l.id===newLot.id?{...l,congele:source.congele,costEstimated:source.costEstimated,origin:{type:'transfer',fromLotId:source.id,transferId}}:l),movements:next.movements.map(m=>m.lotId===newLot.id?{...m,reference:`Transfert ${transferId} depuis ${source.numero} (${source.id})${responsable ? ' · '+responsable : ''}`} :m)};
   }
-  return {...next,transfers:[...(state.transfers ?? []),{id:transferId,date:today(),articleId,qty,from,to,lotIds}]};
+  return {...next,transfers:[...(state.transfers ?? []),{id:transferId,ref,date:today(),articleId,qty,from,to,lotIds,lotNumbers,...(responsable?{responsable}:{}),...(motif?{motif}:{})} ]};
+}
+
+export function addRestockRequest(
+  state: State,
+  input: { targetDate: string; site?: string; articleId: string; qty: number; motif?: string; demandeur?: string },
+): State {
+  const site = input.site ?? 'Boutique';
+  if (!isValidDate(input.targetDate) || site !== 'Boutique') throw new Error('Date cible ou boutique invalide.');
+  if (!state.articles.some(a => a.id === input.articleId && a.niveau === 'produit') || !positive(input.qty) || input.qty > 1e8) {
+    throw new Error('Produit ou quantité demandée invalide.');
+  }
+  const motif = (input.motif ?? '').trim().slice(0, 200);
+  const demandeur = (input.demandeur ?? '').trim().slice(0, 80);
+  const req: RestockRequest = {
+    id: id(),
+    targetDate: input.targetDate,
+    site,
+    articleId: input.articleId,
+    qty: input.qty,
+    motif,
+    demandeur,
+    status: 'ouverte',
+    createdAt: new Date().toISOString(),
+  };
+  return { ...state, restockRequests: [req, ...(state.restockRequests ?? [])] };
+}
+
+export function updateRestockRequests(
+  state: State,
+  ids: readonly string[],
+  status: RestockRequest['status'],
+  link: { ofId?: string; transferId?: string } = {},
+): State {
+  if (!ids.length) return state;
+  const target = new Set(ids);
+  return {
+    ...state,
+    restockRequests: (state.restockRequests ?? []).map(r =>
+      target.has(r.id) ? { ...r, status, ...(link.ofId ? { ofId: link.ofId } : {}), ...(link.transferId ? { transferId: link.transferId } : {}) } : r,
+    ),
+  };
 }
 
 export type ClosingInputLine = { articleId:string; produit:number; vendu:number; reporte:number; jete:number; casse:number; offert:number };
 export type ClosingLine = ClosingInputLine & { name:string; unit:string; priceHT:number };
-export type DailyClosing = { id:string; date:string; site:string; revision:number; lines:ClosingLine[] };
-/** Les six flux sont saisis manuellement : ils ne modifient ni stocks ni ventes. */
-export function addDailyClosing(state:State, date:string, site:string, lines:ClosingInputLine[], revise=false):State {
+export type DailyClosing = { id:string; date:string; site:string; revision:number; lines:ClosingLine[]; caisseBilan?:CashDrawerDeclaration | null };
+/** Les six flux produits et le comptage espèces facultatif sont saisis séparément : ils ne modifient ni stocks ni ventes. */
+export function addDailyClosing(state:State, date:string, site:string, lines:ClosingInputLine[], revise=false, caisseBilan:CashDrawerDeclaration | null = null):State {
   if (!isValidDate(date) || !['Labo','Boutique'].includes(site)) throw new Error('Date ou site invalide.');
   const previous=state.closings.filter(c=>c.date===date&&c.site===site);
   if (previous.length && !revise) throw new Error('Une clôture existe déjà pour ce site et cette date. Cochez la case de correction pour créer une nouvelle révision.');
@@ -205,7 +384,7 @@ export function addDailyClosing(state:State, date:string, site:string, lines:Clo
     ids.add(line.articleId);
     return {...line, name:article.nom, unit:article.unite, priceHT:article.prix};
   });
-  const closing:DailyClosing={id:id(),date,site,revision:previous.length?Math.max(...previous.map(c=>c.revision))+1:1,lines:snapshots};
+  const closing:DailyClosing={id:id(),date,site,revision:previous.length?Math.max(...previous.map(c=>c.revision))+1:1,lines:snapshots,...(caisseBilan?{caisseBilan}:{})};
   return {...state,closings:[...state.closings,closing]};
 }
 export function closingStats(closing:DailyClosing) {
@@ -251,8 +430,8 @@ export type CakeStatus = 'devis'|'acompte'|'confirme'|'produit'|'livre'|'annule'
 export type CakeOption = {name:string; costCents:number; minutes:number};
 export type CakeTask = {name:string; offset:number; dueDate:string; done:boolean};
 export type CakePayment = {id:string; at:string; type:'acompte'|'solde'; cents:number};
-export type CakeOrder = {id:string; numero:string; client:string; telephone:string; eventDate:string; portions:number; priceCents:number; options:CakeOption[]; notes:string; status:CakeStatus; payments:CakePayment[]; tasks:CakeTask[]; history:{at:string;status:CakeStatus}[]};
-export type CakeInput = Pick<CakeOrder,'client'|'telephone'|'eventDate'|'portions'|'priceCents'|'options'|'notes'>;
+export type CakeOrder = {id:string; numero:string; client:string; telephone:string; eventDate:string; portions:number; priceCents:number; options:CakeOption[]; notes:string; status:CakeStatus; payments:CakePayment[]; tasks:CakeTask[]; history:{at:string;status:CakeStatus}[]; recipeId?:string; recipeVersion?:number; productionQty?:number; ofId?:string};
+export type CakeInput = Pick<CakeOrder,'client'|'telephone'|'eventDate'|'portions'|'priceCents'|'options'|'notes'> & {recipeId:string; productionQty:number};
 const validCents=(n:number)=>Number.isSafeInteger(n) && n>=0 && n<=100_000_000_000;
 /** Utilisez des centimes entiers pour ne pas franchir le seuil de 30 % par erreur d'arrondi. */
 export function moneyToCents(value:string):number {
@@ -269,8 +448,20 @@ function cakeDate(eventDate:string, offset:number):string {
 export function createCake(state:State,input:CakeInput):State {
   if (!requiredText(input.client,100) || !optionalText(input.telephone,40) || !optionalText(input.notes,500) || (!isValidDate(input.eventDate) || input.eventDate<'2000-01-04') || !Number.isSafeInteger(input.portions) || input.portions<1 || input.portions>10000 || !validCents(input.priceCents) || input.priceCents===0) throw new Error('Vérifiez le client, la date, les parts et le prix HT strictement positif.');
   if (input.options.length>50 || input.options.some(o=>!requiredText(o.name,100) || !validCents(o.costCents) || !Number.isSafeInteger(o.minutes) || o.minutes<0 || o.minutes>100000)) throw new Error('Option invalide : nom, coût et durée sont requis.');
-  const cake:CakeOrder={...input,client:input.client.trim(),telephone:input.telephone.trim(),notes:input.notes.trim(),options:input.options.map(o=>({...o,name:o.name.trim()})),id:id(),numero:`DEV-${id().slice(0,8).toUpperCase()}`,status:'devis',payments:[],tasks:[{name:'Achats matières et supports',offset:-3,dueDate:cakeDate(input.eventDate,-3),done:false},{name:'Production',offset:-1,dueDate:cakeDate(input.eventDate,-1),done:false},{name:'Livraison / retrait',offset:0,dueDate:input.eventDate,done:false}],history:[{at:new Date().toISOString(),status:'devis'}]};
+  const recipe=state.recipes.find(r=>r.id===input.recipeId), version=recipe?.versions.at(-1);
+  if (!recipe || !version || (!positive(input.productionQty) || input.productionQty>100000000 || Math.round(input.productionQty*1000)/1000!==input.productionQty)) throw new Error('Recette et quantité à fabriquer obligatoires.');
+  validateRecipe(state,recipe.productId,recipe.name,version);
+  const cake:CakeOrder={...input,recipeVersion:version.version,client:input.client.trim(),telephone:input.telephone.trim(),notes:input.notes.trim(),options:input.options.map(o=>({...o,name:o.name.trim()})),id:id(),numero:`DEV-${id().slice(0,8).toUpperCase()}`,status:'devis',payments:[],tasks:[{name:'Achats matières et supports',offset:-3,dueDate:cakeDate(input.eventDate,-3),done:false},{name:'Production',offset:-1,dueDate:cakeDate(input.eventDate,-1),done:false},{name:'Livraison / retrait',offset:0,dueDate:input.eventDate,done:false}],history:[{at:new Date().toISOString(),status:'devis'}]};
   return {...state,cakes:[...state.cakes,cake]};
+}
+/** Complète un ancien devis sans modifier les commandes déjà confirmées. */
+export function assignCakeProduction(state:State,cakeId:string,recipeId:string,productionQty:number):State {
+  const cake=state.cakes.find(c=>c.id===cakeId);
+  if (!cake || !['devis','acompte'].includes(cake.status) || cake.ofId) throw new Error('Devis non modifiable.');
+  const recipe=state.recipes.find(r=>r.id===recipeId), version=recipe?.versions.at(-1);
+  if (!recipe || !version || (!positive(productionQty) || productionQty>100000000 || Math.round(productionQty*1000)/1000!==productionQty)) throw new Error('Recette et quantité à fabriquer obligatoires.');
+  validateRecipe(state,recipe.productId,recipe.name,version);
+  return {...state,cakes:state.cakes.map(c=>c.id===cakeId?{...c,recipeId,recipeVersion:version.version,productionQty}:c)};
 }
 export function cakeTotals(cake:CakeOrder) {
   const deposit=cake.payments.filter(p=>p.type==='acompte').reduce((sum,p)=>sum+p.cents,0);
@@ -291,13 +482,24 @@ export function payCake(state:State,cakeId:string,cents:number):State {
 export function advanceCake(state:State,cakeId:string,next:CakeStatus):State {
   const cake=state.cakes.find(c=>c.id===cakeId);
   if (!cake) throw new Error('Devis introuvable.');
+  if (next==='confirme' && ['confirme','produit','livre'].includes(cake.status) && cake.ofId) return state;
   const allowed:Record<CakeStatus,CakeStatus[]>={devis:['annule'],acompte:['confirme','annule'],confirme:['produit','annule'],produit:['livre','annule'],livre:[],annule:[]};
   if (!allowed[cake.status].includes(next)) throw new Error('Transition de statut impossible.');
   const totals=cakeTotals(cake);
   if (next==='confirme' && totals.deposit<totals.required) throw new Error('Acompte insuffisant : au moins 30 % du prix HT sont requis.');
+  if (next==='annule' && cake.ofId) throw new Error('Un OF est lié : traitez son devenir au laboratoire avant toute annulation.');
+  if (next==='produit' && cake.ofId && !state.productions.some(o=>o.id===cake.ofId && o.status==='termine' && o.producedLotIds.length>0)) throw new Error('Terminez l’OF et créez le lot avant de marquer produit.');
   if (next==='livre' && totals.balance!==0) throw new Error('Le solde doit être entièrement enregistré avant de marquer livré / soldé.');
+  let updated=state; let ofId=cake.ofId;
+  if (next==='confirme') {
+    if (!cake.recipeId || cake.recipeVersion===undefined || !cake.productionQty) throw new Error('Associez une recette et une quantité avant confirmation.');
+    const ref=`cake:${cake.id}`;
+    updated=createProduction(state,cake.productionQty,cake.recipeId,cake.eventDate,ref,cake.recipeVersion);
+    ofId=updated.productions.find(o=>o.clientRef===ref)?.id;
+    if (!ofId) throw new Error('Création de l’ordre impossible.');
+  }
   const event={at:new Date().toISOString(),status:next};
-  return {...state,cakes:state.cakes.map(c=>c.id===cakeId?{...c,status:next,history:[...c.history,event]}:c)};
+  return {...updated,cakes:updated.cakes.map(c=>c.id===cakeId?{...c,status:next,ofId,history:[...c.history,event]}:c)};
 }
 export function setCakeTask(state:State,cakeId:string,index:number,done:boolean):State {
   const cake=state.cakes.find(c=>c.id===cakeId);
@@ -379,7 +581,7 @@ export function planningOverview(state:State,date:string) {
     need.set(ing.articleId,round4((need.get(ing.articleId) ?? 0)+qty));
   }
   const needs=Array.from(need,([articleId,required])=>{
-    const available=round4(fefo(state.lots,articleId,'Labo').reduce((sum,l)=>sum+l.qte,0));
+    const available=round4(fefo(state.lots,articleId,'Labo',date).reduce((sum,l)=>sum+l.qte,0));
     return {articleId,required,available,missing:round4(Math.max(0,required-available))};
   });
   const load=tasks.reduce((sum,t)=>sum+t.duration,0), outstanding=tasks.filter(t=>!t.done).reduce((sum,t)=>sum+t.duration,0);
@@ -431,7 +633,7 @@ export function importZ(state:State,date:string,register:string,zNumber:string,c
   let next=state;const zId=id(), saleIds:string[]=[];
   for (const line of preview.lines) {
     const saleId=id(), reference=`Vente ${saleId}`;
-    const result=consume(next,line.articleId,line.qty,'Boutique',reference);
+    const result=consume(next,line.articleId,line.qty,'Boutique',reference,date);
     const sale:Sale={id:saleId,articleId:line.articleId,qty:line.qty,totalHT:moneyCents(line.qty*line.priceHT)/100,totalTTC:moneyCents(line.qty*line.priceHT*(1+line.vatPercent/100))/100,missing:result.missing,lots:result.used.map(u=>u.numero),lotDetails:result.used.map(u=>({lotId:u.lotId,qty:u.qty})),date,source:'z-import',unitPriceHT:line.priceHT,vatPercent:line.vatPercent};
     next={...result.next,sales:[sale,...result.next.sales]};saleIds.push(saleId);
   }

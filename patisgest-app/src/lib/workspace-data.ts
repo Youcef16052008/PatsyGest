@@ -3,8 +3,8 @@ export type WorkspaceSite = { id: string; label: string; type?: string };
 export type StockArticle = { id: string; nom: string; code: string; niveau: string; unite: string; seuil: number };
 export type StockLot = { id: string; articleId: string; siteId: string; numero: string; qte: number; dlc: string | null; bloque: boolean; congele: boolean; recu: string };
 export type CatalogProduct = { id: string; label: string; code?: string; unit?: string; prixHT?: number; tva?: number; photo?: string };
-export type SaleSummary = { id: string; date: string; site: string; items: { name: string; quantity: number; unit?: string }[]; totalTTC: number; source?: string };
-export type ProductionItem = { id: string; numero: string; title: string; statut: string; planned: number; done: number; date: string; site: string };
+export type SaleSummary = { id: string; numero?: string; date: string; site: string; items: { name: string; quantity: number; unit?: string }[]; totalTTC: number; source?: string; modePaiement?: string | null };
+export type ProductionItem = { id: string; numero: string; title: string; statut: string; planned: number; done: number; date: string; site: string; devis?: string | null; version?: number | null };
 export type BadgeTone = "danger" | "warning" | "success" | "planned";
 export type StockSignal = { label: string; tone: BadgeTone };
 
@@ -62,10 +62,35 @@ export function ordreLots(a: StockLot, b: StockLot) {
 }
 
 export type SiteStock = Record<string, Record<string, number>>;
-export function stockParSite(lots: readonly StockLot[]): SiteStock {
+
+/** Vérifie si un lot est éligible à la consommation, la vente ou le transfert à la date `asOf` (AAAA-MM-JJ). */
+export function estLotEligible(
+  lot: Pick<StockLot, "qte" | "bloque" | "dlc">,
+  asOf?: string | null,
+): boolean {
+  if (lot.bloque || !(lot.qte > 0)) return false;
+  if (asOf && lot.dlc && lot.dlc.slice(0, 10) < asOf.slice(0, 10)) return false;
+  return true;
+}
+
+/** Agrège les lots non bloqués (et non périmés si `asOf` est fourni) par site et article. */
+export function stockParSite(lots: readonly StockLot[], asOf?: string | null): SiteStock {
   const bySite = new Map<string, Map<string, number>>();
   for (const l of lots) {
-    if (l.bloque || !(l.qte > 0)) continue;
+    if (!estLotEligible(l, asOf)) continue;
+    let totals = bySite.get(l.siteId);
+    if (!totals) bySite.set(l.siteId, totals = new Map());
+    totals.set(l.articleId, Math.round(((totals.get(l.articleId) ?? 0) + l.qte) * 10000) / 10000);
+  }
+  return Object.fromEntries([...bySite].map(([site, totals]) => [site, Object.fromEntries(totals)]));
+}
+
+/** Agrège les quantités périmées (non bloquées mais DLC < `asOf`) par site et article. */
+export function stockPerimeParSite(lots: readonly StockLot[], asOf: string): SiteStock {
+  const cutoff = asOf.slice(0, 10);
+  const bySite = new Map<string, Map<string, number>>();
+  for (const l of lots) {
+    if (l.bloque || !(l.qte > 0) || !l.dlc || l.dlc.slice(0, 10) >= cutoff) continue;
     let totals = bySite.get(l.siteId);
     if (!totals) bySite.set(l.siteId, totals = new Map());
     totals.set(l.articleId, Math.round(((totals.get(l.articleId) ?? 0) + l.qte) * 10000) / 10000);

@@ -1,5 +1,7 @@
 "use client";
 
+import { cakeConnectedTotals } from "@/lib/cake-money";
+
 /** Ticket Cake Design imprimable (format ticket largeur80 mm). */
 export type TicketData = {
   numero: string;
@@ -16,8 +18,7 @@ export type TicketData = {
 const eur = (n: number) => `${Number(n).toFixed(2)} DA`;
 
 export default function CakeTicket({ data }: { data: TicketData }) {
-  const ttc = data.prixHt * (1 + data.tvaPct / 100);
-  const solde = Math.max(ttc - data.acompte, 0);
+  const { ttc, balance: solde } = cakeConnectedTotals(data.prixHt, data.tvaPct, data.acompte);
   return (
     <div className="space-y-2">
       <style>{`
@@ -44,8 +45,8 @@ export default function CakeTicket({ data }: { data: TicketData }) {
         <div className="flex justify-between"><span>Prix HT</span><span>{eur(data.prixHt)}</span></div>
         <div className="flex justify-between"><span>TVA {data.tvaPct} %</span><span>{eur(ttc - data.prixHt)}</span></div>
         <div className="flex justify-between font-bold"><span>Total TTC</span><span>{eur(ttc)}</span></div>
-        <div className="flex justify-between"><span>Acquitte</span><span>{eur(data.acompte)}</span></div>
-        <div className="flex justify-between font-bold"><span>Solde</span><span>{eur(solde)}</span></div>
+        <div className="flex justify-between"><span>Payé TTC</span><span>{eur(data.acompte)}</span></div>
+        <div className="flex justify-between font-bold"><span>Solde TTC</span><span>{eur(solde)}</span></div>
         <div className="my-1 border-t border-dashed border-slate-400" />
         <div className="text-center">Merci de votre confiance !</div>
         <div className="text-center text-[9px]">CGV acceptées — conservant ce ticket</div>

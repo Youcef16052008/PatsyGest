@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { createCommandeReal, receiveCommandeReal, type AchatsState } from "@/lib/actions-achats";
 import type { PriceAlert } from "@/lib/price-alerts";
@@ -146,7 +147,13 @@ export default function CommandeForms({ fournisseurs, articles, sites, commandes
               {alerts.map((a) => (
                 <li key={`${a.articleId}-${a.fournisseurId}`}>
                   {articlesById[a.articleId] ?? a.articleId.slice(0, 8)} · {fournById[a.fournisseurId] ?? ""} —
-                  dernier prix {a.previous} DA → {a.latest} DA ({a.deltaPct > 0 ? "+" : ""}{a.deltaPct} %) le {a.dateLatest}
+                  dernier prix {a.previous} DA → {a.latest} DA ({a.deltaPct > 0 ? "+" : ""}{a.deltaPct} %) le {a.dateLatest}{" "}
+                  <Link
+                    href={`/simulation?matiere=${encodeURIComponent(a.articleId)}&ancien=${encodeURIComponent(String(a.previous))}&nouveau=${encodeURIComponent(String(a.latest))}#hausse-matiere`}
+                    className="font-bold text-violet-800 underline"
+                  >
+                    Voir l’impact sur les recettes →
+                  </Link>
                 </li>
               ))}
             </ul>
