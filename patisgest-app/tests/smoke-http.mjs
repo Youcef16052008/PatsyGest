@@ -18,6 +18,8 @@ const PORT = Number(process.env.SMOKE_PORT ?? 3411);
 const BASE = `http://127.0.0.1:${PORT}`;
 const DEMO_SECRET = 'smoke-test-secret-0123456789abcdef0123456789abcdef';
 let server;
+let serverLog = '';
+const log = (chunk) => { serverLog = (serverLog + chunk).slice(-2400); };
 
 function demoCookie(email) {
   const payload = Buffer.from(JSON.stringify({ email, expires: Date.now() + 3_600_000 })).toString('base64url');
@@ -40,13 +42,14 @@ async function get(pathname, cookie) {
 
 async function waitForServer() {
   for (let i = 0; i < 180; i++) {
+    if (server.exitCode !== null) throw new Error(`Le serveur de test a quitté (${server.exitCode}) :\n${serverLog}`);
     try {
       const res = await fetch(`${BASE}/connexion`);
       if (res.status === 200) return;
     } catch { /* pas encore prêt */ }
     await sleep(500);
   }
-  throw new Error('Le serveur next dev n\'a pas démarré à temps.');
+  throw new Error(`Le serveur next dev n’a pas démarré à temps.\n${serverLog}`);
 }
 
 /** Extrait l'identifiant d'une server action depuis un formulaire du HTML rendu. */
@@ -74,8 +77,10 @@ before(async () => {
       NEXT_PUBLIC_SUPABASE_URL: '',
       NEXT_PUBLIC_SUPABASE_ANON_KEY: '',
     },
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
+  server.stdout.on('data', log);
+  server.stderr.on('data', log);
   await waitForServer();
 });
 
@@ -129,7 +134,7 @@ test('un cookie de démonstration forgé est rejeté', async () => {
 
 test('avec une session valide, les modules s\'ouvrent et un module inconnu renvoie 404', async () => {
   const cookie = `patisgest_pilot_session=${demoCookie('amine@patisserie.dz')}`;
-  for (const route of ['/tableau-de-bord', '/stocks', '/achats', '/recettes', '/production', '/transferts', '/simulation', '/planning', '/tracabilite', '/cake-design', '/qualite', '/cloture', '/caisse']) {
+  for (const route of ['/tableau-de-bord', '/stocks', '/achats', '/production', '/transferts', '/planning', '/tracabilite', '/cake-design', '/qualite', '/cloture', '/caisse']) {
     const res = await get(route, cookie);
     assert.equal(res.status, 200, route);
   }
@@ -138,6 +143,26 @@ test('avec une session valide, les modules s\'ouvrent et un module inconnu renvo
   assert.equal(redirectPath(root), '/tableau-de-bord');
   const missing = await get('/module-inexistant', cookie);
   assert.equal(missing.status, 404);
+});
+
+test('les URL directes de coût renvoient le vendeur au tableau de bord, pas le propriétaire', async () => {
+  const vendeur = `patisgest_pilot_session=${demoCookie('amine@patisserie.dz')}`;
+  const proprietaire = `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`;
+  for (const route of ['/recettes', '/simulation', '/recettes?guide=recettes']) {
+    const refus = await get(route, vendeur);
+    assert.equal(refus.status, 307, `vendeur : ${route}`);
+    assert.equal(redirectPath(refus), '/tableau-de-bord', route);
+    assert.equal((await get(route, proprietaire)).status, 200, `propriétaire : ${route}`);
+  }
+});
+
+test('US-15.3 : une URL guidée en mode démo reste sans guide Supabase', async () => {
+  const cookie = `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`;
+  for (const route of ['/tableau-de-bord', '/stocks?guide=matieres']) {
+    const res = await get(route, cookie);
+    assert.equal(res.status, 200, route);
+    assert.doesNotMatch(await res.text(), /Guide actif|Me guider|étapes terminées sur 6/);
+  }
 });
 
 test('la déconnexion efface la session et revient à /connexion', async () => {
@@ -203,7 +228,9 @@ test('US-15.1 : la page Paramètres s’ouvre pour le propriétaire et reste pro
   const proprio = await get('/parametres', `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`);
   assert.equal(proprio.status, 200);
   const html = await proprio.text();
-  assert.ok(/mentions légales/.test(html), 'la page Paramètres doit s’afficher');
+  assert.match(html, /<h1[^>]*>Paramètres<\/h1>/);
+  assert.match(html, /<h2>Apparence<\/h2>/);
+  assert.match(html, /href="\/mentions-legales"/);
   assert.ok(/Identité de l’établissement/.test(html), 'le formulaire d’identité doit être présent');
   assert.ok(/NIF/.test(html) && /NIS/.test(html) && /RC/.test(html), 'les 3 mentions légales doivent apparaître');
 });
@@ -212,4 +239,17 @@ test('US-15.2 : la restauration n’est pas exposée par une route HTTP ouverte'
   // La restauration est une server action protégée, pas une route GET.
   const res = await get('/api/restauration');
   assert.equal(res.status, 404, 'aucune route de restauration ne doit exister hors server action');
+});
+
+test('Apparence : les cinq interfaces disposent d’un rendu clair et sombre avant JavaScript', async () => {
+  const session = `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`;
+  const designs = ['atelier','pilotage','fabrication','comptoir','essentiel'];
+  for (const [i, design] of designs.entries()) {
+    for (const mode of ['light','dark']) {
+      const modes = designs.map((_,j) => i === j && mode === 'dark' ? 'd' : 'l').join('');
+      const response = await get('/tableau-de-bord', `${session}; patisgest.apparence=${design}.${modes}`);
+      assert.equal(response.status, 200);
+      assert.match(await response.text(), new RegExp(`<html lang="fr" data-design="${design}" data-mode="${mode}"`));
+    }
+  }
 });

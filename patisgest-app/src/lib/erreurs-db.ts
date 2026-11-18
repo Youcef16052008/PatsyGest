@@ -58,3 +58,8 @@ export function messageUtilisateur(e: ErreurBase, contexte: string): string {
 export function detailTechnique(e: ErreurBase): string {
   return `${e?.code ?? "sans-code"} ${e?.message ?? "sans message"}`.trim();
 }
+
+/** Garder l’opération en file quand le résultat de l’écriture reste inconnu. */
+export function echecHttpReessayable(status: number): boolean {
+  return status === 0 || status === 401 || status === 429 || status >= 500;
+}

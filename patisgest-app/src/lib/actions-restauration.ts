@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSessionContext } from "./auth";
 import { createClient } from "./supabase/server";
 import { messageUtilisateur } from "./erreurs-db";
-import { validerSauvegarde, resumeSauvegarde, type Sauvegarde } from "./sauvegarde";
+import { lireFichierSauvegarde, resumeSauvegarde } from "./sauvegarde";
 
 export type RestaurationState = {
   erreur?: string;
@@ -15,8 +15,6 @@ export type RestaurationState = {
   /** Nombre de lignes réellement insérées, par table. */
   insere?: { table: string; lignes: number }[];
 };
-
-const MAX_OCTETS = 25 * 1024 * 1024;
 
 /**
  * US-15.2 — restauration d'une sauvegarde JSON.
@@ -35,25 +33,9 @@ export async function analyserSauvegarde(_prev: RestaurationState, formData: For
   if (!ctx) return { erreur: "Session requise." };
   if (ctx.role !== "proprietaire") return { erreur: "Restauration réservée au propriétaire." };
 
-  const fichier = formData.get("fichier");
-  if (!(fichier instanceof File) || fichier.size === 0) return { erreur: "Choisissez un fichier de sauvegarde." };
-  if (fichier.size > MAX_OCTETS) return { erreur: "Fichier trop volumineux (25 Mo maximum)." };
-
-  let brut: unknown;
-  try {
-    brut = JSON.parse(await fichier.text());
-  } catch {
-    return { erreur: "Fichier illisible : ce n'est pas du JSON valide." };
-  }
-
-  const v = validerSauvegarde(brut);
-  if (!v.ok) {
-    return { erreur: `Sauvegarde refusée : ${v.problemes.map((p) => p.message).join(" ")}` };
-  }
-  const dump = brut as Sauvegarde;
-  if (dump.client_id !== ctx.clientId) {
-    return { erreur: "Cette sauvegarde appartient à un autre établissement : restauration interdite." };
-  }
+  const lecture = await lireFichierSauvegarde(formData.get("fichier"), ctx.clientId);
+  if ("erreur" in lecture) return lecture;
+  const { dump } = lecture;
 
   const analyse = resumeSauvegarde(dump);
   return {
@@ -75,21 +57,9 @@ export async function confirmerRestauration(_prev: RestaurationState, formData: 
     return { erreur: "Tapez RESTAURER pour confirmer." };
   }
 
-  const fichier = formData.get("fichier");
-  if (!(fichier instanceof File) || fichier.size === 0) return { erreur: "Fichier absent." };
-
-  let dump: Sauvegarde;
-  try {
-    const brut = JSON.parse(await fichier.text());
-    const v = validerSauvegarde(brut);
-    if (!v.ok) return { erreur: `Sauvegarde refusée : ${v.problemes.map((p) => p.message).join(" ")}` };
-    dump = brut as Sauvegarde;
-  } catch {
-    return { erreur: "Fichier illisible." };
-  }
-  if (dump.client_id !== ctx.clientId) {
-    return { erreur: "Cette sauvegarde appartient à un autre établissement." };
-  }
+  const lecture = await lireFichierSauvegarde(formData.get("fichier"), ctx.clientId);
+  if ("erreur" in lecture) return lecture;
+  const { dump } = lecture;
 
   try {
     const supabase = await createClient();

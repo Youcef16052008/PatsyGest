@@ -1,5 +1,8 @@
 "use client";
 import { type FormEvent } from 'react';
+import { demoOrders } from '@/lib/demo-workspace';
+import ProductionBoard from './production-board';
+import { Disclosure } from './workspace-ui';
 import { createPurchase, receivePurchase, createProduction, startProduction, completeProduction, transferStock, type State } from '@/lib/patisgest-store';
 
 const box='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
@@ -27,8 +30,34 @@ export function ProductionOperations(props:Props) {
   function create(e:FormEvent<HTMLFormElement>) {e.preventDefault();const f=new FormData(e.currentTarget);act(()=>createProduction(data,Number(f.get('qty')),String(f.get('recipe')),String(f.get('plannedDate'))),props,'Ordre planifié avec la version courante figée.');}
   function finish(e:FormEvent<HTMLFormElement>,orderId:string) {e.preventDefault();const f=new FormData(e.currentTarget);act(()=>completeProduction(data,orderId,Number(f.get('qty')),String(f.get('lot')),String(f.get('dlc'))),props,'Production enregistrée au laboratoire : un lot issu d’un ingrédient bloqué est bloqué automatiquement.');}
   return <>
-    <section className={box}><h2 className="font-bold">Production · Recettes versionnées</h2><p className="mt-2 text-sm text-slate-500">La version active est figée à la planification. Quantité prévue basée sur le rendement brut, comme dans le prototype. Les ingrédients sont consommés au lancement, en FEFO au laboratoire. Les manques sont signalés sans bloquer, comme dans le prototype.</p>{canEdit && <form onSubmit={create} className="mt-4 flex flex-wrap items-end gap-3"><label className="text-xs text-slate-500">Recette<select name="recipe" required className={field}>{data.recipes.map(r=><option key={r.id} value={r.id}>{r.name} · v{r.versions.at(-1)?.version}</option>)}</select></label><label className="text-xs text-slate-500">Date prévue<input name="plannedDate" type="date" required defaultValue={new Date().toISOString().slice(0,10)} className={field}/></label><label className="text-xs text-slate-500">Quantité prévue<input name="qty" type="number" min="0.0001" step="0.0001" defaultValue="20" required className={field}/></label><button className={btn}>Planifier un OF</button></form>}</section>
-    <section className={box}><h2 className="mb-3 font-bold">Ordres de fabrication</h2>{!data.productions.length && <p className="text-sm text-slate-500">Aucun ordre planifié.</p>}<div className="space-y-4">{data.productions.slice().reverse().map(o=><div key={o.id} className="rounded-xl border p-4"><div className="flex flex-wrap justify-between gap-2 text-sm"><span><b>{o.numero}</b> · {o.snapshot.name} v{o.snapshot.version}<br/>Réalisé {o.completed} / {o.planned} · prévu : {o.plannedDate || "date à renseigner"}</span><b className="text-violet-700">{o.status}</b></div>{o.consumption.length>0 && <p className="mt-2 text-xs text-slate-600">Lots consommés : {o.consumption.map(c=>`${articleName(data,c.articleId)} ${c.numero} × ${c.qty}`).join(' · ')}</p>}{(o.shortages.length>0 || o.consumption.some(c=>c.costEstimated)) && <p role="alert" className="mt-2 rounded-lg bg-amber-50 p-2 text-xs font-semibold text-amber-900">{o.shortages.length>0 && <>Manquants : {o.shortages.map(s=>`${articleName(data,s.articleId)} ${s.qty}`).join(' · ')}. </>}{o.consumption.some(c=>c.costEstimated) && <>Certains lots consommés ont un coût incomplet. </>}Le coût du lot produit ne comprend que les coûts connus et ne constitue pas un coût réel complet.</p>}{canEdit && o.status==='planifie' && <button onClick={()=>act(()=>startProduction(data,o.id),props,'Ordre lancé ; vérifiez les manquants éventuels.')} className={`${btn} mt-3`}>Lancer et consommer les lots</button>}{canEdit && (o.status==='encours'||o.status==='partiel') && <form onSubmit={e=>finish(e,o.id)} className="mt-3 grid gap-2 sm:grid-cols-4"><input name="qty" type="number" min="0.0001" max={o.planned-o.completed} step="0.0001" required placeholder="Quantité réalisée" aria-label={`Quantité réalisée ${o.numero}`} className={field}/><input name="lot" required placeholder="N° lot produit" aria-label={`Lot produit ${o.numero}`} className={field}/><input name="dlc" type="date" aria-label={`DLC ${o.numero}`} className={field}/><button className={btn}>Valider la production</button></form>}</div>)}</div></section>
+    {canEdit && <Disclosure title="Planifier une fournée" description="Choisissez la recette, la quantité et la date." icon="plus">
+      <form onSubmit={create} className="flex flex-wrap items-end gap-3">
+        <label className="pg-field flex-1">Recette<select name="recipe" required className="pg-input">{data.recipes.map(r => <option key={r.id} value={r.id}>{r.name} · v{r.versions.at(-1)?.version}</option>)}</select></label>
+        <label className="pg-field">Quantité prévue<input name="qty" type="number" min="0.0001" step="0.0001" defaultValue="20" required className="pg-input"/></label>
+        <label className="pg-field">Date prévue<input name="plannedDate" type="date" required defaultValue={new Date().toISOString().slice(0,10)} className="pg-input"/></label>
+        <button className="pg-button">Planifier la fournée</button>
+      </form>
+    </Disclosure>}
+    <ProductionBoard orders={demoOrders(data)} renderAction={canEdit ? (order) => {
+      const o = data.productions.find(p => p.id === order.id)!;
+      return <>
+        {(o.shortages.length > 0 || o.consumption.some(c => c.costEstimated)) && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">
+          {!!o.shortages.length && <>Manquants : {o.shortages.map(s => `${articleName(data,s.articleId)} ${s.qty}`).join(' · ')}. </>}
+          Le coût du lot ne comprend que les coûts connus.
+        </p>}
+        {!!o.consumption.length && <details className="pg-order-details"><summary>Lots consommés</summary>
+          <p className="text-xs text-slate-600">{o.consumption.map(c => `${articleName(data,c.articleId)} ${c.numero} × ${c.qty}`).join(' · ')}</p></details>}
+        {o.status === 'planifie' && <button type="button" aria-label={`Démarrer ${order.title}`} onClick={() => act(() => startProduction(data,o.id),props,'Fournée démarrée ; vérifiez les manquants éventuels.')} className="pg-button mt-2">Démarrer</button>}
+        {(o.status === 'encours' || o.status === 'partiel') && <details className="pg-order-details"><summary>Enregistrer la quantité produite</summary>
+          <form onSubmit={e => finish(e,o.id)} className="pg-order-form">
+            <label className="pg-field">Quantité réalisée<input name="qty" type="number" min="0.0001" max={o.planned-o.completed} step="0.0001" defaultValue={o.planned-o.completed} required className="pg-input"/></label>
+            <label className="pg-field">Numéro du lot<input name="lot" required className="pg-input"/></label>
+            <label className="pg-field">Date limite de consommation<input name="dlc" type="date" className="pg-input"/></label>
+            <button className="pg-button">Valider la production</button>
+          </form>
+        </details>}
+      </>;
+    } : undefined}/>
   </>;
 }
 export function TransferOperations(props:Props) {

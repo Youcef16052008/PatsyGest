@@ -1,6 +1,8 @@
 "use client";
 
 import { avertissementsTicket, enteteTicket, type Etablissement } from "@/lib/etablissement";
+import { dinars, quantite } from "@/lib/workspace-data";
+import { Icon } from "./workspace-icons";
 
 /**
  * Ticket de vente caisse imprimable (format 80 mm).
@@ -8,7 +10,7 @@ import { avertissementsTicket, enteteTicket, type Etablissement } from "@/lib/et
  * Auparavant il n'affichait que « PâtisGest — Caisse ».
  */
 export type SaleTicketData = {
-  ticket: string;
+  numero?: string;
   articleLabel: string;
   siteLabel: string;
   qte: number;
@@ -16,46 +18,68 @@ export type SaleTicketData = {
   totalTTC: number;
   lots: string[];
   at: string;
+  demo?: boolean;
   /** Identité de l'établissement (mentions légales). */
   etablissement?: Etablissement | null;
 };
-
-const da = (n: number) => `${Number(n).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DA`;
 
 export default function SaleTicket({ data }: { data: SaleTicketData }) {
   const entete = enteteTicket(data.etablissement);
   const manques = avertissementsTicket(data.etablissement);
   return (
-    <div className="mt-3 space-y-2">
+    <div className="pg-card pg-card-pad space-y-3">
       <style>{`
         @media print {
-          body * { visibility: hidden; }
-          .sale-ticket, .sale-ticket * { visibility: visible; }
-          .sale-ticket { position: absolute; left: 0; top: 0; width: 80mm; }
-          .no-print { display: none !important; }
+          /* Conserver seulement le ticket et ses ancêtres (layout, main, etc.). */
+          body:has(.sale-ticket) > :not(.sale-ticket, :has(.sale-ticket)),
+          body :has(.sale-ticket) > :not(.sale-ticket, :has(.sale-ticket)),
+          .sale-ticket .no-print { display: none !important; }
+
+          body:has(.sale-ticket), body :has(.sale-ticket) {
+            display: block;
+            min-height: 0;
+            height: auto;
+            max-width: none;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            background: white;
+          }
+          .sale-ticket {
+            position: static;
+            width: 80mm;
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            break-inside: avoid;
+            overflow-wrap: anywhere;
+          }
+          /* La longueur du papier vient du pilote, pas d'un format CSS fixe. */
+          @page { margin: 4mm; }
         }
       `}</style>
-      <button type="button" onClick={() => window.print()}
-        className="no-print rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold">
-        Imprimer le ticket
-      </button>
-      <div className="sale-ticket mx-auto w-[80mm] border border-dashed border-slate-400 bg-white p-3 font-mono text-[11px] leading-snug text-black">
+      <div className="pg-card-head no-print"><h2>Dernier ticket</h2><button type="button" onClick={() => window.print()} className="pg-button pg-button-secondary">
+        <Icon name="print" size={18}/> Imprimer le ticket
+      </button></div>
+      <div className="sale-ticket mx-auto w-[80mm] max-w-full wrap-anywhere border border-dashed border-slate-400 bg-white p-3 font-mono text-[11px] leading-snug text-black">
         {entete.map((ligne, i) => (
           <div key={i} className={i === 0 ? "text-center font-bold uppercase" : "text-center"}>{ligne}</div>
         ))}
         <div className="text-center">{new Date(data.at).toLocaleString("fr-FR")}</div>
-        <div className="text-center">Ticket n° {data.ticket}</div>
+        {data.demo && <div className="text-center font-bold">DÉMONSTRATION · SANS VALEUR FISCALE</div>}
+        {data.numero && <div className="text-center">Ticket n° {data.numero}</div>}
         <div className="my-1 border-t border-dashed border-slate-400" />
-        <div className="font-bold">{data.articleLabel}</div>
-        <div className="flex justify-between"><span>Qté</span><span>{data.qte}</span></div>
+        <div className="text-[13px] font-extrabold">{data.articleLabel}</div>
+        <div className="flex justify-between"><span>Qté</span><span>{quantite(data.qte)}</span></div>
         <div>Site : {data.siteLabel}</div>
         {data.lots.length > 0 && <div>Lots : {data.lots.join(", ")}</div>}
         <div className="my-1 border-t border-dashed border-slate-400" />
-        <div className="flex justify-between"><span>Total HT</span><span>{da(data.totalHT)}</span></div>
-        <div className="flex justify-between font-bold"><span>Total TTC</span><span>{da(data.totalTTC)}</span></div>
+        <div className="flex justify-between"><span>Total HT</span><span>{dinars(data.totalHT)}</span></div>
+        <div className="flex justify-between font-bold"><span>Total TTC</span><span>{dinars(data.totalTTC)}</span></div>
         <div className="my-1 border-t border-dashed border-slate-400" />
         <div className="text-center">Merci de votre visite !</div>
-        {manques.length > 0 && (
+        {!data.demo && manques.length > 0 && (
           <div className="no-print mt-1 text-center text-[8px]">⚠ Mentions légales incomplètes (Paramètres)</div>
         )}
       </div>

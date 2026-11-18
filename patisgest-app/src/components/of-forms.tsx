@@ -1,21 +1,18 @@
 "use client";
 
-import { useActionState, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useActionState, useState, useSyncExternalStore, useTransition } from "react";
 import {
   enqueueOf, getOfQueue, getServerOfQueue, removeOf, setOfQueue, subscribeOfQueue,
   type QueuedOf,
 } from "@/lib/of-queue";
 import { createOf, finishOf, startOf, type OfState } from "@/lib/actions-of";
+import FormulaireGuide, { champGuide } from "./guide-form";
+import ProductionBoard from "./production-board";
+import { Disclosure, Notice } from "./workspace-ui";
+import { type ProductionItem } from "@/lib/workspace-data";
+import { Icon } from "./workspace-icons";
 
 type Option = { id: string; label: string };
-export type OfOrder = {
-  id: string;
-  numero: string;
-  statut: string;
-  qte_prevue: number;
-  qte_realisee: number;
-};
-
 const field = "mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm";
 const label = "block text-xs font-semibold text-slate-600";
 const btn = "rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50";
@@ -31,18 +28,16 @@ function Feedback({ state }: { state: OfState }) {
 
 type OfMsg = { kind: "err" | "ok" | "info"; text: string };
 
-const isNetErr = (e?: string) => !!e && e.includes("inaccessible");
-const isDup = (e?: string) => !!e && (e.includes("déjà") || e.includes("idempotence"));
-
 /**
  * Planification d'OF avec file hors-ligne : l'OF part d'abord dans la file
  * locale (référence client = idempotence creer_of), puis se synchronise —
  * sans réseau il reste en attente dans l'État synchro (0 doublon au retour).
  */
-function CreateOfForm({ versions, sites }: { versions: Option[]; sites: Option[] }) {
+export function CreateOfForm({ versions, sites, guide = false, guideTermine = false }: {
+  versions: Option[]; sites: Option[]; guide?: boolean; guideTermine?: boolean;
+}) {
   const [msg, setMsg] = useState<OfMsg | null>(null);
   const [pending, startTransition] = useTransition();
-  const formRef = useRef<HTMLFormElement>(null);
   const queued = useSyncExternalStore(subscribeOfQueue, getOfQueue, getServerOfQueue);
 
   const commit = (q: QueuedOf[]) => setOfQueue(q);
@@ -54,16 +49,24 @@ function CreateOfForm({ versions, sites }: { versions: Option[]; sites: Option[]
     fd.set("qtePrevue", String(op.qte));
     fd.set("datePrevue", op.datePrevue);
     fd.set("clientRef", op.opId);
-    const state = await createOf({}, fd);
-    if (state.succes && !state.duplicate) return { status: "ok", state };
-    if (state.duplicate || isDup(state.succes) || isDup(state.erreur)) return { status: "dup", state };
-    if (isNetErr(state.erreur)) return { status: "network", state };
+    let state: OfState;
+    try {
+      state = await createOf({}, fd);
+    } catch {
+      return { status: "network", state: {} };
+    }
+    if (state.duplicate) return { status: "dup", state };
+    if (state.succes) return { status: "ok", state };
+    if (state.reessayer) return { status: "network", state };
     return { status: "business", state };
   }
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    // Réessayer depuis la file, avec la même référence, pas en recréant l'OF.
+    if (guide && (guideTermine || getOfQueue().length > 0)) return;
+    const formulaire = e.currentTarget;
+    const fd = new FormData(formulaire);
     const versionId = String(fd.get("versionId") ?? "");
     const siteId = String(fd.get("siteId") ?? "");
     const qte = Number(fd.get("qtePrevue"));
@@ -83,16 +86,12 @@ function CreateOfForm({ versions, sites }: { versions: Option[]; sites: Option[]
     setMsg({ kind: "info", text: "OF en file — synchronisation…" });
     startTransition(async () => {
       const { status, state } = await trySync(op);
-      if (status === "ok") {
+      if (status === "ok" || status === "dup") {
         commit(removeOf(getOfQueue(), op.opId));
-        setMsg({ kind: "ok", text: state.succes ?? "OF planifié." });
-        formRef.current?.reset();
-      } else if (status === "dup") {
-        commit(removeOf(getOfQueue(), op.opId));
-        setMsg({ kind: "ok", text: state.succes ?? "OF déjà enregistré (idempotence)." });
-        formRef.current?.reset();
+        setMsg({ kind: "ok", text: state.succes ?? "OF enregistré." });
+        formulaire.reset();
       } else if (status === "network") {
-        setMsg({ kind: "info", text: "Hors ligne — OF conservé dans la file locale (État synchro ci-dessous)." });
+        setMsg({ kind: "info", text: "OF conservé dans la file locale. Reprenez la synchronisation dès que la connexion est rétablie." });
       } else {
         commit(removeOf(getOfQueue(), op.opId));
         setMsg({ kind: "err", text: state.erreur ?? "Création refusée." });
@@ -122,34 +121,48 @@ function CreateOfForm({ versions, sites }: { versions: Option[]; sites: Option[]
       if (dup > 0) parts.push(`${dup} déjà existant(s)`);
       if (errs.length > 0) parts.push(`${errs.length} refusé(s) : ${errs.join(" ; ")}`);
       if (stopped) parts.push("réseau indisponible — le reste reste en file");
-      setMsg({ kind: errs.length > 0 ? "err" : "ok", text: parts.join(" · ") || "File vide." });
+      setMsg({ kind: errs.length > 0 ? "err" : stopped ? "info" : "ok", text: parts.join(" · ") || "File vide." });
     });
   }
 
+  if (guideTermine && !msg && queued.length === 0) return null;
+
+  const styleChamp = guide ? champGuide : field;
+  const recette = <label className={`${label} ${guide ? "min-w-0" : "min-w-52 flex-1"}`}>{guide ? "Recette" : "Recette (version figée)"}
+    <select name="versionId" required className={styleChamp} disabled={versions.length === 0}>
+      {guide && <option value="">Choisir une recette active</option>}
+      {!guide && versions.length === 0 && <option value="">— aucune recette —</option>}
+      {versions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+    </select>
+  </label>;
+  const site = <label className={`${label} ${guide ? "min-w-0" : "min-w-44 flex-1"}`}>Site de production
+    <select name="siteId" required className={styleChamp}>
+      {sites.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+    </select>
+  </label>;
+  const quantite = <label className={`${label} ${guide ? "min-w-0" : "w-32"}`}>Quantité prévue
+    <input name="qtePrevue" type="number" min={0.0001} step="any" required defaultValue={12} className={styleChamp} />
+  </label>;
+  const date = <label className={`${label} ${guide ? "min-w-0" : "w-40"}`}>Date prévue
+    <input name="datePrevue" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} className={styleChamp} />
+  </label>;
+
   return (
     <div>
-      <form ref={formRef} onSubmit={onSubmit} className="flex flex-wrap items-end gap-3">
-        <label className={`${label} min-w-52 flex-1`}>Recette (version figée)
-          <select name="versionId" required className={field} disabled={versions.length === 0}>
-            {versions.length === 0 && <option value="">— aucune recette —</option>}
-            {versions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
-          </select>
-        </label>
-        <label className={`${label} min-w-44 flex-1`}>Site de production
-          <select name="siteId" required className={field}>
-            {sites.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-          </select>
-        </label>
-        <label className={`${label} w-32`}>Quantité prévue
-          <input name="qtePrevue" type="number" min={0.0001} step="any" required defaultValue={12} className={field} />
-        </label>
-        <label className={`${label} w-40`}>Date prévue
-          <input name="datePrevue" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} className={field} />
-        </label>
-        <button disabled={pending || versions.length === 0} className={btn}>
-          {pending ? "Création…" : "Planifier l'OF"}
-        </button>
-      </form>
+      {!guideTermine && (guide ? (
+        <FormulaireGuide onSubmit={onSubmit} pending={pending} valider="Planifier la fabrication" indisponible={!versions.length || !sites.length || queued.length > 0}
+          groupes={[
+            { nom: "Recette et site", titre: "Que voulez-vous préparer ?", contenu: <div className="grid gap-3 sm:grid-cols-2">{recette}{site}</div> },
+            { nom: "Quantité et date", titre: "Combien et pour quand ?", contenu: <div className="grid gap-3 sm:grid-cols-2">{quantite}{date}</div> },
+          ]} />
+      ) : (
+        <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-3">
+          {recette}{site}{quantite}{date}
+          <button disabled={pending || versions.length === 0 || sites.length === 0} className={btn}>
+            {pending ? "Création…" : "Planifier la fournée"}
+          </button>
+        </form>
+      ))}
       {msg && (
         <p role={msg.kind === "err" ? "alert" : "status"}
           className={`mt-2 text-sm ${msg.kind === "err" ? "text-red-700" : msg.kind === "ok" ? "text-emerald-700" : "text-slate-600"}`}>
@@ -182,69 +195,47 @@ function CreateOfForm({ versions, sites }: { versions: Option[]; sites: Option[]
   );
 }
 
-function StartOfButton({ ofId, numero }: { ofId: string; numero: string }) {
+function StartOfButton({ ofId, titre }: { ofId: string; titre: string }) {
   const [state, action, pending] = useActionState(startOf, {});
   return (
     <form action={action} className="mt-2">
       <input type="hidden" name="ofId" value={ofId} />
-      <button disabled={pending} className={btn}>
-        {pending ? "Lancement…" : `Lancer ${numero} et consommer (FEFO)`}
+      <button disabled={pending} className="pg-button" aria-label={`Démarrer ${titre}`}>
+        {pending ? "Lancement…" : "Démarrer"} <Icon name="arrow" size={15}/>
       </button>
       <Feedback state={state} />
     </form>
   );
 }
 
-function FinishOfForm({ order }: { order: OfOrder }) {
+function FinishOfForm({ order }: { order: ProductionItem }) {
   const [state, action, pending] = useActionState(finishOf, {});
-  const reste = Number(order.qte_prevue) - Number(order.qte_realisee);
-  return (
-    <form action={action} className="mt-3 grid gap-2 sm:grid-cols-4">
-      <input type="hidden" name="ofId" value={order.id} />
-      <input name="qte" type="number" min={0.0001} max={reste} step="any" required defaultValue={reste}
-        className={field} aria-label={`Quantité réalisée ${order.numero}`} />
-      <input name="numeroLot" required placeholder="N° lot produit" className={field}
-        aria-label={`Lot produit ${order.numero}`} />
-      <input name="dlc" type="date" required className={field} aria-label={`DLC ${order.numero}`} />
-      <button disabled={pending} className={btn}>{pending ? "Enregistrement…" : "Valider la production"}</button>
-      <div className="sm:col-span-4"><Feedback state={state} /></div>
+  const reste = Math.round((order.planned - order.done) * 1000) / 1000;
+  if (!(reste > 0)) return null;
+  return <details className="pg-order-details">
+    <summary>Enregistrer la quantité produite</summary>
+    <form action={action} className="pg-order-form">
+      <input type="hidden" name="ofId" value={order.id}/>
+      <label className="pg-field">Quantité réalisée<input name="qte" type="number" min={0.0001} max={reste} step="any" required defaultValue={reste} className="pg-input"/></label>
+      <label className="pg-field">Numéro du lot<input name="numeroLot" required maxLength={80} placeholder="LOT-301" className="pg-input"/></label>
+      <label className="pg-field">Date limite de consommation<input name="dlc" type="date" required className="pg-input"/></label>
+      <button disabled={pending} className="pg-button">{pending ? "Enregistrement…" : "Valider la production"}</button>
+      <Feedback state={state}/>
     </form>
-  );
+  </details>;
 }
 
-/**
- * Écritures réelles de la page Production (RPCs SQL) : création avec besoins
- * figés, lancement FEFO, clôture au coût connu. Réservé propriétaire/labo.
- */
-export default function OfForms({ versions, sites, orders }: { versions: Option[]; sites: Option[]; orders: OfOrder[] }) {
-  const planifies = orders.filter((o) => o.statut === "planifie");
-  const enCours = orders.filter((o) => o.statut === "encours" || o.statut === "partiel");
-  return (
-    <section className="mb-6 rounded-2xl border bg-white p-5">
-      <h2 className="mb-1 font-bold">Ordres de fabrication · écritures réelles</h2>
-      <p className="mb-3 text-xs text-slate-500">
-        Les besoins sont recalculés côté serveur à partir de la version de recette ; le lancement
-        consomme les lots en FEFO dans une transaction ; la clôture crée le lot produit au coût connu.
-        Les manques sont journalisés sans jamais bloquer la production.
-      </p>
-      <CreateOfForm versions={versions} sites={sites} />
-      {planifies.length > 0 && (
-        <div className="mt-4 border-t pt-3">
-          <h3 className="mb-1 text-xs font-bold uppercase text-slate-500">À lancer</h3>
-          {planifies.map((o) => <StartOfButton key={o.id} ofId={o.id} numero={o.numero} />)}
-        </div>
-      )}
-      {enCours.length > 0 && (
-        <div className="mt-4 border-t pt-3">
-          <h3 className="mb-1 text-xs font-bold uppercase text-slate-500">À clôturer</h3>
-          {enCours.map((o) => (
-            <div key={o.id} className="mb-3">
-              <p className="text-sm font-semibold">{o.numero} — réalisé {String(o.qte_realisee)} / {String(o.qte_prevue)}</p>
-              <FinishOfForm order={o} />
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
+/** Les cartes utilisent les mêmes actions FEFO et les mêmes permissions. */
+export default function OfForms({ versions, sites, orders, canEdit, optionsIndisponibles }: {
+  versions: Option[]; sites: Option[]; orders: ProductionItem[] | null; canEdit: boolean; optionsIndisponibles: boolean;
+}) {
+  return <div className="pg-stack">
+    {canEdit && <Disclosure title="Planifier une fournée" description="Choisissez la recette, la quantité et la date." icon="plus">
+      {optionsIndisponibles ? <Notice kind="warning">Les recettes ou sites ne sont pas disponibles. Rechargez la page.</Notice> :
+        !versions.length || !sites.length ? <Notice>Une recette et un site sont nécessaires pour planifier.</Notice> :
+          <CreateOfForm versions={versions} sites={sites}/>}
+    </Disclosure>}
+    <ProductionBoard orders={orders} renderAction={canEdit ? (order) => order.statut === "planifie" ? <StartOfButton ofId={order.id} titre={order.title}/> :
+      order.statut === "encours" || order.statut === "partiel" ? <FinishOfForm order={order}/> : null : undefined}/>
+  </div>;
 }

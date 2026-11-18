@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState, type FormEvent } from 'react';
-import { seed, receive, sell, fefo, upgradeState, type State, type Article } from '@/lib/patisgest-store';
+import { useState, type FormEvent } from 'react';
+import { receive, type State, type Article } from '@/lib/patisgest-store';
 import type { Role } from '@/lib/auth';
 import { PurchaseOperations, ProductionOperations, TransferOperations } from './sprint2-operations';
 import { RecipeOperations } from './recipe-operations';
@@ -10,33 +10,48 @@ import { CakeOperations } from './cake-operations';
 import { TraceOperations } from './trace-operations';
 import { PlanningOperations } from './planning-operations';
 import { SimulationOperations } from './simulation-operations';
-import { ZImportOperations } from './z-import-operations';
+import DemoCaisse from './demo-caisse';
+import { useDemoWorkspace } from './demo-workspace';
+import StockList from './stock-list';
+import { DEMO_SITES, demoLots } from '@/lib/demo-workspace';
+import { jourUTC } from '@/lib/workspace-data';
+import { Disclosure, PageIntro } from './workspace-ui';
 
 type Module = 'stocks'|'achats'|'recettes'|'caisse'|'production'|'transferts'|'cloture'|'qualite'|'cake-design'|'tracabilite'|'planning'|'simulation';
-const storageKey='patisgest-demo-v1';
-const money=(n:number)=>new Intl.NumberFormat('fr-DZ',{maximumFractionDigits:2}).format(n)+' DA';
 const field='w-full rounded-lg border border-slate-300 bg-white p-2 text-sm';
 const btn='rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white hover:bg-violet-800';
 const box='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
-export default function DemoModule({module, role}:{module:Module; role:Role}) {
-  const [data,setData]=useState<State|null>(null); const [message,setMessage]=useState('');
-  useEffect(()=>{
-    // Read browser-only storage after hydration, then render the local demonstration.
-    /* eslint-disable react-hooks/set-state-in-effect */
-    try { const saved=localStorage.getItem(storageKey); setData(saved ? upgradeState(JSON.parse(saved) as State) : structuredClone(seed)); } catch { setData(structuredClone(seed)); }
-    /* eslint-enable react-hooks/set-state-in-effect */
-  },[]);
-  function save(next:State):boolean { try { localStorage.setItem(storageKey,JSON.stringify(next)); setData(next); return true; } catch { setMessage('Enregistrement local impossible.'); return false; } }
-  if (!data) return <p>Chargement de la démo…</p>;
+export default function DemoModule({ module, role, filtre, shop }: { module: Module; role: Role; filtre?: string; shop?: string }) {
+  const { data, save: persist } = useDemoWorkspace();
+  const [message, setMessage] = useState('');
+  function save(next: State) {
+    if (persist(next)) return true;
+    setMessage('Enregistrement local impossible.');
+    return false;
+  }
+  if (!data) return <p role="status">Chargement de la démo…</p>;
   const db=data; const canEdit=role!=='vendeur';
   function addArticle(e:FormEvent<HTMLFormElement>) { e.preventDefault(); const f=new FormData(e.currentTarget); const code=String(f.get('code')).trim(); const nom=String(f.get('nom')).trim(); if (!code||!nom||db.articles.some(a=>a.code.toLowerCase()===code.toLowerCase())) {setMessage('Code et nom requis ; le code doit être unique.'); return;} const a:Article={id:crypto.randomUUID(),code,nom,niveau:String(f.get('niveau'))==='produit'?'produit':'matiere',unite:String(f.get('unite')).trim()||'pcs',seuil:Number(f.get('seuil')),prix:Number(f.get('prix')),tva:19}; if (!Number.isFinite(a.seuil)||a.seuil<0||!Number.isFinite(a.prix)||a.prix<0) {setMessage('Valeurs invalides.');return;} if (save({...db,articles:[...db.articles,a]})) { e.currentTarget.reset(); setMessage('Article ajouté localement.'); } }
   function addLot(e:FormEvent<HTMLFormElement>) {e.preventDefault(); const f=new FormData(e.currentTarget); try {const next=receive(db,{articleId:String(f.get('article')),numero:String(f.get('numero')).trim(),site:String(f.get('site')),qte:Number(f.get('qte')),pu:Number(f.get('pu')),dlc:String(f.get('dlc'))});if (save(next)) {e.currentTarget.reset();setMessage('Lot réceptionné localement.');}} catch(err){setMessage(err instanceof Error?err.message:'Erreur');}}
-  function addSale(e:FormEvent<HTMLFormElement>) {e.preventDefault();const f=new FormData(e.currentTarget);try { const next=sell(db,String(f.get('article')),Number(f.get('qte')));if (save(next)) setMessage(next.sales[0].missing>0 ? `Vente enregistrée. Attention : ${next.sales[0].missing} unité(s) manquante(s).` : 'Vente enregistrée localement.');} catch(err){setMessage(err instanceof Error?err.message:'Erreur');}}
   const title={stocks:'Articles & stocks',achats:'Achats & fournisseurs',recettes:'Recettes & coûts',caisse:'Caisse',production:'Production',transferts:'Transferts',cloture:'Clôture & pertes',qualite:'HACCP & qualité','cake-design':'Cake Design Studio',tracabilite:'Traçabilité des lots',planning:'Planning de production',simulation:'Simulation de prix'}[module];
-  return <div className="space-y-6"><div><p className="text-xs font-bold uppercase tracking-widest text-violet-600">Sprint 2 · Démonstration</p><h1 className="mt-2 text-3xl font-black">{title}</h1></div>{message && <p role="status" className="rounded-lg bg-violet-50 p-3 text-sm text-violet-900">{message}</p>}
-    {module==='stocks' && <><section className={box}><h2 className="mb-4 font-bold">Articles et stock par site</h2><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="text-xs text-slate-500"><th className="p-2">Code / Article</th><th>Type</th><th>Labo</th><th>Boutique</th><th>Seuil</th></tr></thead><tbody>{db.articles.map(a=>{const stock=(site:string)=>db.lots.filter(l=>l.articleId===a.id&&l.site===site).reduce((s,l)=>s+l.qte,0);return <tr key={a.id} className="border-t"><td className="p-2"><b>{a.nom}</b><br/><span className="text-xs text-slate-400">{a.code}</span></td><td>{a.niveau}</td><td>{stock('Labo')} {a.unite}</td><td>{stock('Boutique')} {a.unite}</td><td>{a.seuil} {a.unite}</td></tr>})}</tbody></table></div></section>
-      <section className={box}><h2 className="mb-1 font-bold">Lots · ordre FEFO</h2><p className="mb-3 text-xs text-slate-500">Lots non bloqués : frais avant congelés, puis DLC la plus proche ; sans DLC en dernier.</p><div className="space-y-2">{db.articles.flatMap(a=>fefo(db.lots,a.id).map(l=><div key={l.id} className="flex flex-wrap justify-between gap-2 border-t py-2 text-sm"><span><b>{a.nom}</b> · {l.numero} · {l.site}</span><span>{l.qte} {a.unite} · DLC {l.dlc||'—'} · {money(l.pu)}{l.costEstimated?' (coût incomplet)':''}</span></div>))}</div></section>
-      {canEdit && <section className={box}><h2 className="mb-3 font-bold">Nouvel article</h2><form onSubmit={addArticle} className="grid gap-3 sm:grid-cols-3"><input name="code" placeholder="Code" required className={field}/><input name="nom" placeholder="Nom" required className={field}/><select name="niveau" className={field}><option value="matiere">Matière</option><option value="produit">Produit fini</option></select><input name="unite" placeholder="Unité (kg, pcs…)" required className={field}/><input name="seuil" type="number" min="0" step="any" defaultValue="0" aria-label="Seuil" className={field}/><input name="prix" type="number" min="0" step="any" defaultValue="0" aria-label="Prix HT" className={field}/><button className={btn}>Ajouter l’article</button></form></section>}</>}
+  return <div className="pg-stack"><PageIntro title={title} label={module === "stocks" ? "Inventaire" : module === "caisse" ? "Boutique" : module === "production" ? "Laboratoire" : undefined}
+    description={module === "stocks" ? "Retrouvez vos produits, vos ingrédients et les quantités par site." : module === "caisse" ? "Choisissez un produit, vérifiez la quantité et enregistrez la vente." : undefined}
+    actions={module === "stocks" && canEdit && <a href="#nouvel-article" className="pg-button pg-button-secondary">Gérer le stock</a>}/>
+    {message && <p role="status" className="rounded-lg bg-violet-50 p-3 text-sm text-violet-900">{message}</p>}
+    {module === 'stocks' && <>
+      <StockList key={filtre ?? "tous"} articles={db.articles.slice().sort((a,b) => a.nom.localeCompare(b.nom,"fr"))} lots={demoLots(db)} sites={DEMO_SITES} today={jourUTC()} filtre={filtre}/>
+      {canEdit && <div id="nouvel-article"><Disclosure title="Nouvel article" description="Créer un produit fini ou un ingrédient." icon="plus">
+        <form onSubmit={addArticle} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="pg-field">Nom de l’article<input name="nom" required maxLength={120} placeholder="Mille-feuille" className="pg-input"/></label>
+          <label className="pg-field">Code article<input name="code" required maxLength={40} placeholder="PF-005" className="pg-input"/></label>
+          <label className="pg-field">Type<select name="niveau" className="pg-input"><option value="produit">Produit fini</option><option value="matiere">Ingrédient</option></select></label>
+          <label className="pg-field">Unité<input name="unite" defaultValue="pcs" required maxLength={20} className="pg-input"/></label>
+          <label className="pg-field">Seuil d’alerte<input name="seuil" type="number" min="0" step="any" defaultValue="0" className="pg-input"/></label>
+          <label className="pg-field">Prix de vente HT (DA)<input name="prix" type="number" min="0" step="0.01" defaultValue="0" className="pg-input"/></label>
+          <div><button className="pg-button">Ajouter l’article</button></div>
+        </form>
+      </Disclosure></div>}
+    </>}
     {module==='achats' && <><PurchaseOperations data={db} canEdit={canEdit} save={save} notify={setMessage}/><section className={box}><h2 className="mb-3 font-bold">Fournisseurs de démonstration</h2><div className="grid gap-2 sm:grid-cols-3">{db.suppliers.map(s=><div key={s} className="rounded-lg bg-slate-50 p-3 text-sm">🏭 {s}</div>)}</div></section>{canEdit && <section className={box}><h2 className="mb-3 font-bold">Réceptionner un lot</h2><form onSubmit={addLot} className="grid gap-3 sm:grid-cols-3"><select name="article" aria-label="Article" className={field}>{db.articles.map(a=><option value={a.id} key={a.id}>{a.nom}</option>)}</select><input name="numero" placeholder="Numéro de lot" required className={field}/><select name="site" aria-label="Site" className={field}><option>Labo</option><option>Boutique</option></select><input name="qte" type="number" min="0.0001" step="any" placeholder="Quantité" required className={field}/><input name="pu" type="number" min="0" step="any" placeholder="Prix unitaire HT" required className={field}/><label className="text-xs text-slate-500">DLC (facultative)<input name="dlc" type="date" className={field}/></label><button className={btn}>Réceptionner</button></form></section>}</>}
     {module==='production' && <ProductionOperations data={db} canEdit={canEdit} save={save} notify={setMessage}/>}
     {module==='transferts' && <TransferOperations data={db} canEdit={canEdit} save={save} notify={setMessage}/>}
@@ -47,6 +62,6 @@ export default function DemoModule({module, role}:{module:Module; role:Role}) {
     {module==='qualite' && <QualityOperations data={db} canEdit={canEdit} save={save} notify={setMessage}/>}
     {module==='cloture' && <ClosingOperations data={db} save={save} notify={setMessage}/>}
     {module==='recettes' && <RecipeOperations data={db} canEdit={canEdit} save={save} notify={setMessage}/>}
-    {module==='caisse' && <><ZImportOperations data={db} save={save} notify={setMessage}/><section className={box}><h2 className="mb-3 font-bold">Nouvelle vente · Boutique</h2><form onSubmit={addSale} className="flex flex-wrap items-end gap-3"><label className="min-w-48 flex-1 text-xs text-slate-500">Produit<select name="article" required className={field}>{db.articles.filter(a=>a.niveau==='produit').map(a=><option value={a.id} key={a.id}>{a.nom} · {money(a.prix)} HT</option>)}</select></label><label className="text-xs text-slate-500">Quantité<input name="qte" type="number" min="0.0001" step="any" defaultValue="1" required className={field}/></label><button className={btn}>Encaisser (simulation)</button></form><p className="mt-3 text-xs text-slate-500">Le stock Boutique est consommé en FEFO ; un manque est signalé sans bloquer la vente, comme dans le prototype.</p></section><section className={box}><h2 className="mb-3 font-bold">Ventes locales</h2>{db.sales.length===0?<p className="text-sm text-slate-500">Aucune vente.</p>:db.sales.map(s=><div key={s.id} className="flex flex-wrap justify-between gap-2 border-t py-3 text-sm"><span>{s.date} · {s.source==='z-import'?'Import Z · ':''}{db.articles.find(a=>a.id===s.articleId)?.nom} × {s.qty}<br/><span className="text-xs text-slate-500">Lots : {s.lots.join(', ')||'aucun'}{s.missing>0?` · Manquant : ${s.missing}`:''}</span></span><b>{money(s.totalTTC)} TTC</b></div>)}</section></>}
-    <p className="text-xs text-slate-400">Démo non synchronisée · Les données restent sur cet appareil.</p></div>;
+    {module === 'caisse' && <DemoCaisse canEdit={canEdit} shop={shop}/>}
+  </div>;
 }

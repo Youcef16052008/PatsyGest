@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { canWrite, getSessionContext } from "./auth";
-import { messageUtilisateur } from "./erreurs-db";
+import { echecHttpReessayable, messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
 import { parseOfCreateInput, parseOfFinishInput } from "./stock-input";
 
@@ -11,11 +11,12 @@ export type OfState = {
   succes?: string;
   numero?: string;
   duplicate?: boolean;
+  reessayer?: boolean;
 };
 
-async function requireWriter(): Promise<{ erreur: string } | null> {
+async function requireWriter(): Promise<{ erreur: string; reessayer?: boolean } | null> {
   const ctx = await getSessionContext();
-  if (!ctx) return { erreur: "Session requise." };
+  if (!ctx) return { erreur: "Session requise.", reessayer: true };
   if (!canWrite(ctx.role)) return { erreur: "Réservé aux rôles propriétaire et labo." };
   return null;
 }
@@ -42,23 +43,24 @@ export async function createOf(_prev: OfState, formData: FormData): Promise<OfSt
 
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("creer_of", {
+    const { data, error, status } = await supabase.rpc("creer_of", {
       p_version_id: input.versionId,
       p_site_id: input.siteId,
       p_qte_prevue: input.qtePrevue,
       p_date_prevue: input.datePrevue,
       p_client_ref: clientRef,
     });
-    if (error) return { erreur: mapRpcError(error) };
+    if (error) return { erreur: mapRpcError(error), reessayer: echecHttpReessayable(status) };
     const r = data as { numero?: string; duplicate?: boolean } | null;
     const numero = r?.numero ?? "";
     revalidatePath("/production");
+    revalidatePath("/tableau-de-bord");
     if (r?.duplicate) {
       return { succes: `OF ${numero} déjà enregistré (idempotence hors-ligne).`, numero, duplicate: true };
     }
     return { succes: `OF ${numero} planifié avec les besoins figés de la recette.`, numero, duplicate: false };
   } catch {
-    return { erreur: "Supabase est inaccessible depuis ce serveur." };
+    return { erreur: "Supabase est inaccessible depuis ce serveur.", reessayer: true };
   }
 }
 

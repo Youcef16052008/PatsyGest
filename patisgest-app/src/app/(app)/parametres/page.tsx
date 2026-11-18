@@ -2,6 +2,8 @@ import { requireSession, ROLE_LABELS } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import EtablissementForm from "@/components/etablissement-form";
 import SauvegardePanel from "@/components/sauvegarde-panel";
+import AppearancePicker from "@/components/appearance";
+import { PageIntro } from "@/components/workspace-ui";
 import type { Etablissement } from "@/lib/etablissement";
 
 export const dynamic = "force-dynamic";
@@ -51,11 +53,10 @@ export default async function Parametres() {
 
   return (
     <div>
-      <p className="text-xs font-bold uppercase tracking-widest text-violet-600">Paramètres</p>
-      <h1 className="mt-2 text-3xl font-black">Établissement &amp; mentions légales</h1>
-      <p className="mt-2 text-sm text-slate-500">
-        Votre rôle : {ROLE_LABELS[ctx.role]} · Établissement : {ctx.clientNom}
-      </p>
+      <PageIntro title="Paramètres" description={`${ctx.clientNom} · ${ROLE_LABELS[ctx.role]}`}/>
+      <section className="pg-card pg-card-pad">
+        <div className="pg-card-head"><div><h2>Apparence</h2><p>Cinq interfaces, chacune en clair ou en sombre. Ce choix ne change que ce navigateur.</p></div><AppearancePicker/></div>
+      </section>
 
       <div className="mt-6">
         {ctx.role === "proprietaire" ? (

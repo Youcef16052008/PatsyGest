@@ -1,13 +1,8 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { canReadCosts, canWrite, requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import DemoModule from "@/components/demo-module";
-import StockWriteForms from "@/components/stock-write-forms";
-import SaleForm from "@/components/sale-form";
-import ZImportForm from "@/components/z-import-form";
-import OfForms, { type OfOrder } from "@/components/of-forms";
-import TransferForm from "@/components/transfer-form";
 import ClotureForm from "@/components/cloture-form";
 import QualityForms, { type NcRow } from "@/components/quality-forms";
 import PlanningForms, { type TaskRow } from "@/components/planning-forms";
@@ -16,17 +11,21 @@ import CommandeForms, { type CommandeRow } from "@/components/commande-forms";
 import { computePriceAlerts } from "@/lib/price-alerts";
 import { computeReconciliation, type ClosingRecord, type SaleRecord } from "@/lib/reconciliation";
 import ReconPanel from "@/components/recon-panel";
-import LabelMaker from "@/components/label-maker";
 import VersionForm, { type VersionRow } from "@/components/version-form";
 import RecallForm from "@/components/recall-form";
 import SimulationForm from "@/components/simulation-form";
 import CostSheetForm from "@/components/cost-sheet-form";
 import QualityAlertsPanel from "@/components/quality-alerts-panel";
 import { computeQualityAlerts, type AlerteQualite } from "@/lib/quality-alerts";
-import type { LabelIngredient, LabelLot, LabelProduct } from "@/lib/label-model";
-import { allergenesDerives, verifierDeclaration } from "@/lib/allergenes";
 import ExportPanel from "@/components/export-panel";
 import { TABLES_EXPORT } from "@/lib/csv";
+import { etapePourModule } from "@/lib/onboarding";
+import ModuleGuide from "@/components/module-guide";
+import FournisseurForm from "@/components/fournisseur-form";
+import StockWorkspace from "@/components/stock-workspace";
+import CashWorkspace from "@/components/cash-workspace";
+import ProductionWorkspace from "@/components/production-workspace";
+import { PageIntro } from "@/components/workspace-ui";
 
 const modules = {
   stocks: { title:'Articles & stocks', tables:[['articles','Articles'],['lots','Lots']] },
@@ -43,6 +42,40 @@ const modules = {
   caisse: { title:'Caisse', tables:[['ventes','Ventes']] },
 } as const;
 type Module = keyof typeof modules;
+
+const moduleDescriptions: Partial<Record<Module, string>> = {
+  achats: "Préparez les commandes et retrouvez vos fournisseurs.",
+  recettes: "Organisez vos recettes et les versions utilisées en production.",
+  simulation: "Comparez vos prix de vente et vos marges par produit.",
+  transferts: "Retrouvez les mouvements de stock entre vos sites.",
+  planning: "Préparez la journée et suivez les tâches du laboratoire.",
+  tracabilite: "Retrouvez l’origine et les mouvements de chaque lot.",
+  'cake-design': "Suivez les devis, acomptes et livraisons de gâteaux sur commande.",
+  qualite: "Contrôlez vos températures, nettoyages et alertes.",
+  cloture: "Faites le bilan des ventes et des pertes par site.",
+};
+const columnLabels: Record<string, string> = {
+  numero: "Référence", nom: "Nom", statut: "État", code: "Code", qte: "Quantité", qte_rest: "Reste en stock", qte_init: "Quantité reçue",
+  dlc: "DLC", date_reception: "Réception", pv_ht: "Prix de vente HT", prix_ht: "Montant HT", pu: "Prix unitaire", fait: "Terminé", bloque: "Bloqué",
+  date_event: "Date de l’événement", client_nom: "Client", nb_parts: "Parts", rendement_qte: "Rendement", rendement_unite: "Unité",
+};
+const readableValue = (value: unknown) => value == null ? '—' : typeof value === 'boolean' ? value ? 'Oui' : 'Non'
+  : Array.isArray(value) ? value.every(v => typeof v === 'string') ? value.join(', ') || '—' : '—' : typeof value === 'object' ? '—' : String(value);
+
+
+const modulesCout = new Set<Module>(['recettes', 'simulation']);
+// Le récapitulatif liste les références, pas les ingrédients ni le détail des
+// coûts. La fiche de coût les calcule séparément, via son action protégée.
+const tablesCout = {
+  recette_familles: 'id, code, nom, produit_id',
+  recette_versions: 'id, famille_id, version, active, rendement_qte, rendement_unite',
+  parametres_couts: 'id',
+} as const;
+
+function estTableCout(table: string): table is keyof typeof tablesCout {
+  return Object.hasOwn(tablesCout, table);
+}
+
 async function buildQualiteAlerts(supabase: Awaited<ReturnType<typeof createClient>>, clientId: string): Promise<AlerteQualite[]> {
   const [tRes, nRes, ncRes, lRes, tkRes] = await Promise.all([
     supabase.from('releve_temperatures').select('frigo_nom, date_releve, temperature, seuil_max').eq('client_id', clientId).order('date_releve', { ascending: false }).limit(300),
@@ -70,77 +103,33 @@ async function buildQualiteAlerts(supabase: Awaited<ReturnType<typeof createClie
   });
 }
 
-export default async function ModulePage({ params }: { params: Promise<{module:string}> }) {
+export default async function ModulePage({ params, searchParams }: {
+  params: Promise<{ module: string }>;
+  searchParams: Promise<{ guide?: string | string[]; filtre?: string | string[] }>;
+}) {
   const {module} = await params;
   if (!Object.hasOwn(modules,module)) notFound();
   const key=module as Module, info=modules[key], ctx=await requireSession();
-  if (ctx.mode === 'pilote-local') return <DemoModule module={key} role={ctx.role}/>;
+  const coutsAutorises = canReadCosts(ctx.role);
+  if (modulesCout.has(key) && !coutsAutorises) redirect('/tableau-de-bord');
+  const recherche = await searchParams;
+  const filtre = recherche.filtre === 'alerte' ? 'alerte' : undefined;
+  if (ctx.mode === 'pilote-local') return <DemoModule module={key} role={ctx.role} filtre={filtre} shop={ctx.clientNom}/>;
+  const tables = info.tables.filter(([table]) => coutsAutorises || !estTableCout(table));
+  const cleGuide = coutsAutorises && canWrite(ctx.role) ? etapePourModule(key, recherche.guide) : undefined;
   const supabase=await createClient();
-  const results=await Promise.all(info.tables.map(async ([table,label])=> {
-    const {data,error}=await supabase.from(table).select('*').eq('client_id',ctx.clientId).limit(100);
+  if (cleGuide) return <ModuleGuide key={cleGuide} cle={cleGuide} ctx={ctx} db={supabase} module={key} titre={info.title} />;
+  if (key === 'stocks') return <StockWorkspace ctx={ctx} db={supabase} filtre={filtre}/>;
+  if (key === 'caisse') return <CashWorkspace ctx={ctx} db={supabase}/>;
+  if (key === 'production') return <ProductionWorkspace ctx={ctx} db={supabase}/>;
+  const results=await Promise.all(tables.map(async ([table,label])=> {
+    const colonnes = estTableCout(table) ? tablesCout[table] : '*';
+    const {data,error}=await supabase.from(table).select(colonnes).eq('client_id',ctx.clientId).limit(100)
+      .overrideTypes<Record<string, unknown>[], { merge: false }>();
     return {label,data,error};
   }));
-  // Écritures réelles (RLS) : uniquement sur Stocks et pour les rôles autorisés.
   let writeForms: ReactNode = null;
-  if (key==='stocks' && canWrite(ctx.role)) {
-    const [sitesRes,fournRes,recRes,lotRes]=await Promise.all([
-      supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
-      supabase.from('fournisseurs').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
-      supabase.from('recette_familles').select('id, produit_id, recette_versions!inner(id, ingredients)').eq('client_id',ctx.clientId).eq('recette_versions.active',true),
-      supabase.from('lots').select('article_id, numero, dlc, qte_rest, articles!inner(niveau)').eq('client_id',ctx.clientId).gt('qte_rest',0).eq('articles.niveau','produit').order('dlc',{ascending:true}).limit(300),
-    ]);
-    const articleRows=(results.find(r=>r.label==='Articles')?.data ?? []) as {id:string;code:string;nom:string;allergenes?:string[];traces?:string[]}[];
-    const labelProduits: (LabelProduct & {id:string})[]=articleRows
-      .filter(a=>a.code && a.nom)
-      .map(a=>({id:a.id,code:a.code,nom:a.nom,allergenes:a.allergenes??[],traces:a.traces??[]}));
-    const recipes: Record<string,LabelIngredient[]>={};
-    for (const row of ((recRes.data??[]) as {produit_id:string;recette_versions:{ingredients:LabelIngredient[]}[]|{ingredients:LabelIngredient[]}|null}[])) {
-      if (!row.produit_id) continue;
-      const v=Array.isArray(row.recette_versions)?row.recette_versions[0]:row.recette_versions;
-      if (v?.ingredients) recipes[row.produit_id]=v.ingredients;
-    }
-    const lots: Record<string,LabelLot[]>={};
-    for (const row of ((lotRes.data??[]) as {article_id:string;numero:string;dlc:string|null}[])) {
-      (lots[row.article_id] ??= []).push({numero:row.numero,dlc:row.dlc});
-    }
-    // MOD-10 : allergènes DÉRIVÉS des matières (décret 13-378) au lieu de la
-    // seule saisie manuelle. On compare à la déclaration de la fiche produit
-    // pour signaler une sur-déclaration ou une sous-déclaration (bloquante).
-    const versionsRecette = ((recRes.data??[]) as {
-      produit_id:string;
-      recette_versions:{id:string;ingredients:LabelIngredient[]}[]|{id:string;ingredients:LabelIngredient[]}|null;
-    }[]).flatMap(row=>{
-      const v=Array.isArray(row.recette_versions)?row.recette_versions[0]:row.recette_versions;
-      return v?.id ? [{id:v.id, familleId:'', ingredients:v.ingredients as unknown as {articleId:string}[]}] : [];
-    });
-    const articlesAllergenes = articleRows
-      .filter(a=>a.code && a.nom)
-      .map(a=>({code:a.code, nom:a.nom, allergenes:a.allergenes??[]}));
-    const prodsParId = new Map(labelProduits.map(p=>[p.id,p]));
-    const allergenesParProduit: Record<string,{derives:string[];declares:string[];enTrop:string[];manquants:string[]}>={};
-    const produitParVersion = new Map<string,string>();
-    for (const row of ((recRes.data??[]) as {produit_id:string;recette_versions:{id:string}|{id:string}[]|null}[])) {
-      const v=Array.isArray(row.recette_versions)?row.recette_versions[0]:row.recette_versions;
-      if (v?.id && row.produit_id) produitParVersion.set(v.id, row.produit_id);
-    }
-    for (const [versionId, produitId] of produitParVersion) {
-      const p = prodsParId.get(produitId);
-      if (!p) continue;
-      const { derives, articlesLus } = allergenesDerives(versionId, versionsRecette, articlesAllergenes);
-      const d = verifierDeclaration(p.allergenes, derives, articlesLus);
-      allergenesParProduit[produitId] = {
-        derives: d.derives, declares: d.declares, enTrop: d.enTrop, manquants: d.manquants,
-      };
-    }
-    writeForms=<>
-      <StockWriteForms
-        articles={articleRows.map(a=>({id:a.id,label:`${a.code} · ${a.nom}`}))}
-        sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
-        fournisseurs={((fournRes.data??[]) as {id:string;nom:string}[]).map(f=>({id:f.id,label:f.nom}))}
-      />
-      <LabelMaker produits={labelProduits} recipes={recipes} lots={lots} allergenes={allergenesParProduit} />
-    </>;
-  } else if (key==='simulation' && canReadCosts(ctx.role)) {
+  if (key==='simulation' && coutsAutorises) {
     // Simulation réelle : version active + besoins étendus + coût FEFO.
     const [famRes, sArtRes]=await Promise.all([
       supabase.from('recette_familles').select('produit_id').eq('client_id',ctx.clientId),
@@ -161,7 +150,7 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
       .map(l=>({...l,fam:Array.isArray(l.articles)?l.articles[0]:l.articles}))
       .filter(l=>l.fam);
     writeForms=<RecallForm lots={lotRows.map(l=>({id:l.id,label:`${l.numero} · ${l.fam.code} ${l.fam.nom}`}))} />;
-  } else if (key==='recettes' && canWrite(ctx.role)) {
+  } else if (key==='recettes' && coutsAutorises && canWrite(ctx.role)) {
     // Versions immuables : articles ou sous-recettes figées + activation.
     const artRes=await supabase.from('articles').select('id, code, nom, niveau, unite').eq('client_id',ctx.clientId).order('nom').limit(150);
     const verRes=await supabase.from('recette_versions')
@@ -179,44 +168,6 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
     const subVersions=verRows.map(v=>({id:v.id,label:`${v.fam.nom} · v${v.version} (${v.rendement_qte} ${v.rendement_unite})`}));
     const versionRows: VersionRow[]=verRows.map(v=>({id:v.id,familleId:v.famille_id,version:v.version,active:v.active,label:`${v.fam.nom} · v${v.version} (${v.rendement_qte} ${v.rendement_unite})`}));
     writeForms=<VersionForm familles={familles} articles={articles} subVersions={subVersions} versions={versionRows} produits={produits} />;
-  } else if (key==='caisse') {
-    // Vente réelle : tous les rôles authentifiés (le vendeur est le rôle caisse).
-    const [sitesRes,produitsRes,etabRes]=await Promise.all([
-      supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
-      supabase.from('articles').select('id, code, nom').eq('client_id',ctx.clientId).eq('niveau','produit').order('code'),
-      // Mentions légales du ticket (§5) : NIF, NIS, RC, adresse.
-      supabase.from('clients').select('nom, adresse, telephone, nif, nis, rc').eq('id',ctx.clientId).maybeSingle(),
-    ]);
-    const etablissement={nom:(etabRes.data?.nom as string)??ctx.clientNom,adresse:(etabRes.data?.adresse as string|null)??null,telephone:(etabRes.data?.telephone as string|null)??null,nif:(etabRes.data?.nif as string|null)??null,nis:(etabRes.data?.nis as string|null)??null,rc:(etabRes.data?.rc as string|null)??null};
-    writeForms=<>
-      <SaleForm
-        articles={((produitsRes.data??[]) as {id:string;code:string;nom:string}[]).map(a=>({id:a.id,label:`${a.code} · ${a.nom}`}))}
-        sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
-        etablissement={etablissement}
-      />
-      {canWrite(ctx.role) && <ZImportForm sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))} />}
-    </>;
-  } else if (key==='production' && canWrite(ctx.role)) {
-    // OF réels : création (besoins figés), lancement FEFO, clôture au coût connu.
-    const [sitesRes,famRes,verRes]=await Promise.all([
-      supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
-      supabase.from('recette_familles').select('id, nom').eq('client_id',ctx.clientId),
-      supabase.from('recette_versions').select('id, version, famille_id').eq('client_id',ctx.clientId).order('version'),
-    ]);
-    const famById=new Map(((famRes.data??[]) as {id:string;nom:string}[]).map(f=>[f.id,f.nom]));
-    const versions=((verRes.data??[]) as {id:string;version:number;famille_id:string}[])
-      .filter(v=>famById.has(v.famille_id))
-      .map(v=>({id:v.id,label:`${famById.get(v.famille_id)} · v${v.version}`}));
-    const ofRows=((results.find(r=>r.label==='Ordres de fabrication')?.data??[]) as OfOrder[]);
-    writeForms=<OfForms versions={versions}
-      sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
-      orders={ofRows}/>;
-  } else if (key==='transferts' && canWrite(ctx.role)) {
-    const [sitesRes,artRes]=await Promise.all([
-      supabase.from('sites').select('id, nom').eq('client_id',ctx.clientId).order('nom'),
-      supabase.from('articles').select('id, code, nom').eq('client_id',ctx.clientId).order('code'),
-    ]);
-
   } else if (key==='cloture' && canWrite(ctx.role)) {
     // Clôture six flux (RPC saisir_cloture) : révisions et enrichissement côté serveur.
     const [sitesRes,artRes,clotRes,ventesRes]=await Promise.all([
@@ -277,13 +228,24 @@ export default async function ModulePage({ params }: { params: Promise<{module:s
     const fourRows=((results.find(r=>r.label==='Fournisseurs')?.data??[]) as {id:string;nom:string}[]);
     const fourById=new Map(fourRows.map(f=>[f.id,f.nom]));
     const cmdRows=((results.find(r=>r.label==='Bons de commande')?.data??[]) as {id:string;numero:string;statut:string;lignes:{articleId:string;qte:number;pu:number;recu:number}[]|null;fournisseur_id:string}[]);
-    writeForms=<CommandeForms
+    writeForms=<><FournisseurForm /><CommandeForms
       alerts={priceAlerts}
       fournisseurs={fourRows.map(f=>({id:f.id,label:f.nom}))}
       articles={((artRes.data??[]) as {id:string;code:string;nom:string;pu_ht:number}[]).map(a=>({id:a.id,label:`${a.code} — ${a.nom} (${Number(a.pu_ht).toLocaleString('fr-FR')} DA)`}))}
       sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
       commandes={cmdRows.map(c=>({id:c.id,numero:c.numero,statut:c.statut,fournisseur:fourById.get(c.fournisseur_id)??"",lignes:c.lignes??[]}))}
-    />;
+    /></>;
   }
-  return <div>{writeForms}<p className="text-xs font-bold uppercase tracking-widest text-violet-600">{writeForms ? 'Supabase · Écritures sécurisées + lecture' : 'Supabase · Lecture seule'}</p><h1 className="mt-2 text-3xl font-black">{info.title}</h1><p className="mt-2 text-sm text-slate-500">{writeForms ? 'Les écritures ci-dessus sont transactionnelles et isolées par RLS.' : key==='simulation' ? 'La simulation interactive est disponible uniquement dans la démo locale ; voici les données distantes en lecture seule.' : 'Les opérations d’écriture sécurisées sont en cours de développement.'}</p><div className="mt-6 grid gap-5">{results.map(({label,data,error})=><section key={label} className="rounded-2xl border bg-white p-5"><h2 className="mb-3 font-bold">{label} · {data?.length ?? 0}</h2>{error ? <p role="alert" className="text-sm text-red-700">Impossible de charger les données : {error.message}</p> : data?.length ? <div className="overflow-auto"><table className="w-full text-left text-sm"><thead><tr>{Object.keys(data[0]).filter(k=>!['client_id','created_at'].includes(k)).map(k=><th className="border-b p-2 text-xs text-slate-500" key={k}>{k}</th>)}</tr></thead><tbody>{data.map((row,i)=><tr key={i}>{Object.entries(row).filter(([k])=>!['client_id','created_at'].includes(k)).map(([k,v])=><td key={k} className="max-w-xs border-b p-2 align-top">{typeof v==='object' ? JSON.stringify(v) : String(v ?? '—')}</td>)}</tr>)}</tbody></table></div> : <p className="text-sm text-slate-500">Aucune donnée.</p>}</section>)}</div></div>;
+  return <>
+    <PageIntro title={info.title} description={moduleDescriptions[key]}/>
+    <div className="pg-stack">{writeForms}{results.map(({label,data,error}) => {
+      const cols = Object.keys(data?.[0] ?? {}).filter(k => !['id','created_at','updated_at','client_ref'].includes(k) && !k.endsWith('_id')
+        && data?.some(r => r[k] != null && (typeof r[k] !== 'object' || Array.isArray(r[k]) && (r[k] as unknown[]).every(v => typeof v === 'string'))));
+      return <section key={label} className="pg-card pg-card-pad"><div className="pg-card-head"><h2>{label}</h2></div>
+        {error ? <p role="alert" className="text-sm text-red-700">Impossible de charger les données. Rechargez la page.</p> : data?.length && cols.length ?
+          <div className="overflow-auto"><table className="w-full text-left text-sm"><thead><tr>{cols.map(k => <th className="border-b p-2 text-xs text-slate-600" scope="col" key={k}>{columnLabels[k] ?? k.replaceAll('_',' ')}</th>)}</tr></thead>
+          <tbody>{data.map((row,i) => <tr key={i}>{cols.map(k => <td key={k} className="max-w-xs wrap-anywhere border-b p-2 align-top">{readableValue(row[k])}</td>)}</tr>)}</tbody></table></div> : <p className="text-sm text-slate-500">{data?.length ? 'Aucun détail à afficher.' : 'Aucun enregistrement.'}</p>}
+      </section>;
+    })}</div>
+  </>;
 }

@@ -3,13 +3,28 @@
 Application Next.js 16 pour pâtisseries artisanales : connexion Supabase à trois rôles
 (propriétaire / labo / vendeur), isolement client par RLS, et modules Sprint 2.
 
-> **État honnête** : les modules interactifs (FEFO, recettes, OF, transferts, Z, clôture,
-> HACCP, Cake Design, traçabilité, planning, simulation) sont des **démonstrations
-> locales** stockées dans le `localStorage` du navigateur. Les pages des comptes Supabase
-> réels affichent des tables **lecture seule**. Les écritures transactionnelles Supabase,
-> le rapprochement caisse/clôture et le rappel réel ne sont pas encore implémentés —
-> voir `SPRINT2.md` et `SPRINT3.md` pour la liste complète et les limites. Ce pilote n'est **pas** prêt
-> pour des données réelles.
+> **Démo et pilote connecté** : la démonstration manipule uniquement des données
+> fictives dans le navigateur. En mode Supabase, la caisse, les stocks et la
+> production utilisent les écritures et les contrôles de rôle existants. Cette
+> refonte ne demande pas de migration supplémentaire. Respecter la procédure
+> du [guide pilote](../GUIDE-PILOTE.md) avant d’utiliser des données réelles.
+
+## Interface
+
+Depuis le bouton **Apparence** de l’en-tête ou **Paramètres → Apparence** :
+
+- **Atelier** : accueil illustré, indicateurs du jour et raccourcis.
+- **Pilotage** : suivi des ventes sur 7 ou 14 jours et alertes de stock.
+- **Mise en place** : tableau des fournées à lancer, en cours et terminées.
+- **Comptoir** : caisse directement sur l’accueil.
+- **Essentiel** : une prochaine action, ou le guide *Premiers pas* lorsqu’il est disponible.
+
+Chaque interface garde son propre mode clair/sombre dans ce navigateur. Changer
+l’apparence ne change ni les données ni les droits. Dans Stocks, la recherche
+accepte le nom, le code ou le numéro d’un lot en stock : cliquer sur une ligne
+pour voir ses détails. En caisse, choisir le site et le produit, vérifier la
+quantité et le TTC, puis enregistrer la vente (un produit par ticket). En démo,
+ce bouton simule la vente et le ticket est sans valeur fiscale.
 
 ## Mise en route
 
@@ -33,6 +48,13 @@ Exécuter **une fois** dans Supabase → SQL Editor, dans l'ordre :
 
 Le jeu de données métier du projet pilote distant n'est pas intégralement reproduit par
 le seed local.
+
+**Pilote déjà en migration 18** : avant de déployer les correctifs et le guide B,
+appliquer `supabase/19-confidentialite-familles-recettes.sql` puis
+`supabase/20-creation-fournisseur.sql`. Le guide est proposé uniquement au
+propriétaire et au labo en mode Supabase. Il suit les six enregistrements
+existants dans l'établissement, pas les brouillons ni la file hors ligne.
+Pour le retest sur un établissement de test, voir [le guide pilote, étape 6](../GUIDE-PILOTE.md#étape-6--vérifier-et-chronométrer-le-guide-b).
 
 ### 2. Comptes
 
@@ -62,13 +84,13 @@ npm ci
 npm run dev            # http://localhost:3000
 npm run typecheck      # TypeScript
 npm run lint           # ESLint
-npm test               # 147 tests unitaires (Node ≥ 22)
+npm test               # tests unitaires et régressions (Node ≥ 22)
 npm run test:smoke     # tests HTTP : gardes de routes, login/démo, cookie forgé, logout
 npm run build          # build de production (celui que Vercel exécute)
 ```
 
 Le test de fumée démarre son propre `next dev` sur le port 3411 (variable `SMOKE_PORT`
-pour le changer).
+pour le changer). Arrêtez le serveur de développement avant de lancer ce test.
 
 ## Déploiement (Vercel)
 
@@ -129,7 +151,7 @@ tests/smoke-http.mjs                    → tests HTTP de bout en bout
   code utilisateur sans frontière d'autorisation explicite. Les politiques d'écriture
   métier sont volontairement désactivées en attendant des procédures transactionnelles.
 - **Rôles** : `proprietaire` (tout) / `labo` (stocks, prod) / `vendeur` (caisse + lecture).
-  Les coûts ne sont pas encore restreints par rôle côté serveur.
+  Les recettes et paramètres de coûts sont réservés au propriétaire et au labo (RLS 17/19).
 - **Argent** : montants arrondis au centime (centimes entiers pour les versements Cake) ;
   le total d'un ticket Z est la somme exacte de ses lignes arrondies.
 - **Démo vs réel** : toute donnée issue du mode démo vit dans le `localStorage` — ni

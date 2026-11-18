@@ -11,7 +11,7 @@ export const metadata = { title: "Mentions légales & CGU — PâtisGest" };
  */
 export default function MentionsLegales() {
   return (
-    <main className="mx-auto max-w-3xl px-5 py-10 text-slate-800">
+    <article className="mx-auto max-w-3xl px-5 py-10 text-slate-800">
       <p className="text-xs font-bold uppercase tracking-widest text-violet-600">PâtisGest · Pilote</p>
       <h1 className="mt-2 text-3xl font-black">Mentions légales & conditions d&apos;utilisation</h1>
 
@@ -102,6 +102,6 @@ export default function MentionsLegales() {
       <p className="mt-10 text-sm">
         <Link href="/tableau-de-bord" className="font-bold text-violet-700">← Retour au tableau de bord</Link>
       </p>
-    </main>
+    </article>
   );
 }

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { canWrite, getSessionContext } from "./auth";
-import { messageUtilisateur } from "./erreurs-db";
+import { echecHttpReessayable, messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
 import { parseSaleInput } from "./stock-input";
 import { parseZCsv } from "./z-input";
@@ -11,10 +11,14 @@ export type SaleState = {
   erreur?: string;
   succes?: string;
   ticket?: string;
+  numero?: string;
   totalHT?: number;
   totalTTC?: number;
   lots?: string[];
   manquant?: number;
+  duplicate?: boolean;
+  reessayer?: boolean;
+  enregistreeA?: string;
 };
 
 type SaleResult = {
@@ -33,7 +37,7 @@ type SaleResult = {
  */
 export async function sellProduct(_prev: SaleState, formData: FormData): Promise<SaleState> {
   const ctx = await getSessionContext();
-  if (!ctx) return { erreur: "Session requise." };
+  if (!ctx) return { erreur: "Session requise.", reessayer: true };
 
   let input;
   try {
@@ -50,7 +54,7 @@ export async function sellProduct(_prev: SaleState, formData: FormData): Promise
     const pTicket = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ticketRaw)
       ? ticketRaw
       : crypto.randomUUID();
-    const { data, error } = await supabase.rpc("vendre_article", {
+    const { data, error, status } = await supabase.rpc("vendre_article", {
       p_article_id: input.articleId,
       p_site_id: input.siteId,
       p_qte: input.qte,
@@ -59,30 +63,52 @@ export async function sellProduct(_prev: SaleState, formData: FormData): Promise
     if (error) {
       if (error.code === "P0001") return { erreur: error.message };
       if (error.code === "42501") return { erreur: "Votre rôle n'autorise pas cette vente." };
-      if (error.code === "23505") return { erreur: "Ce ticket a déjà été enregistré." };
-      return { erreur: messageUtilisateur(error, "Vente refusée") };
+      if (error.code === "23505") return { erreur: "Ce ticket a déjà été enregistré.", duplicate: true };
+      return { erreur: messageUtilisateur(error, "Vente refusée"), reessayer: echecHttpReessayable(status) };
     }
 
     const result = data as SaleResult | null;
-    if (result?.duplicate) return { erreur: "Ce ticket a déjà été enregistré." };
+    revalidatePath("/caisse");
+    revalidatePath("/tableau-de-bord");
+    revalidatePath("/stocks");
+    if (result?.duplicate) {
+      // La première réponse a pu se perdre après l'encaissement. Relire le
+      // ticket enregistré, sans recalculer avec les tarifs d'aujourd'hui.
+      const { data: vente } = await supabase.from("ventes")
+        .select("numero, total_ht, total_ttc, lignes, created_at")
+        .eq("client_id", ctx.clientId).eq("site_id", input.siteId).eq("ticket", pTicket).maybeSingle();
+      const ligne = Array.isArray(vente?.lignes) ? vente.lignes[0] : null;
+      if (vente && ligne?.articleId === input.articleId && Number(ligne.qty) === input.qte) {
+        const lots: SaleResult["lots"] = Array.isArray(ligne.lots) ? ligne.lots : [];
+        return {
+          duplicate: true, ticket: pTicket, numero: vente.numero, enregistreeA: vente.created_at,
+          totalHT: Number(vente.total_ht), totalTTC: Number(vente.total_ttc),
+          lots: lots.map((l) => `${l.numero} × ${l.qty}`),
+        };
+      }
+      return { duplicate: true, erreur: "Ce ticket a déjà été enregistré." };
+    }
 
+    // Le numéro métier figure sur le ticket, pas l’UUID d’idempotence.
+    const { data: vente } = result?.sale_id ? await supabase.from("ventes").select("numero, created_at")
+      .eq("client_id", ctx.clientId).eq("id", result.sale_id).maybeSingle() : { data: null };
     const lots = (result?.lots ?? []).map((l) => `${l.numero} × ${l.qty}`).join(", ");
     const missing = Number(result?.missing ?? 0);
-    revalidatePath("/caisse");
-    revalidatePath("/stocks");
     return {
       succes:
         `Vente enregistrée — ${result?.totalHT} HT / ${result?.totalTTC} TTC.` +
         (lots ? ` Lots : ${lots}.` : "") +
         (missing > 0 ? ` Manquant : ${missing} (signalé, stock jamais négatif).` : ""),
       ticket: pTicket,
+      numero: vente?.numero,
+      enregistreeA: vente?.created_at,
       totalHT: Number(result?.totalHT ?? 0),
       totalTTC: Number(result?.totalTTC ?? 0),
       lots: (result?.lots ?? []).map((l) => `${l.numero} × ${l.qty}`),
       manquant: missing,
     };
   } catch {
-    return { erreur: "Supabase est inaccessible depuis ce serveur." };
+    return { erreur: "Supabase est inaccessible depuis ce serveur.", reessayer: true };
   }
 }
 

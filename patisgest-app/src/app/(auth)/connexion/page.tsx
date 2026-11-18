@@ -1,13 +1,24 @@
 import { demoEnabled } from "@/lib/auth";
 import LoginForm from "./login-form";
 import { quickDemoLogin } from "@/lib/actions-auth";
+import { Icon } from "@/components/workspace-icons";
+import { QuickColorMode } from "@/components/appearance";
 
 export default function ConnexionPage() {
-  return <main className="flex min-h-screen items-center justify-center bg-slate-100 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
-    <h1 className="text-3xl font-extrabold text-violet-900">🧁 PâtisGest</h1><p className="mb-6 mt-2 text-sm text-slate-500">Gestion de pâtisserie · Connexion</p>
-    <LoginForm />
-    {demoEnabled() && <div className="mt-6 border-t pt-5"><h2 className="font-bold">Démo locale</h2><p className="my-2 text-xs text-amber-800">Données fictives dans ce navigateur, sans connexion ni synchronisation Supabase. Ne pas utiliser pour des données réelles.</p>
-      {[["amina@patisserie.dz", "Propriétaire"],["sara@patisserie.dz", "Laboratoire"],["amine@patisserie.dz", "Vendeur"]].map(([email, label]) => <form key={email} action={quickDemoLogin}><input type="hidden" name="email" value={email}/><button className="my-1 w-full rounded-lg border border-violet-200 bg-violet-50 p-2 text-left text-sm font-semibold hover:bg-violet-100">Essayer · {label} →</button></form>)}
-    </div>}
-  </div></main>;
+  return <main className="pg-login">
+    <section className="pg-login-brand" aria-label="PâtisGest">
+      <span className="pg-brand"><span className="pg-brand-mark"><Icon name="logo" size={24}/></span><span className="pg-brand-copy"><strong>PâtisGest</strong><small>Gestion pour pâtisseries</small></span></span>
+      <div><p className="pg-kicker">Du labo à la boutique</p><p className="pg-login-tagline">La gestion au service de votre savoir-faire.</p></div>
+    </section>
+    <section className="pg-login-card">
+      <div className="pg-login-heading"><div><p className="pg-kicker">Bienvenue</p><h1>Votre espace PâtisGest</h1></div><QuickColorMode/></div>
+      <p className="pg-page-description">Connectez-vous pour retrouver vos stocks, vos ventes et vos commandes de gâteaux.</p>
+      <LoginForm/>
+      {demoEnabled() && <div className="pg-login-demo"><h2>Découvrir sans compte</h2><p>Démo locale avec des données fictives, sans connexion à votre établissement.</p>
+        {[["amina@patisserie.dz", "Propriétaire"],["sara@patisserie.dz", "Laboratoire"],["amine@patisserie.dz", "Vendeur"]].map(([email, label]) => <form key={email} action={quickDemoLogin}>
+          <input type="hidden" name="email" value={email}/><button type="submit" className="pg-button pg-button-secondary">Essayer · {label} <Icon name="arrow" size={17}/></button>
+        </form>)}
+      </div>}
+    </section>
+  </main>;
 }
