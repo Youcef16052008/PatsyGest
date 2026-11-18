@@ -13,7 +13,7 @@ export default function DemoDashboard({ nom, shop, role }: { nom: string; shop: 
   if (role !== "vendeur") {
     const owner=role === "proprietaire";
     const closing=owner && data ? DEMO_SITES.filter(s=>s.type==='boutique').map(s=>{const items=data.closings.filter(c=>c.date===today&&c.site===s.id).sort((a,b)=>b.revision-a.revision);return {id:s.id,site:s.label,closed:items.length>0,cashDeclared:items[0]?.caisseBilan!=null};}) : null;
-    return <PilotDashboard nom={nom} shop={shop} today={today} owner={owner} articles={data?.articles.map(a=>({id:a.id,nom:a.nom,code:a.code,niveau:a.niveau,unite:a.unite,seuil:a.seuil}))??null} lots={data?demoLots(data):null} orders={data?demoOrders(data):null} series={owner&&data?serieVentes(data.sales,today):null} closing={closing}/>;
+    return <PilotDashboard nom={nom} shop={shop} today={today} owner={owner} articles={data?.articles.map(a=>({id:a.id,nom:a.nom,code:a.code,niveau:a.niveau,unite:a.unite,seuil:a.seuil}))??null} lots={data?demoLots(data):null} orders={data?demoOrders(data):null} series={owner&&data?serieVentes(data.sales,today):null} sales={owner&&data?data.sales.map(s=>({date:s.date,lignes:s.lines?.map(l=>({articleId:l.articleId,qty:l.qty}))??[{articleId:s.articleId,qty:s.qty}]})):null} shopIds={DEMO_SITES.filter(s=>s.type==='boutique').map(s=>s.id)} closing={closing}/>;
   }
   const seller=true;
   return <DashboardWorkspace nom={nom} shop={shop} today={today} seller={seller} canReadRecipes={!seller}

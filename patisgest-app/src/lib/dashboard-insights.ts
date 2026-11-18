@@ -14,3 +14,20 @@ export function dashboardInsights(series: VentesJour[] | null, articles: StockAr
   }).filter(a=>a.qty<=a.seuil).sort((a,b)=>a.qty-a.seuil-(b.qty-b.seuil)) : null;
   return {thisWeek,lastWeek,variation,shortages};
 }
+
+export type DashboardSale = { date:string; lignes:{articleId:string;qty:number}[] };
+/** Moyenne observée sur sept jours calendaires, sans prétendre prédire la demande. */
+export function productVelocity(sales: DashboardSale[] | null, articles: StockArticle[] | null, lots: StockLot[] | null, today:string, shopIds: string[] | null) {
+  if (!sales || !articles || !lots || !shopIds) return null;
+  const start=plusJours(today,-6);
+  const totals=new Map<string,number>();
+  for(const sale of sales) {
+    if(sale.date.slice(0,10)<start || sale.date.slice(0,10)>today) continue;
+    for(const l of sale.lignes) if(Number.isFinite(l.qty)&&l.qty>0) totals.set(l.articleId,(totals.get(l.articleId)??0)+l.qty);
+  }
+  return articles.filter(a=>a.niveau==='produit' && (totals.get(a.id)??0)>0).map(a=>{
+    const sold=totals.get(a.id)??0;
+    const stock=lots.filter(l=>l.articleId===a.id && shopIds.includes(l.siteId) && estLotEligible(l,today)).reduce((n,l)=>n+l.qte,0);
+    return {id:a.id,nom:a.nom,unite:a.unite,sold,stock,days:stock/(sold/7)};
+  }).sort((a,b)=>a.days-b.days || a.nom.localeCompare(b.nom,"fr"));
+}

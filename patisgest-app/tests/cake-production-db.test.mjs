@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 
-// PostgreSQL embarqué, schéma minimal ; le calcul des besoins est simulé.
+// PostgreSQL embarqué : schéma minimal et vraie expansion des besoins de la migration 12.
 test('devis → OF atomique, isolation, TVA et traçabilité', async () => {
   const db = new PGlite();
   try {
@@ -11,19 +11,24 @@ test('devis → OF atomique, isolation, TVA et traçabilité', async () => {
       create role anon; create role authenticated; create role service_role;
       create schema auth;
       create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('test.uid',true),'')::uuid $$;
+      create table articles(id uuid primary key,client_id uuid,code text,nom text,unite text);
+      create table conversions(client_id uuid,unite_from text,unite_to text,facteur numeric);
       create table utilisateurs(auth_user_id uuid, client_id uuid, role text);
       create table sites(id uuid primary key,client_id uuid,nom text);
       create table recette_familles(id uuid primary key,client_id uuid,produit_id uuid,nom text);
       create table recette_versions(id uuid primary key,client_id uuid,famille_id uuid,version integer,active boolean,rendement_qte numeric,rendement_unite text,ingredients jsonb);
       create table ordres_fabrication(id uuid primary key default gen_random_uuid(),client_id uuid,famille_id uuid,version_id uuid,site_id uuid,numero text,qte_prevue numeric,date_prevue date,statut text,snapshot jsonb,besoins jsonb,client_ref text,lots_produits jsonb default '[]');
       create table cakes(id uuid primary key default gen_random_uuid(), client_id uuid,numero text,client_nom text,telephone text,date_event date,retro jsonb,nb_parts integer,options jsonb,prix_ht numeric(12,2),acompte numeric(12,2),statut text,notes text,cgv boolean,agent_id uuid,tva_pct numeric default 0,paiements jsonb default '[]');
-      create function public.patisgest_besoins_de_version(uuid,uuid,numeric,integer) returns jsonb language sql as $$select jsonb_build_array(jsonb_build_object('scale',$3))$$;
       insert into utilisateurs values ('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','vendeur'),('00000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000002','vendeur');
       insert into sites values ('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','Labo'),('20000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000002','Autre');
       insert into recette_familles values ('30000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000001','Gâteau');
-      insert into recette_versions values ('40000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001',1,true,10,'parts','[{"x":1}]');
+      insert into articles values ('60000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','FAR','Farine','kg');
+      insert into recette_versions values ('40000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001',1,true,10,'parts','[{"articleId":"60000000-0000-0000-0000-000000000001","q":2,"u":"kg","parage":0}]');
       select set_config('test.uid','00000000-0000-0000-0000-000000000001',false);
     `);
+    const recipes=await readFile(new URL('../supabase/12-sous-recettes-conversions.sql',import.meta.url),'utf8');
+    await db.exec(recipes.slice(recipes.indexOf('create or replace function public.patisgest_convertir('),recipes.indexOf('-- ------------------------------------------------------------ creer_famille')));
+    await db.exec(recipes.slice(recipes.indexOf('create or replace function public.patisgest_besoins_de_version('),recipes.indexOf('-- ------------------------------------------------------------ creer_of')));
     const old = await readFile(new URL('../supabase/09-journaux-ecritures.sql', import.meta.url), 'utf8');
     await db.exec(old.slice(old.indexOf('create or replace function public.creer_cake('), old.indexOf('-- =====================================================================\n-- RPC : evoluer_cake')));
     await db.exec(await readFile(new URL('../supabase/22-cake-production.sql', import.meta.url), 'utf8'));
@@ -46,7 +51,7 @@ test('devis → OF atomique, isolation, TVA et traçabilité', async () => {
     assert.equal(result.rows[0].r.balance,89);
     const order=(await db.query('select * from ordres_fabrication')).rows[0];
     assert.equal(order.statut,'planifie'); assert.equal(Number(order.qte_prevue),20); assert.equal(order.version_id,version);
-    assert.equal(order.besoins[0].scale,2); assert.equal(order.snapshot.devis,created.rows[0].r.numero);
+    assert.equal(order.besoins[0].qty,4); assert.equal(order.snapshot.devis,created.rows[0].r.numero);
     const replay=await db.query(`select public.evoluer_cake($1,'confirme',null) r`,[id]);
     assert.equal(replay.rows[0].r.duplicate,true);
     assert.equal((await db.query('select count(*)::int n from ordres_fabrication')).rows[0].n,1);

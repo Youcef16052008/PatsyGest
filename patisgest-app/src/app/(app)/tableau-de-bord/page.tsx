@@ -1,8 +1,8 @@
 import { canReadCosts, canWrite, requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { compterGuide } from "@/lib/onboarding-server";
-import { articleAffiche, lireArticles, lireArticlesQuantites, lireLots, lireProduction, lireSites, lireVentesJours } from "@/lib/workspace-read";
-import { serieVentes } from "@/lib/workspace-data";
+import { articleAffiche, lireArticles, lireArticlesQuantites, lireLots, lireProduction, lireSites, lireVentesJours, lireVentesPeriode } from "@/lib/workspace-read";
+import { plusJours, serieVentes } from "@/lib/workspace-data";
 import DashboardWorkspace from "@/components/dashboard-workspace";
 import DemoDashboard from "@/components/demo-dashboard";
 import OnboardingPanel from "@/components/onboarding-panel";
@@ -29,7 +29,7 @@ export default async function Dashboard() {
     const [articles,lots,sites,orders,ventes,close] = await Promise.all([
       lireArticlesQuantites(db,clientId), lireLots(db,clientId), sitesPromise,
       sitesPromise.then(s=>lireProduction(db,clientId,s,today)),
-      owner ? lireVentesJours(db,clientId,today) : null,
+      owner ? lireVentesPeriode(db,clientId,plusJours(today,-13),today) : null,
       owner ? db.from("clotures").select("site_id, caisse_bilan, revision").eq("client_id",clientId).eq("date_cloture",today).limit(1000) : null,
     ]);
     const boutiques=sites?.filter(s=>s.type==='boutique');
@@ -37,7 +37,7 @@ export default async function Dashboard() {
       const entries=(close.data??[]).filter(c=>c.site_id===s.id).sort((a,b)=>Number(b.revision??0)-Number(a.revision??0));
       return {id:s.id,site:s.label,closed:entries.length>0,cashDeclared:entries[0]?.caisse_bilan!=null};
     }) : null;
-    return <PilotDashboard nom={nom} shop={ctx.clientNom} today={today} owner={owner} articles={articles} lots={lots} orders={orders} series={ventes ? serieVentes(ventes,today):null} closing={closing}/>;
+    return <PilotDashboard nom={nom} shop={ctx.clientNom} today={today} owner={owner} articles={articles} lots={lots} orders={orders} series={ventes && !ventes.truncated ? serieVentes(ventes.rows,today):null} sales={ventes && !ventes.truncated ? ventes.rows : null} shopIds={boutiques?.map(s=>s.id)??null} closing={closing}/>;
   }
   const afficheOnboarding = ctx.mode === 'supabase' && coutsAutorises && canWrite(ctx.role);
   const guide = afficheOnboarding ? compterGuide(ctx, db) : null;

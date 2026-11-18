@@ -170,13 +170,13 @@ tests/smoke-http.mjs                    → tests HTTP de bout en bout
 
 ### Dossier gâteau et migration 22
 
-`supabase/22-cake-production.sql` est une migration **locale à appliquer après 21**, après sauvegarde et autorisation explicite. Elle n'est pas appliquée automatiquement par l'application. Sans elle, les nouvelles options de production du module Cake Design sont indisponibles. Ne pas publier le nouveau parcours connecté avant d'avoir vérifié la migration sur un environnement de test.
+`supabase/22-cake-production.sql` est appliquée au projet pilote `evepzygucfxarpdnflzv` sous la version `20261118161819 cake_production_22`. Elle n'est pas appliquée automatiquement sur d'autres bases : la lancer après 21 et après sauvegarde. Sans elle, les nouvelles options de production du module Cake Design sont indisponibles. Ne pas publier le nouveau parcours connecté avant d'avoir vérifié la migration sur un environnement de test.
 
 Un nouveau devis demande une version de recette active, un site et une quantité exprimée dans l'unité du rendement de cette recette : le nombre de parts n'est pas supposé égal à la quantité de produit fini. La confirmation, après un acompte d'au moins 30 % du HT, crée atomiquement un OF planifié avec besoins calculés côté serveur ; le stock n'est consommé qu'au lancement. Un devis ancien non confirmé peut recevoir cette association manuellement. Les dossiers déjà confirmés sans OF ne sont pas modifiés ni rapprochés automatiquement.
 
 Le ticket, le plafond de paiement et le solde avant livraison utilisent le TTC arrondi au centime. Les versements historiques sont conservés comme montants enregistrés : contrôler manuellement les dossiers existants à TVA non nulle, notamment ceux déjà marqués livrés, avant toute utilisation réelle. Ces écrans ne constituent pas une validation fiscale ou comptable. Un dossier avec OF lié ne peut être marqué produit qu'après finition de l'OF et création d'un lot. L'annulation d'un tel dossier est volontairement bloquée : aucun parcours d'annulation/compensation de l'OF n'est encore fourni, donc une procédure administrative doit être définie avant utilisation en pilote.
 
-Les tests locaux incluent un PostgreSQL embarqué avec schéma minimal et calcul des besoins simulé ; ils ne remplacent pas une vérification sur une base de test avec les vraies recettes, RLS, restaurations et opérations concurrentes.
+Les tests locaux incluent un PostgreSQL embarqué avec schéma minimal et la fonction réelle de calcul des besoins de la migration 12 ; ils ne remplacent pas une vérification sur une base de test avec les vraies recettes, RLS, restaurations et opérations concurrentes.
 
 ### Accueils et contrôles demandés — travail en cours
 
