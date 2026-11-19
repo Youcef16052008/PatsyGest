@@ -1,4 +1,5 @@
--- BROUILLON : NE PAS DEPLOYER. Couverture, compatibilite et parcours labo non valides.
+-- Appliquée au pilote (controle_modules_23, 20261119045242). Ne pas rejouer.
+-- Couverture, compatibilité et parcours réels encore non validés.
 -- Accès par compte : l'absence de ligne conserve les droits habituels du rôle.
 -- Le réglage n'accorde jamais de nouveaux privilèges de rôle.
 begin;

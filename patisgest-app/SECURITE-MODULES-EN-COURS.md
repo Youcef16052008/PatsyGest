@@ -1,9 +1,9 @@
 # Contrôle des modules et confidentialité labo — travail en cours
 
-**Ne pas déployer les migrations 23 et 24 ni considérer la PR comme prête.** La
-migration 22 est appliquée au pilote ; 23 et 24 ne le sont pas. Les nouvelles
-interfaces et règles ne sont ni commitées, ni poussées, ni déployées. La version
-locale attend les RPC et vues 23/24 : ne pas la déployer séparément de la base.
+**Ne pas déployer la migration 24 ni considérer la PR comme prête.** Les
+migrations 22 et 23 sont appliquées au pilote ; 24 ne l’est pas. Le code des
+nouvelles interfaces a été poussé sur la branche, mais pas déployé en
+production. Il attend les vues 24 : ne pas le déployer séparément de la base.
 
 ## Ce qui est prototypé et testé localement
 
@@ -58,19 +58,26 @@ ses GRANT et la 09 attend une colonne `clotures.revision` absente du socle local
    interfaces contre les migrations. La production tourne encore sur l'ancienne
    application, alors que 22 change la confirmation des devis : éviter de
    confirmer des devis sans la nouvelle interface d'association production.
-   Avant 23/24, les anciennes règles Supabase permettent encore au labo de lire
+   Sans 24, les règles Supabase permettent encore au labo de lire
    des informations financières : la confidentialité demandée n'est donc pas
    encore en place en production.
 
 ## Vérification du pilote et blocage des tests réels
 
-Le 18 novembre 2026, Supabase indique que le projet pilote est actif et que les
-services Auth, base de données et REST sont sains. Les migrations 23 et 24 ne
-figurent pas dans son historique. Une inspection en lecture seule a trouvé une
+Avant application de 23, Supabase indiquait que le projet pilote était actif et
+que les services Auth, base de données et REST étaient sains. Les migrations
+23 et 24 ne figuraient alors pas dans son historique. Une inspection en lecture seule a trouvé une
 seule signature SECURITY DEFINER pour chacune des 28 RPC ciblées par 23, ainsi
 que pour la restauration ; les quatre signatures des wrappers correspondent
 aux signatures observées. Ceci ne teste ni les corps, ni les ACL, ni les accès
 Auth/PostgREST.
+
+À la demande de l'utilisateur, la migration `controle_modules_23` a ensuite été
+appliquée au pilote (version `20261119045242`). La table et la RPC des modules,
+la fonction interne de restauration et quatre gardes RPC ont été vérifiées en
+lecture seule ; aucun réglage de module n'était présent. Aucun parcours par une
+vraie session n'a été validé. L'utilisateur a choisi de laisser la migration 24
+en attente pour préserver l'interface labo de production.
 
 La création d'une branche de test a été refusée par Supabase : le service de
 branches exige le forfait Pro ou supérieur (`entitlement_required`). Aucun
