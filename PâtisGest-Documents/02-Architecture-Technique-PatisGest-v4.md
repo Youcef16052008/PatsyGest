@@ -189,6 +189,19 @@ déposées, 1 500–6 000 DA/an) reste à sa charge — **ne jamais acheter un d
 par client**. Le routage devra être par hôte (colonne `sites.domaine` + résolution
 dans le middleware) avant la première boutique en ligne vendue.
 
+**Trois paliers de coût** (détail et procédures :
+[`NOTE-COUT-MINIMAL.md`](../NOTE-COUT-MINIMAL.md)) :
+
+| Palier | Déclencheur | Infra | Coût |
+|---|---|---|---|
+| 1 | 0 à ~15 comptes, **sans facturation** | Supabase Free + Vercel Hobby + sauvegarde pg_dump GitHub Actions + garde-veille | **0 DA** (+ domaine 1 500–3 000 DA/an) |
+| 2 | premier client **facturé** | Supabase Free + **Cloudflare Workers** (commercial autorisé en gratuit) + mêmes sauvegardes | ≈ 1 700 DA |
+| 3 | ~15–20 clients | Supabase Pro + hébergeur Pro | ≈ 11 000 DA |
+
+Le palier 1 respecte la contrainte **C1 (< 60 000 DA/an)** ; payer tout de suite
+la dépasserait. Le passage du palier 1 au 2 n'est pas un choix de coût mais de
+**licence** : Vercel Hobby interdit l'usage commercial.
+
 Analyse complète, alternatives chiffrées (Neon, VPS, tout auto-hébergé) et
 arbitrage : [`NOTE-HEBERGEMENT.md`](../NOTE-HEBERGEMENT.md).
 

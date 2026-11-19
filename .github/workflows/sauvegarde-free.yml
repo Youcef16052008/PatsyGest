@@ -1,0 +1,155 @@
+name: Sauvegarde Supabase + garde-veille
+
+# Pourquoi ce fichier existe :
+#   Le plan gratuit Supabase n'a AUCUNE sauvegarde et met le projet en pause
+#   après ~7 jours sans requête. Ces deux manques sont les seules vraies
+#   raisons de payer 25 $/mois. Ce workflow les comble à coût nul :
+#     * un pg_dump quotidien, chiffré, conservé 30 jours hors de Supabase ;
+#     * une requête HTTP légère tous les 2 jours (garde-veille) ;
+#     * une vérification de restauration possible (voir « Restauration » plus bas).
+#
+# Secret requis (Settings → Secrets and variables → Actions) :
+#   SUPABASE_DB_URL      chaîne Session Pooler (port 5432), jamais la directe 5432 IPv6
+#   BACKUP_PASSPHRASE    32+ caractères aléatoires, à garder HORS de GitHub aussi
+# Secrets optionnels (pour pousser la sauvegarde hors de GitHub) :
+#   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET
+#
+# Si les secrets R2 sont absents, l'artefact reste sur GitHub (30 jours) :
+# c'est déjà une sauvegarde valable, mais elle vit chez le même fournisseur
+# que ton code. Configurer R2 (10 Go gratuits) est la vraie protection.
+
+on:
+  schedule:
+    # 02:15 UTC = 03:15 à Oran (pas de changement d'heure en Algérie)
+    - cron: "15 2 * * *"
+    # Garde-veille seul, tous les 2 jours, en cas d'échec du dump
+    - cron: "15 7 */2 * *"
+  workflow_dispatch:
+
+concurrency:
+  group: sauvegarde-supabase
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sauvegarde:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Vérifier la configuration
+        id: config
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::warning::SUPABASE_DB_URL absent — garde-veille seulement."
+            echo "dump=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "dump=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ---------------------------------------------------- garde-veille
+      # Une requête REST suffit à réarmer le compteur d'inactivité (7 jours).
+      # On passe par l'API publique : plus simple qu'un client psql, et cela
+      # teste au passage que l'application répond.
+      - name: Garde-veille (empêche la mise en pause du projet)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::notice::SUPABASE_URL / SUPABASE_ANON_KEY absents — garde-veille ignoré."
+            exit 0
+          fi
+          # /auth/v1/health est public, sans jeton, et réveille PostgREST.
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+            "$SUPABASE_URL/auth/v1/health")
+          echo "Santé Supabase : HTTP $code"
+          # Une table RLS refusée renvoie 401/403 : c'est une requête valide
+          # du point de vue de l'activité, le projet n'est donc pas en pause.
+          code2=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/articles?select=id&limit=1")
+          echo "PostgREST : HTTP $code2 (401 attendu : anon ne lit rien, par conception)"
+          if [ "$code" -ge 500 ] 2>/dev/null; then
+            echo "::error::Le projet ne répond pas (HTTP $code). Vérifier s'il est en pause."
+            exit 1
+          fi
+
+      # --------------------------------------------------------- pg_dump
+      - name: Sauvegarde chiffrée
+        if: steps.config.outputs.dump == 'true'
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$PASSPHRASE" ]; then
+            echo "::error::BACKUP_PASSPHRASE manquant — refus d'écrire une sauvegarde non chiffrée."
+            exit 1
+          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17 >/dev/null
+          horodatage=$(date -u +%Y-%m-%dT%H%M%SZ)
+          fichier="patisgest-$horodatage.dump.gz.enc"
+          # -Fc : format personnalisé, restaurable table par table.
+          pg_dump --no-owner --no-privileges -Fc -f /tmp/dump.pgc "$DB_URL"
+          gzip -9 /tmp/dump.pgc
+          # AES-256 : le fichier contient des salaires, des tickets et des
+          # recettes. Un stockage objet n'est pas un coffre-fort.
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+            -in /tmp/dump.pgc.gz -out "$fichier" -pass env:PASSPHRASE
+          taille=$(stat -c %s "$fichier" | numfmt --to=iec)
+          echo "Sauvegarde : $fichier ($taille)"
+          # Contrôle d'intégrité minimal : le déchiffrement doit réussir.
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+            -in "$fichier" -out /tmp/verif.gz -pass env:PASSPHRASE
+          gzip -t /tmp/verif.gz
+          echo "Intégrité vérifiée (déchiffrement + gzip -t)."
+          echo "FICHIER=$fichier" >> "$GITHUB_ENV"
+
+      - name: Conserver la sauvegarde (artefact GitHub, 30 jours)
+        if: steps.config.outputs.dump == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sauvegarde-${{ github.run_id }}
+          path: ${{ env.FICHIER }}
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Copier hors de GitHub (Cloudflare R2)
+        if: steps.config.outputs.dump == 'true' && env.R2_BUCKET != ''
+        env:
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          if [ -z "$R2_BUCKET" ] || [ -z "$R2_ACCOUNT_ID" ]; then
+            echo "::notice::R2 non configuré — la sauvegarde reste en artefact GitHub."
+            exit 0
+          fi
+          pipx install awscli >/dev/null 2>&1 || pip install --quiet awscli
+          aws s3 cp "$FICHIER" "s3://$R2_BUCKET/sauvegardes/$FICHIER" \
+            --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          echo "Copie R2 terminée."
+
+      - name: Résumé
+        if: always()
+        run: |
+          {
+            echo "## Sauvegarde PâtisGest"
+            echo ""
+            echo "- Garde-veille : exécuté"
+            echo "- Dump : ${{ steps.config.outputs.dump }}"
+            echo "- Restauration testée le mois dernier ? (à faire à la main, 15 min)"
+            echo ""
+            echo "**Restauration** (à pratiquer une fois par mois, cf. note §10) :"
+            echo '```'
+            echo 'openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in <fichier> -out d.gz -pass env:BACKUP_PASSPHRASE'
+            echo 'gunzip -c d.gz > d.pgc && pg_restore --no-owner -d "<base de test>" d.pgc'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -4,6 +4,11 @@
 produite par un autre assistant. Chiffres d'usage **mesurés sur le projet réel**
 `evepzygucfxarpdnflzv` (eu-west-1), limites fournisseurs **vérifiées en novembre 2026**.
 
+> **À lire AVANT ce document** : le plan d'action pour **payer 0 DA puis le moins
+> possible** est dans [`NOTE-COUT-MINIMAL.md`](NOTE-COUT-MINIMAL.md) (trois paliers
+> chiffrés, workflow de sauvegarde gratuit livré). Ce document-ci explique
+> *combien coûte la production* ; l'autre explique *combien tu peux ne pas payer*.
+>
 > **Réponse courte.** Non à Neon (db seule = réécrire 70 policies + 38 RPC), non à
 > l'auto-hébergement pour l'instant. Le seul vrai levier est **Cloudflare devant un
 > VPS à ~30 clients** (11 000 → 6 400 DA/mois). Et le **domaine par client coûte
