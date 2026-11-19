@@ -50,11 +50,12 @@ export async function lireLots(db: WorkspaceDB, clientId: string, role: "proprie
   return rows?.map(l => ({ id: l.id, articleId: l.article_id, siteId: l.site_id, numero: l.numero, qte: Number(l.qte_rest), dlc: l.dlc, bloque: l.bloque, congele: l.congele, recu: l.date_reception })) ?? null;
 }
 
-export async function lireProduction(db: WorkspaceDB, clientId: string, sites: WorkspaceSite[] | null, apercu?: string, labo = false): Promise<ProductionItem[] | null> {
+export async function lireProduction(db: WorkspaceDB, clientId: string, sites: WorkspaceSite[] | null, apercu?: string, role: "proprietaire" | "labo" | "vendeur" = "proprietaire"): Promise<ProductionItem[] | null> {
   type OrderRow = { id: string; numero: string; statut: string; qte_prevue: number; qte_realisee: number; date_prevue: string; site_id: string; titre: string | null; devis: string | null; version: number | null };
+  const source = role === "labo" ? "labo_ordres_fabrication" : role === "vendeur" ? "vendeur_ordres_fabrication" : "ordres_fabrication";
   const rows = await lirePages<OrderRow>((start, end) => {
     // Ne pas charger le snapshot complet (ingrédients/coûts) pour le tableau.
-    let select = db.from(labo ? "labo_ordres_fabrication" : "ordres_fabrication").select("id, numero, statut, qte_prevue, qte_realisee, date_prevue, site_id, titre:snapshot->>recette, devis:snapshot->>devis, version:snapshot->>version").eq("client_id", clientId);
+    let select = db.from(source).select("id, numero, statut, qte_prevue, qte_realisee, date_prevue, site_id, titre:snapshot->>recette, devis:snapshot->>devis, version:snapshot->>version").eq("client_id", clientId);
     if (apercu) select = select.or(`statut.in.(planifie,encours,partiel),date_prevue.gte.${plusJours(apercu, -6)}`);
     return select.order("date_prevue").order("id").range(start, end).overrideTypes<OrderRow[], { merge: false }>();
   });

@@ -14,7 +14,7 @@ export default async function ProductionWorkspace({ ctx, db }: { ctx: SessionCon
     canEdit && !labo ? db.from("recette_versions").select("id, version, recette_familles!inner(nom)")
       .eq("client_id", clientId).order("version", { ascending: false }) : null,
   ]);
-  const [orders, labVersions, familles] = await Promise.all([lireProduction(db, clientId, sites, undefined, labo), labo ? db.from("labo_recette_versions").select("id, version, famille_id").eq("client_id",clientId) : null, labo ? db.from("recette_familles").select("id, nom").eq("client_id",clientId) : null]);
+  const [orders, labVersions, familles] = await Promise.all([lireProduction(db, clientId, sites, undefined, ctx.role), labo ? db.from("labo_recette_versions").select("id, version, famille_id").eq("client_id",clientId) : null, labo ? db.from("recette_familles").select("id, nom").eq("client_id",clientId) : null]);
   const versions = (versionsRes?.data ?? []).flatMap(v => {
     const famille = Array.isArray(v.recette_familles) ? v.recette_familles[0] : v.recette_familles;
     return famille?.nom ? [{ id: v.id, label: `${famille.nom} · v${v.version}` }] : [];

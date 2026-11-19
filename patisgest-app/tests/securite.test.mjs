@@ -108,7 +108,7 @@ test('sécu : les listes excluent les tables de coût pour le vendeur et projett
   assert.match(page, /const tables\s*=\s*info\.tables\.filter\(\(\[table\]\)\s*=>\s*coutsAutorises\s*\|\|\s*!estTableCout\(table\)\)/);
   assert.match(page, /Promise\.all\(tables\.map\(/);
   assert.match(page, /const colonnes\s*=\s*estTableCout\(table\)\s*\?\s*tablesCout\[table\]\s*:\s*'\*'/);
-  assert.match(page, /table==='lots' && ctx\.role==='vendeur' \? 'vendeur_lots' : table/);
+  assert.match(page, /ctx\.role==='vendeur'.*table==='lots' \? 'vendeur_lots'.*table==='ordres_fabrication' \? 'vendeur_ordres_fabrication'/);
   assert.match(page, /supabase\.from\(source\)\.select\(colonnes\)/);
   assert.doesNotMatch(page, /supabase\.from\(source\)\s*\.select\(\s*(?:['"]\*['"])?\s*\)/);
 });

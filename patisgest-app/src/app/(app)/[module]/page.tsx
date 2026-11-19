@@ -161,7 +161,7 @@ export default async function ModulePage({ params, searchParams }: {
   if (key === 'production') return <ProductionWorkspace ctx={ctx} db={supabase}/>;
   const results=await Promise.all(tables.map(async ([table,label])=> {
     const colonnes = estTableCout(table) ? tablesCout[table] : '*';
-    const source=table==='lots' && ctx.role==='vendeur' ? 'vendeur_lots' : table;
+    const source=ctx.role==='vendeur' ? (table==='lots' ? 'vendeur_lots' : table==='ordres_fabrication' ? 'vendeur_ordres_fabrication' : table) : table;
     const {data,error}=await supabase.from(source).select(colonnes).eq('client_id',ctx.clientId).limit(100)
       .overrideTypes<Record<string, unknown>[], { merge: false }>();
     return {label,data:table==='lots'&&!coutsAutorises?(data??[]).map(({pu: _pu,...rest})=>rest):data,error};

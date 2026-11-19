@@ -1,6 +1,6 @@
 # Évaluation de certification — phases 2 et 3
 
-**Décision : NON CERTIFIÉES ; migrations 24–38 non autorisées pour application.**
+**Décision : NON CERTIFIÉES ; migrations 24–39 non autorisées pour application.**
 Ce document décrit un état et des essais partiels, pas un certificat de sécurité.
 Le pilote est utilisé par la production : une migration de sécurité incomplète
 peut aussi verrouiller les utilisateurs existants ou casser l'ancienne application.
@@ -8,7 +8,7 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
 ## Constat vérifié
 
 - Historique Supabase consulté en lecture seule : dernière migration
-  `controle_modules_23` (`20261119045242`). Les brouillons 24–38 n'y sont pas.
+  `controle_modules_23` (`20261119045242`). Les brouillons 24–39 n'y sont pas.
 - Production Vercel consultée en lecture seule : commit `f11e371` ; elle ne
   correspond pas à l'application de la branche. Preview et production sont
   configurés sur la même base Supabase ; les tests destructifs sont interdits.
@@ -27,9 +27,10 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
 
 - Toutes les tables, politiques, vues, fonctions SECURITY DEFINER, JSON,
   historiques, erreurs et combinaisons de modules ne sont pas couverts par des
-  tests adversariaux. Le brouillon 38 masque au vendeur les lots et mouvements
-  bruts contenant des prix d'achat ; les autres surfaces vendeur (notamment
-  JSON et exports) restent à auditer. Certains accès sans site ou de traçabilité sont refusés
+  tests adversariaux. Les brouillons 38 et 39 masquent au vendeur les lots,
+  mouvements et OF bruts contenant des coûts ; les autres surfaces vendeur
+  (notamment JSON et exports) restent à auditer. Les tests Auth/PostgREST du
+  brouillon 39 doivent encore être exécutés. Certains accès sans site ou de traçabilité sont refusés
   de manière conservatrice, pas intégralement pris en charge.
 - Les corps de sept fonctions et des policies de quatre tables diffèrent entre
   pilote et reconstruction ; leur impact sémantique doit être résolu avant

@@ -212,6 +212,20 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   denied(await lab.rpc('terminer_of',{p_of_id:otherOrder.of_id,p_qte:1,p_numero_lot:'NON',p_dlc:'2099-01-01'}), 'Site non autorise');
   const ofArgs={p_version_id:version.version_id,p_site_id:site,p_qte_prevue:10,p_date_prevue:'2099-01-01',p_client_ref:'test-of'};
   const order = ok(await lab.rpc('creer_of',ofArgs), 'Créer OF');
+  await sql`update ordres_fabrication set snapshot=jsonb_set(snapshot,'{secret_financier}',to_jsonb(9999),true) where id=${order.of_id}`;
+  assert.equal(ok(await seller.from('ordres_fabrication').select('id,cout_reel,consommations').eq('id',order.of_id),'OF brut masqué au vendeur').length,0);
+  const safeSellerOrder=ok(await seller.from('vendeur_ordres_fabrication').select('*').eq('id',order.of_id).single(),'OF expurgé vendeur');
+  assert.equal('cout_reel' in safeSellerOrder,false); assert.equal('consommations' in safeSellerOrder,false);
+  assert.equal('secret_financier' in safeSellerOrder.snapshot,false); assert.equal(safeSellerOrder.snapshot.recette,'Recette');
+  assert.ok((await seller.from('vendeur_ordres_fabrication').select('cout_reel')).error,'Aucun coût dans la vue vendeur');
+  assert.equal(ok(await seller.from('vendeur_ordres_fabrication').select('id').eq('id',otherOrder.of_id),'OF d’autre site masqué').length,0);
+  assert.equal(ok(await lab.from('vendeur_ordres_fabrication').select('id'),'Vue OF réservée au vendeur').length,0);
+  assert.ok((await client().from('vendeur_ordres_fabrication').select('id')).error,'Vue OF inaccessible à anon');
+  for (const mod of ['production','planning','cake-design'])
+    ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[2],p_module:mod,p_actif:false}),`Désactiver ${mod} vendeur`);
+  assert.equal(ok(await seller.from('vendeur_ordres_fabrication').select('id'),'Vue OF sans module pertinent').length,0);
+  for (const mod of ['production','planning','cake-design'])
+    ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[2],p_module:mod,p_actif:true}),`Réactiver ${mod} vendeur`);
   const retry=ok(await lab.rpc('creer_of',ofArgs),'Rejeu idempotent');
   assert.equal(retry.of_id,order.of_id); assert.equal(retry.duplicate,true);
   const fractionalArgs={...ofArgs,p_qte_prevue:1.2346,p_client_ref:'fraction-arrondie'};
