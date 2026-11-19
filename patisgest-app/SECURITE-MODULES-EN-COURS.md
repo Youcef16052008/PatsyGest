@@ -72,8 +72,11 @@ policies. Le brouillon `28-sites-lecture-brouillon.sql` filtre les sites et
 plusieurs tables directes ainsi que quatre vues labo dans l'environnement isolé.
 Le brouillon `29-sites-rpc-brouillon.sql` ajoute une garde à certaines RPC qui
 reçoivent un site ou un OF. Les autres RPC et les données sans site restent à
-sécuriser : ces brouillons ne doivent pas être appliqués. Certaines vues labo sont exécutées avec les droits de leur
-propriétaire, et des tables n'ont pas de colonne site. Il serait dangereux de
+sécuriser : ces brouillons ne doivent pas être appliqués. Le test d'intégration
+contient notamment un test TODO pour `rappel_lot` : un utilisateur peut encore
+sonder un lot d'un autre site par cette RPC ; la propagation et les résultats
+liés doivent également être contrôlés. Certaines vues labo sont exécutées avec
+les droits de leur propriétaire, et des tables n'ont pas de colonne site. Il serait dangereux de
 présenter un filtrage d'interface comme une isolation effective.
 
 Avant activation : concevoir la vérification d'adresse et le cycle de demande,

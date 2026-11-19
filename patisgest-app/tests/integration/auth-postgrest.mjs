@@ -26,7 +26,7 @@ const A = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', B = 'bbbbbbbb-bbbb-bbbb-bbbb-b
 const site = 'dddddddd-dddd-dddd-dddd-dddddddddddd', article = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
 const ids = ['11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','44444444-4444-4444-4444-444444444444'];
 
-test('Auth et PostgREST réels : isolation, confidentialité et modules', { timeout: 180000 }, async () => {
+test('Auth et PostgREST réels : isolation, confidentialité et modules', { timeout: 180000 }, async (t) => {
  try {
   // Garde supplémentaire : base vierge, afin de ne jamais rejouer sur une base existante.
   const existing = await sql`select to_regclass('public.clients') as table_name`;
@@ -88,7 +88,12 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   const newSite = ok(await owner.from('sites').insert({client_id:A,nom:'Boutique 2',type:'boutique'}).select('id').single(), 'Ajout boutique propriétaire');
   assert.ok(newSite.id);
   ok(await owner.from('sites').update({nom:'Boutique modifiée'}).eq('id',newSite.id).select('id').single(), 'Modification boutique propriétaire');
-  await sql`insert into lots(client_id,article_id,site_id,numero,qte_init,qte_rest,pu) values (${A},${article},${newSite.id},'AUTRE-SITE',4,4,77)`;
+  const otherLot = await sql`insert into lots(client_id,article_id,site_id,numero,qte_init,qte_rest,pu) values (${A},${article},${newSite.id},'AUTRE-SITE',4,4,77) returning id`;
+  // Test de sécurité volontairement TODO : la RPC de rappel contourne encore
+  // les filtres de site. Ne pas activer les comptes ni déployer avant correction.
+  await t.test('rappel interdit sur un lot de site non attribué', {todo:'Rappel et descendants pas encore isolés'}, async () => {
+    denied(await lab.rpc('rappel_lot',{p_lot_id:otherLot[0].id}), 'Site non autorise');
+  });
   assert.equal(ok(await owner.from('lots').select('id').eq('site_id',newSite.id), 'Lot autre site propriétaire').length,1);
   assert.equal(ok(await lab.from('sites').select('id').eq('id',newSite.id), 'Site non attribué labo').length,0);
   assert.equal(ok(await seller.from('sites').select('id').eq('id',newSite.id), 'Site non attribué vendeur').length,0);
