@@ -94,6 +94,9 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.equal(ok(await seller.from('sites').select('id').eq('id',newSite.id), 'Site non attribué vendeur').length,0);
   assert.equal(ok(await seller.from('lots').select('id').eq('site_id',newSite.id), 'Lot non attribué vendeur').length,0);
   assert.equal(ok(await lab.from('labo_lots').select('id').eq('site_id',newSite.id), 'Vue labo autre site').length,0);
+  denied(await lab.rpc('receptionner_lot',{p_article_id:article,p_site_id:newSite.id,p_numero:'NON',p_qte:1,p_pu:10}), 'Site non autorise');
+  denied(await seller.rpc('vendre_article',{p_article_id:article,p_site_id:newSite.id,p_qte:1,p_ticket:'NON'}), 'Site non autorise');
+  denied(await lab.rpc('transferer_article',{p_article_id:article,p_from_site_id:site,p_to_site_id:newSite.id,p_qte:1,p_motif:'test',p_responsable:'test'}), 'Site non autorise');
   assert.ok((await lab.from('sites').insert({client_id:A,nom:'Non autorisé',type:'boutique'})).error, 'Labo ne crée pas de site');
   assert.equal(ok(await lab.from('sites').update({nom:'Non autorisé'}).eq('id',newSite.id).select('id'), 'Modification labo refusée').length,0);
   assert.equal(ok(await other.from('sites').update({nom:'Autre client'}).eq('id',newSite.id).select('id'), 'Modification inter-client refusée').length,0);
@@ -150,6 +153,9 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   await sql`update recette_versions set ingredients=jsonb_set(ingredients,'{0,secret_financier}',to_jsonb(9999),true) where id=${version.version_id}`;
   const safeRecipe = ok(await lab.from('labo_recette_versions').select('ingredients').eq('id',version.version_id).single(), 'Recette expurgée');
   assert.equal(safeRecipe.ingredients[0].q,1); assert.equal('secret_financier' in safeRecipe.ingredients[0],false);
+  const otherOrder = ok(await owner.rpc('creer_of',{p_version_id:version.version_id,p_site_id:newSite.id,p_qte_prevue:10,p_date_prevue:'2099-01-01',p_client_ref:'autre-site'}), 'OF autre site propriétaire');
+  denied(await lab.rpc('demarrer_of',{p_of_id:otherOrder.of_id}), 'Site non autorise');
+  denied(await lab.rpc('terminer_of',{p_of_id:otherOrder.of_id,p_qte:1,p_numero_lot:'NON',p_dlc:'2099-01-01'}), 'Site non autorise');
   const order = ok(await lab.rpc('creer_of',{p_version_id:version.version_id,p_site_id:site,p_qte_prevue:10,p_date_prevue:'2099-01-01',p_client_ref:'test-of'}), 'Créer OF');
   ok(await lab.rpc('demarrer_of',{p_of_id:order.of_id}), 'Démarrer OF');
   const partial = ok(await lab.rpc('terminer_of',{p_of_id:order.of_id,p_qte:5,p_numero_lot:'GATEAU-1',p_dlc:'2099-01-01'}), 'OF partiel');

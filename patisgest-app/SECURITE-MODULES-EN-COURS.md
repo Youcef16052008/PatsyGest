@@ -69,9 +69,10 @@ constitue pas un accès à l'établissement, mais ce constat ne remplace pas une
 procédure d'admission. Les RLS du pilote isolent
 par client, pas par site ; de nombreuses RPC `SECURITY DEFINER` contournent les
 policies. Le brouillon `28-sites-lecture-brouillon.sql` filtre les sites et
-plusieurs tables directes ainsi que quatre vues labo dans l'environnement isolé,
-mais ne protège pas encore les RPC ni les données sans site et ne doit pas être
-appliqué. Certaines vues labo sont exécutées avec les droits de leur
+plusieurs tables directes ainsi que quatre vues labo dans l'environnement isolé.
+Le brouillon `29-sites-rpc-brouillon.sql` ajoute une garde à certaines RPC qui
+reçoivent un site ou un OF. Les autres RPC et les données sans site restent à
+sécuriser : ces brouillons ne doivent pas être appliqués. Certaines vues labo sont exécutées avec les droits de leur
 propriétaire, et des tables n'ont pas de colonne site. Il serait dangereux de
 présenter un filtrage d'interface comme une isolation effective.
 
