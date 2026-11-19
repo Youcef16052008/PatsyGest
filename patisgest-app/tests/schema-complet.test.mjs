@@ -88,6 +88,16 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
    ('aaaaaaaa-0000-0000-0000-000000000002','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','cccccccc-cccc-cccc-cccc-cccccccccccc','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',current_date,1);
    set role authenticated;`);
   const request='aaaaaaaa-0000-0000-0000-000000000001', hidden='aaaaaaaa-0000-0000-0000-000000000002';
+  // Cake : vérifier que la création réelle fonctionne sur le socle complet
+  // (notamment sans colonne cakes.agent_id), pas seulement dans un mock.
+  await db.exec("select set_config('test.uid','10000000-0000-0000-0000-000000000001',false)");
+  const cake=(await db.query("select public.creer_cake_production('Test',null,'2099-02-01',10,1000,'[]',null,false,$1,'cccccccc-cccc-cccc-cccc-cccccccccccc',10) r",[version])).rows[0].r.cake_id;
+  await db.exec("select set_config('test.uid','10000000-0000-0000-0000-000000000002',false)");
+  await assert.rejects(db.query("select public.accepter_cgv($1,'1')",[cake]),/Site non autorise/);
+  await assert.rejects(db.query("select public.creer_cake_production('Test',null,'2099-02-01',10,1000,'[]',null,false,$1,'dddddddd-dddd-dddd-dddd-dddddddddddd',10)",[version]),/Creation reservee au comptoir/);
+  await db.exec('reset role');
+  await db.query('delete from public.cakes where id=$1',[cake]);
+  await db.exec('set role authenticated');
   assert.equal((await db.query("select public.traiter_demandes_reassort($1::uuid[],'planifiee',$2,null) r",[[request],of])).rows[0].r.updated,1);
   await assert.rejects(db.query("select public.traiter_demandes_reassort($1::uuid[],'annulee',null,null)",[[request,hidden]]),/Site non autorise/);
   assert.equal((await db.query('select statut from public.demandes_reassort where id=$1',[request])).rows[0].statut,'planifiee');

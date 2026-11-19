@@ -117,6 +117,27 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.equal(ok(await other.rpc('equipe_lister_demandes'), 'Demandes autre établissement').length,0);
   assert.ok((await pending.from('equipe_demandes').select('*')).error);
   denied(await other.rpc('equipe_refuser_demande',{p_id:demands[0].id}), 'Demande introuvable');
+  denied(await other.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[newSite.id]}), 'Demande introuvable');
+  denied(await lab.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[newSite.id]}), 'Reserve au proprietaire');
+  denied(await owner.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[site]}), 'Sites invalides');
+  denied(await owner.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[newSite.id,newSite.id]}), 'Sites invalides');
+  const pendingId=ok(await pending.auth.getUser(),'Identité Auth fictive').user.id;
+  await sql`update auth.users set email='autre-adresse@example.test' where id=${pendingId}`;
+  denied(await owner.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[newSite.id]}), 'Demande devenue invalide');
+  await sql`update auth.users set email='non-approuve@example.test' where id=${pendingId}`;
+  const approvalRace=await Promise.all([owner.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[newSite.id]}),owner.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[newSite.id]})]);
+  assert.equal(approvalRace.filter(x=>!x.error).length,1,'Une seule approbation concurrente réussit');
+  const approved=ok(await owner.rpc('equipe_lister_approbations'), 'Approbations propriétaire');
+  assert.equal(approved.length,1); assert.deepEqual(approved[0].sites,[newSite.id]);
+  assert.equal(ok(await other.rpc('equipe_lister_approbations'), 'Isolation des approbations').length,0);
+  denied(await owner.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[newSite.id]}), 'Demande introuvable');
+  assert.equal(ok(await pending.from('sites').select('id'), 'Approbation ne crée pas d’accès').length,0);
+  assert.equal(ok(await pending.from('clients').select('id'), 'Approbation ne rattache pas de compte').length,0);
+  assert.ok((await pending.rpc('equipe_annuler_approbation',{p_id:demands[0].id})).error);
+  denied(await other.rpc('equipe_annuler_approbation',{p_id:demands[0].id}), 'Demande introuvable');
+  ok(await owner.rpc('equipe_annuler_approbation',{p_id:demands[0].id}), 'Annuler approbation');
+  assert.equal(ok(await owner.rpc('equipe_lister_approbations'), 'Plus aucune approbation').length,0);
+  ok(await pending.rpc('equipe_demander',{p_code:code,p_nom:'Personne',p_role:'vendeur'}), 'Nouvelle demande après refus');
   denied(await lab.rpc('equipe_code',{p_renouveler:false}), 'Reserve au proprietaire');
   assert.ok((await owner.rpc('equipe_inviter',{p_email:'non-approuve@example.test',p_nom:'Personne',p_role:'vendeur',p_sites:[site]})).error, 'Un vendeur ne peut être affecté à un laboratoire');
   ok(await owner.rpc('equipe_inviter',{p_email:'non-approuve@example.test',p_nom:'Personne',p_role:'vendeur',p_sites:[newSite.id]}), 'Invitation propriétaire');
@@ -162,7 +183,15 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   const otherOrder = ok(await owner.rpc('creer_of',{p_version_id:version.version_id,p_site_id:newSite.id,p_qte_prevue:10,p_date_prevue:'2099-01-01',p_client_ref:'autre-site'}), 'OF autre site propriétaire');
   denied(await lab.rpc('demarrer_of',{p_of_id:otherOrder.of_id}), 'Site non autorise');
   denied(await lab.rpc('terminer_of',{p_of_id:otherOrder.of_id,p_qte:1,p_numero_lot:'NON',p_dlc:'2099-01-01'}), 'Site non autorise');
-  const order = ok(await lab.rpc('creer_of',{p_version_id:version.version_id,p_site_id:site,p_qte_prevue:10,p_date_prevue:'2099-01-01',p_client_ref:'test-of'}), 'Créer OF');
+  const ofArgs={p_version_id:version.version_id,p_site_id:site,p_qte_prevue:10,p_date_prevue:'2099-01-01',p_client_ref:'test-of'};
+  const order = ok(await lab.rpc('creer_of',ofArgs), 'Créer OF');
+  const retry=ok(await lab.rpc('creer_of',ofArgs),'Rejeu idempotent');
+  assert.equal(retry.of_id,order.of_id); assert.equal(retry.duplicate,true);
+  const hiddenDuplicate=await lab.rpc('creer_of',{...ofArgs,p_client_ref:'autre-site'});
+  denied(hiddenDuplicate,'Reference OF deja utilisee');
+  assert.ok(!JSON.stringify(hiddenDuplicate).includes(otherOrder.of_id),'Aucun identifiant du site masqué');
+  denied(await lab.rpc('creer_of',{...ofArgs,p_qte_prevue:11}),'Reference OF deja utilisee');
+  assert.ok((await lab.rpc('patisgest_creer_of_interne',ofArgs)).error,'Fonction OF interne inaccessible');
 
   // Cake : création atomique affectée, ancien devis sans site propriétaire,
   // refus des références connues d'un autre site et résultats sans fuites.
