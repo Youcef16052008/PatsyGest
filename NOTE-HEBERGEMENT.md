@@ -4,6 +4,12 @@
 produite par un autre assistant. Chiffres d'usage **mesurés sur le projet réel**
 `evepzygucfxarpdnflzv` (eu-west-1), limites fournisseurs **vérifiées en novembre 2026**.
 
+> **Réponse courte.** Non à Neon (db seule = réécrire 70 policies + 38 RPC), non à
+> l'auto-hébergement pour l'instant. Le seul vrai levier est **Cloudflare devant un
+> VPS à ~30 clients** (11 000 → 6 400 DA/mois). Et le **domaine par client coûte
+> 0 DA** : sous-domaine `*.patisgest.dz` par défaut, 100 domaines clients inclus
+> chez Cloudflare. Détail : **§9**.
+
 ---
 
 ## 1. Verdict
@@ -131,6 +137,97 @@ n'est **pas** le point de rupture, c'est la sauvegarde qui l'est.
 
 | Fichier | Nature |
 |---|---|
-| `patisgest-app/supabase/24-index-exploitation.sql` | **Nouveau.** 14 index composites par tenant, idempotents. Non appliqués à la base pilote (qui est en migration 23) : à exécuter avant la montée en charge. |
+| `patisgest-app/supabase/24-index-exploitation.sql` | **Nouveau.** 18 index composites par tenant, idempotents. Non appliqués à la base pilote (qui est en migration 23) : à exécuter avant la montée en charge. |
 | `PâtisGest-Documents/02-Architecture-Technique-PatisGest-v4.md` §8 | Tableau d'hébergement corrigé (Vercel non commercial, pause, SMTP, coût 45 $). |
 | `NOTE-HEBERGEMENT.md` | Ce document. |
+
+---
+
+## 9. Peut-on payer moins cher ? (et le domaine par client)
+
+### 9.1 Le piège : Neon n'est pas une alternative, c'est une réécriture
+
+Neon (Launch, 19 $/mois) semble être « Supabase moins cher ». **C'est un piège
+ici.** Neon ne fournit **que** Postgres : ni Auth, ni Storage, ni `auth.uid()`,
+ni `auth.jwt()`. Or le modèle de sécurité de PâtisGest repose dessus :
+
+- **70 policies RLS** dans le schéma `public`, toutes écrites autour de
+  `auth.uid()` et de `public.patisgest_mon_client()` / `patisgest_mon_role()` ;
+- **38 fonctions `SECURITY DEFINER`** dont le corps commence par
+  `v_auth uuid := auth.uid()` et refuse si `v_auth is null` ;
+- `utilisateurs.auth_user_id` référence `auth.users` (clé étrangère réelle).
+
+Migrer vers Neon = réécrire les 70 policies, les 38 fonctions, l'authentification,
+le stockage, plus les tests `rls-probe` et la revue sécurité 25 points. **Des
+semaines de travail** pour économiser ~1 500 DA/mois, avec un risque élevé de
+rouvrir une faille d'isolation multi-tenant sur des données de paie et de caisse.
+Non.
+
+### 9.2 Le levier qui marche vraiment : Cloudflare devant, serveurs derrière
+
+| Scénario | Coût/mois | Ce que ça change |
+|---|---|---|
+| A. Tout managé (recommandé) | **≈ 11 000 DA** | Supabase Pro 25 $ + Vercel Pro 20 $. Zéro serveur à administrer. |
+| B. VPS + Coolify + Supabase cloud | **≈ 6 400 DA** | Vercel Pro → VPS Hetzner CX23 (~5 $, 2 vCPU / 4 GB / 20 TB) avec Coolify : Next.js en Node classique, **aucune limite de 4,5 MB** (le bug d'export de la §5 disparaît), cron et tâches longues possibles. Supabase reste Pro. **+4 à 8 h/mois** de maintenance (mises à jour, TLS, sauvegardes du VPS, surveillance). |
+| C. Tout auto-hébergé | ≈ 2 000 DA | Supabase self-hosted + Coolify sur le même VPS, Supabase **Free** conservé pour le dev. Prix imbattable, mais on devient son propre DBA : sauvegardes, correctifs de sécurité Postgres, montée de version, astreinte. À exclure tant qu'il n'y a pas de revenu de fondateur. |
+
+**Recommandation : A aujourd'hui, B à partir de ~30 clients.** L'économie de B
+(≈ 4 600 DA/mois) vaut ~1,6 abonnement Solo ; à ce stade elle finance 2 h de
+temps. En dessous de 30 clients, B coûte plus de temps qu'elle ne rapporte.
+Le passage A→B ne touche ni les données ni les policies : Supabase et le VPS sont
+deux choses séparées, on ne change que la cible de déploiement.
+
+### 9.3 Le domaine par client : quasi zéro coût, et c'est déjà prévu
+
+C'est le point où il y a une vraie économie à faire — et où l'analyse initiale
+n'avait rien dit. **Chaque client n'a pas besoin d'acheter un domaine.**
+
+1. **Sous-domaine offert (par défaut, 0 DA).** `elyasmine.patisgest.dz` : un
+   seul certificat wildcard `*.patisgest.dz` couvre les 100 boutiques. Aucune
+   limite de nombre : c'est de la configuration, pas de la facturation.
+   C'est ce qu'il faut proposer par défaut, et c'est ce que le client attend
+   d'un abonnement à 2 900 DA.
+2. **Domaine propre du client (offre Pro/Groupe).** Le client possède déjà
+   `patisserie-elyasmine.com` : il crée **un CNAME** vers
+   `boutiques.patisgest.dz`, et Cloudflare for SaaS émet le certificat.
+   **100 domaines clients inclus**, puis 0,10 $/domaine (~25 DA). Aucun frais
+   pour 100 boutiques.
+   Sur Vercel seul : 50 domaines sur Hobby, illimité sur Pro (limite souple
+   100 000) — donc possible aussi, mais sans les 100 inclus de Cloudflare.
+3. **Le coût réel est le domaine du client, pas le nôtre.** `.dz` : 1 500 à
+   6 000 DA/an selon le registrar, et **réservé aux titulaires d'une marque
+   déposée en Algérie** avec serveurs DNS en Algérie — donc à la charge du
+   client, jamais à la nôtre. `.com` : ~2 400–3 300 DA/an, également chez lui.
+   Nous ne facturons que le sous-domaine (0 DA) ou l'option domaine propre.
+
+**Ce qu'il ne faut pas faire :** acheter un domaine par client. 100 domaines
+`.com` = ~300 000 DA/an, soit trois fois le budget d'infrastructure annuel,
+pour une fonctionnalité que le client peut activer lui-même en 5 minutes.
+
+**Conséquence sur l'architecture (à prévoir avant le 10ᵉ client)** : le routage
+doit être **par hôte**, pas par chemin. La table `sites` n'a pas de colonne
+domaine — ajouter `sites.domaine text unique` et un middleware qui résout
+`host → client_id`. À faire au moment où la première boutique en ligne est
+vendue, pas avant.
+
+### 9.4 Ce qui coûte cher sans rien apporter
+
+- **Neon Launch (19 $)** : ne remplace rien, voir §9.1.
+- **Cloudflare Pro (20 $/mois)** : les 100 domaines clients sont inclus dès le
+  plan **Free**. Pro n'achète que des builds concurrents et du WAF — inutile ici.
+- **Hetzner CPX22 (19–23 $)** : l'offre « Regular Performance » a doublé en
+  2026 ; le CX23 à ~5 $ suffit très largement pour 50 comptes.
+- **Un VPS pour « la base aussi »** : la base managée à 25 $ inclut les
+  sauvegardes quotidiennes, les montées de version Postgres et le PITR
+  commandable. Un Postgres auto-hébergé sans DBA, sur des salaires et des
+  tickets de caisse, c'est le seul poste où l'économie est une fausse économie.
+
+### 9.5 Sources ajoutées
+
+| Sujet | Référence |
+|---|---|
+| Neon : 0,106 $/CU-h, scales to zero, ~19 $/mois si toujours allumé, DB seule | [Neon pricing 2026](https://getcostiq.com/pricing/neon/), [Neon Launch vs Supabase Pro](https://neon.com/guides/neon-launch-plan-vs-supabase-pro-plan) |
+| Hetzner CX23 ~5 $/mois (2 vCPU / 4 GB / 20 TB), hausses d'avril et juin 2026 | [Hetzner Cloud Review 2026](https://betterstack.com/community/guides/web-servers/hetzner-cloud-review/) |
+| Coolify / Dokploy auto-hébergés, coût réel = temps d'exploitation | [Vercel alternatives 2026](https://www.ossalternatives.org/alternatives-to/vercel) |
+| Cloudflare for SaaS : **100 domaines inclus** puis 0,10 $ | [Cloudflare for SaaS pricing](https://dodomain.io/compare/cloudflare-for-saas) |
+| `.dz` 1 500–6 000 DA/an, réservé aux marques déposées, DNS en Algérie | [NIC-DZ 2026](https://dzofficiel.com/demarches/domaine-dz-enregistrer-nic-2026), [bNamed](https://www.bnamed.net/fr/extensies/Alg%C3%A9rie) |

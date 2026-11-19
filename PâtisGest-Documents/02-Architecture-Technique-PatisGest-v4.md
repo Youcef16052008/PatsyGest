@@ -175,11 +175,22 @@ test d'intrusion léger externe si budget, mentions légales + CGU rédigées.
 | Sauvegardes | Incluses (quotidiennes, 7 jours) + export client `GET /api/sauvegarde` | 0 DA (le poste « stockage objet 50 Go » devient inutile) |
 | **Total pilote (1 à 5 pilotes)** | Free + Hobby | **0 DA** |
 | **Total commercial** | | **≈ 11 000 DA/mois** |
+| Variante « VPS + Coolify » (à partir de ~30 clients) | Supabase Pro + VPS Hetzner CX23 à la place de Vercel | **≈ 6 400 DA/mois** + 4–8 h/mois d'exploitation |
 
 À 50 clients Solo (2 900 DA) : MRR 145 000 DA, charge d'infra **7,6 %**.
 Quotas Pro inclus et suffisants : 8 GB de base (≈ 2 ans à 100 boutiques pleine
 charge), 100 GB de fichiers, 250 GB d'egress, 100 000 comptes.
-Analyse complète et chiffrage : [`NOTE-HEBERGEMENT.md`](../NOTE-HEBERGEMENT.md).
+
+**Domaines des boutiques en ligne** : par défaut un sous-domaine
+`<boutique>.patisgest.dz` (0 DA, couvert par un certificat wildcard). Un client
+qui veut son propre domaine crée un CNAME ; Cloudflare for SaaS en couvre 100
+gratuitement, puis 0,10 $. Le domaine du client (`.dz` réservé aux marques
+déposées, 1 500–6 000 DA/an) reste à sa charge — **ne jamais acheter un domaine
+par client**. Le routage devra être par hôte (colonne `sites.domaine` + résolution
+dans le middleware) avant la première boutique en ligne vendue.
+
+Analyse complète, alternatives chiffrées (Neon, VPS, tout auto-hébergé) et
+arbitrage : [`NOTE-HEBERGEMENT.md`](../NOTE-HEBERGEMENT.md).
 
 ## 9. Environnements & méthode solo
 
