@@ -60,7 +60,7 @@ export default async function Parametres() {
   let sitesError = false;
   let modulesError=false;
   const equipeExperimentale = equipeExperimentaleActive();
-  let equipe: EquipeDonnees = { demandes: [], approbations: [], invitations: [] };
+  let equipe: EquipeDonnees = { demandes: [], approbations: [], invitations: [], membres: [] };
   let equipeError = true;
   if(ctx.role==='proprietaire' && ctx.mode==='supabase') {
     try {
@@ -74,13 +74,13 @@ export default async function Parametres() {
       sitesError=!!sitesResult.error || sitesResult.count === null || sitesResult.count > 1000;
       sites=(sitesResult.data??[]) as SiteCompte[];
       if (equipeExperimentale && !sitesError) {
-        const [demandes, approbations, invitations] = await Promise.all([
-          db.rpc('equipe_lister_demandes'), db.rpc('equipe_lister_approbations'), db.rpc('equipe_lister_invitations'),
+        const [demandes, approbations, invitations, membres] = await Promise.all([
+          db.rpc('equipe_lister_demandes'), db.rpc('equipe_lister_approbations'), db.rpc('equipe_lister_invitations'), db.rpc('equipe_lister_membres'),
         ]);
-        equipeError = !!demandes.error || !!approbations.error || !!invitations.error ||
-          !Array.isArray(demandes.data) || !Array.isArray(approbations.data) || !Array.isArray(invitations.data) ||
-          (demandes.data?.length ?? 0) > 500 || (approbations.data?.length ?? 0) > 500 || (invitations.data?.length ?? 0) > 500;
-        if (!equipeError) equipe = { demandes: demandes.data, approbations: approbations.data, invitations: invitations.data } as EquipeDonnees;
+        equipeError = !!demandes.error || !!approbations.error || !!invitations.error || !!membres.error ||
+          !Array.isArray(demandes.data) || !Array.isArray(approbations.data) || !Array.isArray(invitations.data) || !Array.isArray(membres.data) ||
+          (demandes.data?.length ?? 0) > 500 || (approbations.data?.length ?? 0) > 500 || (invitations.data?.length ?? 0) > 500 || (membres.data?.length ?? 0) > 500;
+        if (!equipeError) equipe = { demandes: demandes.data, approbations: approbations.data, invitations: invitations.data, membres: membres.data } as EquipeDonnees;
       }
     } catch { modulesError=true; sitesError=true; equipeError=true; }
   }

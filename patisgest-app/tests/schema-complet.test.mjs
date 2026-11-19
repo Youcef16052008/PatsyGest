@@ -150,7 +150,13 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
   await assert.rejects(db.query('select public.equipe_modifier_affectations($1,$2::uuid[],$3::text[])',[member,[memberSite],['stocks']]),/Compte introuvable/);
   await db.exec("select set_config('test.uid','10000000-0000-0000-0000-000000000001',false)");
   await assert.rejects(db.query('select public.equipe_modifier_affectations($1,$2::uuid[],$3::text[])',[member,[memberSite],['inconnu']]),/Modules invalides/);
-  await db.query('select public.equipe_modifier_affectations($1,$2::uuid[],$3::text[])',[member,[memberSite],['stocks']]);
+  const before=(await db.query('select * from public.equipe_lister_membres()')).rows.find(x=>x.id===member);
+  assert.ok(before); assert.deepEqual(before.sites,[memberSite]);
+  await db.query("select public.modifier_acces_module($1,'stocks',false)",[member]);
+  await assert.rejects(db.query('select public.equipe_modifier_affectations_versionnees($1,$2::bigint,$3::uuid[],$4::text[])',[member,before.revision,[memberSite],['stocks']]),/Affectations modifiees/);
+  const after=(await db.query('select * from public.equipe_lister_membres()')).rows.find(x=>x.id===member);
+  assert.notEqual(before.revision,after.revision);
+  await db.query('select public.equipe_modifier_affectations_versionnees($1,$2::bigint,$3::uuid[],$4::text[])',[member,after.revision,[memberSite],['stocks']]);
   await db.exec("select set_config('test.uid','10000000-0000-0000-0000-000000000002',false)");
   assert.equal((await db.query("select public.patisgest_module_autorise('stocks') ok")).rows[0].ok,true);
   assert.equal((await db.query("select public.patisgest_module_autorise('planning') ok")).rows[0].ok,false);

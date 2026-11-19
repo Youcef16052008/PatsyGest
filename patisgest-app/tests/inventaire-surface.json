@@ -36,7 +36,9 @@
       "afficherCodeEquipe",
       "annulerInvitationEquipe",
       "creerInvitationEquipe",
-      "deciderDemande"
+      "deciderDemande",
+      "modifierAffectationsEquipe",
+      "revoquerMembreEquipe"
     ],
     "src/lib/actions-etablissement.ts": [
       "sauverEtablissement"

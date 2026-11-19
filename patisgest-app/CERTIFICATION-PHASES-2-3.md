@@ -1,6 +1,6 @@
 # Évaluation de certification — phases 2 et 3
 
-**Décision : NON CERTIFIÉES ; migrations 24–42 non autorisées pour application.**
+**Décision : NON CERTIFIÉES ; migrations 24–43 non autorisées pour application.**
 Ce document décrit un état et des essais partiels, pas un certificat de sécurité.
 Le pilote est utilisé par la production : une migration de sécurité incomplète
 peut aussi verrouiller les utilisateurs existants ou casser l'ancienne application.
@@ -8,7 +8,7 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
 ## Constat vérifié
 
 - Historique Supabase consulté en lecture seule : dernière migration
-  `controle_modules_23` (`20261119045242`). Les brouillons 24–42 n'y sont pas.
+  `controle_modules_23` (`20261119045242`). Les brouillons 24–43 n'y sont pas.
 - Production Vercel consultée en lecture seule : commit `f11e371` ; elle ne
   correspond pas à l'application de la branche. Preview et production sont
   configurés sur la même base Supabase ; les tests destructifs sont interdits.
@@ -56,14 +56,18 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   cas concurrents. Une interface expérimentale couvre côté propriétaire le code,
   les demandes et les invitations, et côté candidat leurs réponses. Elle est
   limitée au développement local sur API Supabase locale avec opt-in explicite ;
-  l'admission reste verrouillée. L'interface n'administre pas encore les
-  affectations ni n'envoie de notification. L'interface équipe complète et le
-  canal d'invitation vérifié ne sont pas opérationnels.
+  l'admission reste verrouillée. Le brouillon 43 ajoute l'interface d'affectation
+  et de révocation avec contrôle de version contre les formulaires périmés,
+  mais elle n'envoie pas de notification. Le canal d'invitation vérifié et les
+  tests de bout en bout des formulaires ne sont pas opérationnels.
 - Le brouillon 36 modifie les affectations de membres existants et retire leur
   adhésion lors d'une révocation. Une transaction déjà en cours peut conserver
   son snapshot ; la concurrence avec les autres RPC de gestion, les changements
   d'adresse, les invitations et les clés étrangères du pilote restent à auditer.
-  La suppression ne désactive pas le compte Supabase Auth lui-même.
+  Le compteur de révision du brouillon 43 sérialise les chemins applicatifs de
+  modification et la révocation versionnée ; il ne garantit pas la détection
+  de modifications SQL privilégiées ou de cascades externes. La suppression ne
+  désactive pas le compte Supabase Auth lui-même.
 - La transition des comptes existants doit être définie et testée sans élargir
   leurs droits ni les priver involontairement de leurs sites.
 

@@ -1,13 +1,15 @@
 "use client";
 
 import { useActionState } from "react";
-import { afficherCodeEquipe, annulerInvitationEquipe, creerInvitationEquipe, deciderDemande, type EquipeActionState } from "@/lib/actions-equipe";
+import { afficherCodeEquipe, annulerInvitationEquipe, creerInvitationEquipe, deciderDemande, modifierAffectationsEquipe, revoquerMembreEquipe, type EquipeActionState } from "@/lib/actions-equipe";
+import { WORKSPACE_LINKS } from "@/lib/workspace-nav";
 import type { SiteCompte } from "./sites-settings";
 
 type Demande = { id: string; email: string; nom: string; role_demande: string; cree_le: string };
 type Approbation = { id: string; email: string; nom: string; role_demande: string; sites: string[] };
 type Invitation = { id: string; email: string; nom: string; role: string; sites: string[]; expire_le: string };
-export type EquipeDonnees = { demandes: Demande[]; approbations: Approbation[]; invitations: Invitation[] };
+type Membre = { id: string; nom: string; email: string; role: string; sites: string[]; modules_desactives: string[]; revision: string };
+export type EquipeDonnees = { demandes: Demande[]; approbations: Approbation[]; invitations: Invitation[]; membres: Membre[] };
 
 function Feedback({ state }: { state: EquipeActionState }) {
   return <>{state.erreur && <p role="alert" className="text-red-700">{state.erreur}</p>}{state.succes && <p role="status">{state.succes}</p>}</>;
@@ -61,10 +63,36 @@ function InvitationItem({ invitation, sites }: { invitation: Invitation; sites: 
     <button disabled={pending} className="pg-button pg-button-secondary">Annuler l’invitation</button><Feedback state={state}/>
   </form>;
 }
+function MembreForm({ membre, sites }: { membre: Membre; sites: SiteCompte[] }) {
+  const [state, action, pending] = useActionState(modifierAffectationsEquipe, {});
+  const [revoke, revokeAction, revoking] = useActionState(revoquerMembreEquipe, {});
+  const modules = WORKSPACE_LINKS.filter(l => !["/parametres", "/tableau-de-bord"].includes(l.href));
+  const sitesInconnus = membre.sites.filter(id => !sites.some(site => site.id === id));
+  return <details className="rounded-xl border p-3"><summary><strong>{membre.nom}</strong> · {membre.email} · {membre.role}</summary>
+    {sitesInconnus.length > 0 && <p role="alert">Certains sites affectés ne sont pas dans la liste. Actualisez la page avant de modifier ce compte.</p>}
+    <form action={action} className="space-y-3 mt-3">
+      <input type="hidden" name="id" value={membre.id}/><input type="hidden" name="revision" value={membre.revision}/>
+      <fieldset><legend className="font-bold">Sites attribués</legend>
+        {sites.map(s => <label key={s.id} className="block"><input type="checkbox" name="sites" value={s.id} defaultChecked={membre.sites.includes(s.id)}/> {s.nom} · {s.type}{membre.role === "vendeur" && s.type !== "boutique" ? " — non autorisé pour vendeur" : ""}</label>)}
+      </fieldset>
+      <fieldset><legend className="font-bold">Modules activés</legend><p>Les droits effectifs restent limités par le rôle. Les modules non cochés seront désactivés.</p>
+        {modules.map(m => <label key={m.href} className="block"><input type="checkbox" name="modules" value={m.href.slice(1)} defaultChecked={!membre.modules_desactives.includes(m.href.slice(1))}/> {m.title}</label>)}
+      </fieldset>
+      <button className="pg-button" disabled={pending || revoking || sitesInconnus.length > 0}>Enregistrer les affectations</button><Feedback state={state}/>
+    </form>
+    <form action={revokeAction} className="space-y-2 mt-4 border-t pt-3"><input type="hidden" name="id" value={membre.id}/><input type="hidden" name="revision" value={membre.revision}/>
+      <p>La révocation retire l’adhésion et les accès, sans supprimer le compte Auth. Une requête déjà en cours peut ne pas être interrompue immédiatement.</p>
+      <label className="block"><input type="checkbox" name="confirmer" value="oui" required/> Confirmer la révocation de {membre.nom}</label>
+      <button className="pg-button pg-button-secondary" disabled={pending || revoking}>Révoquer l’adhésion</button><Feedback state={revoke}/>
+    </form>
+  </details>;
+}
 export default function EquipeSettings({ data, sites, error }: { data: EquipeDonnees; sites: SiteCompte[]; error: boolean }) {
   return <section className="pg-card pg-card-pad mt-6 space-y-4"><h2>Équipe · expérimental</h2>
     <p role="alert">Parcours non certifié. Aucune notification n’est envoyée par cette interface. L’admission reste verrouillée en base jusqu’à validation complète. Ne pas utiliser sur le pilote.</p>
     {error ? <p role="alert">Données d’équipe ou sites indisponibles. Aucune action n’est proposée ; rechargez la page.</p> : <>
+      <h3>Membres existants</h3>
+      {data.membres.length ? data.membres.map(m => <MembreForm key={`${m.id}-${m.revision}`} membre={m} sites={sites}/>) : <p>Aucun membre laboratoire ou vendeur.</p>}
       <p>Le code permet de demander un rattachement ; partagez-le uniquement par un canal de confiance. Une approbation n’active pas le compte.</p>
       <CodeForm/><details><summary>Renouveler le code de demande</summary><CodeForm renouveler/></details>
       <h3>Demandes en attente</h3>{data.demandes.length ? data.demandes.map(d => <DemandeForm key={d.id} demande={d} sites={sites}/>) : <p>Aucune demande.</p>}

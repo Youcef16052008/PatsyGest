@@ -124,8 +124,10 @@ Aucun courrier n'est envoyé ; l'admission en base reste fermée par défaut et
 les modules sont désactivés à l'admission. Les interfaces ne sont accessibles
 qu'avec l'opt-in `PATSYGEST_EQUIPE_EXPERIMENTAL=true`, en développement, hors
 Vercel, et avec une URL Supabase locale sur le port 54321. Cette restriction
-ne remplace pas la sécurité SQL ; n'utiliser qu'une pile jetable. L'interface
-d'affectation des membres et les vérifications de bout en bout restent à faire.
+ne remplace pas la sécurité SQL ; n'utiliser qu'une pile jetable. Le brouillon
+43 ajoute les affectations et la révocation avec une révision anti-conflit ;
+les modifications SQL privilégiées et cascades externes ne sont pas couvertes
+par ce compteur. Les vérifications de bout en bout restent à faire.
 
 Certaines vues labo sont exécutées avec les droits de leur propriétaire, et
 des tables n'ont pas de colonne site. Il serait dangereux de

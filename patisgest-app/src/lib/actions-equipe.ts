@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSessionContext } from "./auth";
 import { createClient } from "./supabase/server";
 import { equipeExperimentaleActive } from "./equipe-experimental";
+import { WORKSPACE_LINKS } from "./workspace-nav";
 
 export type EquipeActionState = { erreur?: string; succes?: string; code?: string };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -21,6 +22,47 @@ function sites(form: FormData): string[] | null {
   if (values.length < 1 || values.length > 100 || values.some(v => typeof v !== "string" || !uuid.test(v))) return null;
   const result = values as string[];
   return new Set(result.map(v => v.toLowerCase())).size === result.length ? result : null;
+}
+
+function revision(form: FormData): string | null {
+  const value = String(form.get("revision") ?? "");
+  if (!/^(0|[1-9][0-9]{0,18})$/.test(value) || (value.length === 19 && value > "9223372036854775807")) return null;
+  return value;
+}
+
+export async function modifierAffectationsEquipe(_prev: EquipeActionState, form: FormData): Promise<EquipeActionState> {
+  const id = String(form.get("id") ?? "");
+  const version = revision(form);
+  const affectations = sites(form);
+  const modules = form.getAll("modules");
+  const permis = WORKSPACE_LINKS.filter(l => !["/parametres", "/tableau-de-bord"].includes(l.href)).map(l => l.href.slice(1));
+  if (!uuid.test(id) || version === null || !affectations || modules.length > permis.length ||
+      modules.some(m => typeof m !== "string" || !permis.includes(m)) || new Set(modules).size !== modules.length) {
+    return { erreur: "Compte, version, sites ou modules invalides." };
+  }
+  try {
+    const db = await clientProprietaire();
+    if (!db) return { erreur: "Gestion d’équipe indisponible ou réservée au propriétaire." };
+    const { error } = await db.rpc("equipe_modifier_affectations_versionnees", { p_utilisateur_id: id, p_revision: version, p_sites: affectations, p_modules: modules });
+    if (error) return { erreur: error.code === "40001" ? "Les accès ont changé. Rechargez avant de recommencer." : "Modification refusée. Vérifiez les sites et rechargez la liste." };
+    revalidatePath("/parametres");
+    revalidatePath("/", "layout");
+    return { succes: "Affectations enregistrées." };
+  } catch { return { erreur: "Résultat non confirmé. Rechargez la liste avant de réessayer." }; }
+}
+
+export async function revoquerMembreEquipe(_prev: EquipeActionState, form: FormData): Promise<EquipeActionState> {
+  const id = String(form.get("id") ?? "");
+  const version = revision(form);
+  if (!uuid.test(id) || version === null || form.get("confirmer") !== "oui") return { erreur: "Confirmez la révocation du membre." };
+  try {
+    const db = await clientProprietaire();
+    if (!db) return { erreur: "Gestion d’équipe indisponible ou réservée au propriétaire." };
+    const { error } = await db.rpc("equipe_revoquer_versionne", { p_utilisateur_id: id, p_revision: version });
+    if (error) return { erreur: error.code === "40001" ? "Les accès ont changé. Rechargez avant de recommencer." : "Révocation refusée ou membre indisponible. Rechargez la liste." };
+    revalidatePath("/parametres");
+    return { succes: "Adhésion retirée. Le compte Auth lui-même n’a pas été supprimé." };
+  } catch { return { erreur: "Résultat non confirmé. Rechargez la liste avant de réessayer." }; }
 }
 
 export async function afficherCodeEquipe(_prev: EquipeActionState, form: FormData): Promise<EquipeActionState> {

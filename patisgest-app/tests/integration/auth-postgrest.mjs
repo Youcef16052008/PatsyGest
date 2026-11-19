@@ -373,6 +373,21 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   // Gestion d'un membre existant : vérification en utilisant le JWT vendeur
   // obtenu au début du test, sans reconnexion après changement/révocation.
   const assignment={p_utilisateur_id:ids[2],p_sites:[newSite.id],p_modules:['caisse','planning']};
+  const members=ok(await owner.rpc('equipe_lister_membres'),'Liste des membres propriétaire');
+  assert.equal(members.length,2); const sellerMember=members.find(m=>m.id===ids[2]);
+  assert.ok(sellerMember); assert.ok(sellerMember.sites.includes(newSite.id));
+  assert.equal(ok(await other.rpc('equipe_lister_membres'),'Isolation membres autre client').length,0);
+  denied(await lab.rpc('equipe_lister_membres'),'Reserve au proprietaire');
+  denied(await seller.rpc('equipe_lister_membres'),'Reserve au proprietaire');
+  assert.ok((await anon.rpc('equipe_lister_membres')).error);
+  denied(await other.rpc('equipe_modifier_affectations_versionnees',{...assignment,p_revision:sellerMember.revision}),'Compte introuvable');
+  denied(await lab.rpc('equipe_modifier_affectations_versionnees',{...assignment,p_revision:sellerMember.revision}),'Reserve au proprietaire');
+  ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[2],p_module:'qualite',p_actif:false}),'Modification concurrente module');
+  const staleEdit=await owner.rpc('equipe_modifier_affectations_versionnees',{...assignment,p_revision:sellerMember.revision});
+  assert.equal(staleEdit.error?.code,'40001','Un formulaire périmé ne remplace pas les nouveaux modules');
+  assert.equal(ok(await seller.rpc('patisgest_module_autorise',{p_module:'qualite'}),'Modification concurrente préservée'),false);
+  ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[2],p_module:'qualite',p_actif:true}),'Restaurer qualité');
+  assert.ok((await seller.rpc('patisgest_modifier_affectations_interne',assignment)).error,'Fonction interne inaccessible');
   denied(await other.rpc('equipe_modifier_affectations',assignment),'Compte introuvable');
   denied(await lab.rpc('equipe_modifier_affectations',assignment),'Reserve au proprietaire');
   denied(await owner.rpc('equipe_modifier_affectations',{...assignment,p_utilisateur_id:ids[0]}),'Compte introuvable');
@@ -383,6 +398,14 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.ok((await owner.rpc('equipe_modifier_affectations',{...assignment,p_modules:['caisse','caisse']})).error);
   assert.equal(ok(await seller.from('sites').select('id').eq('id',site),'Affectation inchangée après erreurs').length,1);
   ok(await owner.rpc('equipe_modifier_affectations',assignment),'Modifier sites et modules atomiquement');
+  const versionAfterAssignment=ok(await owner.rpc('equipe_lister_membres'),'Révision après modification').find(m=>m.id===ids[2]).revision;
+  const raceArgs={...assignment,p_revision:versionAfterAssignment};
+  const edits=await Promise.all([owner.rpc('equipe_modifier_affectations_versionnees',raceArgs),owner.rpc('equipe_modifier_affectations_versionnees',raceArgs)]);
+  assert.equal(edits.filter(e=>!e.error).length,1,'Une seule modification concurrente de même révision réussit');
+  assert.equal(edits.find(e=>e.error)?.error.code,'40001');
+  const versionAfterRace=ok(await owner.rpc('equipe_lister_membres'),'Révision après concurrence').find(m=>m.id===ids[2]).revision;
+  assert.notEqual(versionAfterRace,versionAfterAssignment);
+  assert.equal((await owner.rpc('equipe_revoquer_versionne',{p_utilisateur_id:ids[2],p_revision:versionAfterAssignment})).error?.code,'40001','Révocation périmée refusée');
   assert.equal(ok(await seller.from('sites').select('id').eq('id',site),'Ancien site retiré').length,0);
   assert.equal(ok(await seller.from('sites').select('id').eq('id',newSite.id),'Nouveau site attribué').length,1);
   denied(await seller.rpc('vendre_article',{p_article_id:product,p_site_id:site,p_qte:1,p_ticket:'V-REFUSE'}),'Site non autorise');
@@ -394,7 +417,9 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   denied(await other.rpc('equipe_revoquer',{p_utilisateur_id:ids[2]}),'Compte introuvable');
   denied(await seller.rpc('equipe_revoquer',{p_utilisateur_id:ids[2]}),'Reserve au proprietaire');
   denied(await owner.rpc('equipe_revoquer',{p_utilisateur_id:ids[0]}),'Compte introuvable');
-  ok(await owner.rpc('equipe_revoquer',{p_utilisateur_id:ids[2]}),'Révoquer membre');
+  denied(await lab.rpc('equipe_revoquer_versionne',{p_utilisateur_id:ids[2],p_revision:versionAfterRace}),'Reserve au proprietaire');
+  denied(await other.rpc('equipe_revoquer_versionne',{p_utilisateur_id:ids[2],p_revision:versionAfterRace}),'Compte introuvable');
+  ok(await owner.rpc('equipe_revoquer_versionne',{p_utilisateur_id:ids[2],p_revision:versionAfterRace}),'Révoquer membre');
   assert.ok(ok(await seller.auth.getUser(),'Compte Auth reste authentifié').user);
   assert.equal(ok(await seller.from('clients').select('id'),'Client inaccessible après révocation').length,0);
   assert.equal(ok(await seller.from('sites').select('id'),'Sites inaccessibles après révocation').length,0);
@@ -402,7 +427,7 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.equal(ok(await seller.rpc('patisgest_module_autorise',{p_module:'caisse'}),'Module révoqué'),false);
   assert.equal(ok(await seller.rpc('equipe_mes_invitations'),'Ancienne invitation annulée').length,0);
   denied(await seller.rpc('vendre_article',{p_article_id:product,p_site_id:newSite.id,p_qte:1,p_ticket:'V-REVOQUE'}),'Site non autorise');
-  assert.equal((await sql`select count(*)::int n from equipe_journal_acces where utilisateur_id=${ids[2]}`)[0].n,2);
+  assert.equal((await sql`select count(*)::int n from equipe_journal_acces where utilisateur_id=${ids[2]}`)[0].n,3);
   denied(await owner.rpc('equipe_revoquer',{p_utilisateur_id:ids[2]}),'Compte introuvable');
 
   // Admission : la bascule n'est ouverte que par SQL privilégié dans cette
@@ -498,6 +523,8 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    const settingsHtml=await settings.text();
    assert.ok(settingsHtml.includes('Équipe · expérimental'),'Interface expérimentale visible sur pile locale');
    assert.ok(settingsHtml.includes('Aucune notification n’est envoyée'),'Aucun envoi de courrier annoncé');
+   assert.ok(settingsHtml.includes('Membres existants') && settingsHtml.includes('Enregistrer les affectations'),'Interface des membres disponible au propriétaire');
+   assert.ok(settingsHtml.includes('Révoquer l’adhésion'),'Interface de révocation disponible au propriétaire');
    const labSession=ok(await client().auth.signInWithPassword({email:emails[1],password}),'Session HTTP labo').session;
    const labCookie=`${cookieName}=base64-${Buffer.from(JSON.stringify(labSession)).toString('base64url')}`;
    const labSettings=await fetch('http://127.0.0.1:3414/parametres',{headers:{cookie:labCookie},redirect:'manual'});
