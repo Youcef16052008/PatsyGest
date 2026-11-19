@@ -14,7 +14,7 @@ function assertLocal(value, port) {
 assert.equal(PATSYGEST_DISPOSABLE, 'yes', 'Environnement jetable requis');
 assertLocal(API_URL, '54321');
 assertLocal(DB_URL, '54322');
-const sql = postgres(DB_URL, { max: 1 });
+const sql = postgres(DB_URL, { max: 1, onnotice: () => {} });
 const admin = createClient(API_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 const client = () => createClient(API_URL, ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 const ok = ({ data, error }, context) => { assert.ifError(error && new Error(`${context}: ${error.message}`)); return data; };

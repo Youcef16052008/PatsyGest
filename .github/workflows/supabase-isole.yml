@@ -50,7 +50,7 @@ jobs:
             while IFS= read -r line; do
               line=${line//'%'/'%25'}; line=${line//$'\r'/'%0D'}; line=${line//$'\n'/'%0A'}
               echo "::error::$line"
-            done < "$RUNNER_TEMP/test-result.txt"
+            done < <(grep -E '(^not ok|error:|message:|Migration |cause:|AssertionError|Error:|operator:)' "$RUNNER_TEMP/test-result.txt" | head -8)
           fi
           exit "$result"
       - name: Détruire la pile et ses données fictives
