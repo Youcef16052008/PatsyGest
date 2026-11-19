@@ -76,6 +76,12 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.equal(ok(await other.from('articles').select('*'), 'Isolation autre propriétaire').length, 0);
   assert.equal(ok(await other.from('labo_articles').select('*'), 'Isolation vue labo').length, 0);
   assert.equal(ok(await seller.from('clients').select('id'), 'Client vendeur')[0].id, A);
+  const newSite = ok(await owner.from('sites').insert({client_id:A,nom:'Boutique 2',type:'boutique'}).select('id').single(), 'Ajout boutique propriétaire');
+  assert.ok(newSite.id);
+  ok(await owner.from('sites').update({nom:'Boutique modifiée'}).eq('id',newSite.id).select('id').single(), 'Modification boutique propriétaire');
+  assert.ok((await lab.from('sites').insert({client_id:A,nom:'Non autorisé',type:'boutique'})).error, 'Labo ne crée pas de site');
+  assert.equal(ok(await lab.from('sites').update({nom:'Non autorisé'}).eq('id',newSite.id).select('id'), 'Modification labo refusée').length,0);
+  assert.equal(ok(await other.from('sites').update({nom:'Autre client'}).eq('id',newSite.id).select('id'), 'Modification inter-client refusée').length,0);
   denied(await lab.rpc('modifier_acces_module',{p_utilisateur_id:ids[1],p_module:'qualite',p_actif:false}), 'Reserve au proprietaire');
   denied(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[3],p_module:'qualite',p_actif:false}), 'Compte introuvable');
   ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[1],p_module:'qualite',p_actif:false}), 'Désactiver qualité');

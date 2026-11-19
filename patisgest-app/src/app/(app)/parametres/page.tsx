@@ -1,6 +1,7 @@
 import { requireSession, ROLE_LABELS } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import ModulesSettings, { type ModulesCompte } from "@/components/modules-settings";
+import SitesSettings, { type SiteCompte } from "@/components/sites-settings";
 import EtablissementForm from "@/components/etablissement-form";
 import SauvegardePanel from "@/components/sauvegarde-panel";
 import AppearancePicker from "@/components/appearance";
@@ -53,14 +54,21 @@ export default async function Parametres() {
   }
 
   let accounts:ModulesCompte[]=[];
+  let sites: SiteCompte[] = [];
+  let sitesError = false;
   let modulesError=false;
   if(ctx.role==='proprietaire' && ctx.mode==='supabase') {
     try {
       const db=await createClient();
-      const {data,error}=await db.rpc('lister_acces_modules');
-      modulesError=!!error || !Array.isArray(data);
-      accounts=(data??[]) as ModulesCompte[];
-    } catch { modulesError=true; }
+      const [modulesResult, sitesResult] = await Promise.all([
+        db.rpc('lister_acces_modules'),
+        db.from('sites').select('id, nom, type, adresse', { count: 'exact' }).eq('client_id',ctx.clientId).order('nom').limit(1000),
+      ]);
+      modulesError=!!modulesResult.error || !Array.isArray(modulesResult.data);
+      accounts=(modulesResult.data??[]) as ModulesCompte[];
+      sitesError=!!sitesResult.error || sitesResult.count === null || sitesResult.count > 1000;
+      sites=(sitesResult.data??[]) as SiteCompte[];
+    } catch { modulesError=true; sitesError=true; }
   }
 
   return (
@@ -74,6 +82,7 @@ export default async function Parametres() {
         {ctx.role === "proprietaire" ? (
           <>
             <EtablissementForm etablissement={etablissement} />
+            {ctx.mode === 'supabase' && <SitesSettings sites={sites} error={sitesError}/>}
             {ctx.mode==='supabase' ? <ModulesSettings accounts={accounts} error={modulesError}/> : <section className="pg-card pg-card-pad mt-6"><h2>Accès aux modules</h2><p>Disponible en établissement connecté. La démo locale ne protège pas les données par compte.</p></section>}
             {ctx.mode === "supabase" ? (
               <SauvegardePanel />
