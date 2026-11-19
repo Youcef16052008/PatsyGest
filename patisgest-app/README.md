@@ -101,6 +101,35 @@ npm run build          # build de production (celui que Vercel exécute)
 Le test de fumée démarre son propre `next dev` sur le port 3411 (variable `SMOKE_PORT`
 pour le changer). Arrêtez le serveur de développement avant de lancer ce test.
 
+### 5. Hors-ligne (NF-02)
+
+La caisse fonctionne sans réseau : service worker (`public/sw.js`, JS pur,
+sans dépendance), manifeste PWA (`/manifest.webmanifest`) et catalogue de
+secours (`src/lib/catalogue-cache.ts`).
+
+- **Ce qui est mis en cache** : l'écran `/caisse`, `/tableau-de-bord` et
+  `/connexion`, les assets Next, les polices, les icônes.
+- **Ce qui ne l'est jamais** : les server actions, `/api/*` et les données de
+  coût. Une vente doit toujours être validée par le serveur.
+- **Catalogue de secours** : produits, sites et identité du ticket sont
+  conservés dans le navigateur ; ils ne servent que si le serveur ne répond
+  pas, et sont **refusés au-delà de 14 jours** (mieux vaut une erreur claire
+  qu'un prix périmé encaissé comme s'il était juste). Le stock n'est jamais
+  restauré depuis le cache.
+- **Synchronisation** : automatique au retour du réseau, plus un contrôle
+  toutes les 30 s ; idempotence par numéro de ticket, donc aucun doublon.
+
+Tester en local (le SW est désactivé en développement, volontairement) :
+
+```bash
+npm run build && npm start
+# puis, dans l'onglet Réseau des DevTools : « Offline » et recharger /caisse
+```
+
+Limite connue : une **navigation directe vers une page jamais visitée** hors
+ligne affichera l'erreur du navigateur. Les écrans listés ci-dessus sont, eux,
+toujours disponibles.
+
 ## Déploiement (Vercel)
 
 Le projet Vercel `patsy-gest` est lié à ce dépôt avec le **Root Directory

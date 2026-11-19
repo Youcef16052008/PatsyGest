@@ -140,3 +140,41 @@ Livrer 5 pilotes dans une boutique d'Oran sans PWA réelle, c'est prendre le ris
 R2 de ta propre roadmap (« coupures internet longues — forte ») sur la promesse
 centrale du produit. **Coût : 0 DA**, uniquement du travail. À planifier avant le
 premier pilote, pas après.
+
+### 5.1 Corrigé dans cette livraison
+
+| Élément | Fichier | Effet |
+|---|---|---|
+| Manifeste PWA installable | `src/app/manifest.ts` | « Ajouter à l'écran d'accueil » sur tablette, mode plein écran |
+| Service worker (~150 l., zéro dépendance) | `public/sw.js` | `/caisse` s'ouvre **sans réseau** ; jamais de cache sur les server actions ni `/api/*` |
+| Catalogue de secours | `src/lib/catalogue-cache.ts` | Produits, sites et identité du ticket conservés ; **refusés au-delà de 14 jours** ; stock jamais restauré |
+| Synchronisation automatique | `src/components/sale-form.tsx` | Envoi au retour du réseau + contrôle toutes les 30 s, au lieu d'un bouton à cliquer |
+| Bandeau hors-ligne explicite | `src/components/sale-form.tsx` | « Mode hors-ligne — enregistré localement », avec la date du catalogue utilisé |
+| Bandeau « nouvelle version » | `src/components/service-worker.tsx` | Mise à jour proposée, jamais imposée en pleine saisie |
+
+**Deux corrections au plan d'origine qui aurait cassé l'existant :**
+
+1. Le bouton d'encaissement **n'était pas** bloqué par `navigator.onLine`
+   (`canSell` n'en dépend pas). Le blocage réel était plus profond : la page
+   `/caisse` est rendue côté serveur et **plantait sans réseau** faute de
+   données. Désactiver un attribut n'aurait rien réglé.
+2. `subdomain TEXT UNIQUE NOT NULL` aurait échoué sur la base pilote : elle
+   contient déjà **2 sites** sans sous-domaine. La migration 25 rend les
+   colonnes nullables et n'exige une adresse que pour une vitrine **publiée**.
+
+Migration `supabase/25-domaines-boutiques.sql` : colonnes `subdomain`,
+`custom_domain`, `publication` ; format verrouillé (nom DNS valide, unicité
+insensible à la casse vérifiée en base — `ECLAIR` et `eclair` sont refusés),
+table des sous-domaines réservés (`app`, `www`, `api`…), RPC de réservation
+réservée au propriétaire. **Rien n'est publié par cette migration** : les
+2 sites existants restent en `publication = 'aucune'`.
+
+`src/lib/domaines.ts` classe un hôte (`application` / `boutique` /
+`domaine-client` / `inconnu`) — 8 tests couvrent port, point final, casse,
+sous-domaine imbriqué, domaine client et hôtes de prévisualisation.
+
+**Reste à faire avant de vendre une vitrine** : la page publique elle-même, et
+son branchement dans le middleware. C'est un chantier à part, à traiter avec
+une revue de sécurité : une page publique expose des données à des visiteurs
+anonymes et ne doit **jamais** réutiliser les lectures internes (elles portent
+les coûts et les marges).

@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { sellProduct, type SaleState } from "@/lib/actions-caisse";
 import type { Etablissement } from "@/lib/etablissement";
 import { enqueueSale, getQueue, removeSale, setQueue, subscribeQueue, type QueuedSale } from "@/lib/sale-queue";
+import { ageCatalogue, enregistrerCatalogue, getCatalogueServeurSnapshot, getCatalogueSnapshot, subscribeCatalogue, type CatalogueHorsLigne } from "@/lib/catalogue-cache";
 import SaleTicket from "./sale-ticket";
 import FormulaireGuide, { champGuide } from "./guide-form";
 import SaleComposer from "./sale-composer";
@@ -31,6 +32,41 @@ export default function SaleForm({ articles, sites, stock = null, etablissement,
   const [lastSale, setLastSale] = useState<VenteAffichee | null>(null);
   const [pending, startTransition] = useTransition();
   const lock = useRef(false);
+
+  /**
+   * Catalogue de secours (NF-02). Si le serveur n'a rien pu fournir, on relit
+   * le dernier catalogue connu du navigateur pour que la caisse reste
+   * utilisable. Le stock n'est volontairement pas restauré (voir
+   * lib/catalogue-cache.ts).
+   *
+   * Lecture par store externe (`useSyncExternalStore`) et non par effet :
+   * un setState synchrone dans un effet provoquerait un rendu en cascade,
+   * et le lint du projet l'interdit (react-hooks/set-state-in-effect).
+   */
+  const catalogue = useSyncExternalStore(subscribeCatalogue, getCatalogueSnapshot, getCatalogueServeurSnapshot);
+  const aDesDonneesServeur = articles.length > 0 && sites.length > 0;
+
+  // Mémorisation du catalogue reçu du serveur : écriture dans un système
+  // externe (localStorage), pas dans l'état React — donc légitime en effet.
+  useEffect(() => {
+    if (!aDesDonneesServeur) return;
+    enregistrerCatalogue({
+      clientNom: etablissement?.nom ?? "",
+      articles: articles.map((a) => ({ id: a.id, label: a.label, code: a.code, unit: a.unit, prixHT: a.prixHT, tva: a.tva })),
+      sites: sites.map((s) => ({ id: s.id, label: s.label, type: s.type })),
+      identite: etablissement ?? { nom: "", adresse: null, telephone: null, nif: null, nis: null, rc: null },
+    });
+  }, [aDesDonneesServeur, articles, sites, etablissement]);
+
+  const secours = aDesDonneesServeur ? null : catalogue;
+  const horsLigneSecours = secours !== null;
+  const articlesCaisse: CatalogProduct[] = horsLigneSecours
+    ? secours.articles.map((a) => ({ id: a.id, label: a.label, code: a.code, unit: a.unit, prixHT: a.prixHT, tva: a.tva }))
+    : articles;
+  const sitesCaisse: WorkspaceSite[] = horsLigneSecours
+    ? secours.sites.map((s) => ({ id: s.id, label: s.label, type: s.type }))
+    : sites;
+  const identiteTicket = etablissement ?? (horsLigneSecours ? secours.identite : null);
 
   const online = useSyncExternalStore(
     (cb) => {
@@ -74,7 +110,7 @@ export default function SaleForm({ articles, sites, stock = null, etablissement,
   function ticketVente(state: SaleState, { articleLabel, siteLabel, qte }: QueuedSale): VenteAffichee | null {
     return state.ticket ? {
       ...state, articleLabel, siteLabel, qte, at: state.enregistreeA ?? new Date().toISOString(),
-      etablissement: etablissement ?? null,
+      etablissement: identiteTicket ?? null,
     } : null;
   }
 
@@ -87,8 +123,8 @@ export default function SaleForm({ articles, sites, stock = null, etablissement,
     const articleId = String(fd.get("articleId") ?? "");
     const siteId = String(fd.get("siteId") ?? "");
     const qte = Number(fd.get("qte"));
-    const articleLabel = articles.find((a) => a.id === articleId)?.label;
-    const siteLabel = sites.find((s) => s.id === siteId)?.label;
+    const articleLabel = articlesCaisse.find((a) => a.id === articleId)?.label;
+    const siteLabel = sitesCaisse.find((s) => s.id === siteId)?.label;
     if (!articleLabel || !siteLabel || !Number.isFinite(qte) || qte < 0.0001 || qte > 100_000_000) {
       setMsg({ kind: "err", text: "Choisissez un produit, un site et une quantité valide." });
       return;
@@ -159,17 +195,50 @@ export default function SaleForm({ articles, sites, stock = null, etablissement,
     });
   }
 
+  /**
+   * Synchronisation automatique (NF-02 / D5) : dès que le réseau revient, la
+   * file part toute seule. L'ancien comportement demandait au caissier de
+   * cliquer « Synchroniser maintenant » — il oubliait, et la file grossissait.
+   *
+   * `syncAllRef` évite de recréer un intervalle à chaque rendu ; `lock`
+   * empêche deux synchronisations concurrentes (la même vente ne part jamais
+   * deux fois, mais autant ne pas la rejouer).
+   */
+  const syncAllRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    syncAllRef.current = syncAll;
+  });
+
+  useEffect(() => {
+    const tenter = () => {
+      if (guide) return; // le guide d'accueil gère sa propre progression
+      if (navigator.onLine === false) return;
+      if (getQueue().length === 0 || lock.current) return;
+      syncAllRef.current();
+    };
+    const surRetour = () => tenter();
+    window.addEventListener("online", surRetour);
+    // Filet de sécurité : certains navigateurs de tablette ne tirent pas
+    // l'événement `online` de façon fiable après une mise en veille.
+    const minuterie = window.setInterval(tenter, 30_000);
+    tenter();
+    return () => {
+      window.removeEventListener("online", surRetour);
+      window.clearInterval(minuterie);
+    };
+  }, [guide]);
+
   if (guideTermine && !lastSale && !msg && queued.length === 0) return null;
 
   const produit = <label className={label}>Produit
-    <select name="articleId" required className={champGuide} disabled={articles.length === 0}>
+    <select name="articleId" required className={champGuide} disabled={articlesCaisse.length === 0}>
       <option value="">Choisir un produit</option>
-      {articles.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+      {articlesCaisse.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
     </select>
   </label>;
   const site = <label className={label}>Site
-    <select name="siteId" required className={champGuide} defaultValue={siteCaisse(sites)}>
-      {sites.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+    <select name="siteId" required className={champGuide} defaultValue={siteCaisse(sitesCaisse)}>
+      {sitesCaisse.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
     </select>
   </label>;
   const quantiteGuide = <label className={`${label} max-w-xs`}>Quantité
@@ -179,15 +248,24 @@ export default function SaleForm({ articles, sites, stock = null, etablissement,
   return (
     <div className="pg-stack">
       {!guideTermine && (guide ? (
-        <FormulaireGuide onSubmit={onSubmit} pending={pending} valider="Encaisser" indisponible={!articles.length || !sites.length || queued.length > 0}
+        <FormulaireGuide onSubmit={onSubmit} pending={pending} valider="Encaisser" indisponible={!articlesCaisse.length || !sitesCaisse.length || queued.length > 0}
           groupes={[
             { nom: "Produit et site", titre: "Que vendez-vous ?", contenu: <div className="grid gap-3 sm:grid-cols-2">{produit}{site}</div> },
             { nom: "Quantité", titre: "Quelle quantité vendez-vous ?", aide: "Enregistrez uniquement une vente réellement encaissée.", contenu: quantiteGuide },
           ]} />
       ) : (
-        <SaleComposer articles={articles} sites={sites} stock={stock} onSubmit={onSubmit} busy={pending}
+        <SaleComposer articles={articlesCaisse} sites={sitesCaisse} stock={horsLigneSecours ? null : stock} onSubmit={onSubmit} busy={pending}
           status={!online ? <span className="pg-badge" data-tone="warning">Hors ligne</span> : queued.length > 0 ? <span className="pg-badge" data-tone="warning">{queued.length} en attente</span> : undefined} />
       ))}
+      {(horsLigneSecours || !online) && (
+        <Notice kind="info">
+          <strong>Mode hors-ligne — les ventes sont enregistrées localement.</strong>{" "}
+          {horsLigneSecours
+            ? `Catalogue du ${new Date(secours.enregistreLe).toLocaleDateString("fr-FR")} (${Math.floor(ageCatalogue(secours))} j). `
+            : ""}
+          Elles partiront seules au retour du réseau ; aucun doublon ne sera créé.
+        </Notice>
+      )}
       {msg && <Notice kind={msg.kind === "err" ? "error" : msg.kind === "ok" ? "success" : "info"}>{msg.text}</Notice>}
 
       {queued.length > 0 && (
