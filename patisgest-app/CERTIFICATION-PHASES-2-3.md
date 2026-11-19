@@ -1,6 +1,6 @@
 # Évaluation de certification — phases 2 et 3
 
-**Décision : NON CERTIFIÉES ; migrations 24–37 non autorisées pour application.**
+**Décision : NON CERTIFIÉES ; migrations 24–38 non autorisées pour application.**
 Ce document décrit un état et des essais partiels, pas un certificat de sécurité.
 Le pilote est utilisé par la production : une migration de sécurité incomplète
 peut aussi verrouiller les utilisateurs existants ou casser l'ancienne application.
@@ -8,7 +8,7 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
 ## Constat vérifié
 
 - Historique Supabase consulté en lecture seule : dernière migration
-  `controle_modules_23` (`20261119045242`). Les brouillons 24–37 n'y sont pas.
+  `controle_modules_23` (`20261119045242`). Les brouillons 24–38 n'y sont pas.
 - Production Vercel consultée en lecture seule : commit `f11e371` ; elle ne
   correspond pas à l'application de la branche. Preview et production sont
   configurés sur la même base Supabase ; les tests destructifs sont interdits.
@@ -18,14 +18,18 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
 - Les tests locaux passent (311, typecheck et lint). La CI 44572631200 réussit
   sur une pile Supabase CLI jetable : requêtes authentifiées, modifications
   d'affectations et vérification d'un JWT vendeur déjà émis après révocation,
-  build et garde Preview. Les migrations historiques y sont reconstruites avec
-  des adaptations de bootstrap : ce n'est pas une copie du pilote.
+  build et garde Preview. La CI 44586560234 couvre en plus l'admission de test
+  avec verrou privé ouvert uniquement dans cette pile. Les migrations
+  historiques y sont reconstruites avec des adaptations de bootstrap : ce
+  n'est pas une copie du pilote.
 
 ## Phase 2 — critères non satisfaits
 
 - Toutes les tables, politiques, vues, fonctions SECURITY DEFINER, JSON,
   historiques, erreurs et combinaisons de modules ne sont pas couverts par des
-  tests adversariaux. Certains accès sans site ou de traçabilité sont refusés
+  tests adversariaux. Le brouillon 38 masque au vendeur les lots et mouvements
+  bruts contenant des prix d'achat ; les autres surfaces vendeur (notamment
+  JSON et exports) restent à auditer. Certains accès sans site ou de traçabilité sont refusés
   de manière conservatrice, pas intégralement pris en charge.
 - Les corps de sept fonctions et des policies de quatre tables diffèrent entre
   pilote et reconstruction ; leur impact sémantique doit être résolu avant
@@ -39,9 +43,10 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
 - Le brouillon 33 enregistre une approbation mais ne crée aucune adhésion.
   Le brouillon 37 prépare l'acceptation d'une demande approuvée ou d'une
   invitation avec identité Auth vérifiée, aucun module actif par défaut et une
-  bascule privée désactivée ; il n'est pas déployé ni activé. Les nouveaux tests
-  Auth/PostgREST restent à exécuter. L'interface équipe et le canal d'invitation
-  vérifié ne sont pas opérationnels.
+  bascule privée désactivée ; il n'est pas déployé ni activé. Des tests
+  Auth/PostgREST couvrent ce brouillon en environnement jetable, pas tous les
+  cas concurrents. L'interface équipe et le canal d'invitation vérifié ne sont
+  pas opérationnels.
 - Le brouillon 36 modifie les affectations de membres existants et retire leur
   adhésion lors d'une révocation. Une transaction déjà en cours peut conserver
   son snapshot ; la concurrence avec les autres RPC de gestion, les changements

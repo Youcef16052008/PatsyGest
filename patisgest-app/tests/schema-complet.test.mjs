@@ -37,7 +37,7 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
   assert.equal(exposed.some(x=>x.anon_exec),false,'RPC SECURITY DEFINER accessible à anon');
   const views=(await db.query(`select c.relname, c.reloptions, has_table_privilege('anon',c.oid,'select') as anon_select
     from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('v','m') order by c.relname`)).rows;
-  assert.deepEqual(views.map(v=>v.relname),['labo_articles','labo_bons_commande','labo_cakes','labo_lots','labo_ordres_fabrication','labo_recette_versions','labo_ventes_quantites']);
+  assert.deepEqual(views.map(v=>v.relname),['labo_articles','labo_bons_commande','labo_cakes','labo_lots','labo_ordres_fabrication','labo_recette_versions','labo_ventes_quantites','vendeur_lots']);
   assert.equal(views.some(v=>v.anon_select),false,'Vue labo accessible à anon');
   assert.ok(views.every(v=>v.reloptions?.includes('security_barrier=true')),'Barrière de vue manquante');
   await db.exec(`insert into clients(id,nom) values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','Atelier A'),('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','Atelier B');

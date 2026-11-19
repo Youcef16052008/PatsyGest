@@ -108,8 +108,9 @@ test('sécu : les listes excluent les tables de coût pour le vendeur et projett
   assert.match(page, /const tables\s*=\s*info\.tables\.filter\(\(\[table\]\)\s*=>\s*coutsAutorises\s*\|\|\s*!estTableCout\(table\)\)/);
   assert.match(page, /Promise\.all\(tables\.map\(/);
   assert.match(page, /const colonnes\s*=\s*estTableCout\(table\)\s*\?\s*tablesCout\[table\]\s*:\s*'\*'/);
-  assert.match(page, /supabase\.from\(table\)\.select\(colonnes\)/);
-  assert.doesNotMatch(page, /supabase\.from\(table\)\s*\.select\(\s*(?:['"]\*['"])?\s*\)/);
+  assert.match(page, /table==='lots' && ctx\.role==='vendeur' \? 'vendeur_lots' : table/);
+  assert.match(page, /supabase\.from\(source\)\.select\(colonnes\)/);
+  assert.doesNotMatch(page, /supabase\.from\(source\)\s*\.select\(\s*(?:['"]\*['"])?\s*\)/);
 });
 
 test('sécu : les lectures spécifiques de recettes sont aussi gardées et sans joker', () => {
@@ -312,7 +313,8 @@ test('sécu : la restauration est SECURITY DEFINER mais gardée', () => {
 
 test('sécu : inventaire et production projettent les quantités sans coûts ni snapshots pour le vendeur', () => {
   const queries = read('src/lib/workspace-read.ts');
-  const lots = queries.match(/\.from\(labo \? "labo_lots" : "lots"\)\.select\("([^"]+)"\)/)?.[1];
+  assert.match(queries, /role === "vendeur" \? "vendeur_lots" : "lots"/);
+  const lots = queries.match(/\.from\(source\)\.select\("([^"]+)"\)/)?.[1];
   assert.ok(lots?.includes('qte_rest'));
   assert.doesNotMatch(lots, /\bpu\b|\*/);
   assert.match(queries, /titre:snapshot->>recette/);

@@ -32,7 +32,7 @@ export default async function Dashboard() {
     const salesOn=owner&&!disabled.has('caisse'), closingOn=owner&&!disabled.has('cloture');
     const sitesPromise=lireSites(db,clientId);
     const [articles,lots,sites,orders,ventes,close] = await Promise.all([
-      stocksOn ? lireArticlesQuantites(db,clientId,ctx.role === "labo") : null, stocksOn ? lireLots(db,clientId,ctx.role === "labo") : null, sitesPromise,
+      stocksOn ? lireArticlesQuantites(db,clientId,ctx.role === "labo") : null, stocksOn ? lireLots(db,clientId,ctx.role) : null, sitesPromise,
       productionOn ? sitesPromise.then(s=>lireProduction(db,clientId,s,today,ctx.role === "labo")) : null,
       salesOn ? lireVentesPeriode(db,clientId,plusJours(today,-13),today) : null,
       closingOn ? db.from("clotures").select("site_id, caisse_bilan, revision").eq("client_id",clientId).eq("date_cloture",today).limit(1000) : null,
@@ -48,7 +48,7 @@ export default async function Dashboard() {
   const guide = afficheOnboarding ? compterGuide(ctx, db) : null;
   const sitesPromise = lireSites(db, clientId);
   const [articles, lots, sites, orders, ventes, progression, identite] = await Promise.all([
-    lireArticles(db, clientId), lireLots(db, clientId), sitesPromise,
+    lireArticles(db, clientId), lireLots(db, clientId, ctx.role), sitesPromise,
     sitesPromise.then(s => lireProduction(db, clientId, s, today)), lireVentesJours(db, clientId, today), guide, lireIdentiteCaisse(db, ctx),
   ]);
   return <DashboardWorkspace nom={nom} shop={ctx.clientNom} today={today} canReadRecipes={coutsAutorises} seller={seller}

@@ -16,9 +16,9 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const ctx = await getSessionContext();
   if (!ctx) return NextResponse.json({ erreur: "Session requise." }, { status: 401 });
-  // Les tables dites non « coût » contiennent aussi des prix et des JSON financiers.
-  // Aucun export brut labo tant qu’une projection expurgée n’est pas validée.
-  if (ctx.role === "labo") return NextResponse.json({ erreur: "Export non autorisé." }, { status: 403 });
+  // Les tables dites non « coût » contiennent aussi des coûts et des JSON
+  // financiers. Aucun export brut employé sans projection expurgée validée.
+  if (ctx.role !== "proprietaire") return NextResponse.json({ erreur: "Export non autorisé." }, { status: 403 });
 
   const cle = new URL(request.url).searchParams.get("table") ?? "";
   if (!tableExportable(cle, canReadCosts(ctx.role))) {

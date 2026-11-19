@@ -14,8 +14,7 @@ export default function ExportPanel({ tables }: { tables: TableExportUi[] }) {
       <h2 className="mb-1 font-bold">Exports CSV</h2>
       <p className="mb-3 text-xs text-slate-500">
         Format Excel FR (point-virgule, virgule décimale, BOM UTF-8). Chaque export ne contient
-        que les données de votre établissement. Les tables de coût ne sont proposées qu’aux rôles
-        propriétaire et laboratoire.
+        que les données de votre établissement. Les exports bruts sont réservés au propriétaire.
       </p>
       <div className="flex flex-wrap gap-2">
         {tables.map((t) => (

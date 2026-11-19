@@ -13,7 +13,7 @@ export default async function StockWorkspace({ ctx, db, filtre }: { ctx: Session
   const { clientId } = ctx;
   const peutEcrire = canWrite(ctx.role);
   const [articles, lots, sites, fournisseurs, recettes] = await Promise.all([
-    ctx.role === "labo" ? db.from("labo_articles").select("id, nom, code, niveau, unite, seuil, allergenes, traces").eq("client_id",clientId).order("nom").limit(1000).then(r=>r.error ? null : (r.data??[]).map(a=>({...a,pv_ht:0,tva:0}))) : lireArticles(db, clientId), lireLots(db, clientId, ctx.role === "labo"), lireSites(db, clientId),
+    ctx.role === "labo" ? db.from("labo_articles").select("id, nom, code, niveau, unite, seuil, allergenes, traces").eq("client_id",clientId).order("nom").limit(1000).then(r=>r.error ? null : (r.data??[]).map(a=>({...a,pv_ht:0,tva:0}))) : lireArticles(db, clientId), lireLots(db, clientId, ctx.role), lireSites(db, clientId),
     peutEcrire ? db.from("fournisseurs").select("id, nom").eq("client_id", clientId).order("nom") : null,
     peutEcrire && canReadCosts(ctx.role)
       ? db.from("recette_familles").select("id, produit_id, recette_versions!inner(id, ingredients)").eq("client_id", clientId).eq("recette_versions.active", true)

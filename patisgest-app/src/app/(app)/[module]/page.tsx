@@ -87,13 +87,13 @@ function estTableCout(table: string): table is keyof typeof tablesCout {
   return Object.hasOwn(tablesCout, table);
 }
 
-async function buildQualiteAlerts(supabase: Awaited<ReturnType<typeof createClient>>, clientId: string, labo: boolean): Promise<AlerteQualite[] | null> {
+async function buildQualiteAlerts(supabase: Awaited<ReturnType<typeof createClient>>, clientId: string, role: 'proprietaire' | 'labo' | 'vendeur'): Promise<AlerteQualite[] | null> {
   const [tRes,nRes,ncRes,lotRes,articleRes,tkRes]=await Promise.all([
     supabase.from('releve_temperatures').select('frigo_nom,date_releve,temperature,seuil_max').eq('client_id',clientId).order('date_releve',{ascending:false}).limit(300),
     supabase.from('nettoyages').select('zone,date_nettoyage,fait').eq('client_id',clientId).order('date_nettoyage',{ascending:false}).limit(200),
     supabase.from('non_conformites').select('type,lot_numero,statut,date_nc').eq('client_id',clientId).order('date_nc',{ascending:false}).limit(200),
-    supabase.from(labo?'labo_lots':'lots').select('numero,dlc,qte_rest,bloque,article_id').eq('client_id',clientId).gt('qte_rest',0).order('dlc').limit(500),
-    supabase.from(labo?'labo_articles':'articles').select('id,code,nom').eq('client_id',clientId).limit(1000),
+    supabase.from(role==='labo'?'labo_lots':role==='vendeur'?'vendeur_lots':'lots').select('numero,dlc,qte_rest,bloque,article_id').eq('client_id',clientId).gt('qte_rest',0).order('dlc').limit(500),
+    supabase.from(role==='labo'?'labo_articles':'articles').select('id,code,nom').eq('client_id',clientId).limit(1000),
     supabase.from('taches_planning').select('tache,date_tache,fait').eq('client_id',clientId).order('date_tache',{ascending:false}).limit(200),
   ]);
   if(tRes.error||nRes.error||ncRes.error||lotRes.error||articleRes.error||tkRes.error) return null;
@@ -161,7 +161,8 @@ export default async function ModulePage({ params, searchParams }: {
   if (key === 'production') return <ProductionWorkspace ctx={ctx} db={supabase}/>;
   const results=await Promise.all(tables.map(async ([table,label])=> {
     const colonnes = estTableCout(table) ? tablesCout[table] : '*';
-    const {data,error}=await supabase.from(table).select(colonnes).eq('client_id',ctx.clientId).limit(100)
+    const source=table==='lots' && ctx.role==='vendeur' ? 'vendeur_lots' : table;
+    const {data,error}=await supabase.from(source).select(colonnes).eq('client_id',ctx.clientId).limit(100)
       .overrideTypes<Record<string, unknown>[], { merge: false }>();
     return {label,data:table==='lots'&&!coutsAutorises?(data??[]).map(({pu: _pu,...rest})=>rest):data,error};
   }));
@@ -232,14 +233,13 @@ export default async function ModulePage({ params, searchParams }: {
     />;
   } else if (key==='tracabilite') {
     // Rapport de rappel + blocage en cascade (lecture pour tous les rôles).
-    const lotRes=await supabase.from('lots')
-      .select('id, numero, article_id, articles!inner(nom, code, niveau)')
-      .eq('client_id',ctx.clientId).order('numero');
-    type ArtEmbed={nom:string;code:string;niveau:string};
-    const lotRows=((lotRes.data??[]) as {id:string;numero:string;articles:ArtEmbed|ArtEmbed[]}[])
-      .map(l=>({...l,fam:Array.isArray(l.articles)?l.articles[0]:l.articles}))
-      .filter(l=>l.fam);
-    writeForms=<RecallForm lots={lotRows.map(l=>({id:l.id,label:`${l.numero} · ${l.fam.code} ${l.fam.nom}`}))} />;
+    const [lotRes,artRes]=await Promise.all([
+      supabase.from(ctx.role==='vendeur'?'vendeur_lots':'lots').select('id,numero,article_id').eq('client_id',ctx.clientId).order('numero'),
+      supabase.from('articles').select('id,nom,code').eq('client_id',ctx.clientId).limit(1000),
+    ]);
+    const arts=new Map((artRes.data??[]).map(a=>[a.id,a]));
+    const lotRows=(lotRes.data??[]).flatMap(l=>{const a=arts.get(l.article_id); return a?[{id:l.id,label:`${l.numero} · ${a.code} ${a.nom}`}]:[];});
+    writeForms=lotRes.error||artRes.error ? <p role="alert">Les lots de traçabilité sont indisponibles.</p> : <RecallForm lots={lotRows} />;
   } else if (key==='recettes' && coutsAutorises && canWrite(ctx.role)) {
     // Versions immuables : articles ou sous-recettes figées + activation.
     const artRes=await supabase.from('articles').select('id, code, nom, niveau, unite').eq('client_id',ctx.clientId).order('nom').limit(150);
@@ -313,11 +313,11 @@ export default async function ModulePage({ params, searchParams }: {
     // + rappels qualité calculés côté serveur.
     const ncRows=((results.find(r=>r.label==='Non-conformités')?.data??[]) as {id:string;statut:string;type:string;description:string;action:string}[])
       .map(n=>({id:n.id,statut:n.statut,type:n.type,description:n.description,action:n.action}));
-    const alertes=await buildQualiteAlerts(supabase, ctx.clientId, ctx.role === 'labo');
+    const alertes=await buildQualiteAlerts(supabase, ctx.clientId, ctx.role);
     writeForms=<>{alertes ? <QualityAlertsPanel alerts={alertes}/> : <p role="alert">Alertes qualité indisponibles : vérifiez la connexion et les autorisations.</p>}<QualityForms ncs={ncRows}/></>;
   } else if (key==='qualite') {
     // Rappels qualité visibles même en lecture (vendeur).
-    const alertes=await buildQualiteAlerts(supabase, ctx.clientId, ctx.role === 'labo');
+    const alertes=await buildQualiteAlerts(supabase, ctx.clientId, ctx.role);
     writeForms=alertes ? <QualityAlertsPanel alerts={alertes}/> : <p role="alert">Alertes qualité indisponibles : vérifiez la connexion et les autorisations.</p>;
   } else if (key==='planning') {
     // « Demain au labo » (propriétaire/labo) + demandes de réassort boutique (tous rôles, y compris vendeur).

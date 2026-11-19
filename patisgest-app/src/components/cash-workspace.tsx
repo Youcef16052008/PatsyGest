@@ -28,7 +28,7 @@ export function CashPanel({ articles, sites, lots, identite }: {
 export default async function CashWorkspace({ ctx, db }: { ctx: SessionContext; db: WorkspaceDB }) {
   const { clientId } = ctx;
   const [articles, sites, lots, identite] = await Promise.all([
-    lireArticles(db, clientId, true), lireSites(db, clientId), lireLots(db, clientId), lireIdentiteCaisse(db, ctx),
+    lireArticles(db, clientId, true), lireSites(db, clientId), lireLots(db, clientId, ctx.role), lireIdentiteCaisse(db, ctx),
   ]);
   const sales = await lireHistoriqueCaisse(db, clientId, (articles ?? []).map(articleAffiche), sites ?? []);
   return <>

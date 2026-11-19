@@ -165,6 +165,21 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.ok(lot);
   assert.equal(ok(await lab.from('labo_lots').select('qte_rest'), 'Lots labo').length, 1);
   assert.equal(ok(await lab.from('lots').select('*'), 'Lots bruts labo').length, 0);
+  assert.equal(ok(await seller.from('lots').select('id,pu').eq('id',lot), 'Coût du lot masqué au vendeur').length,0);
+  assert.equal(ok(await seller.from('mouvements').select('id,pu').eq('lot_id',lot), 'Coût du mouvement masqué au vendeur').length,0);
+  const sellerLot=ok(await seller.from('vendeur_lots').select('*').eq('id',lot).single(), 'Quantités vendeur sans coût');
+  assert.equal(Number(sellerLot.qte_rest),5); assert.equal('pu' in sellerLot,false);
+  assert.ok((await seller.from('vendeur_lots').select('pu')).error,'La vue ne fournit pas de colonne de prix d’achat');
+  assert.equal(ok(await seller.from('vendeur_lots').select('id').eq('site_id',newSite.id),'Lots hors site masqués').length,0);
+  assert.equal(ok(await lab.from('vendeur_lots').select('id'),'Vue vendeur inaccessible au labo').length,0);
+  assert.equal(ok(await other.from('vendeur_lots').select('id'),'Vue vendeur inaccessible autre client').length,0);
+  assert.ok((await client().from('vendeur_lots').select('id')).error,'Vue vendeur inaccessible à anon');
+  assert.equal(ok(await owner.from('lots').select('pu').eq('id',lot).single(),'Prix d’achat propriétaire').pu,12);
+  for (const mod of ['stocks','caisse','planning','qualite','tracabilite'])
+    ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[2],p_module:mod,p_actif:false}),`Désactiver ${mod} vendeur`);
+  assert.equal(ok(await seller.from('vendeur_lots').select('id'),'Vue vendeur sans module pertinent').length,0);
+  for (const mod of ['stocks','caisse','planning','qualite','tracabilite'])
+    ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[2],p_module:mod,p_actif:true}),`Réactiver ${mod} vendeur`);
 
   // Achat et réception par le labo, avec contrôle des JSON financiers.
   const fournisseur = 'ffffffff-ffff-ffff-ffff-ffffffffffff';

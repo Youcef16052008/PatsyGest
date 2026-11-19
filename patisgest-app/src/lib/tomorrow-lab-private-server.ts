@@ -10,7 +10,7 @@ export async function lirePlanLaboPrive(db: WorkspaceDB, clientId: string, reque
  const today=jourUTC();
  const targetDate=requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) && !Number.isNaN(Date.parse(requestedDate)) && new Date(requestedDate).toISOString().slice(0,10)===requestedDate ? requestedDate : plusJours(today,1);
  const [articles,lots,sites,families,versions,conversions,orders,cakes,sales,requests] = await Promise.all([
-  lireArticlesQuantites(db,clientId,true),lireLots(db,clientId,true),lireSites(db,clientId),
+  lireArticlesQuantites(db,clientId,true),lireLots(db,clientId,'labo'),lireSites(db,clientId),
   lirePages<{id:string;code:string;nom:string;produit_id:string|null}>((a,b)=>db.from('recette_familles').select('id,code,nom,produit_id').eq('client_id',clientId).order('id').range(a,b)),
   lirePages<{id:string;famille_id:string;version:number;active:boolean;rendement_qte:number;rendement_unite:string;cuisson_perte_pct:number;mo_min:number;ingredients:ImpactRecipeLine[]}>((a,b)=>db.from('labo_recette_versions').select('id,famille_id,version,active,rendement_qte,rendement_unite,cuisson_perte_pct,mo_min,ingredients').eq('client_id',clientId).order('id').range(a,b)),
   lirePages<{unite_from:string;unite_to:string;facteur:number}>((a,b)=>db.from('conversions').select('unite_from,unite_to,facteur').eq('client_id',clientId).order('id').range(a,b)),

@@ -42,9 +42,10 @@ export async function lireSites(db: WorkspaceDB, clientId: string): Promise<Work
   return rows?.map(({ id, nom, type }) => ({ id, label: nom, type })) ?? null;
 }
 
-export async function lireLots(db: WorkspaceDB, clientId: string, labo = false): Promise<StockLot[] | null> {
+export async function lireLots(db: WorkspaceDB, clientId: string, role: "proprietaire" | "labo" | "vendeur" = "proprietaire"): Promise<StockLot[] | null> {
   type LotRow = { id: string; article_id: string; site_id: string; numero: string; qte_rest: number; dlc: string | null; bloque: boolean; congele: boolean; date_reception: string };
-  const rows = await lirePages<LotRow>((start, end) => db.from(labo ? "labo_lots" : "lots").select("id, article_id, site_id, numero, qte_rest, dlc, bloque, congele, date_reception")
+  const source = role === "labo" ? "labo_lots" : role === "vendeur" ? "vendeur_lots" : "lots";
+  const rows = await lirePages<LotRow>((start, end) => db.from(source).select("id, article_id, site_id, numero, qte_rest, dlc, bloque, congele, date_reception")
     .eq("client_id", clientId).gt("qte_rest", 0).order("id").range(start, end));
   return rows?.map(l => ({ id: l.id, articleId: l.article_id, siteId: l.site_id, numero: l.numero, qte: Number(l.qte_rest), dlc: l.dlc, bloque: l.bloque, congele: l.congele, recu: l.date_reception })) ?? null;
 }
