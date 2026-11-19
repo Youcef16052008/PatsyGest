@@ -15,7 +15,7 @@ revoke all on function public.patisgest_site_autorise(uuid) from public,anon;
 grant execute on function public.patisgest_site_autorise(uuid) to authenticated,service_role;
 
 create policy sites_attribues on public.sites as restrictive for select to authenticated
- using (public.patisgest_site_autorise(id));
+ using (client_id=public.patisgest_mon_client() and (public.patisgest_mon_role()='proprietaire' or public.patisgest_site_autorise(id)));
 do $$ declare t text; begin
  foreach t in array array['lots','mouvements','ventes','clotures','ordres_fabrication','demandes_reassort','z_imports'] loop
   execute format('create policy sites_attribues on public.%I as restrictive for all to authenticated using (public.patisgest_site_autorise(site_id)) with check (public.patisgest_site_autorise(site_id))',t);
