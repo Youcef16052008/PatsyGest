@@ -15,7 +15,10 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
 - La base pilote n'a qu'une clé étrangère vers `utilisateurs` dans son état
   actuel (`acces_modules`, suppression en cascade), mais le schéma évoluera
   avant le brouillon 36 et les usages applicatifs doivent être revérifiés.
-- Les tests locaux passent (311, typecheck et lint). La CI 44572631200 réussit
+- Les tests locaux passent (312, typecheck et lint). La CI 44600872969 réussit
+  sur pile jetable, y compris les lectures des nouvelles pages avec sessions
+  Auth et les contrôles PostgREST ; les formulaires ne sont pas encore testés
+  de bout en bout. La CI 44572631200 réussit
   sur une pile Supabase CLI jetable : requêtes authentifiées, modifications
   d'affectations et vérification d'un JWT vendeur déjà émis après révocation,
   build et garde Preview. La CI 44586560234 couvre en plus l'admission de test
