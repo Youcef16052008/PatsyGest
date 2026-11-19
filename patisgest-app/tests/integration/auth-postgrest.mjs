@@ -213,6 +213,8 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   denied(await lab.rpc('vendre_panier',{p_site_id:site,p_lignes:[],p_ticket:'X',p_mode_paiement:'especes'}), 'Reserve au comptoir');
   assert.ok((await lab.rpc('patisgest_terminer_of_interne',{p_of_id:ids[0],p_qte:1,p_numero_lot:'X',p_dlc:'2099-01-01'})).error);
   ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[1],p_module:'planning',p_actif:false}), 'Désactiver planning');
+  ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[1],p_module:'transferts',p_actif:false}), 'Désactiver transferts');
+  denied(await lab.rpc('traiter_demandes_reassort',args),'Module desactive');
   assert.equal(ok(await lab.from('labo_ventes_quantites').select('*'), 'Planning désactivé').length,0);
   const anon = client();
   assert.ok((await anon.rpc('modifier_acces_module',{p_utilisateur_id:ids[1],p_module:'qualite',p_actif:true})).error);

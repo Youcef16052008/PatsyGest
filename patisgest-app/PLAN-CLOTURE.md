@@ -1,13 +1,14 @@
 # Plan de clôture PâtisGest
 
-**État : phase 1 en cours.** La PR #5 est en brouillon. Les migrations 24 à 30
-sont des brouillons non appliqués ; le pilote conserve les migrations jusqu'à 23.
+**État : inventaire de phase 1 terminé ; phase 2 commencée.** La PR #5 est en
+brouillon. Les migrations 24 à 31 sont non appliquées ; le pilote conserve les
+migrations jusqu'à 23. L'inventaire n'est pas une certification de sécurité.
 Ne pas activer de comptes ni fusionner avant les critères ci-dessous. Les tests
 métier et de sécurité se font sur la pile Supabase CLI jetable, jamais avec des
 écritures de test dans le pilote. Voir `SECURITE-MODULES-EN-COURS.md` et
 `AUDIT-PHASE-1.md` pour les détails.
 
-## Phase 1 — état des lieux et garde-fous (en cours)
+## Phase 1 — état des lieux et garde-fous (inventaire terminé)
 
 1. Relever en lecture seule l'état du pilote et du déploiement, les migrations,
    tables, policies et RPC accessibles ; distinguer les brouillons du réel.

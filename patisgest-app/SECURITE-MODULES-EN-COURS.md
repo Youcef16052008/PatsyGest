@@ -77,7 +77,12 @@ reçoivent un site ou un OF. Les autres RPC et les données sans site restent à
 sécuriser : ces brouillons ne doivent pas être appliqués. Le brouillon 30
 bloque de façon conservatrice rappel et blocage pour un employé qui n'a pas
 accès à tous les sites, afin d'éviter les fuites et effets par propagation ;
-le travail de filtrage fin des graphes et de l'interface reste à faire.
+le travail de filtrage fin des graphes et de l'interface reste à faire. Le
+brouillon 31 vérifie les sites des demandes de réassort et de leurs références,
+et masque les liens hors périmètre ; la cohérence métier et la concurrence
+restent à valider. Il n'est pas appliqué non plus. Les écarts entre pilote et
+reconstruction, dont sept corps de fonctions différents, sont recensés dans
+`AUDIT-PHASE-1.md` et bloquent une mise en production non préparée.
 Certaines vues labo sont exécutées avec les droits de leur propriétaire, et
 des tables n'ont pas de colonne site. Il serait dangereux de
 présenter un filtrage d'interface comme une isolation effective.
