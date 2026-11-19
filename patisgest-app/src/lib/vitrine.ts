@@ -33,7 +33,7 @@ export type VitrinePublique = {
   indisponible?: string;
 };
 
-type LigneVitrine = {
+export type LigneVitrine = {
   cle_nom: string;
   nom: string;
   description: string | null;
@@ -86,16 +86,34 @@ export async function lireVitrinePublique(sousDomaine: string): Promise<VitrineP
     .order("nom", { ascending: true });
 
   if (error) {
-    // Hors-ligne ou base indisponible : on ne fabrique pas de catalogue.
+    // Le visiteur reçoit un message neutre, mais l'exploitant doit pouvoir
+    // savoir POURQUOI : une vue cassée ou une policy retirée produirait
+    // sinon une vitrine « vide » indistinguable d'une boutique non publiée.
+    console.error(
+      `[vitrine] lecture impossible pour « ${domaine} » : ${error.code ?? "sans-code"} ${error.message ?? ""}`.trim(),
+    );
     return { ...vide, indisponible: "La vitrine est momentanément indisponible." };
   }
 
-  const lignes = (data ?? []) as unknown as LigneVitrine[];
+  return construireVitrine(domaine, (data ?? []) as unknown as LigneVitrine[]);
+}
+
+/**
+ * Transformation pure « lignes de la vue → vitrine affichable ».
+ *
+ * Extraite pour être testable sans base ni requête HTTP : c'est ici que se
+ * joue la règle « un prix à 0 ne s'affiche jamais 0 DA ».
+ */
+export function construireVitrine(domaine: string, lignes: LigneVitrine[]): VitrinePublique {
+  const vide: VitrinePublique = {
+    etablissement: "",
+    boutique: "",
+    sousDomaine: domaine,
+    articles: [],
+  };
+
   if (lignes.length === 0) {
-    return {
-      ...vide,
-      indisponible: "Cette boutique n'a pas encore publié sa vitrine.",
-    };
+    return { ...vide, indisponible: "Cette boutique n'a pas encore publié sa vitrine." };
   }
 
   return {
@@ -107,7 +125,7 @@ export async function lireVitrinePublique(sousDomaine: string): Promise<VitrineP
       nom: l.nom,
       description: l.description,
       photo: l.photo_vitrine,
-      // On garde `null` : la page écrira « prix sur demande ».
+      // `null` : la page écrira « prix sur demande ».
       prixHt: l.prix_ht === null ? null : Number(l.prix_ht),
       tva: l.tva === null ? null : Number(l.tva),
       unite: l.unite,
@@ -126,9 +144,7 @@ export function exigerAction(role: Role, action: ActionVitrine): string | null {
     : "Votre rôle ne permet pas cette action sur la vitrine.";
 }
 
-/** Formate un prix de la vitrine, ou « sur demande » quand il est inconnu. */
-export function libellePrix(article: Pick<ArticleVitrine, "prixHt" | "unite">): string {
-  if (article.prixHt === null || article.prixHt === undefined) return "Prix sur demande";
-  const montant = article.prixHt.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
-  return `${montant} DA${article.unite ? ` / ${article.unite}` : ""}`;
-}
+// Le formatage vit dans un module pur (`vitrine-format.ts`) pour que les
+// composants clients puissent l'utiliser sans importer le client serveur.
+export { libellePrix } from "./vitrine-format";
+export type { ArticlePrix } from "./vitrine-format";

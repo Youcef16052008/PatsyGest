@@ -203,3 +203,82 @@ test('vitrine : les trois RPC d’écriture sont définies et gardées en base',
   // Aucune des deux n'est ouverte à anon.
   assert.equal(/to\s+anon/i.test(sql), false, 'RPC d’écriture ouverte à anon');
 });
+
+// --------------------------------------------------- affichage & admin
+import { libellePrix } from '../src/lib/vitrine-format.ts';
+
+test('vitrine : un prix inconnu s’affiche « sur demande », jamais « 0 DA »', () => {
+  // Cas réel mesuré : la famille « Cake » pointe sur un article à pv_ht = 0.
+  assert.equal(libellePrix({ prixHt: null, unite: 'kg' }), 'Prix sur demande');
+  assert.equal(libellePrix({ prixHt: 0, unite: 'kg' }).includes('0 DA'), true);
+  // Un vrai prix garde son unité.
+  assert.equal(libellePrix({ prixHt: 260, unite: 'pcs' }), '260 DA / pcs');
+  assert.equal(libellePrix({ prixHt: 12.5, unite: null }), '12,5 DA');
+});
+
+test('vitrine : le formatage est un module pur (importable par un composant client)', () => {
+  const src = read('src/lib/vitrine-format.ts');
+  // `vitrine.ts` importe le client Supabase serveur (next/headers) : un
+  // composant client qui l'importerait casse le build. Le formatage doit
+  // donc rester dans un fichier sans dépendance.
+  assert.equal(/^import /m.test(src), false, 'vitrine-format.ts ne doit avoir aucun import');
+  const composant = read('src/components/vitrine-form.tsx');
+  assert.match(composant, /from "@\/lib\/vitrine-format"/);
+  assert.equal(
+    /from "@\/lib\/vitrine"/.test(composant),
+    false,
+    'un composant client ne doit pas importer le module serveur',
+  );
+});
+
+test('vitrine : l’écran d’admin respecte la matrice de rôles', () => {
+  const src = read('src/components/vitrine-form.tsx');
+  // Chaque action est conditionnée par le module de règles, jamais par un
+  // test de chaîne de rôle écrit à la main (« role === 'vendeur' »).
+  assert.match(src, /peutVitrine\(role, "publier_vitrine"\)/);
+  assert.match(src, /peutVitrine\(role, "supprimer_recette"\)/);
+  assert.equal(/role\s*===\s*["']/.test(src), false, 'rôle comparé en dur dans l’écran');
+});
+
+test('vitrine : publier passe par la RPC (le labo ne doit pas pouvoir publier)', () => {
+  const actions = read('src/lib/actions-vitrine.ts');
+  assert.match(actions, /rpc\("patisgest_publier_vitrine"/);
+  assert.match(actions, /rpc\("patisgest_reserver_sous_domaine"/);
+
+  // La policy `sites_update_staff` autorise propriétaire ET labo : publier
+  // en `update` direct laisserait donc le laboratoire mettre un site en
+  // ligne. La RPC 31 tranche au propriétaire.
+  assert.equal(
+    /from\(["']sites["']\)\s*\.\s*update/.test(actions),
+    false,
+    'publication par update direct : la policy laisse passer le labo',
+  );
+  const sql = read('supabase/31-publication-vitrine.sql');
+  assert.match(sql, /v_role <> 'proprietaire'/);
+  assert.match(sql, /Publiez au moins une recette/);
+});
+
+test('vitrine : le formulaire visiteur n’exige aucune session et ne fixe aucun prix', () => {
+  const action = read('src/app/(vitrine)/vitrine/[slug]/commander/actions.ts');
+
+  // Aucun contrôle de session : un visiteur doit pouvoir commander.
+  assert.equal(/getSessionContext|requireSession/.test(action), false, 'le visiteur est authentifié ?!');
+  // Aucun paramètre de prix/acompte n'est transmis à la RPC.
+  assert.equal(/p_prix|p_acompte|prixHt:|cout/.test(action), false, 'le visiteur fixe un prix');
+  // La clé d'idempotence accompagne chaque envoi.
+  assert.match(action, /p_cle_navigateur: cleNavigateur/);
+});
+
+test('vitrine : la clé d’idempotence du formulaire est stable pendant la page', () => {
+  const src = read('src/components/vitrine-commande.tsx');
+  // `useState(() => …)` fige la clé au montage : une re-soumission renvoie
+  // la même demande au lieu d'en créer une seconde.
+  assert.match(src, /useState\(\(\) =>/);
+  assert.match(src, /name="cleNavigateur"/);
+  // Pas de génération dans le corps du rendu (elle changerait à chaque
+  // frappe et créerait un doublon par tentative).
+  assert.equal(/cleNavigateur\s*value=\{[^}]*randomUUID/.test(src), false);
+
+  const sql = read('supabase/26-vitrine-publique.sql');
+  assert.match(sql, /create unique index if not exists cakes_cle_vitrine_unique/);
+});

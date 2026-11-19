@@ -181,6 +181,20 @@ pas de redirection). `/connexion`, `/tableau-de-bord`, `/api/*` et
 `/parametres` restent ceux de l'application : le gérant gère sa boutique
 depuis l'adresse de sa vitrine.
 
+**Mise en service par le client (Paramètres → Vitrine) :**
+
+1. réserver un sous-domaine (`ma-boutique`) — propriétaire seul ;
+2. cocher « Publiée » sur les recettes à montrer, régler nom affiché, description, ordre ;
+3. « Mettre en ligne » — refusé si aucune recette n'est publiée, ou sans adresse.
+
+Le visiteur remplit ensuite un formulaire de commande sur la vitrine. La clé
+d'idempotence est tirée une fois par page : un double clic renvoie la même
+demande. Ces demandes apparaissent dans Cake Design avec le statut `demande`.
+
+Migrations 31 : publication par RPC, car la policy `sites_update_staff`
+autorise propriétaire **et** labo — un `update` direct aurait laissé le
+laboratoire publier un site.
+
 ## Déploiement (Vercel)
 
 Le projet Vercel `patsy-gest` est lié à ce dépôt avec le **Root Directory

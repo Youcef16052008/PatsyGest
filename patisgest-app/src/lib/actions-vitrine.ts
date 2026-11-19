@@ -213,3 +213,89 @@ export async function supprimerRecetteVitrine(
     };
   }
 }
+
+/**
+ * Réserve le sous-domaine d'une boutique. La RPC de migration 25 vérifie
+ * déjà : format DNS, longueur, mots réservés (`app`, `www`, `api`…) et
+ * unicité globale. On ne duplique pas ces règles ici, on les relaie.
+ */
+export async function reserverSousDomaine(
+  _prev: VitrineState,
+  formData: FormData,
+): Promise<VitrineState> {
+  const ctx = await getSessionContext();
+  if (!ctx) return { erreur: "Session requise.", reessayer: true };
+
+  const refus = exigerAction(ctx.role, "publier_vitrine");
+  if (refus) return { erreur: "Réservé au propriétaire : l'adresse est publique." };
+
+  const siteId = String(formData.get("siteId") ?? "").trim();
+  const brut = String(formData.get("sousDomaine") ?? "").trim().toLowerCase();
+
+  if (!/^[0-9a-f-]{36}$/i.test(siteId)) return { erreur: "Boutique invalide." };
+  if (brut.length < 3 || brut.length > 63) {
+    return { erreur: "Le sous-domaine doit faire entre 3 et 63 caractères." };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("patisgest_reserver_sous_domaine", {
+      p_site_id: siteId,
+      p_sous_domaine: brut,
+    });
+    if (error) return { erreur: messageUtilisateur(error, "Adresse refusée") };
+    revalidatePath("/parametres");
+    return {
+      succes: `Adresse réservée : ${brut}.${process.env.PATISGEST_DOMAINE ?? "patisgest.dz"}`,
+    };
+  } catch (e) {
+    return {
+      erreur: e instanceof Error ? e.message : "Réservation impossible.",
+      reessayer: true,
+    };
+  }
+}
+
+/**
+ * Met la vitrine en ligne ou hors ligne. Propriétaire seul (RPC 31) : la
+ * policy `sites_update_staff` aurait aussi laissé le laboratoire le faire.
+ */
+export async function publierVitrine(
+  _prev: VitrineState,
+  formData: FormData,
+): Promise<VitrineState> {
+  const ctx = await getSessionContext();
+  if (!ctx) return { erreur: "Session requise.", reessayer: true };
+
+  const refus = exigerAction(ctx.role, "publier_vitrine");
+  if (refus) return { erreur: refus };
+
+  const siteId = String(formData.get("siteId") ?? "").trim();
+  const etat = String(formData.get("publication") ?? "").trim();
+
+  if (!/^[0-9a-f-]{36}$/i.test(siteId)) return { erreur: "Boutique invalide." };
+  if (!["publiee", "brouillon", "aucune"].includes(etat)) {
+    return { erreur: "État de publication invalide." };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("patisgest_publier_vitrine", {
+      p_site_id: siteId,
+      p_publication: etat,
+    });
+    if (error) return { erreur: messageUtilisateur(error, "Publication refusée") };
+    revalidatePath("/parametres");
+    return {
+      succes:
+        etat === "publiee"
+          ? "Vitrine en ligne : les visiteurs voient vos recettes publiées."
+          : "Vitrine retirée du public. Les recettes restent intactes.",
+    };
+  } catch (e) {
+    return {
+      erreur: e instanceof Error ? e.message : "Publication impossible.",
+      reessayer: true,
+    };
+  }
+}

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { libellePrix, lireVitrinePublique } from "@/lib/vitrine";
+import VitrineCommande from "@/components/vitrine-commande";
 import { resoudreHote, DOMAINE_SERVICE_PAR_DEFAUT } from "@/lib/domaines";
 
 /**
@@ -107,6 +108,15 @@ export default async function VitrinePage({ params }: { params: Promise<Params> 
           </li>
         ))}
       </ul>
+
+      <VitrineCommande
+        sousDomaine={vitrine.sousDomaine}
+        articles={vitrine.articles.map((a) => ({
+          cleNom: a.cleNom,
+          nom: a.nom,
+          prix: libellePrix(a),
+        }))}
+      />
 
       <footer className="mt-10 border-t border-slate-200 pt-6 text-sm text-slate-500">
         <p>
