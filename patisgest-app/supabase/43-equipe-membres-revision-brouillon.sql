@@ -58,7 +58,7 @@ begin
  select u.equipe_revision into v from public.utilisateurs u
  where u.id=p_utilisateur_id and u.client_id=c and u.role in ('labo','vendeur') for update;
  if not found then raise exception 'Compte introuvable.' using errcode='42501'; end if;
- if p_revision is null or p_revision<>v then raise exception 'Affectations modifiees : rechargez la liste.' using errcode='40001'; end if;
+ if p_revision is null or p_revision<>v then raise exception 'Affectations modifiees : rechargez la liste.'; end if;
  perform public.equipe_modifier_affectations(p_utilisateur_id,p_sites,p_modules);
 end $$;
 revoke all on function public.equipe_modifier_affectations_versionnees(uuid,bigint,uuid[],text[]) from public,anon;
@@ -71,7 +71,7 @@ begin
  select u.equipe_revision into v from public.utilisateurs u
  where u.id=p_utilisateur_id and u.client_id=c and u.role in ('labo','vendeur') for update;
  if not found then raise exception 'Compte introuvable.' using errcode='42501'; end if;
- if p_revision is null or p_revision<>v then raise exception 'Affectations modifiees : rechargez la liste.' using errcode='40001'; end if;
+ if p_revision is null or p_revision<>v then raise exception 'Affectations modifiees : rechargez la liste.'; end if;
  perform public.equipe_revoquer(p_utilisateur_id);
 end $$;
 revoke all on function public.equipe_revoquer_versionne(uuid,bigint) from public,anon;

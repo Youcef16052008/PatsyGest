@@ -44,7 +44,7 @@ export async function modifierAffectationsEquipe(_prev: EquipeActionState, form:
     const db = await clientProprietaire();
     if (!db) return { erreur: "Gestion d’équipe indisponible ou réservée au propriétaire." };
     const { error } = await db.rpc("equipe_modifier_affectations_versionnees", { p_utilisateur_id: id, p_revision: version, p_sites: affectations, p_modules: modules });
-    if (error) return { erreur: error.code === "40001" ? "Les accès ont changé. Rechargez avant de recommencer." : "Modification refusée. Vérifiez les sites et rechargez la liste." };
+    if (error) return { erreur: error.code === "P0001" && error.message === "Affectations modifiees : rechargez la liste." ? "Les accès ont changé. Rechargez avant de recommencer." : "Modification refusée. Vérifiez les sites et rechargez la liste." };
     revalidatePath("/parametres");
     revalidatePath("/", "layout");
     return { succes: "Affectations enregistrées." };
@@ -59,7 +59,7 @@ export async function revoquerMembreEquipe(_prev: EquipeActionState, form: FormD
     const db = await clientProprietaire();
     if (!db) return { erreur: "Gestion d’équipe indisponible ou réservée au propriétaire." };
     const { error } = await db.rpc("equipe_revoquer_versionne", { p_utilisateur_id: id, p_revision: version });
-    if (error) return { erreur: error.code === "40001" ? "Les accès ont changé. Rechargez avant de recommencer." : "Révocation refusée ou membre indisponible. Rechargez la liste." };
+    if (error) return { erreur: error.code === "P0001" && error.message === "Affectations modifiees : rechargez la liste." ? "Les accès ont changé. Rechargez avant de recommencer." : "Révocation refusée ou membre indisponible. Rechargez la liste." };
     revalidatePath("/parametres");
     return { succes: "Adhésion retirée. Le compte Auth lui-même n’a pas été supprimé." };
   } catch { return { erreur: "Résultat non confirmé. Rechargez la liste avant de réessayer." }; }

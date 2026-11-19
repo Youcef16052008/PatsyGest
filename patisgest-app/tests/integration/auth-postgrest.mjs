@@ -384,7 +384,8 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   denied(await lab.rpc('equipe_modifier_affectations_versionnees',{...assignment,p_revision:sellerMember.revision}),'Reserve au proprietaire');
   ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[2],p_module:'qualite',p_actif:false}),'Modification concurrente module');
   const staleEdit=await owner.rpc('equipe_modifier_affectations_versionnees',{...assignment,p_revision:sellerMember.revision});
-  assert.equal(staleEdit.error?.code,'40001','Un formulaire périmé ne remplace pas les nouveaux modules');
+  denied(staleEdit,'Affectations modifiees');
+  assert.equal(staleEdit.error.code,'P0001','Un formulaire périmé ne remplace pas les nouveaux modules');
   assert.equal(ok(await seller.rpc('patisgest_module_autorise',{p_module:'qualite'}),'Modification concurrente préservée'),false);
   ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[2],p_module:'qualite',p_actif:true}),'Restaurer qualité');
   assert.ok((await seller.rpc('patisgest_modifier_affectations_interne',assignment)).error,'Fonction interne inaccessible');
@@ -402,10 +403,11 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   const raceArgs={...assignment,p_revision:versionAfterAssignment};
   const edits=await Promise.all([owner.rpc('equipe_modifier_affectations_versionnees',raceArgs),owner.rpc('equipe_modifier_affectations_versionnees',raceArgs)]);
   assert.equal(edits.filter(e=>!e.error).length,1,'Une seule modification concurrente de même révision réussit');
-  assert.equal(edits.find(e=>e.error)?.error.code,'40001');
+  assert.equal(edits.find(e=>e.error)?.error.code,'P0001');
+  assert.match(edits.find(e=>e.error).error.message,/Affectations modifiees/);
   const versionAfterRace=ok(await owner.rpc('equipe_lister_membres'),'Révision après concurrence').find(m=>m.id===ids[2]).revision;
   assert.notEqual(versionAfterRace,versionAfterAssignment);
-  assert.equal((await owner.rpc('equipe_revoquer_versionne',{p_utilisateur_id:ids[2],p_revision:versionAfterAssignment})).error?.code,'40001','Révocation périmée refusée');
+  denied(await owner.rpc('equipe_revoquer_versionne',{p_utilisateur_id:ids[2],p_revision:versionAfterAssignment}),'Affectations modifiees');
   assert.equal(ok(await seller.from('sites').select('id').eq('id',site),'Ancien site retiré').length,0);
   assert.equal(ok(await seller.from('sites').select('id').eq('id',newSite.id),'Nouveau site attribué').length,1);
   denied(await seller.rpc('vendre_article',{p_article_id:product,p_site_id:site,p_qte:1,p_ticket:'V-REFUSE'}),'Site non autorise');
