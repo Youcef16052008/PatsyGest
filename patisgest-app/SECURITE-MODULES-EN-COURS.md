@@ -46,6 +46,10 @@ ses GRANT et la 09 attend une colonne `clotures.revision` absente du socle local
   pilote n'a trouvé aucun OF partiel ni aucun OF avec plusieurs lots produits.
   Il ne constitue pas une validation des parcours réels ni des historiques
   extérieurs au pilote.
+- Next.js et son outil ESLint ont été mis à jour en 16.4.6. `npm audit
+  --omit=dev` ne signale plus de vulnérabilité ; quatre alertes modérées restent
+  dans les dépendances de développement liées à `drizzle-kit`, et la solution
+  automatique proposée par npm impose un changement majeur à examiner.
 
 1. Définir et tester les droits de chaque combinaison de modules, y compris
    tables partagées, lectures et écritures directes et toutes les RPC. Par
