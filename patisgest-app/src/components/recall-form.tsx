@@ -72,23 +72,28 @@ export default function RecallForm({ lots }: { lots: Option[] }) {
             {report.of_producteur && <span className="text-xs text-slate-500">produit par {report.of_producteur.numero} ({report.of_producteur.statut})</span>}
           </div>
 
+          {report.sections_masquees && Object.values(report.sections_masquees).some(Boolean) && (
+            <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+              Rapport incomplet : certaines sections sont masquées selon vos droits. Ne concluez pas à l’absence de ventes, d’ordres ou de transferts ; demandez le rapport complet au propriétaire.
+            </p>
+          )}
           <div className="grid gap-3 md:grid-cols-2">
-            <Bloc titre={`Ventes du lot (${report.ventes.length})`} vide="Aucune vente enregistrée."
-              items={
+            <Bloc titre={report.sections_masquees?.ventes ? "Ventes du lot — masquées" : `Ventes du lot (${report.ventes.length})`} vide={report.sections_masquees?.ventes ? "Section masquée." : "Aucune vente enregistrée."}
+              items={report.ventes.length > 0 &&
                 <ul className="space-y-0.5">
                   {report.ventes.map((v) => (
                     <li key={v.ticket}>{v.ticket} · {new Date(v.date_vente).toLocaleDateString("fr-FR")}{v.total_ht != null ? ` · ${Number(v.total_ht).toFixed(2)} DA` : ""}</li>
                   ))}
                 </ul>
               } />
-            <Bloc titre={`OFs consommateurs (${report.of_consigneurs.length})`} vide="Aucun OF n'a consommé ce lot."
-              items={
+            <Bloc titre={report.sections_masquees?.ordres ? "OFs consommateurs — masqués" : `OFs consommateurs (${report.of_consigneurs.length})`} vide={report.sections_masquees?.ordres ? "Section masquée." : "Aucun OF n'a consommé ce lot."}
+              items={report.of_consigneurs.length > 0 &&
                 <ul className="space-y-0.5">
                   {report.of_consigneurs.map((o) => <li key={o.numero}>{o.numero} — {o.statut}</li>)}
                 </ul>
               } />
-            <Bloc titre={`Transferts (${report.transferts.length})`} vide="Aucun transfert."
-              items={
+            <Bloc titre={report.sections_masquees?.transferts ? "Transferts — masqués" : `Transferts (${report.transferts.length})`} vide={report.sections_masquees?.transferts ? "Section masquée." : "Aucun transfert."}
+              items={report.transferts.length > 0 &&
                 <ul className="space-y-0.5">
                   {report.transferts.map((t) => (
                     <li key={`${t.ref}-${t.direction}`}>{t.ref} — {t.direction === "depart" ? "départ (lot source)" : "arrivée (miroir)"}</li>
@@ -96,7 +101,7 @@ export default function RecallForm({ lots }: { lots: Option[] }) {
                 </ul>
               } />
             <Bloc titre={`Lots descendants (${report.descendants.length})`} vide="Aucun descendant connu."
-              items={
+              items={report.descendants.length > 0 &&
                 <ul className="space-y-0.5">
                   {report.descendants.map((d) => (
                     <li key={d.id}>{d.numero} · {d.code} {d.bloque ? "🔴 bloqué" : ""}</li>
@@ -104,8 +109,8 @@ export default function RecallForm({ lots }: { lots: Option[] }) {
                 </ul>
               } />
             <div className="md:col-span-2">
-              <Bloc titre={`Ventes des descendants (${report.ventes_descendants.length})`} vide="Aucune vente de descendant."
-                items={
+              <Bloc titre={report.sections_masquees?.ventes ? "Ventes des descendants — masquées" : `Ventes des descendants (${report.ventes_descendants.length})`} vide={report.sections_masquees?.ventes ? "Section masquée." : "Aucune vente de descendant."}
+                items={report.ventes_descendants.length > 0 &&
                   <ul className="space-y-0.5">
                     {report.ventes_descendants.map((v) => (
                       <li key={`${v.ticket}-${v.code ?? ""}`}>{v.ticket} · {v.code} {v.nom} · {new Date(v.date_vente).toLocaleDateString("fr-FR")}</li>

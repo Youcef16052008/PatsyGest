@@ -115,6 +115,11 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
   await db.exec('set role authenticated');
   const rappel=(await db.query('select public.rappel_lot($1) r',[finished.lot_id])).rows[0].r;
   assert.ok(rappel.lot); assert.ok(!JSON.stringify(rappel).includes('total_ht'));
+  assert.equal(rappel.sections_masquees.ventes,true);
+  await db.exec("select set_config('test.uid','10000000-0000-0000-0000-000000000001',false)");
+  const rappelOwner=(await db.query('select public.rappel_lot($1) r',[finished.lot_id])).rows[0].r;
+  assert.ok(rappelOwner.lot); assert.equal(rappelOwner.sections_masquees,undefined);
+  await db.exec("select set_config('test.uid','10000000-0000-0000-0000-000000000002',false)");
   // L'écriture d'un nouveau prix reste possible sans lecture des prix existants.
   await db.query(`insert into public.articles(client_id,code,nom,niveau,unite,pv_ht,tva)
     values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','A2','Sucre','matiere','kg',44,19)`);

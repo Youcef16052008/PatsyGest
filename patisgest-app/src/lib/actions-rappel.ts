@@ -17,6 +17,7 @@ export type RappelReport = {
   transferts: { ref: string; direction: string }[];
   descendants: RappelLot[];
   ventes_descendants: RappelVente[];
+  sections_masquees?: { ventes: boolean; ordres: boolean; transferts: boolean };
 };
 
 export type RappelState = {

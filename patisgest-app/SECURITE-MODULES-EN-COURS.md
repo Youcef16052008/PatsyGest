@@ -111,6 +111,12 @@ la déployer ou l'ouvrir sur le pilote avant certification. Les brouillons 38 et
 et fournissent des vues réduites par site. L'export CSV brut est désormais
 réservé au propriétaire. La CI 44588935236 teste ces chemins sur pile jetable ;
 les autres surfaces vendeur et les parcours bout en bout restent à examiner.
+Le brouillon 40 limite les sections du rappel selon le rôle et les modules ;
+les ventes sont masquées au labo et aux vendeurs sans caisse, les ordres sans
+production ni planning, et les transferts sans leur module. L'interface signale
+un rapport incomplet plutôt que de présenter une section masquée comme vide.
+La restriction conservatrice exige toujours tous les sites. La conformité de
+la fonction historique du pilote reste à vérifier avant tout déploiement.
 
 Certaines vues labo sont exécutées avec les droits de leur propriétaire, et
 des tables n'ont pas de colonne site. Il serait dangereux de

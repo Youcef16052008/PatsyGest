@@ -1,6 +1,6 @@
 # Évaluation de certification — phases 2 et 3
 
-**Décision : NON CERTIFIÉES ; migrations 24–39 non autorisées pour application.**
+**Décision : NON CERTIFIÉES ; migrations 24–40 non autorisées pour application.**
 Ce document décrit un état et des essais partiels, pas un certificat de sécurité.
 Le pilote est utilisé par la production : une migration de sécurité incomplète
 peut aussi verrouiller les utilisateurs existants ou casser l'ancienne application.
@@ -8,7 +8,7 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
 ## Constat vérifié
 
 - Historique Supabase consulté en lecture seule : dernière migration
-  `controle_modules_23` (`20261119045242`). Les brouillons 24–39 n'y sont pas.
+  `controle_modules_23` (`20261119045242`). Les brouillons 24–40 n'y sont pas.
 - Production Vercel consultée en lecture seule : commit `f11e371` ; elle ne
   correspond pas à l'application de la branche. Preview et production sont
   configurés sur la même base Supabase ; les tests destructifs sont interdits.
@@ -30,9 +30,12 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   tests adversariaux. Les brouillons 38 et 39 masquent au vendeur les lots,
   mouvements et OF bruts contenant des coûts ; les autres surfaces vendeur
   (notamment les JSON de cake) restent à auditer. Les tests Auth/PostgREST de
-  ces brouillons passent dans la CI 44588935236. Certains accès sans site ou
-  de traçabilité sont refusés
-  de manière conservatrice, pas intégralement pris en charge.
+  ces brouillons passent dans la CI 44588935236. Le brouillon 40 reconstruit
+  le rapport de rappel pour les employés, masque les sections non autorisées
+  et signale leur absence dans l'interface ; ses essais isolés ne certifient
+  ni le graphe complet ni la compatibilité du pilote. Certains accès sans
+  site ou de traçabilité sont refusés de manière conservatrice, pas
+  intégralement pris en charge.
 - Les corps de sept fonctions et des policies de quatre tables diffèrent entre
   pilote et reconstruction ; leur impact sémantique doit être résolu avant
   rejeu. Trois anciens cakes sans site exigent une décision d'attribution.
