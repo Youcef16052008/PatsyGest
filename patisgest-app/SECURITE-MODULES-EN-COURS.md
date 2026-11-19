@@ -30,11 +30,23 @@ production. Il attend les vues 24 : ne pas le déployer séparément de la base.
   changer les données pendant la pagination.
 
 La suite locale comprend des tests PGlite de schémas simplifiés et des migrations
-métier réelles, notamment pour l'isolation des tenants, les policies, certaines
-RPC et l'expurgation JSON. Elle ne reproduit pas Auth ou PostgREST, ni tous les
-parcours et combinaisons de modules. Le test complet injecte des correctifs de
-bootstrap historiques : la migration 07 référence une ancienne signature dans
-ses GRANT et la 09 attend une colonne `clotures.revision` absente du socle local.
+métier réelles. Une suite complémentaire utilise une pile Supabase CLI jetable
+avec les véritables services Auth et PostgREST sur un runner GitHub Actions :
+`.github/workflows/supabase-isole.yml` et `tests/integration/auth-postgrest.mjs`.
+Le résultat du run https://github.com/Youcef16052008/PatsyGest/actions/runs/44488174691
+est réussi : quatre sessions fictives, deux clients, isolation des données,
+confidentialité labo, modules, achat, réception, recette, OF partiel, rappel et
+vente vendeur ont été vérifiés par HTTP. Cette pile est détruite après chaque
+run et ne se connecte pas au pilote ; le script refuse les hôtes non locaux et
+une base métier non vierge. Aucune donnée réelle n'y est copiée.
+
+Ce test n'est pas exhaustif : il ne couvre ni toutes les combinaisons de modules,
+ni tous les parcours UI, erreurs, exports, courses ou compatibilités avec la
+production. Il reconstruit le schéma avec trois adaptations de bootstrap : une
+fonction DDL présente sur le pilote mais absente localement, l'ancienne signature
+référencée par la migration 07 et la colonne `clotures.revision` attendue par 09.
+Il ne démontre donc pas que les migrations historiques sont rejouables telles
+quelles sur une base vierge, ni que le schéma du pilote est identique.
 
 ## Risques et travail restant avant déploiement
 
@@ -89,17 +101,17 @@ Auth/PostgREST.
 appliquée au pilote (version `20261119045242`). La table et la RPC des modules,
 la fonction interne de restauration et quatre gardes RPC ont été vérifiées en
 lecture seule ; aucun réglage de module n'était présent. Aucun parcours par une
-vraie session n'a été validé. L'utilisateur a choisi de laisser la migration 24
-en attente pour préserver l'interface labo de production.
+vraie session n'a été validé sur le pilote ; les tests Auth/PostgREST ultérieurs
+ont utilisé exclusivement la pile jetable décrite plus haut. La migration 24
+reste en attente pour préserver l'interface labo de production.
 
 La création d'une branche de test a été refusée par Supabase : le service de
 branches exige le forfait Pro ou supérieur (`entitlement_required`). Cette
-tentative n'a rien changé sur le pilote et n'a pas été contournée. L'environnement de travail ne peut pas joindre directement les
-hôtes Supabase pour ouvrir des sessions Auth ou appeler PostgREST ; le connecteur
-actuel n'offre pas ces opérations de session. Une branche seule ne suffira donc
-pas : il faudra aussi un environnement de test capable d'accéder à Auth et REST.
+tentative n'a rien changé sur le pilote et n'a pas été contournée. Le sandbox
+ne peut pas joindre directement les hôtes Supabase ni lancer Docker ; la pile
+CLI jetable exécutée sur GitHub Actions fournit l'environnement isolé nécessaire,
+sans créer de projet distant supplémentaire.
 
-Utiliser une base de test isolée et des comptes authentifiés propriétaire, labo
-et vendeur de deux clients différents. Ne pas effectuer d'essais d'écriture
-destructifs sur les données du pilote. Après validation et déploiement
-coordonné, contrôler à nouveau les flux et droits réellement publiés.
+Poursuivre les essais dans cette base isolée, jamais par écrit sur les données
+du pilote. Après validation et déploiement coordonné, contrôler à nouveau les
+flux et droits réellement publiés.
