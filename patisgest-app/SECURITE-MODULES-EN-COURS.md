@@ -89,10 +89,9 @@ restriction conservatrice aux utilisateurs ayant tous les sites pour les
 commandes et journaux sans site. Les anciens cakes sans site restent réservés
 au propriétaire ; leur attribution exige une décision explicite. Les écrans
 signalent les restrictions, et la création/édition des devis est réservée au
-comptoir. Tests Auth/PostgREST sur pile jetable réussis pour ces chemins à la
-version `d5fc86c` (CI 44557517989) ; cela ne couvre pas tous les chemins ni la
-compatibilité avec le pilote. La modification ultérieure de l'arrondi des OF
-nécessite sa propre exécution CI.
+comptoir. Tests Auth/PostgREST sur pile jetable réussis pour ces chemins et
+l'arrondi des OF à la version `33a03b8` (CI 44558358899) ; cela ne couvre pas
+tous les chemins ni la compatibilité avec le pilote.
 
 Certaines vues labo sont exécutées avec les droits de leur propriétaire, et
 des tables n'ont pas de colonne site. Il serait dangereux de
