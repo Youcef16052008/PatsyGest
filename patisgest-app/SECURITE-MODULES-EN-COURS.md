@@ -80,9 +80,8 @@ vraie session n'a été validé. L'utilisateur a choisi de laisser la migration 
 en attente pour préserver l'interface labo de production.
 
 La création d'une branche de test a été refusée par Supabase : le service de
-branches exige le forfait Pro ou supérieur (`entitlement_required`). Aucun
-changement n'a été effectué sur le pilote et aucune tentative de contournement
-n'a été faite. L'environnement de travail ne peut pas joindre directement les
+branches exige le forfait Pro ou supérieur (`entitlement_required`). Cette
+tentative n'a rien changé sur le pilote et n'a pas été contournée. L'environnement de travail ne peut pas joindre directement les
 hôtes Supabase pour ouvrir des sessions Auth ou appeler PostgREST ; le connecteur
 actuel n'offre pas ces opérations de session. Une branche seule ne suffira donc
 pas : il faudra aussi un environnement de test capable d'accéder à Auth et REST.
