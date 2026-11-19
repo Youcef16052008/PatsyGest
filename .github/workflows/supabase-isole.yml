@@ -1,0 +1,51 @@
+name: Auth et PostgREST isolés
+on:
+  workflow_dispatch:
+  push:
+    branches: [arena/28f0bb69-patsygest]
+    paths:
+      - '.github/workflows/supabase-isole.yml'
+      - 'patisgest-app/tests/integration/**'
+      - 'patisgest-app/supabase/**'
+      - 'patisgest-app/package-lock.json'
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: patisgest-app/package-lock.json
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.75.0
+      - run: npm ci
+        working-directory: patisgest-app
+      - name: Démarrer une pile Supabase locale jetable
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/patsygest-isole"
+          cd "$RUNNER_TEMP/patsygest-isole"
+          supabase init
+          supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta,inbucket
+          supabase status -o env > "$RUNNER_TEMP/supabase-test.env"
+      - name: Tests avec sessions Auth et API PostgREST
+        shell: bash
+        working-directory: patisgest-app
+        run: |
+          set -a
+          source "$RUNNER_TEMP/supabase-test.env"
+          set +a
+          export PATSYGEST_DISPOSABLE=yes
+          node --test tests/integration/auth-postgrest.mjs
+      - name: Détruire la pile et ses données fictives
+        if: always()
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/patsygest-isole" 2>/dev/null || exit 0
+          supabase stop --no-backup || true
