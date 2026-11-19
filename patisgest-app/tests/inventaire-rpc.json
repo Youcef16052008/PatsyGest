@@ -5,5 +5,5 @@
   "donnees_communes_a_delimiter": ["activer_version", "cake_options_production", "creer_cake", "creer_commande", "creer_famille", "creer_version", "simuler_recette"],
   "administration_a_verifier": ["lister_acces_modules", "mes_modules_desactives", "modifier_acces_module", "restaurer_sauvegarde"],
   "equipe_brouillon_sans_activation": ["equipe_code", "equipe_demander", "equipe_inviter", "equipe_lister_demandes", "equipe_mes_invitations", "equipe_refuser_demande"],
-  "utilitaires_exposes": ["patisgest_exiger_modules", "patisgest_module_autorise", "patisgest_site_autorise", "patisgest_exiger_site", "patisgest_exiger_site_of", "patisgest_exiger_tracabilite_sites"]
+  "utilitaires_exposes": ["patisgest_exiger_modules", "patisgest_module_autorise", "patisgest_site_autorise", "patisgest_exiger_site", "patisgest_exiger_site_of", "patisgest_exiger_tracabilite_sites", "patisgest_reassort_liens_autorises"]
 }

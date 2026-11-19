@@ -75,6 +75,18 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
   const sale=(await db.query('select * from public.labo_ventes_quantites')).rows[0];
   assert.equal(sale.lignes[0].qty,4); assert.equal('pu' in sale.lignes[0],false); assert.equal('secret' in sale.lignes[0],false); assert.equal('total_ttc' in sale,false);
   const of=(await db.query("select public.creer_of($1,'dddddddd-dddd-dddd-dddd-dddddddddddd',10,current_date,'test-of') r",[version])).rows[0].r.of_id;
+  // Vérifier le brouillon réassort avec deux sites, sans succès partiel.
+  await db.exec(`reset role;
+   insert into sites(id,client_id,nom) values ('cccccccc-cccc-cccc-cccc-cccccccccccc','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','Autre site');
+   insert into demandes_reassort(id,client_id,site_id,article_id,date_cible,qte) values
+   ('aaaaaaaa-0000-0000-0000-000000000001','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','dddddddd-dddd-dddd-dddd-dddddddddddd','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',current_date,1),
+   ('aaaaaaaa-0000-0000-0000-000000000002','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','cccccccc-cccc-cccc-cccc-cccccccccccc','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',current_date,1);
+   set role authenticated;`);
+  const request='aaaaaaaa-0000-0000-0000-000000000001', hidden='aaaaaaaa-0000-0000-0000-000000000002';
+  assert.equal((await db.query("select public.traiter_demandes_reassort($1::uuid[],'planifiee',$2,null) r",[[request],of])).rows[0].r.updated,1);
+  await assert.rejects(db.query("select public.traiter_demandes_reassort($1::uuid[],'annulee',null,null)",[[request,hidden]]),/Site non autorise/);
+  assert.equal((await db.query('select statut from public.demandes_reassort where id=$1',[request])).rows[0].statut,'planifiee');
+  await db.exec("reset role; delete from sites where id='cccccccc-cccc-cccc-cccc-cccccccccccc'; set role authenticated;");
   await db.query('select public.demarrer_of($1)',[of]);
   const partial=(await db.query("select public.terminer_of($1,5,'GATEAU-1','2099-01-01') r",[of])).rows[0].r;
   assert.equal(partial.statut,'partiel'); assert.equal('cout_unitaire' in partial,false);

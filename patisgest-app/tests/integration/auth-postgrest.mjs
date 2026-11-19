@@ -159,6 +159,34 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   denied(await lab.rpc('demarrer_of',{p_of_id:otherOrder.of_id}), 'Site non autorise');
   denied(await lab.rpc('terminer_of',{p_of_id:otherOrder.of_id,p_qte:1,p_numero_lot:'NON',p_dlc:'2099-01-01'}), 'Site non autorise');
   const order = ok(await lab.rpc('creer_of',{p_version_id:version.version_id,p_site_id:site,p_qte_prevue:10,p_date_prevue:'2099-01-01',p_client_ref:'test-of'}), 'Créer OF');
+  // Réassort : les identifiants connus ne doivent pas contourner les sites.
+  const reqs = await sql`insert into demandes_reassort(client_id,site_id,article_id,date_cible,qte) values
+    (${A},${site},${product},'2099-01-01',1),(${A},${newSite.id},${product},'2099-01-01',1)
+    returning id,site_id`;
+  const ownReq=reqs.find(x=>x.site_id===site).id, hiddenReq=reqs.find(x=>x.site_id===newSite.id).id;
+  const transfer = await sql`insert into transferts(client_id,from_site_id,to_site_id) values (${A},${site},${newSite.id}) returning id`;
+  const args={p_ids:[ownReq],p_statut:'planifiee',p_of_id:order.of_id,p_transfert_id:null};
+  assert.equal(ok(await lab.rpc('traiter_demandes_reassort',args),'Réassort du site attribué').updated,1);
+  denied(await lab.rpc('traiter_demandes_reassort',{...args,p_ids:[ownReq,hiddenReq],p_statut:'annulee'}),'Site non autorise');
+  const unchanged=await sql`select statut from demandes_reassort where id=${ownReq}`;
+  assert.equal(unchanged[0].statut,'planifiee','Aucune mise à jour partielle');
+  denied(await lab.rpc('traiter_demandes_reassort',{...args,p_ids:[ownReq,ids[0]]}),'hors perimetre');
+  denied(await lab.rpc('traiter_demandes_reassort',{...args,p_of_id:otherOrder.of_id}),'Site non autorise');
+  denied(await lab.rpc('traiter_demandes_reassort',{...args,p_transfert_id:transfer[0].id}),'Site non autorise');
+  denied(await seller.rpc('traiter_demandes_reassort',args),'Role non autorise');
+  denied(await other.rpc('traiter_demandes_reassort',args),'hors perimetre');
+  denied(await pending.rpc('traiter_demandes_reassort',args),'Module desactive');
+  assert.ok((await client().rpc('traiter_demandes_reassort',args)).error,'Anon refusé');
+  // Ancien lien vers un autre site : même un remplacement reste refusé.
+  await sql`update demandes_reassort set of_id=${otherOrder.of_id} where id=${ownReq}`;
+  assert.equal(ok(await lab.from('demandes_reassort').select('*').eq('id',ownReq),'Ancien OF hors site masqué').length,0);
+  assert.equal(ok(await owner.from('demandes_reassort').select('*').eq('id',ownReq),'Ancien OF visible au propriétaire').length,1);
+  denied(await lab.rpc('traiter_demandes_reassort',args),'Site non autorise');
+  assert.equal(ok(await owner.rpc('traiter_demandes_reassort',{...args,p_ids:[ownReq,hiddenReq]}),'Propriétaire tous sites').updated,2);
+  await sql`update demandes_reassort set transfert_id=${transfer[0].id} where id=${ownReq}`;
+  assert.equal(ok(await lab.from('demandes_reassort').select('*').eq('id',ownReq),'Ancien transfert hors site masqué').length,0);
+  denied(await lab.rpc('traiter_demandes_reassort',args),'Site non autorise');
+  await sql`update demandes_reassort set transfert_id=null where id=${ownReq}`;
   ok(await lab.rpc('demarrer_of',{p_of_id:order.of_id}), 'Démarrer OF');
   const partial = ok(await lab.rpc('terminer_of',{p_of_id:order.of_id,p_qte:5,p_numero_lot:'GATEAU-1',p_dlc:'2099-01-01'}), 'OF partiel');
   const finished = ok(await lab.rpc('terminer_of',{p_of_id:order.of_id,p_qte:5,p_numero_lot:'GATEAU-2',p_dlc:'2099-01-01'}), 'OF terminé');
