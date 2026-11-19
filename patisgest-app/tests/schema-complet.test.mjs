@@ -139,6 +139,8 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
   assert.equal((await db.query('select count(*)::int n from public.labo_articles')).rows[0].n,0);
   // Affectation et révocation : aucune élévation inter-établissement ; le
   // même sujet Auth perd les accès sans rafraîchir son identité simulée.
+  await assert.rejects(db.query("select public.equipe_accepter_invitation('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')"),/Admission indisponible/);
+  await assert.rejects(db.query('update public.equipe_admission_securite set autorisee=true'),/permission denied/);
   const member='22222222-2222-2222-2222-222222222222', memberSite='dddddddd-dddd-dddd-dddd-dddddddddddd';
   await assert.rejects(db.query('select public.equipe_modifier_affectations($1,$2::uuid[],$3::text[])',[member,[memberSite],['stocks']]),/Compte introuvable/);
   await db.exec("select set_config('test.uid','10000000-0000-0000-0000-000000000001',false)");

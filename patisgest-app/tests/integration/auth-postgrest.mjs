@@ -147,7 +147,7 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   ok(await owner.rpc('equipe_inviter',{p_email:'non-approuve@example.test',p_nom:'Personne',p_role:'vendeur',p_sites:[newSite.id]}), 'Invitation propriétaire');
   const invites = ok(await pending.rpc('equipe_mes_invitations'), 'Invitation pour adresse vérifiée');
   assert.equal(invites.length,1); assert.equal(invites[0].role,'vendeur');
-  assert.ok((await pending.rpc('equipe_accepter_invitation',{p_id:invites[0].id})).error, 'Activation volontairement indisponible');
+  denied(await pending.rpc('equipe_accepter_invitation',{p_id:invites[0].id}), 'Admission indisponible');
   assert.equal(ok(await pending.from('sites').select('id'), 'Toujours aucun accès avant approbation').length,0);
   const newCode = ok(await owner.rpc('equipe_code',{p_renouveler:true}), 'Renouvellement du code');
   assert.notEqual(newCode,code);
@@ -331,6 +331,64 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   denied(await seller.rpc('vendre_article',{p_article_id:product,p_site_id:newSite.id,p_qte:1,p_ticket:'V-REVOQUE'}),'Site non autorise');
   assert.equal((await sql`select count(*)::int n from equipe_journal_acces where utilisateur_id=${ids[2]}`)[0].n,2);
   denied(await owner.rpc('equipe_revoquer',{p_utilisateur_id:ids[2]}),'Compte introuvable');
+
+  // Admission : la bascule n'est ouverte que par SQL privilégié dans cette
+  // pile jetable, jamais par une RPC ou un membre. Tous les modules restent
+  // désactivés jusqu'à une attribution explicite du propriétaire.
+  const candidate=client(), candidateEmail='candidate@example.test';
+  const createdCandidate=ok(await admin.auth.admin.createUser({email:candidateEmail,password,email_confirm:true,user_metadata:{role:'proprietaire',client_id:B}}),'Compte candidat Auth');
+  ok(await candidate.auth.signInWithPassword({email:candidateEmail,password}),'Connexion candidat');
+  ok(await candidate.rpc('equipe_demander',{p_code:newCode,p_nom:'Candidat',p_role:'labo'}),'Demande candidat');
+  const candidateDemand=ok(await owner.rpc('equipe_lister_demandes'),'Demandes candidat').find(d=>d.email===candidateEmail);
+  assert.ok(candidateDemand);
+  ok(await owner.rpc('equipe_approuver_demande',{p_id:candidateDemand.id,p_sites:[site]}),'Approbation candidat');
+  denied(await candidate.rpc('equipe_accepter_demande',{p_id:candidateDemand.id}),'Admission indisponible');
+  assert.ok((await owner.from('equipe_admission_securite').update({autorisee:true}).eq('cle',true)).error,'Le propriétaire ne peut pas ouvrir la bascule');
+  assert.ok((await owner.rpc('patisgest_equipe_creer_membre',{p_client:A,p_auth:createdCandidate.user.id,p_email:candidateEmail,p_nom:'Test',p_role:'proprietaire',p_sites:[site],p_source:'demande'})).error,'Helper interne inaccessible');
+  await sql`update public.equipe_admission_securite set autorisee=true where cle`;
+  denied(await other.rpc('equipe_accepter_demande',{p_id:candidateDemand.id}),'Demande indisponible');
+  await sql`update auth.users set email='adresse-modifiee@example.test' where id=${createdCandidate.user.id}`;
+  denied(await candidate.rpc('equipe_accepter_demande',{p_id:candidateDemand.id}),'Demande indisponible');
+  await sql`update auth.users set email=${candidateEmail} where id=${createdCandidate.user.id}`;
+  const demandRace=await Promise.all([candidate.rpc('equipe_accepter_demande',{p_id:candidateDemand.id}),candidate.rpc('equipe_accepter_demande',{p_id:candidateDemand.id})]);
+  assert.equal(demandRace.filter(x=>!x.error).length,1,'Une seule admission de demande');
+  const candidateMember=demandRace.find(x=>!x.error).data;
+  assert.equal(ok(await candidate.from('clients').select('id'),'Adhésion candidat')[0].id,A);
+  assert.equal(ok(await candidate.from('utilisateurs').select('role'),'Rôle demandé non issu des métadonnées')[0].role,'labo');
+  assert.equal(ok(await candidate.rpc('patisgest_module_autorise',{p_module:'stocks'}),'Modules désactivés à l’admission'),false);
+  denied(await candidate.rpc('equipe_accepter_demande',{p_id:candidateDemand.id}),'Demande indisponible');
+  ok(await owner.rpc('equipe_modifier_affectations',{p_utilisateur_id:candidateMember,p_sites:[site],p_modules:['stocks']}),'Attribution explicite des modules');
+  assert.equal(ok(await candidate.rpc('patisgest_module_autorise',{p_module:'stocks'}),'Module explicitement attribué'),true);
+
+  const inviterArgs={p_email:'non-approuve@example.test',p_nom:'Personne',p_role:'vendeur',p_sites:[newSite.id]};
+  const firstInvite=invites[0].id;
+  denied(await other.rpc('equipe_annuler_invitation',{p_id:firstInvite}),'Invitation indisponible');
+  denied(await lab.rpc('equipe_annuler_invitation',{p_id:firstInvite}),'Reserve au proprietaire');
+  ok(await pending.rpc('equipe_refuser_invitation',{p_id:firstInvite}),'Refus par destinataire vérifié');
+  const cancelled=ok(await owner.rpc('equipe_inviter',inviterArgs),'Invitation annulable');
+  ok(await owner.rpc('equipe_annuler_invitation',{p_id:cancelled}),'Annulation propriétaire');
+  const invitation=ok(await owner.rpc('equipe_inviter',inviterArgs),'Nouvelle invitation');
+  denied(await other.rpc('equipe_accepter_invitation',{p_id:invitation}),'Invitation indisponible');
+  await sql`update equipe_invitations set expire_le='2000-01-01' where id=${invitation}`;
+  denied(await pending.rpc('equipe_accepter_invitation',{p_id:invitation}),'Invitation indisponible');
+  await sql`update equipe_invitations set expire_le='2099-01-01' where id=${invitation}`;
+  await sql`update auth.users set email_confirmed_at=null where id=${pendingId}`;
+  denied(await pending.rpc('equipe_accepter_invitation',{p_id:invitation}),'Invitation indisponible');
+  await sql`update auth.users set email_confirmed_at=now() where id=${pendingId}`;
+  await sql`update sites set type='laboratoire' where id=${newSite.id}`;
+  denied(await pending.rpc('equipe_accepter_invitation',{p_id:invitation}),'Sites invalides');
+  assert.equal(ok(await pending.from('clients').select('id'),'Aucune adhésion après échec').length,0);
+  await sql`update sites set type='boutique' where id=${newSite.id}`;
+  const invitationRace=await Promise.all([pending.rpc('equipe_accepter_invitation',{p_id:invitation}),pending.rpc('equipe_accepter_invitation',{p_id:invitation})]);
+  assert.equal(invitationRace.filter(x=>!x.error).length,1,'Une seule admission par invitation');
+  const pendingMember=invitationRace.find(x=>!x.error).data;
+  assert.equal(ok(await pending.from('utilisateurs').select('role'),'Rôle de l’invitation')[0].role,'vendeur');
+  assert.equal(ok(await pending.rpc('patisgest_module_autorise',{p_module:'caisse'}),'Caisse désactivée par défaut'),false);
+  assert.equal(ok(await pending.from('sites').select('id'),'Site boutique affecté')[0].id,newSite.id);
+  ok(await owner.rpc('equipe_modifier_affectations',{p_utilisateur_id:pendingMember,p_sites:[newSite.id],p_modules:['caisse']}),'Attribution vendeur');
+  assert.equal(ok(await pending.rpc('patisgest_module_autorise',{p_module:'caisse'}),'Caisse autorisée explicitement'),true);
+  denied(await pending.rpc('equipe_accepter_invitation',{p_id:invitation}),'Invitation indisponible');
+  await sql`update public.equipe_admission_securite set autorisee=false where cle`;
 
   // Next réel + Auth réelle, jamais la production : une session périmée est
   // renouvelée par le proxy et son cookie permet ensuite d'ouvrir une page.
