@@ -33,10 +33,12 @@ La suite locale comprend des tests PGlite de schémas simplifiés et des migrati
 métier réelles. Une suite complémentaire utilise une pile Supabase CLI jetable
 avec les véritables services Auth et PostgREST sur un runner GitHub Actions :
 `.github/workflows/supabase-isole.yml` et `tests/integration/auth-postgrest.mjs`.
-Le résultat du run https://github.com/Youcef16052008/PatsyGest/actions/runs/44488174691
-est réussi : quatre sessions fictives, deux clients, isolation des données,
-confidentialité labo, modules, achat, réception, recette, OF partiel, rappel et
-vente vendeur ont été vérifiés par HTTP. Cette pile est détruite après chaque
+Le run https://github.com/Youcef16052008/PatsyGest/actions/runs/44506975615
+est réussi : sessions fictives, deux clients, isolation inter-client, demandes
+et invitations sans activation, plusieurs refus inter-sites sur les chemins
+couverts, confidentialité labo, modules, achat, réception, recette, OF partiel,
+rappel et vente vendeur ont été vérifiés par HTTP. Le rappel et le blocage sont
+actuellement refusés à un employé qui n'a pas accès à tous les sites. Cette pile est détruite après chaque
 run et ne se connecte pas au pilote ; le script refuse les hôtes non locaux et
 une base métier non vierge. Aucune donnée réelle n'y est copiée.
 
