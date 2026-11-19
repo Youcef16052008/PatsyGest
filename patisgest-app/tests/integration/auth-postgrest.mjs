@@ -91,8 +91,10 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   const otherLot = await sql`insert into lots(client_id,article_id,site_id,numero,qte_init,qte_rest,pu) values (${A},${article},${newSite.id},'AUTRE-SITE',4,4,77) returning id`;
   // Test de sécurité volontairement TODO : la RPC de rappel contourne encore
   // les filtres de site. Ne pas activer les comptes ni déployer avant correction.
+  const otherTrace = await lab.rpc('rappel_lot',{p_lot_id:otherLot[0].id});
+  console.log(otherTrace.error ? 'SECURITE_RAPPEL: appel rejeté, audit de tous les cas encore nécessaire' : 'SECURITE_RAPPEL: fuite inter-sites confirmée, ne pas déployer');
   await t.test('rappel interdit sur un lot de site non attribué', {todo:'Rappel et descendants pas encore isolés'}, async () => {
-    denied(await lab.rpc('rappel_lot',{p_lot_id:otherLot[0].id}), 'Site non autorise');
+    denied(otherTrace, 'Site non autorise');
   });
   assert.equal(ok(await owner.from('lots').select('id').eq('site_id',newSite.id), 'Lot autre site propriétaire').length,1);
   assert.equal(ok(await lab.from('sites').select('id').eq('id',newSite.id), 'Site non attribué labo').length,0);

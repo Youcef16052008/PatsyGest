@@ -46,6 +46,9 @@ jobs:
           node --test tests/integration/auth-postgrest.mjs 2>&1 | tee "$RUNNER_TEMP/test-result.txt"
           result=${PIPESTATUS[0]}
           set -e
+          if grep -q 'SECURITE_RAPPEL: fuite inter-sites confirmée' "$RUNNER_TEMP/test-result.txt"; then
+            echo '::warning::Rappel : accès inter-sites non autorisé confirmé ; migration et fusion interdites.'
+          fi
           if [ "$result" -ne 0 ]; then
             while IFS= read -r line; do
               line=${line//'%'/'%25'}; line=${line//$'\r'/'%0D'}; line=${line//$'\n'/'%0A'}
