@@ -1,12 +1,22 @@
 import { createServerClient, type CookieMethodsServer } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { previewBloquee, routePubliquePreview } from "./lib/preview-guard";
 
 /**
  * Rafraîchit la session Supabase à chaque requête (cookies à jour).
  * En mode hors-ligne / pare-feu (ex: environnement isolé), ne bloque jamais la requête
  * conformément au principe architectural « Hors-ligne par conception / Alerte, jamais blocage ».
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
+  // Les variables Vercel Preview pointent actuellement sur la base pilote.
+  // Bloquer même les POST/actions serveur ; ne pas dépendre du seul cookie.
+  if (previewBloquee(process.env.VERCEL_ENV, process.env.PATISGEST_PREVIEW_BLOCKED)) {
+    if (routePubliquePreview(request.nextUrl.pathname, request.method)) return NextResponse.next({ request });
+    return new NextResponse("Aperçu temporairement indisponible : la base de test n'est pas isolée. Utilisez la production ou le calculateur public.", {
+      status: 503,
+      headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
+    });
+  }
   let supabaseResponse = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

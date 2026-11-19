@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // L'Edge local n'expose pas forcément VERCEL_ENV à l'exécution : figer ce
+  // booléen non secret à la compilation, en plus du contrôle côté serveur.
+  env: { PATISGEST_PREVIEW_BLOCKED: process.env.VERCEL_ENV === "preview" ? "1" : "0" },
   devIndicators: false,
   experimental: {
     // Sauvegarde : 4 Mio de fichier + l'enveloppe du formulaire, sous la

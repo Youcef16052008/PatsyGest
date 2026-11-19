@@ -25,6 +25,16 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
    if (file.startsWith('09-')) await db.exec('alter table public.clotures add column if not exists revision integer default 1;');
    try {await db.exec(sql);} catch (e) {throw new Error(`${file}: ${e.message}`,{cause:e});}
   }
+  // Inventaire de surface : toute nouvelle fonction SECURITY DEFINER accessible
+  // doit être classée ; cela ne prouve pas que les fonctions sont sûres.
+  const inventory=JSON.parse(await readFile(new URL('./inventaire-rpc.json',import.meta.url),'utf8'));
+  const expected=Object.entries(inventory).filter(([k])=>k!=='metadata').flatMap(([,v])=>v).sort();
+  assert.equal(new Set(expected).size,expected.length,'Entrée dupliquée dans l’inventaire RPC');
+  const exposed=(await db.query(`select p.proname,has_function_privilege('anon',p.oid,'execute') as anon_exec
+    from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosecdef
+    and (has_function_privilege('authenticated',p.oid,'execute') or has_function_privilege('anon',p.oid,'execute')) order by p.proname`)).rows;
+  assert.deepEqual(exposed.map(x=>x.proname),expected,'Inventaire RPC incomplet, signature surchargée ou droits inattendus');
+  assert.equal(exposed.some(x=>x.anon_exec),false,'RPC SECURITY DEFINER accessible à anon');
   await db.exec(`insert into clients(id,nom) values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','Atelier A'),('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','Atelier B');
    insert into utilisateurs(id,client_id,auth_user_id,email,nom,role) values
    ('11111111-1111-1111-1111-111111111111','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','10000000-0000-0000-0000-000000000001','owner@example.test','Propriétaire','proprietaire'),

@@ -13,7 +13,8 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
-    "test:smoke": "node --test tests/smoke-http.mjs"
+    "test:smoke": "node --test tests/smoke-http.mjs",
+    "test:preview": "node --test tests/preview-http.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.0",
