@@ -42,7 +42,17 @@ jobs:
           source "$RUNNER_TEMP/supabase-test.env"
           set +a
           export PATSYGEST_DISPOSABLE=yes
-          node --test tests/integration/auth-postgrest.mjs
+          set +e
+          node --test tests/integration/auth-postgrest.mjs 2>&1 | tee "$RUNNER_TEMP/test-result.txt"
+          result=${PIPESTATUS[0]}
+          set -e
+          if [ "$result" -ne 0 ]; then
+            while IFS= read -r line; do
+              line=${line//'%'/'%25'}; line=${line//$'\r'/'%0D'}; line=${line//$'\n'/'%0A'}
+              echo "::error::$line"
+            done < "$RUNNER_TEMP/test-result.txt"
+          fi
+          exit "$result"
       - name: Détruire la pile et ses données fictives
         if: always()
         shell: bash
