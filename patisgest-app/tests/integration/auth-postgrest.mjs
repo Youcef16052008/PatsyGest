@@ -27,6 +27,8 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   // Garde supplémentaire : base vierge, afin de ne jamais rejouer sur une base existante.
   const existing = await sql`select to_regclass('public.clients') as table_name`;
   assert.equal(existing[0].table_name, null, 'La base doit être vierge');
+  // Utilitaire DDL présent sur le pilote mais absent de la pile locale CLI.
+  await sql.unsafe('create function public.rls_auto_enable() returns event_trigger language plpgsql as $$begin end$$');
   const files = (await readdir(new URL('../../supabase/', import.meta.url))).filter(x => /^\d\d-.*\.sql$/.test(x) && !x.startsWith('02-')).sort();
   for (const file of files) {
     // Les mêmes adaptations historiques que schema-complet.test.mjs ; ce n'est
