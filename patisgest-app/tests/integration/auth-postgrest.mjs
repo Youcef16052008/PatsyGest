@@ -26,7 +26,7 @@ const A = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', B = 'bbbbbbbb-bbbb-bbbb-bbbb-b
 const site = 'dddddddd-dddd-dddd-dddd-dddddddddddd', article = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
 const ids = ['11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','44444444-4444-4444-4444-444444444444'];
 
-test('Auth et PostgREST réels : isolation, confidentialité et modules', { timeout: 180000 }, async (t) => {
+test('Auth et PostgREST réels : isolation, confidentialité et modules', { timeout: 180000 }, async () => {
  try {
   // Garde supplémentaire : base vierge, afin de ne jamais rejouer sur une base existante.
   const existing = await sql`select to_regclass('public.clients') as table_name`;
@@ -89,13 +89,8 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.ok(newSite.id);
   ok(await owner.from('sites').update({nom:'Boutique modifiée'}).eq('id',newSite.id).select('id').single(), 'Modification boutique propriétaire');
   const otherLot = await sql`insert into lots(client_id,article_id,site_id,numero,qte_init,qte_rest,pu) values (${A},${article},${newSite.id},'AUTRE-SITE',4,4,77) returning id`;
-  // Test de sécurité volontairement TODO : la RPC de rappel contourne encore
-  // les filtres de site. Ne pas activer les comptes ni déployer avant correction.
-  const otherTrace = await lab.rpc('rappel_lot',{p_lot_id:otherLot[0].id});
-  console.log(otherTrace.error ? 'SECURITE_RAPPEL: appel rejeté, audit de tous les cas encore nécessaire' : 'SECURITE_RAPPEL: fuite inter-sites confirmée, ne pas déployer');
-  await t.test('rappel interdit sur un lot de site non attribué', {todo:'Rappel et descendants pas encore isolés'}, async () => {
-    denied(otherTrace, 'Site non autorise');
-  });
+  denied(await lab.rpc('rappel_lot',{p_lot_id:otherLot[0].id}), 'Site non autorise');
+  denied(await lab.rpc('bloquer_lot',{p_lot_id:otherLot[0].id,p_bloque:true,p_motif:'test',p_descendants:true}), 'Site non autorise');
   assert.equal(ok(await owner.from('lots').select('id').eq('site_id',newSite.id), 'Lot autre site propriétaire').length,1);
   assert.equal(ok(await lab.from('sites').select('id').eq('id',newSite.id), 'Site non attribué labo').length,0);
   assert.equal(ok(await seller.from('sites').select('id').eq('id',newSite.id), 'Site non attribué vendeur').length,0);
@@ -171,7 +166,11 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.equal('cout_unitaire' in partial,false); assert.equal('cout_unitaire' in finished,false);
   const valuation = await sql`select cout_reel, (select sum((x->>'qty')::numeric*(x->>'pu')::numeric) from jsonb_array_elements(consommations) x) matiere from public.ordres_fabrication where id=${order.of_id}`;
   assert.equal(Number(valuation[0].cout_reel),Number(valuation[0].matiere)+9);
-  const recall = ok(await lab.rpc('rappel_lot',{p_lot_id:finished.lot_id}), 'Rappel labo');
+  // Même sur son propre lot, un labo partiellement affecté est bloqué tant
+  // que le graphe de traçabilité n'est pas filtré par site de bout en bout.
+  denied(await lab.rpc('rappel_lot',{p_lot_id:finished.lot_id}), 'acces a tous les sites');
+  await sql`insert into equipe_sites(utilisateur_id,site_id) values (${ids[1]},${newSite.id})`;
+  const recall = ok(await lab.rpc('rappel_lot',{p_lot_id:finished.lot_id}), 'Rappel labo avec tous les sites attribués');
   assert.ok(recall.lot); assert.ok(!JSON.stringify(recall).includes('total_ht'));
 
   const sale = ok(await seller.rpc('vendre_article',{p_article_id:product,p_site_id:site,p_qte:1,p_ticket:'VENTE-1'}), 'Vente vendeur');
