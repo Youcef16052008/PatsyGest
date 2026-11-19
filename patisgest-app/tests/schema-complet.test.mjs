@@ -65,8 +65,16 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
   assert.equal(sale.lignes[0].qty,4); assert.equal('pu' in sale.lignes[0],false); assert.equal('secret' in sale.lignes[0],false); assert.equal('total_ttc' in sale,false);
   const of=(await db.query("select public.creer_of($1,'dddddddd-dddd-dddd-dddd-dddddddddddd',10,current_date,'test-of') r",[version])).rows[0].r.of_id;
   await db.query('select public.demarrer_of($1)',[of]);
-  const finished=(await db.query("select public.terminer_of($1,10,'GATEAU-1','2099-01-01') r",[of])).rows[0].r;
+  const partial=(await db.query("select public.terminer_of($1,5,'GATEAU-1','2099-01-01') r",[of])).rows[0].r;
+  assert.equal(partial.statut,'partiel'); assert.equal('cout_unitaire' in partial,false);
+  const finished=(await db.query("select public.terminer_of($1,5,'GATEAU-2','2099-01-01') r",[of])).rows[0].r;
   assert.equal(finished.statut,'termine'); assert.equal('cout_unitaire' in finished,false);
+  await db.exec('reset role');
+  const valorisation=(await db.query("select cout_reel, (select sum((x->>'qty')::numeric*(x->>'pu')::numeric) from jsonb_array_elements(consommations) x) matiere from public.ordres_fabrication where id=$1",[of])).rows[0];
+  // Une seule consommation matière + 9 de frais par série, même lorsque
+  // la fabrication est réceptionnée en deux lots ; le coût dépend du FEFO.
+  assert.equal(Number(valorisation.cout_reel),Number(valorisation.matiere)+9);
+  await db.exec('set role authenticated');
   const rappel=(await db.query('select public.rappel_lot($1) r',[finished.lot_id])).rows[0].r;
   assert.ok(rappel.lot); assert.ok(!JSON.stringify(rappel).includes('total_ht'));
   // L'écriture d'un nouveau prix reste possible sans lecture des prix existants.

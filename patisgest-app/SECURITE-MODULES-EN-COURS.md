@@ -38,6 +38,15 @@ ses GRANT et la 09 attend une colonne `clotures.revision` absente du socle local
 
 ## Risques et travail restant avant déploiement
 
+- Un défaut de valorisation a été confirmé dans `terminer_of` : lorsque la
+  fabrication est réceptionnée en plusieurs lots, le coût des matières peut
+  être imputé plusieurs fois. La migration locale `25-cout-of-partiel.sql`,
+  prévue après 24, répartit le coût sur la quantité prévue et un test PGlite
+  couvre deux lots ; elle n'est pas appliquée. Un contrôle en lecture seule du
+  pilote n'a trouvé aucun OF partiel ni aucun OF avec plusieurs lots produits.
+  Il ne constitue pas une validation des parcours réels ni des historiques
+  extérieurs au pilote.
+
 1. Définir et tester les droits de chaque combinaison de modules, y compris
    tables partagées, lectures et écritures directes et toutes les RPC. Par
    exemple, désactiver Stocks ne retire pas encore toute lecture directe
