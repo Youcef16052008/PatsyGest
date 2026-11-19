@@ -189,7 +189,15 @@ depuis l'adresse de sa vitrine.
 
 Le visiteur remplit ensuite un formulaire de commande sur la vitrine. La clé
 d'idempotence est tirée une fois par page : un double clic renvoie la même
-demande. Ces demandes apparaissent dans Cake Design avec le statut `demande`.
+demande. Ces demandes apparaissent **en haut de Cake Design**, dans un encart
+ambré « Demandes de la vitrine », séparé des devis : une demande n'a ni prix
+ni acompte, la mêler aux devis laisserait croire qu'elle est chiffrée.
+
+Le bouton **Accepter → devis** appelle `patisgest_traiter_demande` et passe le
+statut à `devis` **sans fixer de prix** : c'est le personnel qui chiffre
+ensuite. **Refuser** passe à `annule`. Les deux boutons sont affichés selon
+`peutTraiterDemande(role)` — propriétaire, labo et vendeur ; le rôle n'est
+jamais comparé en dur dans le composant.
 
 Migrations 31 : publication par RPC, car la policy `sites_update_staff`
 autorise propriétaire **et** labo — un `update` direct aurait laissé le

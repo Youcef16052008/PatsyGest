@@ -282,3 +282,27 @@ test('vitrine : la clé d’idempotence du formulaire est stable pendant la page
   const sql = read('supabase/26-vitrine-publique.sql');
   assert.match(sql, /create unique index if not exists cakes_cle_vitrine_unique/);
 });
+
+test('vitrine : une demande déposée est traitée depuis l’écran Cake Design', () => {
+  const src = read('src/components/cake-forms.tsx');
+
+  // La RPC 27 et l'action serveur existaient déjà : sans bouton, une
+  // demande restait invisible pour le personnel. On verrouille le lien.
+  assert.match(src, /traiterDemandeVitrine/);
+  assert.match(src, /value="accepter"/);
+  assert.match(src, /value="refuser"/);
+  // Le statut d'une demande n'est pas « devis » : elle est listée à part.
+  assert.match(src, /c\.statut === "demande"/);
+  // Le bouton suit la règle de rôle, jamais une comparaison en dur.
+  assert.match(src, /peutTraiterDemande\(role\)/);
+  assert.equal(/role === ["']vendeur["']/.test(src), false, 'rôle comparé en dur');
+
+  // Le formulaire « devis » ne doit pas proposer « livrer » sur une
+  // demande : une demande n'a ni prix ni acompte.
+  const action = read('src/lib/actions-vitrine.ts');
+  assert.match(action, /rpc\("patisgest_traiter_demande"/);
+  const sql = read('supabase/27-commandes-vitrine.sql');
+  assert.match(sql, /if v_cake\.statut <> 'demande' then/);
+  // Accepter ne fixe aucun prix : la demande devient un devis à chiffrer.
+  assert.match(sql, /v_statut := 'devis'/);
+});

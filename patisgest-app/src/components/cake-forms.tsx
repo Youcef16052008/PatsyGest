@@ -4,6 +4,8 @@ import { useActionState, useState } from "react";
 import {
   accepterCgvReal, createCakeReal, editerCakeReal, evolveCakeReal, type JournalState,
 } from "@/lib/actions-journaux";
+import { traiterDemandeVitrine } from "@/lib/actions-vitrine";
+import { peutTraiterDemande, type Role } from "@/lib/vitrine-permissions";
 import CakeTicket from "./cake-ticket";
 
 export type CakeRow = {
@@ -11,6 +13,8 @@ export type CakeRow = {
   telephone: string | null; dateEvent: string; nbParts: number;
   prixHt: number; tvaPct: number; acompte: number;
   notes: string | null; cgv: boolean; cgvVersion: string | null;
+  /** Vient de la vitrine publique (origine = 'vitrine') : à traiter. */
+  origineVitrine?: boolean;
 };
 
 const field = "mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm";
@@ -21,20 +25,73 @@ const btn2 = "rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold d
 type Opt = { name: string; cout: string; minutes: string };
 
 /** Cake Design : devis (tous rôles), rétroplanning, paiements et transitions verrouillées. */
-export default function CakeForms({ cakes }: { cakes: CakeRow[] }) {
+export default function CakeForms({ cakes, role }: { cakes: CakeRow[]; role: Role }) {
   const [createState, createAction, pending] = useActionState(createCakeReal, {});
   const [evolveState, evolveAction, evolvePending] = useActionState(evolveCakeReal, {});
   const [editState, editAction, editPending] = useActionState(editerCakeReal, {});
   const [cgvState, cgvAction, cgvPending] = useActionState(accepterCgvReal, {});
+  const [demandeState, demandeAction, demandePending] = useActionState(traiterDemandeVitrine, {});
   const [opts, setOpts] = useState<Opt[]>([]);
   const [payId, setPayId] = useState("");
   const [editId, setEditId] = useState("");
   const [ticketId, setTicketId] = useState("");
   const today = new Date().toISOString().slice(0, 10);
-  const sorted = [...cakes].sort((a, b) => a.numero.localeCompare(b.numero));
+  // Les demandes de vitrine ne sont PAS des devis : elles n'ont ni prix ni
+  // paiement. On les isole en haut pour que le vendeur voie d'abord ce qui
+  // attend une réponse, au lieu de les chercher au milieu des devis.
+  const demandes = cakes
+    .filter((c) => c.statut === "demande")
+    .sort((a, b) => a.dateEvent.localeCompare(b.dateEvent));
+  const autres = cakes.filter((c) => c.statut !== "demande");
+  const sorted = [...autres].sort((a, b) => a.numero.localeCompare(b.numero));
+  const peutTraiter = peutTraiterDemande(role);
 
   return (
     <div className="space-y-6">
+      {demandes.length > 0 && (
+        <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5">
+          <h2 className="mb-1 font-bold">Demandes de la vitrine</h2>
+          <p className="mb-3 text-xs text-slate-600">
+            Reçues depuis votre boutique publique. Accepter crée un devis à chiffrer —
+            aucun prix n&apos;est fixé tant que vous ne l&apos;avez pas saisi.
+          </p>
+          <ul className="space-y-3">
+            {demandes.map((c) => (
+              <li key={c.id} className="rounded-lg border border-amber-200 bg-white p-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-bold text-violet-800">{c.numero}</span>
+                  <span>{c.clientNom}</span>
+                  {c.telephone && <span className="text-slate-500">{c.telephone}</span>}
+                  <span className="text-slate-500">
+                    {c.nbParts} parts · {c.dateEvent}
+                  </span>
+                  {c.notes && <span className="text-xs italic text-slate-500">{c.notes}</span>}
+                </div>
+                {peutTraiter ? (
+                  <form action={demandeAction} className="mt-2 flex flex-wrap gap-2">
+                    <input type="hidden" name="id" value={c.id} />
+                    <button type="submit" name="decision" value="accepter" disabled={demandePending}
+                      className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">
+                      Accepter → devis
+                    </button>
+                    <button type="submit" name="decision" value="refuser" disabled={demandePending}
+                      className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">
+                      Refuser
+                    </button>
+                  </form>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Un vendeur répondra à cette demande.
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+          {demandeState.erreur && <p role="alert" className="mt-2 text-sm text-red-700">{demandeState.erreur}</p>}
+          {demandeState.succes && <p role="status" className="mt-2 text-sm text-emerald-700">{demandeState.succes}</p>}
+        </section>
+      )}
+
       <section className="rounded-2xl border bg-white p-5">
         <h2 className="mb-1 font-bold">Nouveau devis gâteau</h2>
         <p className="mb-3 text-xs text-slate-500">

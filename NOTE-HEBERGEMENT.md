@@ -215,6 +215,38 @@ domaine — ajouter `sites.domaine text unique` et un middleware qui résout
 `host → client_id`. À faire au moment où la première boutique en ligne est
 vendue, pas avant.
 
+#### 9.3.1 Ce qui est déjà fait, et ce qui reste à faire côté domaine
+
+Fait et vérifié en production (migration 25 + `src/lib/domaines.ts`) :
+
+- `sites.subdomain` (unique, minuscules, réservé via `reserverSousDomaine`) ;
+- `deciderRoutage(host)` classe l'hôte en `application` / `boutique` /
+  `domaine-client` / `inconnu` et réécrit `elyasmine.patisgest.dz/vitrine/x`
+  vers `/vitrine/elyasmine`. **Testé unitairement (8 cas), pas encore testé
+  sur un vrai sous-domaine DNS.**
+
+Reste à faire le jour de la mise en ligne (≈ 30 min, une seule fois) :
+
+1. Acheter `patisgest.dz` (NIC-DZ) et déléguer les DNS à Cloudflare (plan Free).
+2. Dans Vercel → projet `patsy-gest` → *Domains* : ajouter **`patisgest.dz`**
+   et **`*.patisgest.dz`** (wildcard). Vercel affiche les enregistrements à
+   créer : un `A`/`ALIAS` pour l'apex et un `CNAME` pour le wildcard.
+   Le certificat wildcard est émis automatiquement, **aucun certificat par
+   boutique à gérer**.
+3. **Vérification obligatoire avant d'annoncer un sous-domaine à un client** :
+   réserver `elyasmine` dans Paramètres → Vitrine, publier, puis ouvrir
+   `https://elyasmine.patisgest.dz` dans un navigateur **en navigation privée**
+   (sans cookie de session). Trois choses doivent être vraies :
+   - le catalogue s'affiche sans redirection vers `/connexion` ;
+   - `/parametres` sur ce même hôte **ne donne pas** l'application (le
+     middleware doit renvoyer la vitrine, sinon fuite d'interface d'admin) ;
+   - un dépôt de commande depuis ce sous-domaine crée bien une ligne
+     `origine='vitrine'` avec le bon `site_id`.
+
+Aujourd'hui `list_project_domains` ne renvoie que `patsy-gest.vercel.app` :
+**aucun domaine personnalisé n'est encore branché**, donc `*.patisgest.dz` ne
+résout pas. Le point 3 ne peut pas être exécuté avant le point 2.
+
 ### 9.4 Ce qui coûte cher sans rien apporter
 
 - **Neon Launch (19 $)** : ne remplace rien, voir §9.1.

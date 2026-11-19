@@ -213,9 +213,9 @@ export default async function ModulePage({ params, searchParams }: {
     />;
   } else if (key==='cake-design') {
     // Cake Design : tous les rôles (démo), RPC creer_cake/evoluer_cake.
-    const cakeRows=((results.find(r=>r.label==='Devis et commandes')?.data??[]) as {id:string;numero:string;statut:string;client_nom:string;telephone:string|null;date_event:string;nb_parts:number;prix_ht:number;tva_pct:number;acompte:number;notes:string|null;cgv:boolean;cgv_version:string|null}[])
-      .map(c=>({id:c.id,numero:c.numero,statut:c.statut,clientNom:c.client_nom,telephone:c.telephone,dateEvent:c.date_event,nbParts:c.nb_parts,prixHt:c.prix_ht,tvaPct:Number(c.tva_pct??0),acompte:c.acompte,notes:c.notes,cgv:c.cgv,cgvVersion:c.cgv_version}));
-    writeForms=<CakeForms cakes={cakeRows}/>;
+    const cakeRows=((results.find(r=>r.label==='Devis et commandes')?.data??[]) as {id:string;numero:string;statut:string;client_nom:string;telephone:string|null;date_event:string;nb_parts:number;prix_ht:number;tva_pct:number;acompte:number;notes:string|null;cgv:boolean;cgv_version:string|null;origine?:string|null}[])
+      .map(c=>({id:c.id,numero:c.numero,statut:c.statut,clientNom:c.client_nom,telephone:c.telephone,dateEvent:c.date_event,nbParts:c.nb_parts,prixHt:c.prix_ht,tvaPct:Number(c.tva_pct??0),acompte:c.acompte,notes:c.notes,cgv:c.cgv,cgvVersion:c.cgv_version,origineVitrine:c.origine==='vitrine'}));
+    writeForms=<CakeForms cakes={cakeRows} role={ctx.role}/>;
   } else if (key==='achats' && canWrite(ctx.role)) {
     // BC multi-lignes + réceptions partielles/totales (RPC creer/recevoir_commande).
     const [artRes,sitesRes,histRes]=await Promise.all([
