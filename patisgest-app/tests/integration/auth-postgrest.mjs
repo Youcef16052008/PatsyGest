@@ -69,6 +69,14 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   const [owner, lab, seller, other] = sessions;
+  // Un compte Auth seul ne devient pas membre, même avec des métadonnées forgées.
+  ok(await admin.auth.admin.createUser({email:'non-approuve@example.test',password,email_confirm:true,user_metadata:{client_id:A,role:'proprietaire'}}), 'Compte Auth sans adhésion');
+  const pending = client();
+  ok(await pending.auth.signInWithPassword({email:'non-approuve@example.test',password}), 'Connexion compte sans adhésion');
+  assert.equal(ok(await pending.from('clients').select('id'), 'Client sans adhésion').length,0);
+  assert.equal(ok(await pending.from('sites').select('id'), 'Sites sans adhésion').length,0);
+  assert.equal(ok(await pending.from('articles').select('id'), 'Articles sans adhésion').length,0);
+  denied(await pending.rpc('modifier_acces_module',{p_utilisateur_id:ids[1],p_module:'qualite',p_actif:false}), 'Reserve au proprietaire');
   assert.equal(ok(await owner.from('articles').select('id,pv_ht'), 'Articles propriétaire').length, 1);
   assert.equal(ok(await lab.from('articles').select('*'), 'Articles bruts labo').length, 0);
   assert.equal(ok(await lab.from('labo_articles').select('*'), 'Vue labo')[0].nom, 'Farine');

@@ -48,6 +48,36 @@ référencée par la migration 07 et la colonne `clotures.revision` attendue par
 Il ne démontre donc pas que les migrations historiques sont rejouables telles
 quelles sur une base vierge, ni que le schéma du pilote est identique.
 
+## Sites et accès du personnel — nouvelle demande
+
+Le propriétaire souhaite créer et modifier plusieurs boutiques et laboratoires,
+inviter ses employés ou approuver leurs demandes, et attribuer à chaque compte
+labo ou vendeur un ou plusieurs sites. Les vendeurs ont des comptes individuels,
+sans gestion séparée de caisses physiques. Une interface de gestion des sites
+et la migration brouillon `26-gestion-sites.sql` sont préparées : elles ne sont
+pas déployées ; 26 réserve l'écriture des sites au propriétaire, mais **ne
+restreint pas les employés aux sites qui leur seraient attribués**.
+
+Il n'existe actuellement ni système d'invitation/demande et approbation, ni
+attribution des sites, ni révocation complète d'un employé. Un compte Auth sans
+ligne `utilisateurs` ne constitue pas un accès à l'établissement, mais ce
+constat ne remplace pas une procédure d'admission. Les RLS actuelles isolent
+par client, pas par site ; de nombreuses RPC `SECURITY DEFINER` contournent les
+policies. Certaines vues labo sont elles aussi exécutées avec les droits de leur
+propriétaire, et des tables n'ont pas de colonne site. Il serait dangereux de
+présenter un filtrage d'interface comme une isolation effective.
+
+Avant activation : concevoir la vérification d'adresse et le cycle de demande,
+invitation, approbation/refus et révocation ; assurer que seuls les propriétaires
+du même client attribuent des sites ; migrer explicitement les comptes existants
+sans rupture ni élargissement silencieux ; contrôler les RLS, les vues et toutes
+les RPC sur les données et opérations de chaque site (transferts entre deux sites,
+ventes, lots, OF, rappels, demandes, commandes et exports compris). Ajouter des
+cas Auth/PostgREST adversariaux avec deux boutiques et plusieurs utilisateurs,
+et traiter les données sans site. Le plan de prévision reste limité à un labo
+et une boutique. Aucune approbation n'est implémentée tant que son attribution
+de site ne peut pas être réellement appliquée.
+
 ## Risques et travail restant avant déploiement
 
 - Un défaut de valorisation a été confirmé dans `terminer_of` : lorsque la
