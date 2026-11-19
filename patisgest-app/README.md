@@ -130,6 +130,57 @@ Limite connue : une **navigation directe vers une page jamais visitée** hors
 ligne affichera l'erreur du navigateur. Les écrans listés ci-dessus sont, eux,
 toujours disponibles.
 
+### 6. Vitrine publique (site web du client)
+
+Chaque boutique peut publier un site : `elyasmine.patisgest.dz` (ou
+`/vitrine/elyasmine` sur le domaine de l'application). C'est un **catalogue
+public**, pas un accès à l'application.
+
+Migrations : `25-domaines-boutiques.sql` (sous-domaines), `26-vitrine-publique.sql`
+(champs + vue `vitrine_catalogue`), `27-commandes-vitrine.sql` (RPC publiques),
+`28-fermeture-anon.sql` (droits).
+
+**Ce qu'un visiteur anonyme peut faire — et rien d'autre :**
+
+| Action | `anon` | vendeur | labo | propriétaire |
+|---|---|---|---|---|
+| Lire le catalogue (`vitrine_catalogue`) | oui | oui | oui | oui |
+| Déposer une demande de commande | oui (RPC) | — | — | — |
+| Accepter / refuser une demande | non | oui | oui | oui |
+| Changer une photo | non | **non** | oui | oui |
+| Modifier la fiche (nom, description, ordre) | non | **non** | oui | oui |
+| Ajouter / supprimer une recette | non | **non** | **non** | oui |
+| Publier / dépublier la vitrine | non | non | non | oui |
+
+Les règles de rôle vivent dans `src/lib/vitrine-permissions.ts` (pur, testé) ;
+la base les revalide (RLS + RPC).
+
+**Dédoublonnage :** deux recettes de même **nom** ne donnent qu'une entrée.
+La clé `patisgest_cle_nom()` ignore accents, casse et ponctuation (« Éclair »,
+« éclair » et « ECLAIR » = un seul gâteau). Les ingrédients ne sont pas
+comparés : c'est la règle métier demandée.
+
+**Ce qui n'est jamais publié :** aucune colonne de coût (matières, MO,
+énergie, emballage, frais généraux), aucun ingrédient, aucune marge. Un
+prix de vente à 0 sort à `null` et s'affiche « prix sur demande » — jamais
+« 0 DA ».
+
+**Traitement d'une demande :** le visiteur dépose un besoin (recette, date,
+parts, téléphone). Le statut initial est `demande`, le prix n'est pas fixé
+par lui. Un vendeur *accepte* (→ la demande devient un `devis` à chiffrer)
+ou *refuse* (→ `annule`). Aucun paiement ne circule sur la vitrine.
+
+**Idempotence :** la clé `cakes.cle_vitrine` est tirée par le navigateur et
+unique par établissement ; un double clic ou une reprise réseau renvoie la
+même demande au lieu d'en créer une seconde. Garde-fou anti-flood : 30
+demandes par heure et par établissement, sans stocker d'IP.
+
+**Routage :** `middleware.ts` classe l'hôte avec `resoudreHote()`. Un
+sous-domaine boutique réécrit `/` vers `/vitrine/<slug>` (même origine,
+pas de redirection). `/connexion`, `/tableau-de-bord`, `/api/*` et
+`/parametres` restent ceux de l'application : le gérant gère sa boutique
+depuis l'adresse de sa vitrine.
+
 ## Déploiement (Vercel)
 
 Le projet Vercel `patsy-gest` est lié à ce dépôt avec le **Root Directory

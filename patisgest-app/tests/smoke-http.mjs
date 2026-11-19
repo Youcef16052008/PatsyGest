@@ -298,3 +298,39 @@ test('NF-02 : les icônes PWA existent réellement (pas de 404 à l’installati
     assert.match(res.headers.get('content-type') ?? '', /image\/png/);
   }
 });
+
+/**
+ * Vitrine publique (migrations 25-28).
+ *
+ * Le serveur de test n'a PAS de base Supabase : ces tests vérifient donc
+ * exactement ce qui compte pour un visiteur — la page répond, explique
+ * pourquoi elle est vide, et ne fuit ni erreur 500 ni identifiant interne.
+ */
+test('vitrine : une adresse inconnue répond 200 avec un message honnête (pas de 500)', async () => {
+  const res = await get('/vitrine/elyasmine');
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /Boutique indisponible/);
+  // Aucune erreur technique ne doit apparaître dans la page publique.
+  assert.equal(/SUPABASE|stack|at async/i.test(html), false, 'détail technique exposé au visiteur');
+});
+
+test('vitrine : le slug est validé avant tout accès base', async () => {
+  // Un souligné n'est pas un nom DNS valide : le slug doit être refusé
+  // AVANT tout accès base (sinon on interroge PostgREST pour rien).
+  const res = await get('/vitrine/pas_valide');
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), /Adresse de boutique invalide/);
+});
+
+test('vitrine : /vitrine sans slug ne renvoie pas une 500', async () => {
+  const res = await get('/vitrine');
+  assert.ok([307, 308, 404].includes(res.status), `statut inattendu : ${res.status}`);
+});
+
+test('vitrine : l’application n’est pas réécrite pour un hôte d’application', async () => {
+  // Sans routage, `/` redirige vers /connexion ou /tableau-de-bord (307).
+  const res = await get('/');
+  assert.equal(res.status, 307);
+  assert.ok(['/connexion', '/tableau-de-bord'].includes(redirectPath(res)));
+});

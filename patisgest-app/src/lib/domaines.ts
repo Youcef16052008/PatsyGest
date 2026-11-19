@@ -102,3 +102,68 @@ export function cleCacheHote(hote: string): string | null {
   if (!h || estHoteLocal(h)) return null;
   return `hote:${h}`;
 }
+
+/* ------------------------------------------------------------------ *
+ * Décision de routage par hôte (utilisée par le middleware)
+ * ------------------------------------------------------------------ */
+
+/** Préfixes de chemin qui restent ceux de l'application, même sur un sous-domaine boutique. */
+const CHEMINS_APPLICATION = [
+  "/connexion",
+  "/deconnexion",
+  "/tableau-de-bord",
+  "/parametres",
+  "/mentions-legales",
+  "/api/",
+  "/_next/",
+  "/icons/",
+  "/sw.js",
+  "/manifest.webmanifest",
+];
+
+export type DecisionRoutage =
+  | { type: "laisser" }
+  /** Chemin + query à réécrire, sur le MÊME hôte que la requête. */
+  | { type: "reecrire"; chemin: string; recherche: string };
+
+/**
+ * Si l'hôte appartient à une boutique, toute requête qui ne vise pas déjà
+ * la vitrine est réécrite vers `/vitrine/<slug>`. Le préfixe statique
+ * `vitrine` évite la collision avec `/[module]` de l'application.
+ *
+ * Ce qu'on ne fait volontairement PAS :
+ *   • pas de redirection (l'URL affichée au visiteur ne change pas) ;
+ *   • pas de bascule du propriétaire vers sa vitrine : il garde
+ *     `/connexion` et `/tableau-de-bord` pour gérer sa boutique ;
+ *   • aucun appel réseau : la décision doit rester instantanée même si
+ *     Supabase est injoignable.
+ */
+export function deciderRoutage(
+  hote: string | null | undefined,
+  chemin: string,
+  recherche: string,
+  domaine: string = DOMAINE_SERVICE_PAR_DEFAUT,
+): DecisionRoutage {
+  const classification = resoudreHote(hote, domaine, []);
+  if (classification.type !== "boutique") return { type: "laisser" };
+
+  const slug = classification.sousDomaine;
+  const normalise = chemin.startsWith("/") ? chemin : `/${chemin}`;
+
+  // L'application reste accessible sur le sous-domaine de la boutique :
+  // le gérant se connecte sur `elyasmine.patisgest.dz/connexion`.
+  if (CHEMINS_APPLICATION.some((p) => normalise === p || normalise.startsWith(p))) {
+    return { type: "laisser" };
+  }
+
+  // Déjà sur la vitrine : ne pas réécrire en boucle.
+  if (normalise === `/vitrine/${slug}` || normalise.startsWith(`/vitrine/${slug}/`)) {
+    return { type: "laisser" };
+  }
+
+  // On renvoie un CHEMIN, pas une URL absolue : une URL absolue portant le
+  // nom de la boutique ferait sortir Next par le resolver DNS (mesuré :
+  // « getaddrinfo ENOTFOUND elyasmine.patisgest.dz »). Le middleware
+  // réécrit sur la même origine avec `request.nextUrl.clone()`.
+  return { type: "reecrire", chemin: `/vitrine/${slug}`, recherche: recherche ?? "" };
+}

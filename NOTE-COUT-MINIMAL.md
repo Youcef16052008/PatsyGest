@@ -178,3 +178,23 @@ son branchement dans le middleware. C'est un chantier à part, à traiter avec
 une revue de sécurité : une page publique expose des données à des visiteurs
 anonymes et ne doit **jamais** réutiliser les lectures internes (elles portent
 les coûts et les marges).
+
+## 6. Vitrine publique — ce que le schéma réel a corrigé
+
+Trois hypothèses du plan initial étaient fausses ; elles ont été vérifiées
+contre la base pilote avant d'écrire le code, et corrigées.
+
+| Hypothèse | Mesure sur `evepzygucfxarpdnflzv` | Correction |
+|---|---|---|
+| Statut `demande` suffit | `cakes_statut_valid` = devis/acompte/confirme/produit/livre/annule | contrainte élargie en migration 26 — sinon **toute** commande de visiteur échoue |
+| Dédoublonner sur le produit lié | famille « Cake » → article « Pâte feuilletée » ; « Croissant Pur Beurre » → « Croissant au beurre » | dédoublonnage sur `recette_familles.nom` normalisé |
+| Afficher le prix du produit | « Cake » pointe sur un article à `pv_ht = 0.00` | `nullif(pv_ht,0)` → « prix sur demande », jamais « 0 DA » |
+| `anon` est déjà fermé | `anon` avait INSERT/SELECT/UPDATE/DELETE sur `cakes`, `articles`, `sites`, `recette_familles` | migration 28 : `revoke all` sur tables, séquences et fonctions ; seule la RPC de vitrine reste ouverte |
+
+La RLS suffisait (mesuré : `anon` lisait 0 ligne), mais une seule policy
+ajoutée « to public » aurait ouvert les tables. La vitrine est le premier
+écran qui rend la clé `anon` réellement utile : le second verrou est posé
+avant, pas après.
+
+**Coût : 0 DA.** Une page publique dynamique + une vue + deux RPC ne
+consomment rien de plus que le plan Free actuel.
