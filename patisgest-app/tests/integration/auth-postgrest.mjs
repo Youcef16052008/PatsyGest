@@ -163,6 +163,38 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   denied(await lab.rpc('demarrer_of',{p_of_id:otherOrder.of_id}), 'Site non autorise');
   denied(await lab.rpc('terminer_of',{p_of_id:otherOrder.of_id,p_qte:1,p_numero_lot:'NON',p_dlc:'2099-01-01'}), 'Site non autorise');
   const order = ok(await lab.rpc('creer_of',{p_version_id:version.version_id,p_site_id:site,p_qte_prevue:10,p_date_prevue:'2099-01-01',p_client_ref:'test-of'}), 'Créer OF');
+
+  // Cake : création atomique affectée, ancien devis sans site propriétaire,
+  // refus des références connues d'un autre site et résultats sans fuites.
+  const cakeBase={p_client_nom:'Client fictif',p_telephone:null,p_date_event:'2099-02-01',p_nb_parts:10,p_prix_ht:1000,p_options:[],p_notes:null,p_cgv:false};
+  const cakeSite={...cakeBase,p_version_id:version.version_id,p_site_id:site,p_qte:10};
+  const ownCake=ok(await seller.rpc('creer_cake_production',cakeSite),'Devis vendeur sur site attribué').cake_id;
+  const hiddenCake=ok(await owner.rpc('creer_cake_production',{...cakeSite,p_site_id:newSite.id}),'Devis propriétaire autre site').cake_id;
+  const legacyCake=ok(await owner.rpc('creer_cake',cakeBase),'Ancien devis sans site propriétaire').cake_id;
+  denied(await seller.rpc('creer_cake',cakeBase),'reservee au proprietaire');
+  denied(await lab.rpc('creer_cake_production',cakeSite),'reservee au comptoir');
+  denied(await seller.rpc('creer_cake_production',{...cakeSite,p_site_id:newSite.id}),'Site non autorise');
+  const edit={p_id:ownCake,p_client_nom:'Client fictif',p_telephone:null,p_date_event:'2099-02-01',p_nb_parts:12,p_prix_ht:1000,p_tva_pct:19,p_notes:null,p_options:[]};
+  ok(await seller.rpc('editer_cake',edit),'Éditer devis sur site attribué');
+  denied(await lab.rpc('editer_cake',edit),'Edition reservee au comptoir');
+  denied(await seller.rpc('editer_cake',{...edit,p_id:hiddenCake}),'Site non autorise');
+  denied(await seller.rpc('accepter_cgv',{p_id:hiddenCake,p_version:'1'}),'Site non autorise');
+  denied(await seller.rpc('evoluer_cake',{p_id:hiddenCake,p_transition:'payer',p_montant:100}),'Site non autorise');
+  denied(await seller.rpc('affecter_production_cake',{p_id:hiddenCake,p_version_id:version.version_id,p_site_id:site,p_qte:10}),'Site non autorise');
+  denied(await seller.rpc('affecter_production_cake',{p_id:legacyCake,p_version_id:version.version_id,p_site_id:site,p_qte:10}),'Devis hors perimetre');
+  denied(await other.rpc('accepter_cgv',{p_id:ownCake,p_version:'1'}),'Devis hors perimetre');
+  assert.ok((await seller.rpc('patisgest_creer_cake_interne',cakeBase)).error,'Fonction interne inaccessible');
+  ok(await owner.rpc('affecter_production_cake',{p_id:legacyCake,p_version_id:version.version_id,p_site_id:site,p_qte:10}),'Affectation explicite du devis historique');
+  ok(await seller.rpc('accepter_cgv',{p_id:ownCake,p_version:'1'}),'CGV du site attribué');
+  await sql`update cakes set of_id=case when id=${ownCake} then ${order.of_id}::uuid else ${otherOrder.of_id}::uuid end where id in (${ownCake},${hiddenCake})`;
+  await sql`update ordres_fabrication set lots_produits=${sql.json([{lotId:lot},{lotId:otherLot[0].id},{lotId:'malforme'}])} where id=${order.of_id}`;
+  const cakeLinks=ok(await seller.rpc('cake_liens_production'),'Liens cake filtrés');
+  assert.equal(cakeLinks.length,1); assert.equal(cakeLinks[0].cake_id,ownCake);
+  assert.deepEqual(cakeLinks[0].lots.map(x=>x.lotId),[lot]);
+  assert.equal(ok(await owner.rpc('cake_liens_production'),'Liens propriétaire').length,2);
+  await sql`update ordres_fabrication set lots_produits='[]'::jsonb where id=${order.of_id}`;
+  await sql`update cakes set of_id=null where id in (${ownCake},${hiddenCake})`;
+
   // Réassort : les identifiants connus ne doivent pas contourner les sites.
   const reqs = await sql`insert into demandes_reassort(client_id,site_id,article_id,date_cible,qte) values
     (${A},${site},${product},'2099-01-01',1),(${A},${newSite.id},${product},'2099-01-01',1)
