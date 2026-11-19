@@ -62,7 +62,9 @@ test('sauvegarde : construction — format, version et tri des tables', () => {
 test('sauvegarde : les tables exclues sont documentées dans le fichier (pas de silence)', () => {
   const s = construireSauvegarde('c1', 'X', tables);
   assert.equal(s.exclues.length, TABLES_EXCLUES.length);
-  assert.ok(s.exclues.some((e) => e.table === 'utilisateurs'));
+  for (const table of ['utilisateurs','acces_modules','equipe_sites','equipe_demandes','equipe_invitations','equipe_codes','equipe_journal_acces']) {
+    assert.ok(s.exclues.some((e) => e.table === table), `${table} doit être explicitement exclue`);
+  }
   assert.ok(s.exclues.every((e) => e.raison.length > 10), 'chaque exclusion doit être expliquée');
 });
 

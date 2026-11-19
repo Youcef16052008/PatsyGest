@@ -11,8 +11,9 @@ import {
 export const dynamic = "force-dynamic";
 
 /**
- * US-15.2 — sauvegarde complète JSON (RG-15.1 : aucune donnée prisonnière).
- * Réservée au propriétaire : c'est un export de tout l'établissement.
+ * Export JSON partiel. Les comptes, réglages d'accès et données équipe ne
+ * sont pas inclus ; ne pas l'utiliser comme sauvegarde complète de la base.
+ * Réservé au propriétaire.
  * Lecture seule, aucune écriture.
  */
 export async function GET() {

@@ -54,6 +54,12 @@ export const ORDRE_RESTAURATION = [
 /** Tables volontairement exclues, avec la raison (transparence RG-15.1). */
 export const TABLES_EXCLUES: { table: string; raison: string }[] = [
   { table: "utilisateurs", raison: "rattachés à des comptes Auth Supabase (auth.users) — à recréer côté Auth" },
+  { table: "acces_modules", raison: "réglages par compte non restaurés par le format actuel" },
+  { table: "equipe_sites", raison: "affectations de sites non restaurées par le format actuel, si la fonctionnalité équipe est installée" },
+  { table: "equipe_demandes", raison: "demandes et décisions d'adhésion non restaurées par le format actuel, si la fonctionnalité équipe est installée" },
+  { table: "equipe_invitations", raison: "invitations non restaurées par le format actuel, si la fonctionnalité équipe est installée" },
+  { table: "equipe_codes", raison: "codes d'équipe non restaurés par le format actuel, si la fonctionnalité équipe est installée" },
+  { table: "equipe_journal_acces", raison: "journal d'accès non restauré par le format actuel, si la fonctionnalité équipe est installée" },
 ];
 
 /**

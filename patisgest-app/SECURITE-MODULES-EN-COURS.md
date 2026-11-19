@@ -93,6 +93,15 @@ comptoir. Tests Auth/PostgREST sur pile jetable réussis pour ces chemins et
 l'arrondi des OF à la version `33a03b8` (CI 44558358899) ; cela ne couvre pas
 tous les chemins ni la compatibilité avec le pilote.
 
+Le brouillon 36 prépare la modification atomique des affectations et la
+révocation de membres existants, avec journal interne ; il n'active aucun
+compte. La révocation retire l'adhésion mais pas le compte Auth et ne peut
+interrompre une transaction déjà en cours sur un ancien snapshot. Elle doit
+encore être confrontée au schéma pilote, aux clés étrangères et aux parcours
+complets. L'export JSON de sauvegarde exclut les comptes, les droits et les
+nouvelles données d'équipe : son interface le présente comme partiel et il ne
+remplace pas une sauvegarde complète de la base et d'Auth.
+
 Certaines vues labo sont exécutées avec les droits de leur propriétaire, et
 des tables n'ont pas de colonne site. Il serait dangereux de
 présenter un filtrage d'interface comme une isolation effective.

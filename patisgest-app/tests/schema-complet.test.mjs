@@ -137,6 +137,23 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
   await db.exec("select set_config('test.uid','10000000-0000-0000-0000-000000000003',false)");
   assert.equal((await db.query('select count(*)::int n from public.articles')).rows[0].n,0);
   assert.equal((await db.query('select count(*)::int n from public.labo_articles')).rows[0].n,0);
+  // Affectation et révocation : aucune élévation inter-établissement ; le
+  // même sujet Auth perd les accès sans rafraîchir son identité simulée.
+  const member='22222222-2222-2222-2222-222222222222', memberSite='dddddddd-dddd-dddd-dddd-dddddddddddd';
+  await assert.rejects(db.query('select public.equipe_modifier_affectations($1,$2::uuid[],$3::text[])',[member,[memberSite],['stocks']]),/Compte introuvable/);
+  await db.exec("select set_config('test.uid','10000000-0000-0000-0000-000000000001',false)");
+  await assert.rejects(db.query('select public.equipe_modifier_affectations($1,$2::uuid[],$3::text[])',[member,[memberSite],['inconnu']]),/Modules invalides/);
+  await db.query('select public.equipe_modifier_affectations($1,$2::uuid[],$3::text[])',[member,[memberSite],['stocks']]);
+  await db.exec("select set_config('test.uid','10000000-0000-0000-0000-000000000002',false)");
+  assert.equal((await db.query("select public.patisgest_module_autorise('stocks') ok")).rows[0].ok,true);
+  assert.equal((await db.query("select public.patisgest_module_autorise('planning') ok")).rows[0].ok,false);
+  await assert.rejects(db.query('select public.equipe_revoquer($1)',[member]),/Reserve au proprietaire/);
+  await db.exec("select set_config('test.uid','10000000-0000-0000-0000-000000000001',false)");
+  await db.query('select public.equipe_revoquer($1)',[member]);
+  await db.exec("select set_config('test.uid','10000000-0000-0000-0000-000000000002',false)");
+  assert.equal((await db.query('select count(*)::int n from public.clients')).rows[0].n,0);
+  assert.equal((await db.query("select public.patisgest_module_autorise('stocks') ok")).rows[0].ok,false);
+  await assert.rejects(db.query('select * from public.equipe_journal_acces'),/permission denied/);
 
  } finally {await db.close();}
 });

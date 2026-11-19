@@ -297,6 +297,41 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   const forged = await fetch(`${API_URL}/rest/v1/articles`,{headers:{apikey:ANON_KEY,Authorization:'Bearer invalid.jwt.signature'}});
   assert.equal(forged.status,401);
 
+  // Gestion d'un membre existant : vérification en utilisant le JWT vendeur
+  // obtenu au début du test, sans reconnexion après changement/révocation.
+  const assignment={p_utilisateur_id:ids[2],p_sites:[newSite.id],p_modules:['caisse','planning']};
+  denied(await other.rpc('equipe_modifier_affectations',assignment),'Compte introuvable');
+  denied(await lab.rpc('equipe_modifier_affectations',assignment),'Reserve au proprietaire');
+  denied(await owner.rpc('equipe_modifier_affectations',{...assignment,p_utilisateur_id:ids[0]}),'Compte introuvable');
+  assert.ok((await anon.rpc('equipe_modifier_affectations',assignment)).error);
+  assert.ok((await owner.rpc('equipe_modifier_affectations',{...assignment,p_sites:[site]})).error,'Vendeur uniquement en boutique');
+  assert.ok((await owner.rpc('equipe_modifier_affectations',{...assignment,p_sites:[newSite.id,newSite.id]})).error);
+  assert.ok((await owner.rpc('equipe_modifier_affectations',{...assignment,p_modules:['caisse','inconnu']})).error);
+  assert.ok((await owner.rpc('equipe_modifier_affectations',{...assignment,p_modules:['caisse','caisse']})).error);
+  assert.equal(ok(await seller.from('sites').select('id').eq('id',site),'Affectation inchangée après erreurs').length,1);
+  ok(await owner.rpc('equipe_modifier_affectations',assignment),'Modifier sites et modules atomiquement');
+  assert.equal(ok(await seller.from('sites').select('id').eq('id',site),'Ancien site retiré').length,0);
+  assert.equal(ok(await seller.from('sites').select('id').eq('id',newSite.id),'Nouveau site attribué').length,1);
+  denied(await seller.rpc('vendre_article',{p_article_id:product,p_site_id:site,p_qte:1,p_ticket:'V-REFUSE'}),'Site non autorise');
+  assert.equal(ok(await seller.rpc('patisgest_module_autorise',{p_module:'caisse'}),'Caisse autorisée'),true);
+  assert.equal(ok(await seller.rpc('patisgest_module_autorise',{p_module:'production'}),'Production désactivée'),false);
+  assert.ok((await owner.from('equipe_journal_acces').select('*')).error,'Journal non accessible directement');
+  ok(await owner.rpc('equipe_inviter',{p_email:emails[2],p_nom:'Vendeur',p_role:'vendeur',p_sites:[newSite.id]}),'Invitation antérieure');
+  assert.equal(ok(await seller.rpc('equipe_mes_invitations'),'Invitation antérieure visible').length,1);
+  denied(await other.rpc('equipe_revoquer',{p_utilisateur_id:ids[2]}),'Compte introuvable');
+  denied(await seller.rpc('equipe_revoquer',{p_utilisateur_id:ids[2]}),'Reserve au proprietaire');
+  denied(await owner.rpc('equipe_revoquer',{p_utilisateur_id:ids[0]}),'Compte introuvable');
+  ok(await owner.rpc('equipe_revoquer',{p_utilisateur_id:ids[2]}),'Révoquer membre');
+  assert.ok(ok(await seller.auth.getUser(),'Compte Auth reste authentifié').user);
+  assert.equal(ok(await seller.from('clients').select('id'),'Client inaccessible après révocation').length,0);
+  assert.equal(ok(await seller.from('sites').select('id'),'Sites inaccessibles après révocation').length,0);
+  assert.equal(ok(await seller.from('ventes').select('id'),'Ventes inaccessibles après révocation').length,0);
+  assert.equal(ok(await seller.rpc('patisgest_module_autorise',{p_module:'caisse'}),'Module révoqué'),false);
+  assert.equal(ok(await seller.rpc('equipe_mes_invitations'),'Ancienne invitation annulée').length,0);
+  denied(await seller.rpc('vendre_article',{p_article_id:product,p_site_id:newSite.id,p_qte:1,p_ticket:'V-REVOQUE'}),'Module desactive');
+  assert.equal((await sql`select count(*)::int n from equipe_journal_acces where utilisateur_id=${ids[2]}`)[0].n,2);
+  denied(await owner.rpc('equipe_revoquer',{p_utilisateur_id:ids[2]}),'Compte introuvable');
+
   // Next réel + Auth réelle, jamais la production : une session périmée est
   // renouvelée par le proxy et son cookie permet ensuite d'ouvrir une page.
   const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
