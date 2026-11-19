@@ -59,6 +59,7 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
     await sql`insert into utilisateurs(id,client_id,auth_user_id,email,nom,role) values (${ids[i]},${i === 3 ? B : A},${authIds[i]},${emails[i]},${roles[i]},${roles[i]})`;
   }
   await sql`insert into sites(id,client_id,nom) values (${site},${A},'Labo')`;
+  await sql`insert into equipe_sites(utilisateur_id,site_id) values (${ids[1]},${site}),(${ids[2]},${site})`;
   await sql`insert into articles(id,client_id,code,nom,niveau,unite,pv_ht) values (${article},${A},'A1','Farine','matiere','kg',123)`;
   await sql`notify pgrst, 'reload schema'`;
   // Le rechargement du cache est asynchrone.
@@ -87,6 +88,12 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   const newSite = ok(await owner.from('sites').insert({client_id:A,nom:'Boutique 2',type:'boutique'}).select('id').single(), 'Ajout boutique propriétaire');
   assert.ok(newSite.id);
   ok(await owner.from('sites').update({nom:'Boutique modifiée'}).eq('id',newSite.id).select('id').single(), 'Modification boutique propriétaire');
+  await sql`insert into lots(client_id,article_id,site_id,numero,qte_init,qte_rest,pu) values (${A},${article},${newSite.id},'AUTRE-SITE',4,4,77)`;
+  assert.equal(ok(await owner.from('lots').select('id').eq('site_id',newSite.id), 'Lot autre site propriétaire').length,1);
+  assert.equal(ok(await lab.from('sites').select('id').eq('id',newSite.id), 'Site non attribué labo').length,0);
+  assert.equal(ok(await seller.from('sites').select('id').eq('id',newSite.id), 'Site non attribué vendeur').length,0);
+  assert.equal(ok(await seller.from('lots').select('id').eq('site_id',newSite.id), 'Lot non attribué vendeur').length,0);
+  assert.equal(ok(await lab.from('labo_lots').select('id').eq('site_id',newSite.id), 'Vue labo autre site').length,0);
   assert.ok((await lab.from('sites').insert({client_id:A,nom:'Non autorisé',type:'boutique'})).error, 'Labo ne crée pas de site');
   assert.equal(ok(await lab.from('sites').update({nom:'Non autorisé'}).eq('id',newSite.id).select('id'), 'Modification labo refusée').length,0);
   assert.equal(ok(await other.from('sites').update({nom:'Autre client'}).eq('id',newSite.id).select('id'), 'Modification inter-client refusée').length,0);

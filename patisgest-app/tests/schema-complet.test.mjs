@@ -31,6 +31,7 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
    ('22222222-2222-2222-2222-222222222222','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','10000000-0000-0000-0000-000000000002','labo@example.test','Labo','labo'),
    ('33333333-3333-3333-3333-333333333333','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','10000000-0000-0000-0000-000000000003','autre@example.test','Autre','proprietaire');
    insert into sites(id,client_id,nom) values ('dddddddd-dddd-dddd-dddd-dddddddddddd','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','Labo');
+   insert into equipe_sites(utilisateur_id,site_id) values ('22222222-2222-2222-2222-222222222222','dddddddd-dddd-dddd-dddd-dddddddddddd');
    insert into articles(id,client_id,code,nom,niveau,unite,pv_ht) values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','A1','Farine','matiere','kg',123);
    select set_config('test.uid','10000000-0000-0000-0000-000000000002',false); set role authenticated;`);
   await assert.rejects(db.query("insert into public.parametres_couts(client_id,taux_horaire) values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',123)"), /row-level security/);

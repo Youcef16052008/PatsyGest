@@ -66,9 +66,12 @@ d'activation n'existe encore**, et aucune invitation n'est envoyée par e-mail :
 cette fondation n'est pas une fonctionnalité prête. La révocation complète d'un
 employé reste aussi à réaliser. Un compte Auth sans ligne `utilisateurs` ne
 constitue pas un accès à l'établissement, mais ce constat ne remplace pas une
-procédure d'admission. Les RLS actuelles isolent
+procédure d'admission. Les RLS du pilote isolent
 par client, pas par site ; de nombreuses RPC `SECURITY DEFINER` contournent les
-policies. Certaines vues labo sont elles aussi exécutées avec les droits de leur
+policies. Le brouillon `28-sites-lecture-brouillon.sql` filtre les sites et
+plusieurs tables directes ainsi que quatre vues labo dans l'environnement isolé,
+mais ne protège pas encore les RPC ni les données sans site et ne doit pas être
+appliqué. Certaines vues labo sont exécutées avec les droits de leur
 propriétaire, et des tables n'ont pas de colonne site. Il serait dangereux de
 présenter un filtrage d'interface comme une isolation effective.
 
