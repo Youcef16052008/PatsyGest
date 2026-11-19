@@ -8,7 +8,7 @@ export type RappelLot = {
   id: string; numero: string; code: string; nom: string;
   dlc: string | null; site_id: string; bloque: boolean; bloque_motif: string | null;
 };
-export type RappelVente = { ticket: string; date_vente: string; total_ht: number; site_id?: string; code?: string; nom?: string };
+export type RappelVente = { ticket: string; date_vente: string; total_ht?: number; site_id?: string; code?: string; nom?: string };
 export type RappelReport = {
   lot: RappelLot;
   of_producteur: { numero: string; statut: string } | null;

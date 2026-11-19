@@ -249,3 +249,22 @@ test("Démo intégrée : panier multiproduit idempotent, transfert responsable, 
   );
   assert.equal(state.closings.at(-1)?.caisseBilan?.fondInitial, 5000);
 });
+
+
+test("Demain : ignore les sources autres que la caisse et ne recompte pas une commande liée", () => {
+  const product={id:P1,code:"P",nom:"Produit",unite:"pcs",seuil:0};
+  const plan=computeTomorrowLabPlan({targetDate:"2026-11-19",products:[product],sales:[
+    {date:"2026-11-12",siteId:SITE,source:"caisse",lignes:[{articleId:P1,qty:10}]},
+    {date:"2026-11-12",siteId:SITE,source:"cake",lignes:[{articleId:P1,qty:1000}]},
+  ],confirmedOrders:[{id:"c1",numero:"CK-1",clientNom:"Test",eventDate:"2026-11-20",productionDate:"2026-11-19",statut:"confirme",articleId:P1,qty:50,nbParts:50,ofNumero:"OF-existant"}]});
+  assert.equal(plan.lignes[0].besoinVitrine,10);
+  assert.equal(plan.lignes[0].commandesConfirmees,0);
+});
+
+
+test("Demain : un OF de gâteau sur commande ne couvre pas le besoin de vitrine", () => {
+ const plan=computeTomorrowLabPlan({targetDate:"2026-11-19",products:[{id:P1,code:"P",nom:"Produit",unite:"pcs",seuil:0}],
+  manualForecast:{[P1]:10},existingOrders:[{id:"of",numero:"OF-CAKE",produitId:P1,datePrevue:"2026-11-19",statut:"planifie",qtePrevue:10,qteRealisee:0,clientRef:"cake:devis"}]});
+ assert.equal(plan.lignes[0].dejaEnFabrication,0);
+ assert.equal(plan.lignes[0].aPreparer,10);
+});

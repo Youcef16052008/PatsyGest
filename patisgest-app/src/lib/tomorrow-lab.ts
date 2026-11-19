@@ -242,6 +242,10 @@ export function computeTomorrowLabPlan(params: {
   const sameDowDates = new Set<string>();
 
   for (const s of sales) {
+    // Historique caisse seulement ; une autre source (par exemple devis)
+    // ne doit pas gonfler la prévision vitrine. Les anciennes lignes sans
+    // source restent acceptées pour compatibilité avec les archives.
+    if (s.source && !["caisse", "z-import"].includes(s.source)) continue;
     const d = s.date.slice(0, 10);
     if (!DATE_RE.test(d) || d >= targetDate) continue;
     allSaleDates.add(d);
@@ -266,7 +270,6 @@ export function computeTomorrowLabPlan(params: {
   // 3. Commandes confirmées à préparer à targetDate (statut === 'confirme' uniquement :
   //    les devis non validés sont exclus, et les commandes déjà marquées 'produit'/'livre'
   //    ou déjà liées à un OF ne sont jamais comptées deux fois).
-  const activeOfNumbers = new Set(existingOrders.map((o) => o.numero));
   const confirmedByArticle = new Map<string, TomorrowConfirmedOrder[]>();
   const commandesSurMesure: TomorrowConfirmedOrder[] = [];
   const productIds = new Set(products.map((p) => p.id));
@@ -274,7 +277,9 @@ export function computeTomorrowLabPlan(params: {
   for (const cmd of confirmedOrders) {
     if (cmd.statut !== "confirme") continue;
     if (cmd.productionDate !== targetDate) continue;
-    if (cmd.ofNumero && activeOfNumbers.has(cmd.ofNumero)) continue;
+    // Les commandes sur mesure restent visibles en information ; une commande
+    // reliée à un OF ne doit pas ajouter une nouvelle quantité au catalogue.
+    if (cmd.articleId && cmd.ofNumero) continue;
     if (cmd.articleId && productIds.has(cmd.articleId)) {
       const arr = confirmedByArticle.get(cmd.articleId) ?? [];
       arr.push(cmd);
@@ -302,7 +307,8 @@ export function computeTomorrowLabPlan(params: {
   // 5. OF existants sur targetDate (planifiés / en cours / partiels).
   const ofsByProduct = new Map<string, TomorrowExistingOf[]>();
   for (const o of existingOrders) {
-    if (!o.produitId || o.datePrevue !== targetDate) continue;
+    // Un OF lié à un gâteau sur commande n’est pas disponible pour la vitrine.
+    if (o.clientRef?.startsWith("cake:") || !o.produitId || o.datePrevue !== targetDate) continue;
     if (!["planifie", "encours", "partiel"].includes(o.statut)) continue;
     const arr = ofsByProduct.get(o.produitId) ?? [];
     arr.push(o);

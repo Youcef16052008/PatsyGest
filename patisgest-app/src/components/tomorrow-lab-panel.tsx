@@ -24,11 +24,13 @@ function ValidateLineRowConnected({
   targetDate,
   labSiteId,
   boutiqueSiteId,
+  canCreateOf,
 }: {
   line: TomorrowLine;
   targetDate: string;
   labSiteId: string;
   boutiqueSiteId: string;
+  canCreateOf: boolean;
 }) {
   const [qteOf, setQteOf] = useState(String(line.aPreparer));
   const [qteTr, setQteTr] = useState(String(line.aTransfererDuLabo));
@@ -100,7 +102,7 @@ function ValidateLineRowConnected({
               value={responsable}
               onChange={(e) => setResponsable(e.target.value)}
             />
-            <button type="submit" className="pg-btn pg-btn-sec pg-btn-xs" disabled={trPending}>
+            <button type="submit" className="pg-btn pg-btn-sec pg-btn-xs" disabled={trPending || Boolean(trState.succes) || Boolean(trState.erreur?.includes("effectué, mais"))}>
               {trPending ? "…" : "Transférer"}
             </button>
             {trState.succes && <span className="pg-help">{trState.succes}</span>}
@@ -111,7 +113,7 @@ function ValidateLineRowConnected({
         )}
       </td>
       <td>
-        {line.aPreparer > 0 && line.recipe ? (
+        {line.aPreparer > 0 && line.recipe && !canCreateOf ? <span className="pg-help">Module Production désactivé : validation indisponible.</span> : line.aPreparer > 0 && line.recipe ? (
           <form action={ofAction} className="pg-inline-action">
             <input type="hidden" name="versionId" value={line.recipe.versionId} />
             <input type="hidden" name="siteId" value={labSiteId} />
@@ -163,6 +165,8 @@ export function TomorrowLabConnected({
   restockRequests,
   plan,
   canValidate,
+  canCreateOf = true,
+  canTransfer = true,
 }: {
   targetDate: string;
   boutiqueSites: WorkspaceSite[];
@@ -171,12 +175,17 @@ export function TomorrowLabConnected({
   restockRequests: RestockRequestItem[];
   plan: TomorrowLabPlan | null;
   canValidate: boolean;
+  canCreateOf?: boolean;
+  canTransfer?: boolean;
 }) {
   const [reqState, reqAction, reqPending] = useActionState<JournalState, FormData>(createRestockRequestReal, {});
   const [cancelState, cancelAction, cancelPending] = useActionState<JournalState, FormData>(cancelRestockRequestReal, {});
   const prodById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const openReqs = restockRequests.filter((r) => r.statut === "ouverte");
   const defaultBoutique = boutiqueSites[0]?.id ?? "";
+  // Les besoins sont encore agrégés : ne jamais envoyer le total multi-boutique
+  // vers la première boutique par défaut.
+  const transferBoutique = boutiqueSites.length === 1 && canTransfer ? defaultBoutique : "";
 
   return (
     <div className="pg-stack">
@@ -208,6 +217,8 @@ export function TomorrowLabConnected({
             </div>
           </div>
 
+          {!canTransfer && <p role="status" className="pg-help">Module Transferts désactivé : transfert direct indisponible.</p>}
+          {boutiqueSites.length > 1 && <p role="alert" className="pg-help">Transfert direct indisponible : plusieurs boutiques nécessitent une répartition par site.</p>}
           {plan.lignes.length === 0 ? (
             <p className="pg-help">
               Aucun besoin net détecté pour le {dateLisible(plan.targetDate)}. Saisissez une demande de réassort boutique ci-dessous ou enregistrez vos ventes comptoir.
@@ -231,7 +242,8 @@ export function TomorrowLabConnected({
                       line={line}
                       targetDate={plan.targetDate}
                       labSiteId={labSite?.id ?? ""}
-                      boutiqueSiteId={defaultBoutique}
+                      boutiqueSiteId={transferBoutique}
+                      canCreateOf={canCreateOf}
                     />
                   ))}
                 </tbody>
@@ -246,7 +258,7 @@ export function TomorrowLabConnected({
                 {plan.commandesSurMesure.map((c) => (
                   <li key={c.id}>
                     <strong>{c.numero}</strong> · {c.clientNom} — <strong>{c.nbParts} parts</strong> (retrait{" "}
-                    {dateLisible(c.eventDate, "short")}){c.notes ? ` · ${c.notes}` : ""}
+                    {dateLisible(c.eventDate, "short")}){c.ofNumero ? ` · OF lié ${c.ofNumero}` : ""}{c.notes ? ` · ${c.notes}` : ""}
                   </li>
                 ))}
               </ul>
@@ -612,7 +624,7 @@ export function TomorrowLabDemo({
                 {plan.commandesSurMesure.map((c) => (
                   <li key={c.id}>
                     <strong>{c.numero}</strong> · {c.clientNom} — <strong>{c.nbParts} parts</strong> (événement{" "}
-                    {dateLisible(c.eventDate, "short")}){c.notes ? ` · ${c.notes}` : ""}
+                    {dateLisible(c.eventDate, "short")}){c.ofNumero ? ` · OF lié ${c.ofNumero}` : ""}{c.notes ? ` · ${c.notes}` : ""}
                   </li>
                 ))}
               </ul>

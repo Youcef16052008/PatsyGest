@@ -1,6 +1,7 @@
 import "server-only";
 
 import { canReadCosts, type Role } from "./auth";
+import { recettesPlanValides } from "./tomorrow-recipe-guard";
 import { expandRecipeNeeds, type ImpactArticle, type ImpactRecipeLine, type ImpactRecipeVersion, type UnitConversion } from "./ingredient-impact";
 import {
   computeTomorrowLabPlan,
@@ -23,6 +24,7 @@ export type TomorrowServerBundle = {
   restockRequests: RestockRequestItem[];
   /** Plan complet réservé aux rôles autorisés aux recettes (`proprietaire`, `labo`). */
   plan: TomorrowLabPlan | null;
+  erreur?: string;
 };
 
 /**
@@ -38,12 +40,12 @@ export async function lireDemainAuLabo(
 ): Promise<TomorrowServerBundle> {
   const today = jourUTC();
   const targetDate =
-    requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : plusJours(today, 1);
+    requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) && !Number.isNaN(Date.parse(requestedDate)) && new Date(requestedDate).toISOString().slice(0, 10) === requestedDate ? requestedDate : plusJours(today, 1);
 
   const [sitesRaw, articlesRaw, reqRes] = await Promise.all([
     lireSites(db, clientId),
     lireArticles(db, clientId),
-    // Si la migration 21 n'est pas encore appliquée, `reqRes.error` est ignoré proprement.
+    // Une lecture échouée ne doit jamais devenir une prévision partielle.
     db
       .from("demandes_reassort")
       .select("id, site_id, article_id, date_cible, qte, motif, demandeur, statut")
@@ -84,6 +86,10 @@ export async function lireDemainAuLabo(
         statut: r.statut,
       }));
 
+  if (!sitesRaw || !articlesRaw || reqRes.error || (reqRes.data?.length ?? 0) >= 200) {
+    return {targetDate, sites, boutiqueSites, labSite, products: [], restockRequests: [], plan: null,
+      erreur: "Données de planning indisponibles ou tronquées : aucun plan n’a été calculé."};
+  }
   // Vendeur : pas de lecture des recettes ni du plan de fabrication.
   if (!canReadCosts(role)) {
     return {
@@ -114,7 +120,7 @@ export async function lireDemainAuLabo(
       .limit(200),
     db
       .from("cakes")
-      .select("id, numero, client_nom, date_event, nb_parts, statut, notes")
+      .select("id, numero, client_nom, date_event, nb_parts, statut, notes, of_id")
       .eq("client_id", clientId)
       .eq("statut", "confirme")
       .gte("date_event", targetDate)
@@ -122,6 +128,16 @@ export async function lireDemainAuLabo(
       .limit(100),
   ]);
 
+  if (!lotsRaw || !ventesRes || ventesRes.truncated || versRes.error || convRes.error || ofsRes.error || cakesRes.error ||
+      (versRes.data?.length ?? 0) >= 500 || (convRes.data?.length ?? 0) >= 200 ||
+      (ofsRes.data?.length ?? 0) >= 200 || (cakesRes.data?.length ?? 0) >= 100) {
+    return { targetDate, sites, boutiqueSites, labSite, products: productRows.map(p=>({id:p.id,code:p.code,nom:p.nom,unite:p.unite})), restockRequests, plan: null,
+      erreur: "Sources du plan indisponibles ou tronquées : aucune proposition n’a été calculée." };
+  }
+  if (sites.filter(s=>s.type === 'laboratoire' || s.type === 'labo').length !== 1 || boutiqueSites.length !== 1) {
+    return { targetDate, sites, boutiqueSites, labSite, products: productRows.map(p=>({id:p.id,code:p.code,nom:p.nom,unite:p.unite})), restockRequests, plan: null,
+      erreur: "Le plan demande exactement un laboratoire et une boutique : la répartition multisite doit être validée." };
+  }
   const impactArticles: ImpactArticle[] = articles.map((a) => ({
     id: a.id,
     code: a.code,
@@ -175,6 +191,10 @@ export async function lireDemainAuLabo(
     ];
   });
 
+  if (allVersions.length !== (versRes.data?.length ?? 0) || !recettesPlanValides(allVersions, impactArticles)) {
+    return {targetDate, sites, boutiqueSites, labSite, products: productRows.map(p=>({id:p.id,code:p.code,nom:p.nom,unite:p.unite})), restockRequests, plan:null,
+      erreur:"Une recette comporte des références manquantes, invalides ou cycliques : le plan n’a pas été calculé."};
+  }
   const activeByProduct = new Map<string, ImpactRecipeVersion>();
   for (const v of allVersions) {
     if (!v.active || !v.produitId) continue;
@@ -182,10 +202,12 @@ export async function lireDemainAuLabo(
     if (!prev || v.version > prev.version) activeByProduct.set(v.produitId, v);
   }
 
+  let conversionIncomplete = false;
   const products: TomorrowProduct[] = productRows.map((p) => {
     const ver = activeByProduct.get(p.id);
     if (!ver) return { id: p.id, code: p.code, nom: p.nom, unite: p.unite, seuil: p.seuil, recipe: null };
     const expanded = expandRecipeNeeds({ version: ver, allVersions, articles: impactArticles, conversions });
+    if (expanded.missingConversions.length) conversionIncomplete = true;
     return {
       id: p.id,
       code: p.code,
@@ -210,7 +232,10 @@ export async function lireDemainAuLabo(
     };
   });
 
-  const lots: TomorrowLot[] = (lotsRaw ?? []).map((l) => {
+  if (conversionIncomplete) return {targetDate, sites, boutiqueSites, labSite, products: productRows.map(p=>({id:p.id,code:p.code,nom:p.nom,unite:p.unite})), restockRequests, plan:null,
+    erreur:"Conversion d’unité manquante dans une recette : le plan n’a pas été calculé."};
+
+  const lots: TomorrowLot[] = lotsRaw.filter(l => l.siteId === labSite?.id || l.siteId === boutiqueSites[0].id).map((l) => {
     const s = siteById.get(l.siteId);
     const isLab = s ? s.type === "laboratoire" || s.type === "labo" || (labSite?.id === s.id && s.type !== "boutique") : false;
     return {
@@ -256,6 +281,7 @@ export async function lireDemainAuLabo(
     nb_parts: number;
     statut: string;
     notes: string | null;
+    of_id: string | null;
   }[]).map((c) => ({
     id: c.id,
     numero: c.numero,
@@ -267,13 +293,14 @@ export async function lireDemainAuLabo(
     qty: Number(c.nb_parts),
     nbParts: Number(c.nb_parts),
     notes: c.notes,
+    ofNumero: c.of_id ? "associé" : null,
   }));
 
   const plan = computeTomorrowLabPlan({
     targetDate,
     labSiteId: labSite?.id ?? "labo",
     products,
-    sales: (ventesRes?.rows ?? []).map((v) => ({
+    sales: ventesRes.rows.filter(v => v.siteId === boutiqueSites[0].id).map((v) => ({
       date: v.date,
       siteId: v.siteId,
       source: v.source,

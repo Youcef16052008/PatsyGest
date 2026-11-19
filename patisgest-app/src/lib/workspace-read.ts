@@ -8,7 +8,7 @@ type Rows<T> = { data: T[] | null; error: unknown };
 const PAGE_SIZE = 500;
 // Les quantités et indicateurs ne doivent pas se fonder sur les 100 premières
 // lignes. En cas d'échec d'une page, ne jamais présenter un stock partiel à 0.
-async function lirePages<T>(page: (debut: number, fin: number) => PromiseLike<Rows<T>>): Promise<T[] | null> {
+export async function lirePages<T>(page: (debut: number, fin: number) => PromiseLike<Rows<T>>): Promise<T[] | null> {
   const result: T[] = [];
   for (let offset = 0; offset < 20000; offset += PAGE_SIZE) {
     const { data, error } = await page(offset, offset + PAGE_SIZE - 1);
@@ -28,8 +28,8 @@ export function lireArticles(db: WorkspaceDB, clientId: string, seulementProduit
   });
 }
 /** Lecture sans prix, TVA ni données commerciales pour l'accueil laboratoire. */
-export function lireArticlesQuantites(db: WorkspaceDB, clientId: string) {
-  return lirePages<StockArticle>((start,end) => db.from("articles").select("id, nom, code, niveau, unite, seuil")
+export function lireArticlesQuantites(db: WorkspaceDB, clientId: string, labo = false) {
+  return lirePages<StockArticle>((start,end) => db.from(labo ? "labo_articles" : "articles").select("id, nom, code, niveau, unite, seuil")
     .eq("client_id",clientId).order("nom").order("id").range(start,end).overrideTypes<StockArticle[], {merge:false}>());
 }
 
@@ -42,18 +42,18 @@ export async function lireSites(db: WorkspaceDB, clientId: string): Promise<Work
   return rows?.map(({ id, nom, type }) => ({ id, label: nom, type })) ?? null;
 }
 
-export async function lireLots(db: WorkspaceDB, clientId: string): Promise<StockLot[] | null> {
+export async function lireLots(db: WorkspaceDB, clientId: string, labo = false): Promise<StockLot[] | null> {
   type LotRow = { id: string; article_id: string; site_id: string; numero: string; qte_rest: number; dlc: string | null; bloque: boolean; congele: boolean; date_reception: string };
-  const rows = await lirePages<LotRow>((start, end) => db.from("lots").select("id, article_id, site_id, numero, qte_rest, dlc, bloque, congele, date_reception")
+  const rows = await lirePages<LotRow>((start, end) => db.from(labo ? "labo_lots" : "lots").select("id, article_id, site_id, numero, qte_rest, dlc, bloque, congele, date_reception")
     .eq("client_id", clientId).gt("qte_rest", 0).order("id").range(start, end));
   return rows?.map(l => ({ id: l.id, articleId: l.article_id, siteId: l.site_id, numero: l.numero, qte: Number(l.qte_rest), dlc: l.dlc, bloque: l.bloque, congele: l.congele, recu: l.date_reception })) ?? null;
 }
 
-export async function lireProduction(db: WorkspaceDB, clientId: string, sites: WorkspaceSite[] | null, apercu?: string): Promise<ProductionItem[] | null> {
+export async function lireProduction(db: WorkspaceDB, clientId: string, sites: WorkspaceSite[] | null, apercu?: string, labo = false): Promise<ProductionItem[] | null> {
   type OrderRow = { id: string; numero: string; statut: string; qte_prevue: number; qte_realisee: number; date_prevue: string; site_id: string; titre: string | null; devis: string | null; version: number | null };
   const rows = await lirePages<OrderRow>((start, end) => {
     // Ne pas charger le snapshot complet (ingrédients/coûts) pour le tableau.
-    let select = db.from("ordres_fabrication").select("id, numero, statut, qte_prevue, qte_realisee, date_prevue, site_id, titre:snapshot->>recette, devis:snapshot->>devis, version:snapshot->>version").eq("client_id", clientId);
+    let select = db.from(labo ? "labo_ordres_fabrication" : "ordres_fabrication").select("id, numero, statut, qte_prevue, qte_realisee, date_prevue, site_id, titre:snapshot->>recette, devis:snapshot->>devis, version:snapshot->>version").eq("client_id", clientId);
     if (apercu) select = select.or(`statut.in.(planifie,encours,partiel),date_prevue.gte.${plusJours(apercu, -6)}`);
     return select.order("date_prevue").order("id").range(start, end).overrideTypes<OrderRow[], { merge: false }>();
   });

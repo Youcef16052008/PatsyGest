@@ -7,6 +7,7 @@ import DashboardWorkspace from "@/components/dashboard-workspace";
 import DemoDashboard from "@/components/demo-dashboard";
 import OnboardingPanel from "@/components/onboarding-panel";
 import { CashPanel, lireIdentiteCaisse } from "@/components/cash-workspace";
+import { lireModulesDesactives } from "@/lib/modules-access";
 import PilotDashboard from "@/components/pilot-dashboard";
 import { Notice } from "@/components/workspace-ui";
 
@@ -25,12 +26,16 @@ export default async function Dashboard() {
   const { clientId } = ctx;
   if (ctx.role === "proprietaire" || ctx.role === "labo") {
     const owner=ctx.role === "proprietaire";
+    const disabled = await lireModulesDesactives(ctx);
+    if (disabled === null) return <Notice kind="warning">Les autorisations ne sont pas disponibles. Contactez le propriétaire.</Notice>;
+    const stocksOn=!disabled.has('stocks'), productionOn=!disabled.has('production');
+    const salesOn=owner&&!disabled.has('caisse'), closingOn=owner&&!disabled.has('cloture');
     const sitesPromise=lireSites(db,clientId);
     const [articles,lots,sites,orders,ventes,close] = await Promise.all([
-      lireArticlesQuantites(db,clientId), lireLots(db,clientId), sitesPromise,
-      sitesPromise.then(s=>lireProduction(db,clientId,s,today)),
-      owner ? lireVentesPeriode(db,clientId,plusJours(today,-13),today) : null,
-      owner ? db.from("clotures").select("site_id, caisse_bilan, revision").eq("client_id",clientId).eq("date_cloture",today).limit(1000) : null,
+      stocksOn ? lireArticlesQuantites(db,clientId,ctx.role === "labo") : null, stocksOn ? lireLots(db,clientId,ctx.role === "labo") : null, sitesPromise,
+      productionOn ? sitesPromise.then(s=>lireProduction(db,clientId,s,today,ctx.role === "labo")) : null,
+      salesOn ? lireVentesPeriode(db,clientId,plusJours(today,-13),today) : null,
+      closingOn ? db.from("clotures").select("site_id, caisse_bilan, revision").eq("client_id",clientId).eq("date_cloture",today).limit(1000) : null,
     ]);
     const boutiques=sites?.filter(s=>s.type==='boutique');
     const closing=owner && boutiques && close && !close.error && (close.data?.length??0)<1000 ? boutiques.map(s=>{

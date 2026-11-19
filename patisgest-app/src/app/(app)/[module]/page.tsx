@@ -1,3 +1,5 @@
+import LabWorkspace from "@/components/lab-workspace";
+import { lireModulesDesactives } from "@/lib/modules-access";
 import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { canReadCosts, canWrite, requireSession } from "@/lib/auth";
@@ -85,30 +87,25 @@ function estTableCout(table: string): table is keyof typeof tablesCout {
   return Object.hasOwn(tablesCout, table);
 }
 
-async function buildQualiteAlerts(supabase: Awaited<ReturnType<typeof createClient>>, clientId: string): Promise<AlerteQualite[]> {
-  const [tRes, nRes, ncRes, lRes, tkRes] = await Promise.all([
-    supabase.from('releve_temperatures').select('frigo_nom, date_releve, temperature, seuil_max').eq('client_id', clientId).order('date_releve', { ascending: false }).limit(300),
-    supabase.from('nettoyages').select('zone, date_nettoyage, fait').eq('client_id', clientId).order('date_nettoyage', { ascending: false }).limit(200),
-    supabase.from('non_conformites').select('type, lot_numero, statut, date_nc').eq('client_id', clientId).order('date_nc', { ascending: false }).limit(200),
-    supabase.from('lots').select('numero, dlc, qte_rest, bloque, articles!inner(code, nom)').eq('client_id', clientId).gt('qte_rest', 0).order('dlc').limit(500),
-    supabase.from('taches_planning').select('tache, date_tache, fait').eq('client_id', clientId).order('date_tache', { ascending: false }).limit(200),
+async function buildQualiteAlerts(supabase: Awaited<ReturnType<typeof createClient>>, clientId: string, labo: boolean): Promise<AlerteQualite[] | null> {
+  const [tRes,nRes,ncRes,lotRes,articleRes,tkRes]=await Promise.all([
+    supabase.from('releve_temperatures').select('frigo_nom,date_releve,temperature,seuil_max').eq('client_id',clientId).order('date_releve',{ascending:false}).limit(300),
+    supabase.from('nettoyages').select('zone,date_nettoyage,fait').eq('client_id',clientId).order('date_nettoyage',{ascending:false}).limit(200),
+    supabase.from('non_conformites').select('type,lot_numero,statut,date_nc').eq('client_id',clientId).order('date_nc',{ascending:false}).limit(200),
+    supabase.from(labo?'labo_lots':'lots').select('numero,dlc,qte_rest,bloque,article_id').eq('client_id',clientId).gt('qte_rest',0).order('dlc').limit(500),
+    supabase.from(labo?'labo_articles':'articles').select('id,code,nom').eq('client_id',clientId).limit(1000),
+    supabase.from('taches_planning').select('tache,date_tache,fait').eq('client_id',clientId).order('date_tache',{ascending:false}).limit(200),
   ]);
-  type ArtEmb = { code: string; nom: string };
-  const lots = (((lRes.data ?? []) as { numero: string; dlc: string | null; qte_rest: number; bloque: boolean; articles: ArtEmb | ArtEmb[] }[]))
-    .map(l => ({ ...l, art: Array.isArray(l.articles) ? l.articles[0] : l.articles }))
-    .filter(l => l.art)
-    .map(l => ({ numero: l.numero, code: l.art.code, nom: l.art.nom, dlc: l.dlc, qteRest: l.qte_rest, bloque: l.bloque }));
+  if(tRes.error||nRes.error||ncRes.error||lotRes.error||articleRes.error||tkRes.error) return null;
+  const articles=new Map((articleRes.data??[]).map(a=>[a.id,a]));
+  const lots=(lotRes.data??[]).flatMap(l=>{const a=articles.get(l.article_id);return a?[{numero:l.numero,code:a.code,nom:a.nom,dlc:l.dlc,qteRest:l.qte_rest,bloque:l.bloque}]:[];});
   return computeQualityAlerts({
-    today: new Date().toISOString().slice(0, 10),
-    temperatures: ((tRes.data ?? []) as { frigo_nom: string; date_releve: string; temperature: number; seuil_max: number }[])
-      .map(t => ({ frigoNom: t.frigo_nom, dateReleve: t.date_releve, temperature: t.temperature, seuilMax: t.seuil_max })),
-    nettoyages: ((nRes.data ?? []) as { zone: string; date_nettoyage: string; fait: boolean }[])
-      .map(n => ({ zone: n.zone, dateNettoyage: n.date_nettoyage, fait: n.fait })),
-    nonConformites: ((ncRes.data ?? []) as { type: string; lot_numero: string | null; statut: string; date_nc: string }[])
-      .map(n => ({ type: n.type, lotNumero: n.lot_numero, statut: n.statut, dateNc: n.date_nc })),
+    today: new Date().toISOString().slice(0,10),
+    temperatures: (tRes.data??[]).map(t=>({frigoNom:t.frigo_nom,dateReleve:t.date_releve,temperature:t.temperature,seuilMax:t.seuil_max})),
+    nettoyages: (nRes.data??[]).map(n=>({zone:n.zone,dateNettoyage:n.date_nettoyage,fait:n.fait})),
+    nonConformites: (ncRes.data??[]).map(n=>({type:n.type,lotNumero:n.lot_numero,statut:n.statut,dateNc:n.date_nc})),
     lots,
-    taches: ((tkRes.data ?? []) as { tache: string; date_tache: string; fait: boolean }[])
-      .map(t => ({ tache: t.tache, dateTache: t.date_tache, fait: t.fait })),
+    taches: (tkRes.data??[]).map(t=>({tache:t.tache,dateTache:t.date_tache,fait:t.fait})),
   });
 }
 
@@ -130,10 +127,15 @@ export default async function ModulePage({ params, searchParams }: {
   const {module} = await params;
   if (!Object.hasOwn(modules,module)) notFound();
   const key=module as Module, info=modules[key], ctx=await requireSession();
+  const modulesDesactives = await lireModulesDesactives(ctx);
+  if (modulesDesactives === null) return <p role="alert">Les autorisations sont indisponibles. Réessayez ou contactez le propriétaire.</p>;
+  if (modulesDesactives.has(key)) return <p role="alert">Ce module est désactivé pour votre compte. Contactez le propriétaire.</p>;
   const coutsAutorises = canReadCosts(ctx.role);
-  if (modulesCout.has(key) && !coutsAutorises) redirect('/tableau-de-bord');
+  if (modulesCout.has(key) && !coutsAutorises && !(ctx.role === 'labo' && key === 'recettes')) redirect('/tableau-de-bord');
   const recherche = await searchParams;
   const filtre = recherche.filtre === 'alerte' ? 'alerte' : undefined;
+  if (ctx.mode === 'supabase' && ctx.role === 'labo' && (key === 'recettes' || key === 'cake-design' || key === 'achats' || key === 'transferts' || key === 'tracabilite' || key === 'planning')) return <LabWorkspace module={key} ctx={ctx} disabled={modulesDesactives} requestedDate={firstParam(recherche.demain)}/>;
+  if (ctx.mode === 'supabase' && ctx.role === 'labo' && !['stocks','production','qualite'].includes(key)) return <p role="alert">Ce module n’est pas encore disponible en vue laboratoire sans données financières.</p>;
   if (ctx.mode === 'pilote-local') return <DemoModule module={key} role={ctx.role} filtre={filtre} shop={ctx.clientNom}/>;
   const tables = info.tables.filter(([table]) => coutsAutorises || !estTableCout(table));
   const cleGuide = coutsAutorises && canWrite(ctx.role) ? etapePourModule(key, recherche.guide) : undefined;
@@ -296,24 +298,25 @@ export default async function ModulePage({ params, searchParams }: {
     // + rappels qualité calculés côté serveur.
     const ncRows=((results.find(r=>r.label==='Non-conformités')?.data??[]) as {id:string;statut:string;type:string;description:string;action:string}[])
       .map(n=>({id:n.id,statut:n.statut,type:n.type,description:n.description,action:n.action}));
-    const alertes=await buildQualiteAlerts(supabase, ctx.clientId);
-    writeForms=<><QualityAlertsPanel alerts={alertes}/><QualityForms ncs={ncRows}/></>;
+    const alertes=await buildQualiteAlerts(supabase, ctx.clientId, ctx.role === 'labo');
+    writeForms=<>{alertes ? <QualityAlertsPanel alerts={alertes}/> : <p role="alert">Alertes qualité indisponibles : vérifiez la connexion et les autorisations.</p>}<QualityForms ncs={ncRows}/></>;
   } else if (key==='qualite') {
     // Rappels qualité visibles même en lecture (vendeur).
-    const alertes=await buildQualiteAlerts(supabase, ctx.clientId);
-    writeForms=<QualityAlertsPanel alerts={alertes}/>;
+    const alertes=await buildQualiteAlerts(supabase, ctx.clientId, ctx.role === 'labo');
+    writeForms=alertes ? <QualityAlertsPanel alerts={alertes}/> : <p role="alert">Alertes qualité indisponibles : vérifiez la connexion et les autorisations.</p>;
   } else if (key==='planning') {
     // « Demain au labo » (propriétaire/labo) + demandes de réassort boutique (tous rôles, y compris vendeur).
     const rawDate = firstParam(recherche.demain);
     const targetDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : plusJours(jourUTC(), 1);
     const demainData = await lireDemainAuLabo(supabase, ctx.clientId, ctx.role, targetDate);
+    const planningSourcesDesactivees = ["stocks", "recettes", "production", "caisse", "cake-design"].some(m=>modulesDesactives.has(m));
     const tomorrowProps = {
       targetDate: demainData.targetDate,
       boutiqueSites: demainData.boutiqueSites,
       labSite: demainData.labSite,
       products: demainData.products,
       restockRequests: demainData.restockRequests,
-      plan: demainData.plan,
+      plan: planningSourcesDesactivees ? null : demainData.plan,
     };
     if (canWrite(ctx.role)) {
       const [tasksRes,ofsRes]=await Promise.all([
@@ -321,7 +324,8 @@ export default async function ModulePage({ params, searchParams }: {
         supabase.from('ordres_fabrication').select('numero').eq('client_id',ctx.clientId).order('numero',{ascending:false}).limit(50),
       ]);
       writeForms=<>
-        <TomorrowLabConnected {...tomorrowProps} canValidate={canReadCosts(ctx.role)} />
+        {(demainData.erreur || planningSourcesDesactivees) && <p role="alert">{demainData.erreur ?? "Plan indisponible : un module source est désactivé."}</p>}
+        <TomorrowLabConnected {...tomorrowProps} canValidate={canReadCosts(ctx.role)} canCreateOf={!modulesDesactives.has("production")} canTransfer={!modulesDesactives.has("transferts")} />
         <PlanningForms
           tasks={((tasksRes.data??[]) as {id:string;date_tache:string;tache:string;of_numero:string;fait:boolean}[]).map(t=>({id:t.id,date:t.date_tache,tache:t.tache,ofNumero:t.of_numero,fait:t.fait}))}
           ofNumeros={((ofsRes.data??[]) as {numero:string}[]).map(o=>o.numero)}

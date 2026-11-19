@@ -86,7 +86,9 @@ test('sécu : les URL de coût sont protégées avant tout rendu ou lecture mét
   const rendu = page.slice(page.indexOf('export default async function ModulePage'));
   assert.match(page, /const modulesCout\s*=\s*new Set<Module>\(\[\s*'recettes',\s*'simulation'\s*\]\)/);
   const role = rendu.search(/const coutsAutorises\s*=\s*canReadCosts\(ctx\.role\)/);
-  const garde = rendu.search(/if\s*\(modulesCout\.has\(key\)\s*&&\s*!coutsAutorises\)\s*redirect\('\/tableau-de-bord'\)/);
+  const garde = rendu.search(/if\s*\(modulesCout\.has\(key\)\s*&&\s*!coutsAutorises[^\n]+redirect\('\/tableau-de-bord'\)/);
+  assert.match(rendu, /ctx\.role === 'labo' && key === 'recettes'/);
+  assert.match(rendu, /return <LabWorkspace module=\{key\} ctx=\{ctx\}/);
   assert.ok(role >= 0 && role < garde, 'la redirection doit dépendre du rôle de session');
   for (const premier of ['<DemoModule', 'await createClient()', 'supabase.from(']) {
     assert.ok(garde < rendu.indexOf(premier), `garde absente ou après ${premier}`);
@@ -310,14 +312,15 @@ test('sécu : la restauration est SECURITY DEFINER mais gardée', () => {
 
 test('sécu : inventaire et production projettent les quantités sans coûts ni snapshots pour le vendeur', () => {
   const queries = read('src/lib/workspace-read.ts');
-  const lots = queries.match(/\.from\("lots"\)\.select\("([^"]+)"\)/)?.[1];
+  const lots = queries.match(/\.from\(labo \? "labo_lots" : "lots"\)\.select\("([^"]+)"\)/)?.[1];
   assert.ok(lots?.includes('qte_rest'));
   assert.doesNotMatch(lots, /\bpu\b|\*/);
   assert.match(queries, /titre:snapshot->>recette/);
   assert.doesNotMatch(queries, /cout_reel|besoins|consommations/);
   const prod = read('src/components/production-workspace.tsx');
-  assert.match(prod, /const canEdit = canReadCosts\(ctx\.role\) && canWrite\(ctx\.role\)/);
-  assert.match(prod, /canEdit \? db\.from\("recette_versions"\)/);
+  assert.match(prod, /const canEdit = canWrite\(ctx\.role\)/);
+  assert.match(prod, /canEdit && !labo \? db\.from\("recette_versions"\)/);
+  assert.match(prod, /db\.from\("labo_recette_versions"\)/);
   const stocks = read('src/components/stock-workspace.tsx');
   assert.match(stocks, /peutEcrire && canReadCosts\(ctx\.role\)\s*\? db\.from\("recette_familles"\)/);
 });

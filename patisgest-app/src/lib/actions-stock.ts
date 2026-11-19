@@ -138,17 +138,25 @@ export async function transferReal(_prev: TransferState, formData: FormData): Pr
       return { erreur: messageUtilisateur(error, "Transfert refusé") };
     }
     const r = data as { transfert_id?: string; ref?: string; lots?: number } | null;
-    if (demandesIds.length > 0 && r?.transfert_id) {
-      await supabase.rpc("traiter_demandes_reassort", {
-        p_ids: demandesIds,
-        p_statut: "transferee",
-        p_transfert_id: r.transfert_id,
-      });
+    let demandesNonMisesAJour = false;
+    if (demandesIds.length > 0) {
+      if (!r?.transfert_id) demandesNonMisesAJour = true;
+      else {
+        try {
+        const suivi = await supabase.rpc("traiter_demandes_reassort", {
+          p_ids: demandesIds,
+          p_statut: "transferee",
+          p_transfert_id: r.transfert_id,
+        });
+        demandesNonMisesAJour = Boolean(suivi.error);
+        } catch { demandesNonMisesAJour = true; }
+      }
     }
     revalidatePath("/transferts");
     revalidatePath("/planning");
     revalidatePath("/production");
     revalidatePath("/stocks");
+    if (demandesNonMisesAJour) return { erreur: `Transfert ${r?.ref ?? ""} effectué, mais demandes non mises à jour. Ne recommencez pas le transfert ; vérifiez le suivi.` };
     return {
       succes:
         `Transfert enregistré (${r?.ref}) — ${r?.lots ?? 0} lot(s) éligible(s) déplacé(s) en FEFO` +

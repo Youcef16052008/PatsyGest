@@ -113,9 +113,10 @@ export async function finishOf(_prev: OfState, formData: FormData): Promise<OfSt
     const r = data as { lot_id?: string; cout_unitaire?: number; statut?: string; lot_bloque?: boolean } | null;
     revalidatePath("/production");
     revalidatePath("/stocks");
+    const ctx = await getSessionContext();
     return {
       succes:
-        `Production enregistrée — lot créé au coût unitaire ${r?.cout_unitaire} (coûts connus), statut ${r?.statut}.` +
+        (ctx?.role === "labo" ? `Production enregistrée — lot créé, statut ${r?.statut}.` : `Production enregistrée — lot créé au coût unitaire ${r?.cout_unitaire} (coûts connus), statut ${r?.statut}.`) +
         (r?.lot_bloque ? " Lot bloqué automatiquement (lot consommé bloqué)." : ""),
     };
   } catch {

@@ -133,6 +133,7 @@ export async function validateTomorrowLineReal(_prev: JournalState, formData: Fo
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(datePrevue)) return { erreur: "Date prévue invalide." };
   if (!Number.isFinite(qte) || qte <= 0 || qte > 100_000_000) return { erreur: "Quantité à préparer invalide." };
+  if (!clientRef) return { erreur: "Référence de validation invalide : actualisez le plan avant de réessayer." };
 
   try {
     const supabase = await createClient();
@@ -146,16 +147,24 @@ export async function validateTomorrowLineReal(_prev: JournalState, formData: Fo
     if (error) return { erreur: mapError(error) };
     const r = data as { of_id?: string; id?: string; numero?: string; duplicate?: boolean } | null;
     const ofId = r?.of_id ?? r?.id ?? null;
+    let demandesNonMisesAJour = false;
     if (demandesIds.length > 0) {
-      await supabase.rpc("traiter_demandes_reassort", {
-        p_ids: demandesIds,
-        p_statut: "planifiee",
-        p_of_id: ofId,
-      });
+      if (!ofId) demandesNonMisesAJour = true;
+      else {
+        try {
+        const suivi = await supabase.rpc("traiter_demandes_reassort", {
+          p_ids: demandesIds,
+          p_statut: "planifiee",
+          p_of_id: ofId,
+        });
+        demandesNonMisesAJour = Boolean(suivi.error);
+        } catch { demandesNonMisesAJour = true; }
+      }
     }
     revalidatePath("/planning");
     revalidatePath("/production");
     revalidatePath("/tableau-de-bord");
+    if (demandesNonMisesAJour) return { erreur: `OF ${r?.numero ?? ""} créé ou déjà existant, mais les demandes ne sont pas mises à jour. Vérifiez leur suivi avant toute nouvelle action.` };
     if (r?.duplicate) {
       return { succes: `OF ${r.numero ?? ""} déjà créé pour cette ligne (aucun doublon).` };
     }
@@ -459,7 +468,8 @@ export async function evolveCakeReal(_prev: JournalState, formData: FormData): P
     const r = data as { statut?: string; balance?: number } | null;
     revalidatePath("/cake-design");
     revalidatePath("/production");
-    return { succes: `OK — statut ${r?.statut}${r?.balance !== undefined ? `, solde ${r.balance}` : ""}.` };
+    const ctx = await getSessionContext();
+    return { succes: `OK — statut ${r?.statut}${ctx?.role !== "labo" && r?.balance !== undefined ? `, solde ${r.balance}` : ""}.` };
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur." };
   }

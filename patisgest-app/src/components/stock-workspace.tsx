@@ -13,7 +13,7 @@ export default async function StockWorkspace({ ctx, db, filtre }: { ctx: Session
   const { clientId } = ctx;
   const peutEcrire = canWrite(ctx.role);
   const [articles, lots, sites, fournisseurs, recettes] = await Promise.all([
-    lireArticles(db, clientId), lireLots(db, clientId), lireSites(db, clientId),
+    ctx.role === "labo" ? db.from("labo_articles").select("id, nom, code, niveau, unite, seuil, allergenes, traces").eq("client_id",clientId).order("nom").limit(1000).then(r=>r.error ? null : (r.data??[]).map(a=>({...a,pv_ht:0,tva:0}))) : lireArticles(db, clientId), lireLots(db, clientId, ctx.role === "labo"), lireSites(db, clientId),
     peutEcrire ? db.from("fournisseurs").select("id, nom").eq("client_id", clientId).order("nom") : null,
     peutEcrire && canReadCosts(ctx.role)
       ? db.from("recette_familles").select("id, produit_id, recette_versions!inner(id, ingredients)").eq("client_id", clientId).eq("recette_versions.active", true)
@@ -46,10 +46,11 @@ export default async function StockWorkspace({ ctx, db, filtre }: { ctx: Session
       {peutEcrire && <div id="gerer-stocks" className="pg-stack">
         <StockWriteForms articles={(articles ?? []).map(a => ({ id: a.id, label: `${a.nom} · ${a.code}` }))}
           sites={sites ?? []} fournisseurs={(fournisseurs?.data ?? []).map(f => ({ id: f.id, label: f.nom }))}/>
-        {produits.length > 0 && <Disclosure title="Étiquettes produit" description="Ingrédients, allergènes, lot et DLC." icon="print">
+        {produits.length > 0 && ctx.role !== "labo" && <Disclosure title="Étiquettes produit" description="Ingrédients, allergènes, lot et DLC." icon="print">
           {recettes?.error || !lots ? <Notice kind="warning">Les recettes ou les lots n’ont pas pu être chargés. Vérifiez la connexion avant de préparer des étiquettes.</Notice> :
             <LabelMaker produits={produits} recipes={ingredients} lots={lotsParProduit} allergenes={allergenes}/>}
         </Disclosure>}
+        {ctx.role === "labo" && <Notice kind="warning">Les étiquettes avec ingrédients ne sont pas encore disponibles en vue laboratoire.</Notice>}
       </div>}
     </div>
   </>;

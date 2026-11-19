@@ -1,5 +1,6 @@
 import { requireSession, ROLE_LABELS } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import ModulesSettings, { type ModulesCompte } from "@/components/modules-settings";
 import EtablissementForm from "@/components/etablissement-form";
 import SauvegardePanel from "@/components/sauvegarde-panel";
 import AppearancePicker from "@/components/appearance";
@@ -51,6 +52,17 @@ export default async function Parametres() {
     }
   }
 
+  let accounts:ModulesCompte[]=[];
+  let modulesError=false;
+  if(ctx.role==='proprietaire' && ctx.mode==='supabase') {
+    try {
+      const db=await createClient();
+      const {data,error}=await db.rpc('lister_acces_modules');
+      modulesError=!!error || !Array.isArray(data);
+      accounts=(data??[]) as ModulesCompte[];
+    } catch { modulesError=true; }
+  }
+
   return (
     <div>
       <PageIntro title="Paramètres" description={`${ctx.clientNom} · ${ROLE_LABELS[ctx.role]}`}/>
@@ -62,6 +74,7 @@ export default async function Parametres() {
         {ctx.role === "proprietaire" ? (
           <>
             <EtablissementForm etablissement={etablissement} />
+            {ctx.mode==='supabase' ? <ModulesSettings accounts={accounts} error={modulesError}/> : <section className="pg-card pg-card-pad mt-6"><h2>Accès aux modules</h2><p>Disponible en établissement connecté. La démo locale ne protège pas les données par compte.</p></section>}
             {ctx.mode === "supabase" ? (
               <SauvegardePanel />
             ) : (

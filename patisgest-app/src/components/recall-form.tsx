@@ -77,7 +77,7 @@ export default function RecallForm({ lots }: { lots: Option[] }) {
               items={
                 <ul className="space-y-0.5">
                   {report.ventes.map((v) => (
-                    <li key={v.ticket}>{v.ticket} · {new Date(v.date_vente).toLocaleDateString("fr-FR")} · {Number(v.total_ht).toFixed(2)} DA</li>
+                    <li key={v.ticket}>{v.ticket} · {new Date(v.date_vente).toLocaleDateString("fr-FR")}{v.total_ht != null ? ` · ${Number(v.total_ht).toFixed(2)} DA` : ""}</li>
                   ))}
                 </ul>
               } />

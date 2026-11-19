@@ -4,6 +4,7 @@ import { ROLE_LABELS, canReadCosts, requireSession } from "@/lib/auth";
 import { logout } from "@/lib/actions-auth";
 import { WORKSPACE_LINKS } from "@/lib/workspace-nav";
 import AppearancePicker, { QuickColorMode } from "@/components/appearance";
+import { lireModulesDesactives } from "@/lib/modules-access";
 import WorkspaceNav from "@/components/workspace-nav";
 import { DemoWorkspaceProvider } from "@/components/demo-workspace";
 import { Icon } from "@/components/workspace-icons";
@@ -13,7 +14,8 @@ const navCouts = new Set(["/recettes", "/simulation"]);
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const ctx = await requireSession();
-  const nav = WORKSPACE_LINKS.filter(({ href }) => !navCouts.has(href) || canReadCosts(ctx.role));
+  const disabled = await lireModulesDesactives(ctx);
+  const nav = WORKSPACE_LINKS.filter(({ href }) => (!navCouts.has(href) || canReadCosts(ctx.role) || (ctx.role === "labo" && href === "/recettes")) && (href === '/parametres' || href === '/tableau-de-bord' || (disabled !== null && !disabled.has(href.slice(1)))));
   const demo = ctx.mode === "pilote-local";
   return <div className="pg-shell">
     <a href="#contenu" className="pg-skip">Aller au contenu</a>
