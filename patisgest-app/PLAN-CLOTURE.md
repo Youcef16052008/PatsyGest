@@ -6,7 +6,8 @@ migrations jusqu'à 23. L'inventaire n'est pas une certification de sécurité.
 Ne pas activer de comptes ni fusionner avant les critères ci-dessous. Les tests
 métier et de sécurité se font sur la pile Supabase CLI jetable, jamais avec des
 écritures de test dans le pilote. Voir `SECURITE-MODULES-EN-COURS.md` et
-`AUDIT-PHASE-1.md` pour les détails.
+`AUDIT-PHASE-1.md` et `CERTIFICATION-PHASES-2-3.md` pour les détails et les
+critères de certification encore bloqués.
 
 ## Phase 1 — état des lieux et garde-fous (inventaire terminé)
 
