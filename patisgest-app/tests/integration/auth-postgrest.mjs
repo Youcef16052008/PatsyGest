@@ -18,6 +18,10 @@ const sql = postgres(DB_URL, { max: 1, onnotice: () => {} });
 const admin = createClient(API_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 const client = () => createClient(API_URL, ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 const ok = ({ data, error }, context) => { assert.ifError(error && new Error(`${context}: ${error.message}`)); return data; };
+const denied = (result, message) => {
+  assert.ok(result.error, `Rejet attendu : ${message}`);
+  assert.match(result.error.message, new RegExp(message, 'i'));
+};
 const A = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', B = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const site = 'dddddddd-dddd-dddd-dddd-dddddddddddd', article = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
 const ids = ['11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','44444444-4444-4444-4444-444444444444'];
@@ -72,11 +76,13 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.equal(ok(await other.from('articles').select('*'), 'Isolation autre propriétaire').length, 0);
   assert.equal(ok(await other.from('labo_articles').select('*'), 'Isolation vue labo').length, 0);
   assert.equal(ok(await seller.from('clients').select('id'), 'Client vendeur')[0].id, A);
-  assert.ok((await lab.rpc('modifier_acces_module',{p_utilisateur_id:ids[1],p_module:'qualite',p_actif:false})).error);
-  assert.ok((await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[3],p_module:'qualite',p_actif:false})).error);
+  denied(await lab.rpc('modifier_acces_module',{p_utilisateur_id:ids[1],p_module:'qualite',p_actif:false}), 'Reserve au proprietaire');
+  denied(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[3],p_module:'qualite',p_actif:false}), 'Compte introuvable');
   ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[1],p_module:'qualite',p_actif:false}), 'Désactiver qualité');
   assert.ok(ok(await lab.rpc('mes_modules_desactives'), 'Modules du labo').includes('qualite'));
-  assert.ok((await lab.rpc('maj_non_conformite',{p_id:null,p_statut:'corrige',p_action:'test'})).error);
+  denied(await lab.rpc('maj_non_conformite',{p_id:null,p_statut:'corrige',p_action:'test'}), 'Module desactive');
+  assert.equal(ok(await lab.from('parametres_couts').select('*'), 'Coûts bruts labo').length,0);
+  assert.ok((await lab.from('parametres_couts').insert({client_id:A,taux_horaire:123})).error);
   const lot = ok(await lab.rpc('receptionner_lot',{p_article_id:article,p_site_id:site,p_numero:'LOT1',p_qte:5,p_pu:12}), 'Réception labo');
   assert.ok(lot);
   assert.equal(ok(await lab.from('labo_lots').select('qte_rest'), 'Lots labo').length, 1);
@@ -97,6 +103,9 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   await sql`insert into articles(id,client_id,code,nom,niveau,unite,pv_ht,tva) values (${product},${A},'P1','Gâteau','produit','pcs',100,19)`;
   const famille = ok(await lab.rpc('creer_famille',{p_code:'REC',p_nom:'Recette',p_produit_id:product}), 'Famille recette');
   const version = ok(await lab.rpc('creer_version',{p_famille_id:famille.famille_id,p_rendement_qte:10,p_rendement_unite:'pcs',p_lignes:[{articleId:article,q:1,u:'kg',parage:0}],p_notes:null,p_mo_min:1,p_energie:2,p_emballage:3,p_frais_generaux:4,p_cuisson_perte_pct:0,p_active:true}), 'Version recette');
+  await sql`update recette_versions set ingredients=jsonb_set(ingredients,'{0,secret_financier}',to_jsonb(9999),true) where id=${version.version_id}`;
+  const safeRecipe = ok(await lab.from('labo_recette_versions').select('ingredients').eq('id',version.version_id).single(), 'Recette expurgée');
+  assert.equal(safeRecipe.ingredients[0].q,1); assert.equal('secret_financier' in safeRecipe.ingredients[0],false);
   const order = ok(await lab.rpc('creer_of',{p_version_id:version.version_id,p_site_id:site,p_qte_prevue:10,p_date_prevue:'2099-01-01',p_client_ref:'test-of'}), 'Créer OF');
   ok(await lab.rpc('demarrer_of',{p_of_id:order.of_id}), 'Démarrer OF');
   const partial = ok(await lab.rpc('terminer_of',{p_of_id:order.of_id,p_qte:5,p_numero_lot:'GATEAU-1',p_dlc:'2099-01-01'}), 'OF partiel');
@@ -113,10 +122,14 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   const salesView = ok(await lab.from('labo_ventes_quantites').select('*'), 'Ventes expurgées');
   assert.equal(salesView.length,1); assert.equal('total_ttc' in salesView[0],false);
   assert.equal('pu' in salesView[0].lignes[0],false);
-  assert.ok((await lab.rpc('vendre_panier',{p_site_id:site,p_lignes:[],p_ticket:'X',p_mode_paiement:'especes'})).error);
+  denied(await lab.rpc('vendre_panier',{p_site_id:site,p_lignes:[],p_ticket:'X',p_mode_paiement:'especes'}), 'Reserve au comptoir');
   assert.ok((await lab.rpc('patisgest_terminer_of_interne',{p_of_id:ids[0],p_qte:1,p_numero_lot:'X',p_dlc:'2099-01-01'})).error);
+  ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[1],p_module:'planning',p_actif:false}), 'Désactiver planning');
+  assert.equal(ok(await lab.from('labo_ventes_quantites').select('*'), 'Planning désactivé').length,0);
   const anon = client();
   assert.ok((await anon.rpc('modifier_acces_module',{p_utilisateur_id:ids[1],p_module:'qualite',p_actif:true})).error);
+  const forged = await fetch(`${API_URL}/rest/v1/articles`,{headers:{apikey:ANON_KEY,Authorization:'Bearer invalid.jwt.signature'}});
+  assert.equal(forged.status,401);
  } finally {
   await sql.end();
  }
