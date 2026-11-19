@@ -58,10 +58,15 @@ et la migration brouillon `26-gestion-sites.sql` sont préparées : elles ne son
 pas déployées ; 26 réserve l'écriture des sites au propriétaire, mais **ne
 restreint pas les employés aux sites qui leur seraient attribués**.
 
-Il n'existe actuellement ni système d'invitation/demande et approbation, ni
-attribution des sites, ni révocation complète d'un employé. Un compte Auth sans
-ligne `utilisateurs` ne constitue pas un accès à l'établissement, mais ce
-constat ne remplace pas une procédure d'admission. Les RLS actuelles isolent
+La migration brouillon `27-equipe-fondations.sql` prépare les demandes, les
+invitations et la table d'attribution des sites. Les demandes sont liées à
+l'identité Auth et à une adresse vérifiée ; les invitations ne sont visibles
+qu'au compte Auth portant cette adresse. **Aucune fonction d'approbation ou
+d'activation n'existe encore**, et aucune invitation n'est envoyée par e-mail :
+cette fondation n'est pas une fonctionnalité prête. La révocation complète d'un
+employé reste aussi à réaliser. Un compte Auth sans ligne `utilisateurs` ne
+constitue pas un accès à l'établissement, mais ce constat ne remplace pas une
+procédure d'admission. Les RLS actuelles isolent
 par client, pas par site ; de nombreuses RPC `SECURITY DEFINER` contournent les
 policies. Certaines vues labo sont elles aussi exécutées avec les droits de leur
 propriétaire, et des tables n'ont pas de colonne site. Il serait dangereux de

@@ -90,6 +90,29 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.ok((await lab.from('sites').insert({client_id:A,nom:'Non autorisé',type:'boutique'})).error, 'Labo ne crée pas de site');
   assert.equal(ok(await lab.from('sites').update({nom:'Non autorisé'}).eq('id',newSite.id).select('id'), 'Modification labo refusée').length,0);
   assert.equal(ok(await other.from('sites').update({nom:'Autre client'}).eq('id',newSite.id).select('id'), 'Modification inter-client refusée').length,0);
+
+  // Fondations d'adhésion uniquement : aucune RPC ne peut encore activer
+  // l'accès tant que l'isolation par site n'est pas terminée.
+  const code = ok(await owner.rpc('equipe_code',{p_renouveler:false}), 'Code de demande');
+  denied(await pending.rpc('equipe_demander',{p_code:code,p_nom:'Personne',p_role:'proprietaire'}), 'Demande invalide');
+  ok(await pending.rpc('equipe_demander',{p_code:code,p_nom:'Personne',p_role:'vendeur'}), 'Demande avec identité Auth vérifiée');
+  const demands = ok(await owner.rpc('equipe_lister_demandes'), 'Demandes du propriétaire');
+  assert.equal(demands.length,1); assert.equal(demands[0].email,'non-approuve@example.test');
+  assert.equal(ok(await other.rpc('equipe_lister_demandes'), 'Demandes autre établissement').length,0);
+  assert.ok((await pending.from('equipe_demandes').select('*')).error);
+  denied(await other.rpc('equipe_refuser_demande',{p_id:demands[0].id}), 'Demande introuvable');
+  denied(await lab.rpc('equipe_code',{p_renouveler:false}), 'Reserve au proprietaire');
+  assert.ok((await owner.rpc('equipe_inviter',{p_email:'non-approuve@example.test',p_nom:'Personne',p_role:'vendeur',p_sites:[site]})).error, 'Un vendeur ne peut être affecté à un laboratoire');
+  ok(await owner.rpc('equipe_inviter',{p_email:'non-approuve@example.test',p_nom:'Personne',p_role:'vendeur',p_sites:[newSite.id]}), 'Invitation propriétaire');
+  const invites = ok(await pending.rpc('equipe_mes_invitations'), 'Invitation pour adresse vérifiée');
+  assert.equal(invites.length,1); assert.equal(invites[0].role,'vendeur');
+  assert.ok((await pending.rpc('equipe_accepter_invitation',{p_id:invites[0].id})).error, 'Activation volontairement indisponible');
+  assert.equal(ok(await pending.from('sites').select('id'), 'Toujours aucun accès avant approbation').length,0);
+  const newCode = ok(await owner.rpc('equipe_code',{p_renouveler:true}), 'Renouvellement du code');
+  assert.notEqual(newCode,code);
+  denied(await pending.rpc('equipe_demander',{p_code:code,p_nom:'Personne',p_role:'vendeur'}), 'Code invalide');
+  ok(await owner.rpc('equipe_refuser_demande',{p_id:demands[0].id}), 'Refus propriétaire');
+  assert.equal(ok(await owner.rpc('equipe_lister_demandes'), 'Demandes après refus').length,0);
   denied(await lab.rpc('modifier_acces_module',{p_utilisateur_id:ids[1],p_module:'qualite',p_actif:false}), 'Reserve au proprietaire');
   denied(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[3],p_module:'qualite',p_actif:false}), 'Compte introuvable');
   ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[1],p_module:'qualite',p_actif:false}), 'Désactiver qualité');
