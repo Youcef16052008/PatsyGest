@@ -102,6 +102,16 @@ complets. L'export JSON de sauvegarde exclut les comptes, les droits et les
 nouvelles données d'équipe : son interface le présente comme partiel et il ne
 remplace pas une sauvegarde complète de la base et d'Auth.
 
+Le brouillon 37 prépare une admission après approbation ou invitation : adresse
+Auth vérifiée à l'acceptation, sites contrôlés, modules tous désactivés et
+bascule d'admission fermée par défaut, inaccessible aux rôles applicatifs. La
+bascule n'a été ouverte que dans la pile jetable pour les tests ; il ne faut pas
+la déployer ou l'ouvrir sur le pilote avant certification. Les brouillons 38 et
+39 empêchent les lectures brutes vendeur des coûts de lots, mouvements et OF,
+et fournissent des vues réduites par site. L'export CSV brut est désormais
+réservé au propriétaire. La CI 44588935236 teste ces chemins sur pile jetable ;
+les autres surfaces vendeur et les parcours bout en bout restent à examiner.
+
 Certaines vues labo sont exécutées avec les droits de leur propriétaire, et
 des tables n'ont pas de colonne site. Il serait dangereux de
 présenter un filtrage d'interface comme une isolation effective.

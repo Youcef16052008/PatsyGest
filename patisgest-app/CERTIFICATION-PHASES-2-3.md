@@ -29,8 +29,9 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   historiques, erreurs et combinaisons de modules ne sont pas couverts par des
   tests adversariaux. Les brouillons 38 et 39 masquent au vendeur les lots,
   mouvements et OF bruts contenant des coûts ; les autres surfaces vendeur
-  (notamment JSON et exports) restent à auditer. Les tests Auth/PostgREST du
-  brouillon 39 doivent encore être exécutés. Certains accès sans site ou de traçabilité sont refusés
+  (notamment les JSON de cake) restent à auditer. Les tests Auth/PostgREST de
+  ces brouillons passent dans la CI 44588935236. Certains accès sans site ou
+  de traçabilité sont refusés
   de manière conservatrice, pas intégralement pris en charge.
 - Les corps de sept fonctions et des policies de quatre tables diffèrent entre
   pilote et reconstruction ; leur impact sémantique doit être résolu avant
