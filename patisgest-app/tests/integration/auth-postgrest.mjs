@@ -24,7 +24,7 @@ const client = () => createClient(API_URL, ANON_KEY, { auth: { persistSession: f
 const ok = ({ data, error }, context) => { assert.ifError(error && new Error(`${context}: ${error.message}`)); return data; };
 const denied = (result, message) => {
   assert.ok(result.error, `Rejet attendu : ${message}`);
-  assert.match(result.error.message, new RegExp(message, 'i'));
+  assert.ok(new RegExp(message, 'i').test(result.error.message), `Refus inattendu : attendu « ${message} », reçu « ${result.error.message} »`);
 };
 const A = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', B = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const site = 'dddddddd-dddd-dddd-dddd-dddddddddddd', article = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
@@ -328,7 +328,7 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.equal(ok(await seller.from('ventes').select('id'),'Ventes inaccessibles après révocation').length,0);
   assert.equal(ok(await seller.rpc('patisgest_module_autorise',{p_module:'caisse'}),'Module révoqué'),false);
   assert.equal(ok(await seller.rpc('equipe_mes_invitations'),'Ancienne invitation annulée').length,0);
-  denied(await seller.rpc('vendre_article',{p_article_id:product,p_site_id:newSite.id,p_qte:1,p_ticket:'V-REVOQUE'}),'Module desactive');
+  denied(await seller.rpc('vendre_article',{p_article_id:product,p_site_id:newSite.id,p_qte:1,p_ticket:'V-REVOQUE'}),'Site non autorise');
   assert.equal((await sql`select count(*)::int n from equipe_journal_acces where utilisateur_id=${ids[2]}`)[0].n,2);
   denied(await owner.rpc('equipe_revoquer',{p_utilisateur_id:ids[2]}),'Compte introuvable');
 
