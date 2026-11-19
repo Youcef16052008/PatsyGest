@@ -1,15 +1,16 @@
 "use client";
 import { useActionState } from 'react';
-import { createCakeReal, evolveCakeReal } from '@/lib/actions-journaux';
+import { evolveCakeReal } from '@/lib/actions-journaux';
 
-type Recipe={version_id:string;nom:string;version:number;rendement_qte:number;rendement_unite:string};
-type Site={id:string;nom:string};
 type Cake={id:string;numero:string;client_nom:string;date_event:string;nb_parts:number;statut:string};
-const field='mt-1 w-full rounded-lg border p-2 text-sm';
-export default function LabCakeForm({recipes,sites,cakes,unavailable}:{recipes:Recipe[];sites:Site[];cakes:Cake[];unavailable:boolean}) {
- const [creation,create,pending]=useActionState(createCakeReal,{});
+export default function LabCakeForm({cakes,unavailable}:{cakes:Cake[];unavailable:boolean}) {
  const [evolution,evolve,evolving]=useActionState(evolveCakeReal,{});
- return <div className="pg-stack"><section className="pg-card pg-card-pad"><h2>Nouveau devis gâteau</h2><p>Indiquez un prix fixe lors de la création. Les paiements et les calculs financiers sont réservés au comptoir.</p>{unavailable&&<p role="alert">Les options ou les dossiers sont indisponibles.</p>}
- <form action={create} className="grid gap-3 sm:grid-cols-2"><input type="hidden" name="optionCount" value="0"/><label>Client<input name="clientNom" maxLength={100} required className={field}/></label><label>Téléphone<input name="telephone" maxLength={40} className={field}/></label><label>Événement<input name="dateEvent" type="date" min="2000-01-04" required className={field}/></label><label>Nombre de parts<input name="nbParts" type="number" min="1" max="10000" required className={field}/></label><label>Prix fixe HT (DA)<input name="prixHt" type="number" min="0.01" step="0.01" required className={field}/></label><label>Recette<select name="versionId" defaultValue="" required className={field}><option value="">Choisir…</option>{recipes.map(r=><option key={r.version_id} value={r.version_id}>{r.nom} · v{r.version} · {r.rendement_qte} {r.rendement_unite}</option>)}</select></label><label>Site<select name="siteId" defaultValue="" required className={field}><option value="">Choisir…</option>{sites.map(s=><option key={s.id} value={s.id}>{s.nom}</option>)}</select></label><label>Quantité à fabriquer (unité de la recette)<input name="qteFabrication" type="number" min="0.001" max="100000000" step="0.001" required className={field}/></label><label>Notes<textarea name="notes" maxLength={500} className={field}/></label><label><input name="cgv" type="checkbox"/> CGV acceptées</label><button className="pg-button" disabled={pending||unavailable||!recipes.length||!sites.length}>Créer le devis</button></form>{creation.erreur&&<p role="alert">{creation.erreur}</p>}{creation.succes&&<p role="status">{creation.succes}</p>}</section>
- <section className="pg-card pg-card-pad"><h2>Dossiers de production</h2>{cakes.length===0?<p>Aucun dossier disponible.</p>:<ul>{cakes.map(c=><li key={c.id} className="flex flex-wrap items-center justify-between gap-3 border-b py-3"><span><b>{c.numero} · {c.client_nom}</b><br/>{c.nb_parts} parts · {c.date_event} · {c.statut}</span>{c.statut==='confirme'&&<form action={evolve}><input type="hidden" name="id" value={c.id}/><input type="hidden" name="transition" value="produit"/><button className="pg-button pg-button-secondary" disabled={evolving}>Marquer produit</button></form>}</li>)}</ul>}{evolution.erreur&&<p role="alert">{evolution.erreur}</p>}{evolution.succes&&<p role="status">{evolution.succes}</p>}</section></div>;
+ return <div className="pg-stack">
+  <p className="pg-notice" role="status">La création et l’édition des devis sont réservées au comptoir. Le laboratoire peut suivre les dossiers des sites attribués et marquer la production terminée.</p>
+  <section className="pg-card pg-card-pad"><h2>Dossiers de production</h2>
+   {unavailable ? <p role="alert">Les dossiers sont indisponibles.</p> : cakes.length===0 ? <p>Aucun dossier disponible.</p> :
+    <ul>{cakes.map(c=><li key={c.id} className="flex flex-wrap items-center justify-between gap-3 border-b py-3"><span><b>{c.numero} · {c.client_nom}</b><br/>{c.nb_parts} parts · {c.date_event} · {c.statut}</span>{c.statut==='confirme'&&<form action={evolve}><input type="hidden" name="id" value={c.id}/><input type="hidden" name="transition" value="produit"/><button className="pg-button pg-button-secondary" disabled={evolving}>Marquer produit</button></form>}</li>)}</ul>}
+   {evolution.erreur&&<p role="alert">{evolution.erreur}</p>}{evolution.succes&&<p role="status">{evolution.succes}</p>}
+  </section>
+ </div>;
 }

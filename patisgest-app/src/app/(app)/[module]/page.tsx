@@ -134,7 +134,22 @@ export default async function ModulePage({ params, searchParams }: {
   if (modulesCout.has(key) && !coutsAutorises && !(ctx.role === 'labo' && key === 'recettes')) redirect('/tableau-de-bord');
   const recherche = await searchParams;
   const filtre = recherche.filtre === 'alerte' ? 'alerte' : undefined;
-  if (ctx.mode === 'supabase' && ctx.role === 'labo' && (key === 'recettes' || key === 'cake-design' || key === 'achats' || key === 'transferts' || key === 'tracabilite' || key === 'planning')) return <LabWorkspace module={key} ctx={ctx} disabled={modulesDesactives} requestedDate={firstParam(recherche.demain)}/>;
+  let limitationSites: ReactNode = null;
+  let tousSitesAutorises = true;
+  if (ctx.mode === 'supabase' && ctx.role !== 'proprietaire' && ['achats','qualite','planning','tracabilite'].includes(key)) {
+    let resultat: boolean | null = null;
+    try {
+      const {data,error}=await (await createClient()).rpc('patisgest_tous_sites_autorises');
+      if (!error && typeof data === 'boolean') resultat=data;
+    } catch { /* refuser si la vérification est indisponible */ }
+    if (resultat === null) return <p role="alert">Vérification des sites indisponible. Contactez le propriétaire.</p>;
+    if (!resultat) {
+      tousSitesAutorises = false;
+      if (key !== 'planning') return <p role="alert">Cette fonction utilise des données non attribuées à un site et reste indisponible sans accès à tous les sites. Contactez le propriétaire.</p>;
+      limitationSites=<p role="status">Les tâches sans site sont indisponibles sans accès à tous les sites. Les demandes et ordres de vos sites restent accessibles.</p>;
+    }
+  }
+  if (ctx.mode === 'supabase' && ctx.role === 'labo' && (key === 'recettes' || key === 'cake-design' || key === 'achats' || key === 'transferts' || key === 'tracabilite' || key === 'planning')) return <>{limitationSites}<LabWorkspace module={key} ctx={ctx} disabled={modulesDesactives} requestedDate={firstParam(recherche.demain)} tousSitesAutorises={tousSitesAutorises}/></>;
   if (ctx.mode === 'supabase' && ctx.role === 'labo' && !['stocks','production','qualite'].includes(key)) return <p role="alert">Ce module n’est pas encore disponible en vue laboratoire sans données financières.</p>;
   if (ctx.mode === 'pilote-local') return <DemoModule module={key} role={ctx.role} filtre={filtre} shop={ctx.clientNom}/>;
   const tables = info.tables.filter(([table]) => coutsAutorises || !estTableCout(table));
@@ -326,10 +341,10 @@ export default async function ModulePage({ params, searchParams }: {
       writeForms=<>
         {(demainData.erreur || planningSourcesDesactivees) && <p role="alert">{demainData.erreur ?? "Plan indisponible : un module source est désactivé."}</p>}
         <TomorrowLabConnected {...tomorrowProps} canValidate={canReadCosts(ctx.role)} canCreateOf={!modulesDesactives.has("production")} canTransfer={!modulesDesactives.has("transferts")} />
-        <PlanningForms
+        {tousSitesAutorises && <PlanningForms
           tasks={((tasksRes.data??[]) as {id:string;date_tache:string;tache:string;of_numero:string;fait:boolean}[]).map(t=>({id:t.id,date:t.date_tache,tache:t.tache,ofNumero:t.of_numero,fait:t.fait}))}
           ofNumeros={((ofsRes.data??[]) as {numero:string}[]).map(o=>o.numero)}
-        />
+        />}
       </>;
     } else {
       writeForms=<TomorrowLabConnected {...tomorrowProps} canValidate={false} />;
@@ -367,6 +382,7 @@ export default async function ModulePage({ params, searchParams }: {
   }
   return <>
     <PageIntro title={info.title} description={moduleDescriptions[key]}/>
+    {limitationSites}
     <div className="pg-stack">{writeForms}{results.map(({label,data,error}) => {
       const cols = Object.keys(data?.[0] ?? {}).filter(k => !['id','created_at','updated_at','client_ref'].includes(k) && !k.endsWith('_id')
         && data?.some(r => r[k] != null && (typeof r[k] !== 'object' || Array.isArray(r[k]) && (r[k] as unknown[]).every(v => typeof v === 'string'))));

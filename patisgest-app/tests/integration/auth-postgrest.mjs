@@ -93,6 +93,10 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.ok(newSite.id);
   ok(await owner.from('sites').update({nom:'Boutique modifiée'}).eq('id',newSite.id).select('id').single(), 'Modification boutique propriétaire');
   const otherLot = await sql`insert into lots(client_id,article_id,site_id,numero,qte_init,qte_rest,pu) values (${A},${article},${newSite.id},'AUTRE-SITE',4,4,77) returning id`;
+  const legacyTask=await sql`insert into taches_planning(client_id,date_tache,tache) values (${A},'2099-01-01','Donnée sans site') returning id`;
+  assert.equal(ok(await lab.from('taches_planning').select('id').eq('id',legacyTask[0].id),'Planning sans site masqué').length,0);
+  assert.equal(ok(await owner.from('taches_planning').select('id').eq('id',legacyTask[0].id),'Planning visible propriétaire').length,1);
+  assert.ok((await lab.from('taches_planning').insert({client_id:A,date_tache:'2099-01-01',tache:'Interdit'})).error,'Écriture sans site refusée');
   denied(await lab.rpc('rappel_lot',{p_lot_id:otherLot[0].id}), 'Site non autorise');
   denied(await lab.rpc('bloquer_lot',{p_lot_id:otherLot[0].id,p_bloque:true,p_motif:'test',p_descendants:true}), 'Site non autorise');
   assert.equal(ok(await owner.from('lots').select('id').eq('site_id',newSite.id), 'Lot autre site propriétaire').length,1);
@@ -165,12 +169,20 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   // Achat et réception par le labo, avec contrôle des JSON financiers.
   const fournisseur = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
   await sql`insert into fournisseurs(id,client_id,nom) values (${fournisseur},${A},'Fournisseur fictif')`;
-  const purchase = ok(await lab.rpc('creer_commande',{p_fournisseur_id:fournisseur,p_lignes:[{articleId:article,qte:3,pu:99}],p_notes:null}), 'Commande labo');
+  const purchaseArgs={p_fournisseur_id:fournisseur,p_lignes:[{articleId:article,qte:3,pu:99}],p_notes:null};
+  const ownerPurchase=ok(await owner.rpc('creer_commande',purchaseArgs),'Commande propriétaire');
+  assert.equal(ok(await lab.from('labo_bons_commande').select('id').eq('id',ownerPurchase.commande_id),'Commande sans site masquée').length,0);
+  denied(await lab.rpc('creer_commande',purchaseArgs),'attribution de tous les sites');
+  await sql`insert into equipe_sites(utilisateur_id,site_id) values (${ids[1]},${newSite.id})`;
+  assert.equal(ok(await lab.from('taches_planning').select('id').eq('id',legacyTask[0].id),'Planning visible avec tous les sites').length,1);
+  const purchase = ok(await lab.rpc('creer_commande',purchaseArgs), 'Commande labo tous sites');
   const safePurchase = ok(await lab.from('labo_bons_commande').select('lignes').eq('id',purchase.commande_id).single(), 'Commande expurgée');
   assert.equal(safePurchase.lignes[0].qte,3);
   assert.equal('pu' in safePurchase.lignes[0],false);
   const received = ok(await lab.rpc('recevoir_commande',{p_commande_id:purchase.commande_id,p_site_id:site,p_receptions:[{index:0,qte:2,numero:'COM-1',dlc:'2099-01-01'}]}), 'Réception commande');
   assert.equal(received.lots,1);
+  await sql`delete from equipe_sites where utilisateur_id=${ids[1]} and site_id=${newSite.id}`;
+  denied(await lab.rpc('recevoir_commande',{p_commande_id:purchase.commande_id,p_site_id:site,p_receptions:[{index:0,qte:1,numero:'COM-2',dlc:'2099-01-01'}]}),'attribution de tous les sites');
 
   // Recette, OF partiel, coûts et rappel via les endpoints réels.
   const product = '99999999-9999-9999-9999-999999999999';

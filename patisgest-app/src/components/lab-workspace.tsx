@@ -12,17 +12,17 @@ import {PageIntro, Notice} from './workspace-ui';
 import { lirePlanLaboPrive } from '@/lib/tomorrow-lab-private-server';
 import { TomorrowLabConnected } from './tomorrow-lab-panel';
 
-export default async function LabWorkspace({module,ctx,disabled,requestedDate}:{disabled:Set<string>;requestedDate?:string;module:'recettes'|'cake-design'|'achats'|'transferts'|'tracabilite'|'planning';ctx:SessionContext}) {
+export default async function LabWorkspace({module,ctx,disabled,requestedDate,tousSitesAutorises}:{disabled:Set<string>;requestedDate?:string;tousSitesAutorises:boolean;module:'recettes'|'cake-design'|'achats'|'transferts'|'tracabilite'|'planning';ctx:SessionContext}) {
  const db=await createClient();
  if(module==='cake-design') {
-  const [recipes,sites,cakes]=await Promise.all([db.rpc('cake_options_production'),db.from('sites').select('id,nom').eq('client_id',ctx.clientId).order('nom'),db.from('labo_cakes').select('id,numero,client_nom,date_event,nb_parts,statut').eq('client_id',ctx.clientId).order('date_event',{ascending:false}).limit(100)]);
-  return <><PageIntro title="Gâteaux sur commande" description="Dossiers et quantités du laboratoire."/><LabCakeForm recipes={(recipes.data??[]) as {version_id:string;nom:string;version:number;rendement_qte:number;rendement_unite:string}[]} sites={(sites.data??[]) as {id:string;nom:string}[]} cakes={(cakes.data??[]) as {id:string;numero:string;client_nom:string;date_event:string;nb_parts:number;statut:string}[]} unavailable={!!(recipes.error||sites.error||cakes.error)}/></>;
+  const cakes=await db.from('labo_cakes').select('id,numero,client_nom,date_event,nb_parts,statut').eq('client_id',ctx.clientId).order('date_event',{ascending:false}).limit(100);
+  return <><PageIntro title="Gâteaux sur commande" description="Dossiers et quantités du laboratoire."/><LabCakeForm cakes={(cakes.data??[]) as {id:string;numero:string;client_nom:string;date_event:string;nb_parts:number;statut:string}[]} unavailable={!!cakes.error}/></>;
  }
  if(module==='planning') {
   const sourcesDesactivees=["stocks","recettes","production","caisse","cake-design"].some(m=>disabled.has(m));
   const [tasks,ofs,demain]=await Promise.all([db.from('taches_planning').select('id,date_tache,tache,of_numero,fait').eq('client_id',ctx.clientId).order('date_tache').limit(100),db.from('labo_ordres_fabrication').select('numero').eq('client_id',ctx.clientId).order('numero',{ascending:false}).limit(50),sourcesDesactivees ? Promise.resolve({error:"Plan indisponible : un module source est désactivé."} as const) : lirePlanLaboPrive(db,ctx.clientId,requestedDate)]);
   if(tasks.error||ofs.error) return <Notice kind="warning">Le planning est indisponible. Vérifiez la connexion et les autorisations.</Notice>;
-  return <><PageIntro title="Planning de production" description="Tâches et ordres de fabrication."/>{sourcesDesactivees ? <Notice kind="warning">Plan indisponible : un module source est désactivé.</Notice> : "error" in demain ? <Notice kind="warning">{demain.error}</Notice> : <TomorrowLabConnected {...demain} canValidate canCreateOf={!disabled.has("production")} canTransfer={!disabled.has("transferts")}/>}<PlanningForms tasks={(tasks.data??[]).map(t=>({id:t.id,date:t.date_tache,tache:t.tache,ofNumero:t.of_numero,fait:t.fait}))} ofNumeros={(ofs.data??[]).map(o=>o.numero)}/></>;
+  return <><PageIntro title="Planning de production" description="Tâches et ordres de fabrication."/>{sourcesDesactivees ? <Notice kind="warning">Plan indisponible : un module source est désactivé.</Notice> : "error" in demain ? <Notice kind="warning">{demain.error}</Notice> : <TomorrowLabConnected {...demain} canValidate canCreateOf={!disabled.has("production")} canTransfer={!disabled.has("transferts")}/>}{tousSitesAutorises&&<PlanningForms tasks={(tasks.data??[]).map(t=>({id:t.id,date:t.date_tache,tache:t.tache,ofNumero:t.of_numero,fait:t.fait}))} ofNumeros={(ofs.data??[]).map(o=>o.numero)}/>}</>;
  }
  if(module==='transferts'||module==='tracabilite'||module==='achats') {
   const [articles,sites]=await Promise.all([db.from('labo_articles').select('id,code,nom,unite').eq('client_id',ctx.clientId).order('nom').limit(500),db.from('sites').select('id,nom').eq('client_id',ctx.clientId).order('nom')]);
