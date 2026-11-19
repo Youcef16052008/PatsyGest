@@ -199,6 +199,9 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   const order = ok(await lab.rpc('creer_of',ofArgs), 'Créer OF');
   const retry=ok(await lab.rpc('creer_of',ofArgs),'Rejeu idempotent');
   assert.equal(retry.of_id,order.of_id); assert.equal(retry.duplicate,true);
+  const fractionalArgs={...ofArgs,p_qte_prevue:1.2346,p_client_ref:'fraction-arrondie'};
+  const fractional=ok(await lab.rpc('creer_of',fractionalArgs),'Création OF avec arrondi métier');
+  assert.equal(ok(await lab.rpc('creer_of',fractionalArgs),'Rejeu OF avec arrondi métier').of_id,fractional.of_id);
   const hiddenDuplicate=await lab.rpc('creer_of',{...ofArgs,p_client_ref:'autre-site'});
   denied(hiddenDuplicate,'Reference OF deja utilisee');
   assert.ok(!JSON.stringify(hiddenDuplicate).includes(otherOrder.of_id),'Aucun identifiant du site masqué');

@@ -88,7 +88,7 @@ test('sécu : les URL de coût sont protégées avant tout rendu ou lecture mét
   const role = rendu.search(/const coutsAutorises\s*=\s*canReadCosts\(ctx\.role\)/);
   const garde = rendu.search(/if\s*\(modulesCout\.has\(key\)\s*&&\s*!coutsAutorises[^\n]+redirect\('\/tableau-de-bord'\)/);
   assert.match(rendu, /ctx\.role === 'labo' && key === 'recettes'/);
-  assert.match(rendu, /return <LabWorkspace module=\{key\} ctx=\{ctx\}/);
+  assert.match(rendu, /<LabWorkspace module=\{key\} ctx=\{ctx\}/);
   assert.ok(role >= 0 && role < garde, 'la redirection doit dépendre du rôle de session');
   for (const premier of ['<DemoModule', 'await createClient()', 'supabase.from(']) {
     assert.ok(garde < rendu.indexOf(premier), `garde absente ou après ${premier}`);

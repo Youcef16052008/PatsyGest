@@ -83,6 +83,17 @@ et masque les liens hors périmètre ; la cohérence métier et la concurrence
 restent à valider. Il n'est pas appliqué non plus. Les écarts entre pilote et
 reconstruction, dont sept corps de fonctions différents, sont recensés dans
 `AUDIT-PHASE-1.md` et bloquent une mise en production non préparée.
+Les brouillons 32–35 ajoutent des contrôles cake par site, une approbation
+sans activation, un garde-fou sur les références idempotentes d'OF, et une
+restriction conservatrice aux utilisateurs ayant tous les sites pour les
+commandes et journaux sans site. Les anciens cakes sans site restent réservés
+au propriétaire ; leur attribution exige une décision explicite. Les écrans
+signalent les restrictions, et la création/édition des devis est réservée au
+comptoir. Tests Auth/PostgREST sur pile jetable réussis pour ces chemins à la
+version `d5fc86c` (CI 44557517989) ; cela ne couvre pas tous les chemins ni la
+compatibilité avec le pilote. La modification ultérieure de l'arrondi des OF
+nécessite sa propre exécution CI.
+
 Certaines vues labo sont exécutées avec les droits de leur propriétaire, et
 des tables n'ont pas de colonne site. Il serait dangereux de
 présenter un filtrage d'interface comme une isolation effective.
@@ -95,8 +106,9 @@ les RPC sur les données et opérations de chaque site (transferts entre deux si
 ventes, lots, OF, rappels, demandes, commandes et exports compris). Ajouter des
 cas Auth/PostgREST adversariaux avec deux boutiques et plusieurs utilisateurs,
 et traiter les données sans site. Le plan de prévision reste limité à un labo
-et une boutique. Aucune approbation n'est implémentée tant que son attribution
-de site ne peut pas être réellement appliquée.
+et une boutique. Le brouillon 33 enregistre une décision d'approbation avec
+sites vérifiés, mais n'active aucun compte ni ne crée d'adhésion : c'est une
+étape préparatoire, pas un parcours d'admission utilisable.
 
 ## Risques et travail restant avant déploiement
 

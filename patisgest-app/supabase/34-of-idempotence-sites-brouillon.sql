@@ -16,7 +16,7 @@ begin
  if not found then raise exception 'Reference OF invalide.' using errcode='42501'; end if;
  -- Refuser une collision sans retourner numéro, besoins, identifiant ou site.
  if o.site_id is distinct from p_site_id or o.version_id is distinct from p_version_id
-    or o.qte_prevue is distinct from round(p_qte_prevue,4) or o.date_prevue is distinct from p_date_prevue then
+    or o.qte_prevue is distinct from round(p_qte_prevue,3) or o.date_prevue is distinct from p_date_prevue then
   raise exception 'Reference OF deja utilisee avec d autres donnees.' using errcode='42501';
  end if;
  perform public.patisgest_exiger_site(o.site_id);
