@@ -81,6 +81,38 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.ok(lot);
   assert.equal(ok(await lab.from('labo_lots').select('qte_rest'), 'Lots labo').length, 1);
   assert.equal(ok(await lab.from('lots').select('*'), 'Lots bruts labo').length, 0);
+
+  // Achat et réception par le labo, avec contrôle des JSON financiers.
+  const fournisseur = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+  await sql`insert into fournisseurs(id,client_id,nom) values (${fournisseur},${A},'Fournisseur fictif')`;
+  const purchase = ok(await lab.rpc('creer_commande',{p_fournisseur_id:fournisseur,p_lignes:[{articleId:article,qte:3,pu:99}],p_notes:null}), 'Commande labo');
+  const safePurchase = ok(await lab.from('labo_bons_commande').select('lignes').eq('id',purchase.commande_id).single(), 'Commande expurgée');
+  assert.equal(safePurchase.lignes[0].qte,3);
+  assert.equal('pu' in safePurchase.lignes[0],false);
+  const received = ok(await lab.rpc('recevoir_commande',{p_commande_id:purchase.commande_id,p_site_id:site,p_receptions:[{index:0,qte:2,numero:'COM-1',dlc:'2099-01-01'}]}), 'Réception commande');
+  assert.equal(received.lots,1);
+
+  // Recette, OF partiel, coûts et rappel via les endpoints réels.
+  const product = '99999999-9999-9999-9999-999999999999';
+  await sql`insert into articles(id,client_id,code,nom,niveau,unite,pv_ht,tva) values (${product},${A},'P1','Gâteau','produit','pcs',100,19)`;
+  const famille = ok(await lab.rpc('creer_famille',{p_code:'REC',p_nom:'Recette',p_produit_id:product}), 'Famille recette');
+  const version = ok(await lab.rpc('creer_version',{p_famille_id:famille.famille_id,p_rendement_qte:10,p_rendement_unite:'pcs',p_lignes:[{articleId:article,q:1,u:'kg',parage:0}],p_notes:null,p_mo_min:1,p_energie:2,p_emballage:3,p_frais_generaux:4,p_cuisson_perte_pct:0,p_active:true}), 'Version recette');
+  const order = ok(await lab.rpc('creer_of',{p_version_id:version.version_id,p_site_id:site,p_qte_prevue:10,p_date_prevue:'2099-01-01',p_client_ref:'test-of'}), 'Créer OF');
+  ok(await lab.rpc('demarrer_of',{p_of_id:order.of_id}), 'Démarrer OF');
+  const partial = ok(await lab.rpc('terminer_of',{p_of_id:order.of_id,p_qte:5,p_numero_lot:'GATEAU-1',p_dlc:'2099-01-01'}), 'OF partiel');
+  const finished = ok(await lab.rpc('terminer_of',{p_of_id:order.of_id,p_qte:5,p_numero_lot:'GATEAU-2',p_dlc:'2099-01-01'}), 'OF terminé');
+  assert.equal(partial.statut,'partiel'); assert.equal(finished.statut,'termine');
+  assert.equal('cout_unitaire' in partial,false); assert.equal('cout_unitaire' in finished,false);
+  const valuation = await sql`select cout_reel, (select sum((x->>'qty')::numeric*(x->>'pu')::numeric) from jsonb_array_elements(consommations) x) matiere from public.ordres_fabrication where id=${order.of_id}`;
+  assert.equal(Number(valuation[0].cout_reel),Number(valuation[0].matiere)+9);
+  const recall = ok(await lab.rpc('rappel_lot',{p_lot_id:finished.lot_id}), 'Rappel labo');
+  assert.ok(recall.lot); assert.ok(!JSON.stringify(recall).includes('total_ht'));
+
+  const sale = ok(await seller.rpc('vendre_article',{p_article_id:product,p_site_id:site,p_qte:1,p_ticket:'VENTE-1'}), 'Vente vendeur');
+  assert.ok(sale);
+  const salesView = ok(await lab.from('labo_ventes_quantites').select('*'), 'Ventes expurgées');
+  assert.equal(salesView.length,1); assert.equal('total_ttc' in salesView[0],false);
+  assert.equal('pu' in salesView[0].lignes[0],false);
   assert.ok((await lab.rpc('vendre_panier',{p_site_id:site,p_lignes:[],p_ticket:'X',p_mode_paiement:'especes'})).error);
   assert.ok((await lab.rpc('patisgest_terminer_of_interne',{p_of_id:ids[0],p_qte:1,p_numero_lot:'X',p_dlc:'2099-01-01'})).error);
   const anon = client();
