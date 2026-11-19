@@ -5,6 +5,7 @@
     "src/app/(app)/parametres/page.tsx",
     "src/app/(app)/tableau-de-bord/page.tsx",
     "src/app/(auth)/connexion/page.tsx",
+    "src/app/(auth)/rejoindre/page.tsx",
     "src/app/api/export/route.ts",
     "src/app/api/sauvegarde/route.ts",
     "src/app/estimation/page.tsx",
@@ -30,6 +31,12 @@
       "analyserHausseMatiereReal",
       "ficheCoutReal",
       "sauverParamsCoutsReal"
+    ],
+    "src/lib/actions-equipe.ts": [
+      "afficherCodeEquipe",
+      "annulerInvitationEquipe",
+      "creerInvitationEquipe",
+      "deciderDemande"
     ],
     "src/lib/actions-etablissement.ts": [
       "sauverEtablissement"
@@ -68,6 +75,10 @@
       "activateVersionReal",
       "createFamilleReal",
       "createVersionReal"
+    ],
+    "src/lib/actions-rejoindre.ts": [
+      "demanderRattachement",
+      "repondreRattachement"
     ],
     "src/lib/actions-restauration.ts": [
       "analyserSauvegarde",

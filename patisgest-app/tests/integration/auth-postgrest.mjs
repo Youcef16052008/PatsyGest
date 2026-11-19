@@ -118,6 +118,10 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   ok(await pending.rpc('equipe_demander',{p_code:code,p_nom:'Personne',p_role:'vendeur'}), 'Demande avec identité Auth vérifiée');
   const demands = ok(await owner.rpc('equipe_lister_demandes'), 'Demandes du propriétaire');
   assert.equal(demands.length,1); assert.equal(demands[0].email,'non-approuve@example.test');
+  const ownDemands=ok(await pending.rpc('equipe_mes_demandes'),'Demandes de la personne');
+  assert.equal(ownDemands.length,1); assert.equal(ownDemands[0].id,demands[0].id); assert.equal(ownDemands[0].statut,'en_attente');
+  assert.equal(ok(await lab.rpc('equipe_mes_demandes'),'Demandes autre identité').length,0);
+  assert.ok((await client().rpc('equipe_mes_demandes')).error,'Demandes personnelles interdites à anon');
   assert.equal(ok(await other.rpc('equipe_lister_demandes'), 'Demandes autre établissement').length,0);
   assert.ok((await pending.from('equipe_demandes').select('*')).error);
   denied(await other.rpc('equipe_refuser_demande',{p_id:demands[0].id}), 'Demande introuvable');
@@ -127,12 +131,14 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   denied(await owner.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[newSite.id,newSite.id]}), 'Sites invalides');
   const pendingId=ok(await pending.auth.getUser(),'Identité Auth fictive').user.id;
   await sql`update auth.users set email='autre-adresse@example.test' where id=${pendingId}`;
+  assert.equal(ok(await pending.rpc('equipe_mes_demandes'),'Adresse changée masque les demandes').length,0);
   denied(await owner.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[newSite.id]}), 'Demande devenue invalide');
   await sql`update auth.users set email='non-approuve@example.test' where id=${pendingId}`;
   const approvalRace=await Promise.all([owner.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[newSite.id]}),owner.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[newSite.id]})]);
   assert.equal(approvalRace.filter(x=>!x.error).length,1,'Une seule approbation concurrente réussit');
   const approved=ok(await owner.rpc('equipe_lister_approbations'), 'Approbations propriétaire');
   assert.equal(approved.length,1); assert.deepEqual(approved[0].sites,[newSite.id]);
+  assert.equal(ok(await pending.rpc('equipe_mes_demandes'),'Approbation de la personne')[0].statut,'approuvee');
   assert.equal(ok(await other.rpc('equipe_lister_approbations'), 'Isolation des approbations').length,0);
   denied(await owner.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[newSite.id]}), 'Demande introuvable');
   assert.equal(ok(await pending.from('sites').select('id'), 'Approbation ne crée pas d’accès').length,0);
@@ -147,6 +153,14 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   ok(await owner.rpc('equipe_inviter',{p_email:'non-approuve@example.test',p_nom:'Personne',p_role:'vendeur',p_sites:[newSite.id]}), 'Invitation propriétaire');
   const invites = ok(await pending.rpc('equipe_mes_invitations'), 'Invitation pour adresse vérifiée');
   assert.equal(invites.length,1); assert.equal(invites[0].role,'vendeur');
+  const ownerInvites = ok(await owner.rpc('equipe_lister_invitations'), 'Liste des invitations propriétaire');
+  assert.equal(ownerInvites.length,1); assert.equal(ownerInvites[0].id,invites[0].id);
+  assert.equal(ownerInvites[0].email,'non-approuve@example.test'); assert.deepEqual(ownerInvites[0].sites,[newSite.id]);
+  assert.equal(ok(await other.rpc('equipe_lister_invitations'),'Invitations autre établissement').length,0);
+  denied(await lab.rpc('equipe_lister_invitations'),'Reserve au proprietaire');
+  denied(await seller.rpc('equipe_lister_invitations'),'Reserve au proprietaire');
+  denied(await pending.rpc('equipe_lister_invitations'),'Reserve au proprietaire');
+  assert.ok((await client().rpc('equipe_lister_invitations')).error,'Invitations inaccessibles à anon');
   denied(await pending.rpc('equipe_accepter_invitation',{p_id:invites[0].id}), 'Admission indisponible');
   assert.equal(ok(await pending.from('sites').select('id'), 'Toujours aucun accès avant approbation').length,0);
   const newCode = ok(await owner.rpc('equipe_code',{p_renouveler:true}), 'Renouvellement du code');
@@ -424,8 +438,10 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   denied(await other.rpc('equipe_annuler_invitation',{p_id:firstInvite}),'Invitation indisponible');
   denied(await lab.rpc('equipe_annuler_invitation',{p_id:firstInvite}),'Reserve au proprietaire');
   ok(await pending.rpc('equipe_refuser_invitation',{p_id:firstInvite}),'Refus par destinataire vérifié');
+  assert.ok(!ok(await owner.rpc('equipe_lister_invitations'),'Invitation refusée masquée').some(i=>i.id===firstInvite));
   const cancelled=ok(await owner.rpc('equipe_inviter',inviterArgs),'Invitation annulable');
   ok(await owner.rpc('equipe_annuler_invitation',{p_id:cancelled}),'Annulation propriétaire');
+  assert.ok(!ok(await owner.rpc('equipe_lister_invitations'),'Invitation annulée masquée').some(i=>i.id===cancelled));
   const invitation=ok(await owner.rpc('equipe_inviter',inviterArgs),'Nouvelle invitation');
   denied(await other.rpc('equipe_accepter_invitation',{p_id:invitation}),'Invitation indisponible');
   await sql`update equipe_invitations set expire_le='2000-01-01' where id=${invitation}`;
@@ -453,7 +469,7 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   // renouvelée par le proxy et son cookie permet ensuite d'ouvrir une page.
   const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
   const app=spawn(path.join(root,'node_modules','.bin','next'),['dev','-p','3414','-H','127.0.0.1'],{
-    cwd:root,env:{...process.env,VERCEL_ENV:'',PATISGEST_DEMO_MODE:'false',NEXT_PUBLIC_SUPABASE_URL:API_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY:ANON_KEY},stdio:['ignore','pipe','pipe']
+    cwd:root,env:{...process.env,VERCEL_ENV:'',PATISGEST_DEMO_MODE:'false',PATSYGEST_EQUIPE_EXPERIMENTAL:'true',NEXT_PUBLIC_SUPABASE_URL:API_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY:ANON_KEY},stdio:['ignore','pipe','pipe']
   });
   let logs=''; app.stdout.on('data',s=>{logs=(logs+s).slice(-2000)}); app.stderr.on('data',s=>{logs=(logs+s).slice(-2000)});
   try {
@@ -477,6 +493,28 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    const renewed=setCookies.map(c=>c.split(';')[0]).join('; ');
    const dashboard=await fetch('http://127.0.0.1:3414/tableau-de-bord',{headers:{cookie:renewed},redirect:'manual'});
    assert.equal(dashboard.status,200,'La session renouvelée ouvre le tableau de bord');
+   const settings=await fetch('http://127.0.0.1:3414/parametres',{headers:{cookie:renewed},redirect:'manual'});
+   assert.equal(settings.status,200,'Paramètres propriétaire accessibles');
+   const settingsHtml=await settings.text();
+   assert.ok(settingsHtml.includes('Équipe · expérimental'),'Interface expérimentale visible sur pile locale');
+   assert.ok(settingsHtml.includes('Aucune notification n’est envoyée'),'Aucun envoi de courrier annoncé');
+   const labSession=ok(await client().auth.signInWithPassword({email:emails[1],password}),'Session HTTP labo').session;
+   const labCookie=`${cookieName}=base64-${Buffer.from(JSON.stringify(labSession)).toString('base64url')}`;
+   const labSettings=await fetch('http://127.0.0.1:3414/parametres',{headers:{cookie:labCookie},redirect:'manual'});
+   assert.equal(labSettings.status,200);
+   assert.ok(!(await labSettings.text()).includes('Équipe · expérimental'),'Interface propriétaire cachée au labo');
+   const applicantEmail='ui-candidat@example.test';
+   ok(await admin.auth.admin.createUser({email:applicantEmail,password,email_confirm:true}),'Compte fictif sans adhésion pour interface');
+   const applicantSession=ok(await client().auth.signInWithPassword({email:applicantEmail,password}),'Session HTTP candidat').session;
+   const applicantCookie=`${cookieName}=base64-${Buffer.from(JSON.stringify(applicantSession)).toString('base64url')}`;
+   const joining=await fetch('http://127.0.0.1:3414/rejoindre',{headers:{cookie:applicantCookie},redirect:'manual'});
+   assert.equal(joining.status,200,'Page candidat authentifié');
+   const joiningHtml=await joining.text();
+   assert.ok(joiningHtml.includes('Vos demandes') && joiningHtml.includes('Vos invitations'));
+   const anonymousJoining=await fetch('http://127.0.0.1:3414/rejoindre',{redirect:'manual'});
+   assert.equal(anonymousJoining.status,307,'Compte Auth requis');
+   const memberJoining=await fetch('http://127.0.0.1:3414/rejoindre',{headers:{cookie:renewed},redirect:'manual'});
+   assert.equal(memberJoining.status,307,'Un membre est redirigé vers son espace');
   } finally {app.kill('SIGTERM');}
  } finally {
   await sql.end();
