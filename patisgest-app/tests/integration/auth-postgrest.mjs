@@ -62,7 +62,7 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   for (let i = 0; i < ids.length; i++) {
     await sql`insert into utilisateurs(id,client_id,auth_user_id,email,nom,role) values (${ids[i]},${i === 3 ? B : A},${authIds[i]},${emails[i]},${roles[i]},${roles[i]})`;
   }
-  await sql`insert into sites(id,client_id,nom) values (${site},${A},'Labo')`;
+  await sql`insert into sites(id,client_id,nom,type) values (${site},${A},'Boutique 1','boutique')`;
   await sql`insert into equipe_sites(utilisateur_id,site_id) values (${ids[1]},${site}),(${ids[2]},${site})`;
   await sql`insert into articles(id,client_id,code,nom,niveau,unite,pv_ht) values (${article},${A},'A1','Farine','matiere','kg',123)`;
   await sql`notify pgrst, 'reload schema'`;
@@ -102,6 +102,16 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.equal(ok(await owner.from('lots').select('id').eq('site_id',newSite.id), 'Lot autre site propriétaire').length,1);
   assert.equal(ok(await lab.from('sites').select('id').eq('id',newSite.id), 'Site non attribué labo').length,0);
   assert.equal(ok(await seller.from('sites').select('id').eq('id',newSite.id), 'Site non attribué vendeur').length,0);
+  assert.equal(ok(await seller.from('sites').select('id').eq('id',site), 'Boutique attribuée vendeur').length,1);
+  // L'affectation existante ne doit pas autoriser le vendeur si un site est
+  // requalifié en laboratoire après attribution : même JWT, aucune reconnexion.
+  ok(await owner.from('sites').update({type:'laboratoire'}).eq('id',site).select('id').single(), 'Requalifier temporairement le site');
+  assert.equal(ok(await seller.from('sites').select('id').eq('id',site), 'Laboratoire masqué au vendeur').length,0);
+  assert.equal(ok(await lab.from('sites').select('id').eq('id',site), 'Site attribué reste visible au labo').length,1);
+  assert.equal(ok(await owner.from('sites').select('id').eq('id',site), 'Site reste visible au propriétaire').length,1);
+  denied(await seller.rpc('vendre_article',{p_article_id:article,p_site_id:site,p_qte:1,p_ticket:'LAB-NON'}),'Site non autorise');
+  ok(await owner.from('sites').update({type:'boutique'}).eq('id',site).select('id').single(), 'Restaurer le type boutique');
+  assert.equal(ok(await seller.from('sites').select('id').eq('id',site), 'Boutique rétablie visible').length,1);
   assert.equal(ok(await seller.from('lots').select('id').eq('site_id',newSite.id), 'Lot non attribué vendeur').length,0);
   assert.equal(ok(await lab.from('labo_lots').select('id').eq('site_id',newSite.id), 'Vue labo autre site').length,0);
   denied(await lab.rpc('receptionner_lot',{p_article_id:article,p_site_id:newSite.id,p_numero:'NON',p_qte:1,p_pu:10}), 'Site non autorise');
@@ -127,7 +137,9 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   denied(await other.rpc('equipe_refuser_demande',{p_id:demands[0].id}), 'Demande introuvable');
   denied(await other.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[newSite.id]}), 'Demande introuvable');
   denied(await lab.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[newSite.id]}), 'Reserve au proprietaire');
+  await sql`update sites set type='laboratoire' where id=${site}`;
   denied(await owner.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[site]}), 'Sites invalides');
+  await sql`update sites set type='boutique' where id=${site}`;
   denied(await owner.rpc('equipe_approuver_demande',{p_id:demands[0].id,p_sites:[newSite.id,newSite.id]}), 'Sites invalides');
   const pendingId=ok(await pending.auth.getUser(),'Identité Auth fictive').user.id;
   await sql`update auth.users set email='autre-adresse@example.test' where id=${pendingId}`;
@@ -149,7 +161,9 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.equal(ok(await owner.rpc('equipe_lister_approbations'), 'Plus aucune approbation').length,0);
   ok(await pending.rpc('equipe_demander',{p_code:code,p_nom:'Personne',p_role:'vendeur'}), 'Nouvelle demande après refus');
   denied(await lab.rpc('equipe_code',{p_renouveler:false}), 'Reserve au proprietaire');
+  await sql`update sites set type='laboratoire' where id=${site}`;
   assert.ok((await owner.rpc('equipe_inviter',{p_email:'non-approuve@example.test',p_nom:'Personne',p_role:'vendeur',p_sites:[site]})).error, 'Un vendeur ne peut être affecté à un laboratoire');
+  await sql`update sites set type='boutique' where id=${site}`;
   ok(await owner.rpc('equipe_inviter',{p_email:'non-approuve@example.test',p_nom:'Personne',p_role:'vendeur',p_sites:[newSite.id]}), 'Invitation propriétaire');
   const invites = ok(await pending.rpc('equipe_mes_invitations'), 'Invitation pour adresse vérifiée');
   assert.equal(invites.length,1); assert.equal(invites[0].role,'vendeur');
@@ -393,7 +407,9 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   denied(await lab.rpc('equipe_modifier_affectations',assignment),'Reserve au proprietaire');
   denied(await owner.rpc('equipe_modifier_affectations',{...assignment,p_utilisateur_id:ids[0]}),'Compte introuvable');
   assert.ok((await anon.rpc('equipe_modifier_affectations',assignment)).error);
+  await sql`update sites set type='laboratoire' where id=${site}`;
   assert.ok((await owner.rpc('equipe_modifier_affectations',{...assignment,p_sites:[site]})).error,'Vendeur uniquement en boutique');
+  await sql`update sites set type='boutique' where id=${site}`;
   assert.ok((await owner.rpc('equipe_modifier_affectations',{...assignment,p_sites:[newSite.id,newSite.id]})).error);
   assert.ok((await owner.rpc('equipe_modifier_affectations',{...assignment,p_modules:['caisse','inconnu']})).error);
   assert.ok((await owner.rpc('equipe_modifier_affectations',{...assignment,p_modules:['caisse','caisse']})).error);
@@ -414,8 +430,16 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.equal(ok(await seller.rpc('patisgest_module_autorise',{p_module:'caisse'}),'Caisse autorisée'),true);
   assert.equal(ok(await seller.rpc('patisgest_module_autorise',{p_module:'production'}),'Production désactivée'),false);
   assert.ok((await owner.from('equipe_journal_acces').select('*')).error,'Journal non accessible directement');
-  ok(await owner.rpc('equipe_inviter',{p_email:emails[2],p_nom:'Vendeur',p_role:'vendeur',p_sites:[newSite.id]}),'Invitation antérieure');
+  const oldInvite=ok(await owner.rpc('equipe_inviter',{p_email:emails[2],p_nom:'Vendeur',p_role:'vendeur',p_sites:[newSite.id]}),'Invitation antérieure');
   assert.equal(ok(await seller.rpc('equipe_mes_invitations'),'Invitation antérieure visible').length,1);
+  // L'adresse Auth a changé sans mise à jour de utilisateurs.email. La
+  // révocation doit invalider aussi une ancienne invitation sur cette adresse.
+  const changedEmail='vendeur-nouvelle-adresse@example.test';
+  const futureEmail='vendeur-future-adresse@example.test';
+  const futureInvite=ok(await owner.rpc('equipe_inviter',{p_email:futureEmail,p_nom:'Vendeur',p_role:'vendeur',p_sites:[newSite.id]}),'Invitation antérieure sur une troisième adresse');
+  await sql`update auth.users set email=${changedEmail} where id=${authIds[2]}`;
+  const changedInvite=ok(await owner.rpc('equipe_inviter',{p_email:changedEmail,p_nom:'Vendeur',p_role:'vendeur',p_sites:[newSite.id]}),'Invitation adresse Auth courante');
+  assert.equal(ok(await seller.rpc('equipe_mes_invitations'),'Invitation nouvelle adresse visible')[0].id,changedInvite);
   denied(await other.rpc('equipe_revoquer',{p_utilisateur_id:ids[2]}),'Compte introuvable');
   denied(await seller.rpc('equipe_revoquer',{p_utilisateur_id:ids[2]}),'Reserve au proprietaire');
   denied(await owner.rpc('equipe_revoquer',{p_utilisateur_id:ids[0]}),'Compte introuvable');
@@ -428,9 +452,25 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.equal(ok(await seller.from('ventes').select('id'),'Ventes inaccessibles après révocation').length,0);
   assert.equal(ok(await seller.rpc('patisgest_module_autorise',{p_module:'caisse'}),'Module révoqué'),false);
   assert.equal(ok(await seller.rpc('equipe_mes_invitations'),'Ancienne invitation annulée').length,0);
+  const revokedInvites=await sql`select id,annulee from equipe_invitations where id in (${oldInvite},${changedInvite})`;
+  assert.equal(revokedInvites.length,2); assert.ok(revokedInvites.every(i=>i.annulee),'Ancienne et nouvelle adresse neutralisées');
   denied(await seller.rpc('vendre_article',{p_article_id:product,p_site_id:newSite.id,p_qte:1,p_ticket:'V-REVOQUE'}),'Site non autorise');
   assert.equal((await sql`select count(*)::int n from equipe_journal_acces where utilisateur_id=${ids[2]}`)[0].n,3);
   denied(await owner.rpc('equipe_revoquer',{p_utilisateur_id:ids[2]}),'Compte introuvable');
+  assert.ok((await seller.from('equipe_revocations').select('*')).error,'Historique de sécurité privé');
+  assert.ok((await seller.rpc('patisgest_equipe_exiger_decision_recente',{p_client:A,p_cree_le:'2099-01-01'})).error,'Contrôle interne non exposé');
+  // Un changement d'adresse après révocation ne rend pas une invitation
+  // antérieure valide, même si celle-ci n'était pas liée à l'ancienne adresse.
+  await sql`update auth.users set email=${futureEmail} where id=${authIds[2]}`;
+  assert.equal(ok(await seller.rpc('equipe_mes_invitations'),'Ancienne invitation sur troisième adresse masquée').length,0);
+  await sql`update public.equipe_admission_securite set autorisee=true where cle`;
+  denied(await seller.rpc('equipe_accepter_invitation',{p_id:futureInvite}),'Admission indisponible');
+  assert.equal(ok(await seller.from('clients').select('id'),'Pas de réadmission sur ancienne invitation').length,0);
+  const newInvite=ok(await owner.rpc('equipe_inviter',{p_email:futureEmail,p_nom:'Vendeur',p_role:'vendeur',p_sites:[newSite.id]}),'Nouvelle décision explicite après révocation');
+  const readmitted=ok(await seller.rpc('equipe_accepter_invitation',{p_id:newInvite}),'Réadmission sur nouvelle invitation');
+  assert.equal(ok(await seller.rpc('patisgest_module_autorise',{p_module:'caisse'}),'Modules désactivés à la réadmission'),false);
+  ok(await owner.rpc('equipe_revoquer',{p_utilisateur_id:readmitted}),'Révoquer la réadmission fictive');
+  await sql`update public.equipe_admission_securite set autorisee=false where cle`;
 
   // Admission : la bascule n'est ouverte que par SQL privilégié dans cette
   // pile jetable, jamais par une RPC ou un membre. Tous les modules restent

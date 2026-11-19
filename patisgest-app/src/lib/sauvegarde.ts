@@ -61,6 +61,7 @@ export const TABLES_EXCLUES: { table: string; raison: string }[] = [
   { table: "equipe_codes", raison: "codes d'équipe non restaurés par le format actuel, si la fonctionnalité équipe est installée" },
   { table: "equipe_journal_acces", raison: "journal d'accès non restauré par le format actuel, si la fonctionnalité équipe est installée" },
   { table: "equipe_admission_securite", raison: "état de sécurité de l'admission non restauré par le format actuel, si la fonctionnalité équipe est installée" },
+  { table: "equipe_revocations", raison: "historique des identités révoquées non restauré par le format actuel, si la fonctionnalité équipe est installée" },
 ];
 
 /**

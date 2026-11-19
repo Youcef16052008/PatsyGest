@@ -129,6 +129,14 @@ ne remplace pas la sécurité SQL ; n'utiliser qu'une pile jetable. Le brouillon
 les modifications SQL privilégiées et cascades externes ne sont pas couvertes
 par ce compteur. Les vérifications de bout en bout restent à faire.
 
+La revue a identifié deux failles à traiter avant certification : un vendeur
+pouvait conserver l'accès à un site requalifié laboratoire et une ancienne
+invitation sur une nouvelle adresse pouvait survivre à la révocation. Les
+brouillons 44–46 renforcent les contrôles de site et conservent une trace privée
+des révocations pour invalider les décisions antérieures. Cette trace est
+exclue de l'export partiel et devra être restaurée dans une sauvegarde complète.
+Les scénarios de concurrence et la transition des comptes restent à examiner.
+
 Certaines vues labo sont exécutées avec les droits de leur propriétaire, et
 des tables n'ont pas de colonne site. Il serait dangereux de
 présenter un filtrage d'interface comme une isolation effective.

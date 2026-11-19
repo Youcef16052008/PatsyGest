@@ -11,6 +11,7 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
   await db.exec(`create role authenticated; create role anon; create role service_role;
    create schema auth; grant usage on schema public,auth to authenticated,anon,service_role;
    create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.uid',true),'')::uuid$$;
+   create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz,deleted_at timestamptz);
    create function public.rls_auto_enable() returns event_trigger language plpgsql as $$begin end$$;
    alter default privileges in schema public grant all on tables to authenticated,service_role;
    alter default privileges in schema public grant execute on functions to authenticated,service_role;

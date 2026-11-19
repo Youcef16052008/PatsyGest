@@ -1,6 +1,6 @@
 # Évaluation de certification — phases 2 et 3
 
-**Décision : NON CERTIFIÉES ; migrations 24–43 non autorisées pour application.**
+**Décision : NON CERTIFIÉES ; migrations 24–46 non autorisées pour application.**
 Ce document décrit un état et des essais partiels, pas un certificat de sécurité.
 Le pilote est utilisé par la production : une migration de sécurité incomplète
 peut aussi verrouiller les utilisateurs existants ou casser l'ancienne application.
@@ -8,7 +8,7 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
 ## Constat vérifié
 
 - Historique Supabase consulté en lecture seule : dernière migration
-  `controle_modules_23` (`20261119045242`). Les brouillons 24–43 n'y sont pas.
+  `controle_modules_23` (`20261119045242`). Les brouillons 24–46 n'y sont pas.
 - Production Vercel consultée en lecture seule : commit `f11e371` ; elle ne
   correspond pas à l'application de la branche. Preview et production sont
   configurés sur la même base Supabase ; les tests destructifs sont interdits.
@@ -38,7 +38,9 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   et signale leur absence dans l'interface ; ses essais isolés ne certifient
   ni le graphe complet ni la compatibilité du pilote. Certains accès sans
   site ou de traçabilité sont refusés de manière conservatrice, pas
-  intégralement pris en charge.
+  intégralement pris en charge. Le brouillon 44 vérifie aussi le type boutique
+  pour chaque accès vendeur ; il peut bloquer des affectations historiques
+  et exige donc un audit préalable et une transition coordonnée.
 - Les corps de sept fonctions et des policies de quatre tables diffèrent entre
   pilote et reconstruction ; leur impact sémantique doit être résolu avant
   rejeu. Trois anciens cakes sans site exigent une décision d'attribution.
@@ -66,8 +68,11 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   d'adresse, les invitations et les clés étrangères du pilote restent à auditer.
   Le compteur de révision du brouillon 43 sérialise les chemins applicatifs de
   modification et la révocation versionnée ; il ne garantit pas la détection
-  de modifications SQL privilégiées ou de cascades externes. La suppression ne
-  désactive pas le compte Supabase Auth lui-même.
+  de modifications SQL privilégiées ou de cascades externes. Les brouillons
+  45–46 ajoutent un historique privé de révocation et empêchent l'acceptation
+  de décisions antérieures même après changement d'adresse ; sa sauvegarde,
+  sa restauration et ses courses doivent encore être validées. La suppression
+  ne désactive pas le compte Supabase Auth lui-même.
 - La transition des comptes existants doit être définie et testée sans élargir
   leurs droits ni les priver involontairement de leurs sites.
 
