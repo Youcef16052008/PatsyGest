@@ -4,6 +4,10 @@ import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import postgres from 'postgres';
 import { createClient } from '@supabase/supabase-js';
+import { spawn } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 const { API_URL, ANON_KEY, SERVICE_ROLE_KEY, DB_URL, PATSYGEST_DISPOSABLE } = process.env;
 function assertLocal(value, port) {
@@ -214,6 +218,36 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.ok((await anon.rpc('modifier_acces_module',{p_utilisateur_id:ids[1],p_module:'qualite',p_actif:true})).error);
   const forged = await fetch(`${API_URL}/rest/v1/articles`,{headers:{apikey:ANON_KEY,Authorization:'Bearer invalid.jwt.signature'}});
   assert.equal(forged.status,401);
+
+  // Next réel + Auth réelle, jamais la production : une session périmée est
+  // renouvelée par le proxy et son cookie permet ensuite d'ouvrir une page.
+  const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
+  const app=spawn(path.join(root,'node_modules','.bin','next'),['dev','-p','3414','-H','127.0.0.1'],{
+    cwd:root,env:{...process.env,VERCEL_ENV:'',PATISGEST_DEMO_MODE:'false',NEXT_PUBLIC_SUPABASE_URL:API_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY:ANON_KEY},stdio:['ignore','pipe','pipe']
+  });
+  let logs=''; app.stdout.on('data',s=>{logs=(logs+s).slice(-2000)}); app.stderr.on('data',s=>{logs=(logs+s).slice(-2000)});
+  try {
+   let ready=false;
+   for(let i=0;i<120;i++) {
+    if(app.exitCode!==null) throw new Error(`Next arrêté : ${logs}`);
+    try {if((await fetch('http://127.0.0.1:3414/connexion')).status===200){ready=true;break;}} catch {}
+    await sleep(500);
+   }
+   assert.ok(ready,'Next ne démarre pas');
+   const fresh=client();
+   const session=ok(await fresh.auth.signInWithPassword({email:emails[0],password}),'Session HTTP fictive').session;
+   assert.ok(session?.refresh_token);
+   const cookieName=`sb-${new URL(API_URL).hostname.split('.')[0]}-auth-token`;
+   const expired={...session,expires_at:1};
+   const cookie=`${cookieName}=base64-${Buffer.from(JSON.stringify(expired)).toString('base64url')}`;
+   const refreshed=await fetch('http://127.0.0.1:3414/connexion',{headers:{cookie},redirect:'manual'});
+   assert.equal(refreshed.status,200);
+   const setCookies=refreshed.headers.getSetCookie().filter(c=>c.startsWith(`${cookieName}=`)||c.startsWith(`${cookieName}.`));
+   assert.ok(setCookies.length,'Le proxy doit renouveler le cookie Supabase');
+   const renewed=setCookies.map(c=>c.split(';')[0]).join('; ');
+   const dashboard=await fetch('http://127.0.0.1:3414/tableau-de-bord',{headers:{cookie:renewed},redirect:'manual'});
+   assert.equal(dashboard.status,200,'La session renouvelée ouvre le tableau de bord');
+  } finally {app.kill('SIGTERM');}
  } finally {
   await sql.end();
  }
