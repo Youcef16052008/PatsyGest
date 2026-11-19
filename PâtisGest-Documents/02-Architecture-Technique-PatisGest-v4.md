@@ -166,16 +166,20 @@ test d'intrusion léger externe si budget, mentions légales + CGU rédigées.
 
 ## 8. Hébergement, domaines & coûts (DZD)
 
-| Poste | Choix | Coût année 1 |
+| Poste | Choix | Coût |
 |---|---|---|
-| App + API | Vercel (Hobby → Pro à ~20 clients) | 0 → ~3 000 DA/mois |
-| Base + Auth | Supabase (Free → Pro à ~15 clients) | 0 → ~3 500 DA/mois |
+| App + API | Vercel **Pro** (obligatoire dès qu'un client paie : Hobby est réservé au non-commercial) | 20 $/mois ≈ 4 900 DA |
+| Base + Auth | Supabase **Pro** (le Free met le projet en pause après 7 jours sans requête et n'a aucune sauvegarde automatique) | 25 $/mois ≈ 6 100 DA |
 | Domaine | `patisgest.dz` (via NIC Algérie, RC requis) + `patisgest.com` en repli | ~3 000–5 000 DA/an |
-| E-mail transactionnel | Resend / Brevo (offre gratuite) | 0 DA |
-| Sauvegardes externes | Stockage objet 50 Go | ~1 000 DA/mois |
-| **Total** | | **≈ 5 000 DA/an puis ~7 500 DA/mois à 20 clients** |
+| E-mail transactionnel | Resend / Brevo (offre gratuite) — **SMTP custom obligatoire** : le SMTP intégré de Supabase plafonne à 2 e-mails/h, même en Pro | 0 DA |
+| Sauvegardes | Incluses (quotidiennes, 7 jours) + export client `GET /api/sauvegarde` | 0 DA (le poste « stockage objet 50 Go » devient inutile) |
+| **Total pilote (1 à 5 pilotes)** | Free + Hobby | **0 DA** |
+| **Total commercial** | | **≈ 11 000 DA/mois** |
 
-Soit < 1 abonnement Solo : le modèle est rentable dès le 2ᵉ client.
+À 50 clients Solo (2 900 DA) : MRR 145 000 DA, charge d'infra **7,6 %**.
+Quotas Pro inclus et suffisants : 8 GB de base (≈ 2 ans à 100 boutiques pleine
+charge), 100 GB de fichiers, 250 GB d'egress, 100 000 comptes.
+Analyse complète et chiffrage : [`NOTE-HEBERGEMENT.md`](../NOTE-HEBERGEMENT.md).
 
 ## 9. Environnements & méthode solo
 

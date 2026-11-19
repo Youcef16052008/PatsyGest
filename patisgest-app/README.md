@@ -56,6 +56,15 @@ propriétaire et au labo en mode Supabase. Il suit les six enregistrements
 existants dans l'établissement, pas les brouillons ni la file hors ligne.
 Pour le retest sur un établissement de test, voir [le guide pilote, étape 6](../GUIDE-PILOTE.md#étape-6--vérifier-et-chronométrer-le-guide-b).
 
+**Montée en charge (avant ~15 comptes)** : exécuter
+`supabase/24-index-exploitation.sql`. Il crée 18 index composites par
+`client_id` là où les écrans et les RPC FEFO filtrent réellement. Sur le pilote
+(1 établissement) ils sont inutiles ; dès que plusieurs boutiques partagent les
+mêmes tables, leur absence transforme chaque écran en balayage complet. Sur une
+base déjà volumineuse, remplacer chaque `create index` par
+`create index concurrently` hors transaction pour ne pas bloquer la caisse.
+Coût d'infrastructure et arbitrage Free/Pro : [`../NOTE-HEBERGEMENT.md`](../NOTE-HEBERGEMENT.md).
+
 ### 2. Comptes
 
 Les comptes `amina@patisserie.dz` (propriétaire), `sara@patisserie.dz` (labo) et
