@@ -140,7 +140,7 @@ jobs:
             while IFS= read -r line; do
               line=${line//'%'/'%25'}; line=${line//$'\r'/'%0D'}; line=${line//$'\n'/'%0A'}
               echo "::error::$line"
-            done < <(grep -E 'ERROR:|error:|Error:|AssertionError|Différence|DIFF_TABLE|supabase.*failed|Process completed' "$RUNNER_TEMP/cli-restore-result.txt" | head -20)
+            done < <(tail -35 "$RUNNER_TEMP/cli-restore-result.txt")
           fi
           exit "$result"
       - name: Détruire la pile et ses données fictives
