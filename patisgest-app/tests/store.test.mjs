@@ -273,7 +273,7 @@ test('quality collections are added to old demo data without losing closures', (
 });
 
 import { createCake, payCake, cakeTotals, advanceCake, setCakeTask, moneyToCents } from '../src/lib/patisgest-store.ts';
-const cakeInput=()=>({client:'Client fictif',telephone:'',eventDate:'2028-03-01',portions:20,priceCents:10001,options:[{name:'Décor',costCents:500,minutes:30}],notes:''});
+const cakeInput=()=>({client:'Client fictif',telephone:'',eventDate:'2028-03-01',portions:20,priceCents:10001,recipeId:'recette-eclair',productionQty:20,options:[{name:'Décor',costCents:500,minutes:30}],notes:''});
 test('cake requires an exact 30% deposit and freezes input options', () => {
   let state=structuredClone(seed), input=cakeInput();
   state=createCake(state,input);
@@ -297,6 +297,10 @@ test('cake prevents overpayment, invalid transitions and unpaid delivery', () =>
   state=payCake(state,id,3001);
   state=advanceCake(state,id,'confirme');
   assert.throws(()=>advanceCake(state,id,'livre'));
+  assert.throws(()=>advanceCake(state,id,'produit'));
+  const of=state.cakes[0].ofId;
+  state=startProduction(state,of);
+  state=completeProduction(state,of,20,'CAKE-TEST','2029-01-01');
   state=advanceCake(state,id,'produit');
   assert.throws(()=>advanceCake(state,id,'livre'));
   state=payCake(state,id,7000);

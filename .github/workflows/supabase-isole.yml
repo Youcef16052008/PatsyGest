@@ -1,0 +1,152 @@
+name: Auth et PostgREST isolés
+on:
+  workflow_dispatch:
+  push:
+    branches: [arena/28f0bb69-patsygest]
+    paths:
+      - '.github/workflows/supabase-isole.yml'
+      - 'patisgest-app/tests/integration/**'
+      - 'patisgest-app/tests/migrations*.mjs'
+      - 'patisgest-app/migrations/**'
+      - 'patisgest-app/tests/caisse-collision-db.test.mjs'
+      - 'patisgest-app/tests/sale-queue.test.mjs'
+      - 'patisgest-app/tests/sale-session.test.mjs'
+      - 'patisgest-app/tests/coffre-sauvegarde.test.mjs'
+      - 'patisgest-app/scripts/coffre-sauvegarde.mjs'
+      - 'patisgest-app/tests/fixtures/pilote-vitrine/**'
+      - 'patisgest-app/tests/preview*.mjs'
+      - 'patisgest-app/tests/schema-complet.test.mjs'
+      - 'patisgest-app/tests/equipe-experimental.test.mjs'
+      - 'patisgest-app/tests/invitation-mail.test.mjs'
+      - 'patisgest-app/tests/vitrine-perimetre.test.mjs'
+      - 'patisgest-app/tests/inventaire-rpc.json'
+      - 'patisgest-app/tests/inventaire-surface*'
+      - 'patisgest-app/supabase/**'
+      - 'patisgest-app/src/**'
+      - 'patisgest-app/next.config.ts'
+      - 'patisgest-app/package.json'
+      - 'patisgest-app/package-lock.json'
+permissions:
+  contents: read
+jobs:
+  preview-safety:
+    name: Protection de l’aperçu
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: patisgest-app/package-lock.json
+      - run: npm ci
+        working-directory: patisgest-app
+      - run: npm run build
+        working-directory: patisgest-app
+        env:
+          VERCEL_ENV: preview
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:65531
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: test
+      - run: npm run test:preview
+        working-directory: patisgest-app
+        env:
+          PREVIEW_SMOKE_BUILT: '1'
+      - run: node --experimental-strip-types --test tests/preview-guard.test.mjs tests/coffre-sauvegarde.test.mjs tests/migrations-repetition.test.mjs tests/sale-queue.test.mjs tests/sale-session.test.mjs tests/equipe-experimental.test.mjs tests/invitation-mail.test.mjs tests/schema-complet.test.mjs tests/vitrine-perimetre.test.mjs tests/caisse-collision-db.test.mjs tests/inventaire-surface.test.mjs
+        working-directory: patisgest-app
+  integration:
+    name: Auth et PostgREST (${{ matrix.schema }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        schema: [historique, vitrine]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: patisgest-app/package-lock.json
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.75.0
+      - run: npm ci
+        working-directory: patisgest-app
+      - name: Démarrer une pile Supabase locale jetable
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/patsygest-isole"
+          cd "$RUNNER_TEMP/patsygest-isole"
+          supabase init
+          supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta,inbucket
+          supabase status -o env > "$RUNNER_TEMP/supabase-test.env"
+      - name: Tests avec sessions Auth et API PostgREST
+        id: integration
+        shell: bash
+        working-directory: patisgest-app
+        env:
+          PATSYGEST_TEST_VITRINE: ${{ matrix.schema == 'vitrine' && 'yes' || 'no' }}
+        run: |
+          set -a
+          source "$RUNNER_TEMP/supabase-test.env"
+          set +a
+          export PATSYGEST_DISPOSABLE=yes
+          set +e
+          node --test tests/integration/auth-postgrest.mjs 2>&1 | tee "$RUNNER_TEMP/test-result.txt"
+          result=${PIPESTATUS[0]}
+          set -e
+          if [ "$result" -ne 0 ]; then
+            while IFS= read -r line; do
+              line=${line//'%'/'%25'}; line=${line//$'\r'/'%0D'}; line=${line//$'\n'/'%0A'}
+              echo "::error::$line"
+            done < <(grep -E '(^not ok|error:|message:|Migration |cause:|AssertionError|Error:|operator:|expected:|actual:|location:|stack:|auth-postgrest\.mjs:)' "$RUNNER_TEMP/test-result.txt" | head -24)
+          fi
+          exit "$result"
+      - name: Répétition de dump et restauration PostgreSQL isolée
+        if: matrix.schema == 'vitrine'
+        shell: bash
+        working-directory: patisgest-app
+        run: |
+          set -a
+          source "$RUNNER_TEMP/supabase-test.env"
+          set +a
+          export PATSYGEST_DISPOSABLE=yes
+          set +e
+          tests/integration/restauration-isolee.sh 2>&1 | tee "$RUNNER_TEMP/restore-result.txt"
+          result=${PIPESTATUS[0]}
+          set -e
+          if [ "$result" -ne 0 ]; then
+            while IFS= read -r line; do
+              line=${line//'%'/'%25'}; line=${line//$'\r'/'%0D'}; line=${line//$'\n'/'%0A'}
+              echo "::error::$line"
+            done < <(grep -E 'supabase_admin|postgres +\||pg_restore: error|Command was:|AssertionError|Error:|actual:|expected:|at file:' "$RUNNER_TEMP/restore-result.txt" | head -20)
+          fi
+          exit "$result"
+      - name: Répétition Supabase CLI sur pile jetable recréée
+        if: always() && matrix.schema == 'vitrine' && steps.integration.outcome == 'success'
+        shell: bash
+        working-directory: patisgest-app
+        run: |
+          set -a
+          source "$RUNNER_TEMP/supabase-test.env"
+          set +a
+          export PATSYGEST_DISPOSABLE=yes
+          set +e
+          tests/integration/restauration-cli-isolee.sh 2>&1 | tee "$RUNNER_TEMP/cli-restore-result.txt"
+          result=${PIPESTATUS[0]}
+          set -e
+          if [ "$result" -ne 0 ]; then
+            while IFS= read -r line; do
+              line=${line//'%'/'%25'}; line=${line//$'\r'/'%0D'}; line=${line//$'\n'/'%0A'}
+              echo "::error::$line"
+            done < <(grep -E 'ERROR:|error:|Error:|AssertionError|Différence|DIFF_|supabase.*failed|Process completed' "$RUNNER_TEMP/cli-restore-result.txt" | head -24)
+          fi
+          exit "$result"
+      - name: Détruire la pile et ses données fictives
+        if: always()
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/patsygest-isole" 2>/dev/null || exit 0
+          supabase stop --no-backup || true

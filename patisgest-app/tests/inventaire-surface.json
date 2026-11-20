@@ -1,0 +1,114 @@
+{
+  "routes": [
+    "src/app/(app)/[module]/page.tsx",
+    "src/app/(app)/mentions-legales/page.tsx",
+    "src/app/(app)/parametres/page.tsx",
+    "src/app/(app)/tableau-de-bord/page.tsx",
+    "src/app/(auth)/connexion/page.tsx",
+    "src/app/(auth)/rejoindre/page.tsx",
+    "src/app/(vitrine)/vitrine/[slug]/page.tsx",
+    "src/app/api/export/route.ts",
+    "src/app/api/sauvegarde/route.ts",
+    "src/app/estimation/page.tsx",
+    "src/app/page.tsx"
+  ],
+  "actions": {
+    "src/app/(vitrine)/vitrine/[slug]/commander/actions.ts": [
+      "demanderCommande"
+    ],
+    "src/lib/actions-achats.ts": [
+      "createCommandeReal",
+      "createFournisseur",
+      "receiveCommandeReal"
+    ],
+    "src/lib/actions-auth.ts": [
+      "login",
+      "logout",
+      "quickDemoLogin"
+    ],
+    "src/lib/actions-caisse.ts": [
+      "importZReal",
+      "sellCart",
+      "sellProduct"
+    ],
+    "src/lib/actions-couts.ts": [
+      "analyserHausseMatiereReal",
+      "ficheCoutReal",
+      "sauverParamsCoutsReal"
+    ],
+    "src/lib/actions-equipe.ts": [
+      "afficherCodeEquipe",
+      "annulerInvitationEquipe",
+      "creerInvitationEquipe",
+      "deciderDemande",
+      "modifierAffectationsEquipe",
+      "renvoyerInvitationEquipe",
+      "revoquerMembreEquipe"
+    ],
+    "src/lib/actions-etablissement.ts": [
+      "sauverEtablissement"
+    ],
+    "src/lib/actions-journaux.ts": [
+      "accepterCgvReal",
+      "addCleaning",
+      "addNc",
+      "addTask",
+      "addTemperature",
+      "assignCakeProductionReal",
+      "cancelRestockRequestReal",
+      "createCakeReal",
+      "createRestockRequestReal",
+      "editerCakeReal",
+      "evolveCakeReal",
+      "saisirCloture",
+      "toggleTask",
+      "updateNc",
+      "validateTomorrowLineReal"
+    ],
+    "src/lib/actions-modules.ts": [
+      "modifierModule"
+    ],
+    "src/lib/actions-of.ts": [
+      "createOf",
+      "finishOf",
+      "startOf"
+    ],
+    "src/lib/actions-rappel.ts": [
+      "bloquerLotReal",
+      "debloquerLotReal",
+      "rappelLotReal"
+    ],
+    "src/lib/actions-recettes.ts": [
+      "activateVersionReal",
+      "createFamilleReal",
+      "createVersionReal"
+    ],
+    "src/lib/actions-rejoindre.ts": [
+      "demanderRattachement",
+      "repondreRattachement"
+    ],
+    "src/lib/actions-restauration.ts": [
+      "analyserSauvegarde",
+      "confirmerRestauration"
+    ],
+    "src/lib/actions-simulation.ts": [
+      "simulerReal"
+    ],
+    "src/lib/actions-sites.ts": [
+      "enregistrerSite"
+    ],
+    "src/lib/actions-stock.ts": [
+      "createArticle",
+      "receiveLot",
+      "transferReal"
+    ],
+    "src/lib/actions-vitrine.ts": [
+      "enregistrerPhotoVitrine",
+      "publierVitrine",
+      "reglerVitrineRecette",
+      "reserverSousDomaine",
+      "supprimerRecetteVitrine",
+      "traiterDemandeVitrine"
+    ]
+  }
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { ficheCoutReal, sauverParamsCoutsReal, type CoutsState } from "@/lib/actions-couts";
 
@@ -42,7 +43,13 @@ export default function CostSheetForm({ produits }: { produits: Option[] }) {
       </section>
 
       <section className="rounded-2xl border bg-white p-5">
-        <h2 className="mb-1 font-bold">Fiche de coût (RC-01 → RC-10)</h2>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-bold">Fiche de coût (RC-01 → RC-10)</h2>
+          <div className="flex flex-wrap gap-3 text-xs font-bold text-violet-700">
+            <Link href="/simulation#hausse-matiere" className="underline">Impact hausse matière →</Link>
+            <Link href="/estimation" className="underline">Calculateur parts &amp; moules →</Link>
+          </div>
+        </div>
         <p className="mb-3 text-xs text-slate-500">
           Version active du produit · matières au coût <b>FEFO</b> avec parage (RC-01) ·
           cuisson déduite du rendement (RC-02) · <b>jamais de TVA dans le coût</b> (RC-05) ·

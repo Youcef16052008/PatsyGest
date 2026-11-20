@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
 import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { lireModulesDesactives } from "@/lib/modules-access";
 import { messageUtilisateur } from "@/lib/erreurs-db";
 import {
-  ORDRE_RESTAURATION, colonneTenant, construireSauvegarde, nomFichierSauvegarde,
+  ORDRE_RESTAURATION, colonneTenant, construireSauvegarde, nomFichierSauvegarde, MAX_OCTETS_SAUVEGARDE,
   type TableSauvegardee,
 } from "@/lib/sauvegarde";
 
 export const dynamic = "force-dynamic";
 
 /**
- * US-15.2 — sauvegarde complète JSON (RG-15.1 : aucune donnée prisonnière).
- * Réservée au propriétaire : c'est un export de tout l'établissement.
+ * Export JSON partiel. Les comptes, réglages d'accès et données équipe ne
+ * sont pas inclus ; ne pas l'utiliser comme sauvegarde complète de la base.
+ * Réservé au propriétaire.
  * Lecture seule, aucune écriture.
  */
 export async function GET() {
@@ -21,6 +23,9 @@ export async function GET() {
     return NextResponse.json({ erreur: "Sauvegarde réservée au propriétaire." }, { status: 403 });
   }
 
+  const disabled = await lireModulesDesactives(ctx);
+  if (disabled === null || disabled.size > 0) return NextResponse.json({ erreur: "Sauvegarde indisponible : autorisations incomplètes ou modules désactivés." }, { status: 403 });
+
   try {
     const supabase = await createClient();
     const tables: TableSauvegardee[] = [];
@@ -29,18 +34,20 @@ export async function GET() {
     for (const table of ORDRE_RESTAURATION) {
       // `clients` s'isole par `id`, toutes les autres par `client_id` :
       // filtrer clients sur client_id fait échouer la sauvegarde entière.
-      const { data, error } = await supabase
-        .from(table)
-        .select("*")
-        .eq(colonneTenant(table), ctx.clientId)
-        .limit(50000);
-      if (error) {
-        // Une table illisible ne doit pas produire une sauvegarde silencieusement
-        // incomplète : on la nomme dans la réponse 500.
-        echecs.push(`${table} : ${messageUtilisateur(error, "lecture refusée")}`);
-        continue;
+      const lignes: Record<string, unknown>[] = [];
+      let complete = false;
+      for (let offset = 0; offset < 50000; offset += 500) {
+        const {data,error} = await supabase.from(table).select("*")
+          .eq(colonneTenant(table), ctx.clientId).order("id").range(offset, offset + 499);
+        if (error || !data) {
+          echecs.push(`${table} : ${error ? messageUtilisateur(error, "lecture refusée") : "lecture indisponible"}`);
+          break;
+        }
+        lignes.push(...data as Record<string, unknown>[]);
+        if (data.length < 500) { complete = true; break; }
       }
-      tables.push({ table, lignes: (data ?? []) as Record<string, unknown>[] });
+      if (!complete) { echecs.push(`${table} : lecture incomplète ou limite atteinte`); continue; }
+      tables.push({ table, lignes });
     }
 
     if (echecs.length > 0) {
@@ -51,7 +58,9 @@ export async function GET() {
     }
 
     const dump = construireSauvegarde(ctx.clientId, ctx.clientNom, tables);
-    return new NextResponse(JSON.stringify(dump, null, 2), {
+    const json = JSON.stringify(dump, null, 2);
+    if (Buffer.byteLength(json, "utf8") > MAX_OCTETS_SAUVEGARDE) return NextResponse.json({erreur:"Sauvegarde trop volumineuse pour la restauration actuelle : contactez le support."},{status:413});
+    return new NextResponse(json, {
       status: 200,
       headers: {
         "Content-Type": "application/json; charset=utf-8",

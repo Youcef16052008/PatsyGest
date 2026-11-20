@@ -64,20 +64,21 @@ test('sécu : les fichiers .env sont ignorés par Git', () => {
  */
 const FONCTIONS_ANON_AUTORISEES = ['patisgest_demander_commande'];
 
-test('sécu : aucune migration n’accorde de droit d’exécution à anon', () => {
+test('sécu : seule la RPC vitrine nominative est accordée à anon, jamais à PUBLIC', () => {
   const dir = 'supabase';
   const migrations = readdirSync(path.join(ROOT, dir)).filter((f) => f.endsWith('.sql'));
   assert.ok(migrations.length >= 17, `migrations manquantes (${migrations.length})`);
   for (const m of migrations) {
     const sql = lire(path.join(dir, m)).toLowerCase();
-    // `grant ... to anon` ou `grant ... to public` ouvrirait la RPC à Internet.
-    const regex = /grant\s+execute\s+on\s+function\s+([\w.]+)[^;]*\bto\b[^;]*\banon\b/g;
-    for (const [, nom] of sql.matchAll(regex)) {
-      const courte = nom.trim().split('.').pop();
-      assert.ok(
-        FONCTIONS_ANON_AUTORISEES.includes(courte),
-        `grant à anon pour ${courte} dans ${m} (hors liste blanche)`,
-      );
+    const grants = sql.match(/grant\s+execute\s+on\s+function[^;]*;/g) ?? [];
+    for (const grant of grants) {
+      const match = grant.match(/^grant\s+execute\s+on\s+function\s+([\w.]+)\s*\([^)]*\)\s+to\s+([^;]+)/);
+      assert.ok(match, `grant non analysable dans ${m}: ${grant}`);
+      const [, nom, roles] = match;
+      assert.doesNotMatch(roles, /\bpublic\b/, `grant PUBLIC dans ${m}`);
+      if (/\banon\b/.test(roles)) {
+        assert.ok(FONCTIONS_ANON_AUTORISEES.includes(nom.split('.').pop()), `grant à anon pour ${nom} dans ${m}`);
+      }
     }
   }
 });
@@ -97,7 +98,9 @@ test('sécu : les URL de coût sont protégées avant tout rendu ou lecture mét
   const rendu = page.slice(page.indexOf('export default async function ModulePage'));
   assert.match(page, /const modulesCout\s*=\s*new Set<Module>\(\[\s*'recettes',\s*'simulation'\s*\]\)/);
   const role = rendu.search(/const coutsAutorises\s*=\s*canReadCosts\(ctx\.role\)/);
-  const garde = rendu.search(/if\s*\(modulesCout\.has\(key\)\s*&&\s*!coutsAutorises\)\s*redirect\('\/tableau-de-bord'\)/);
+  const garde = rendu.search(/if\s*\(modulesCout\.has\(key\)\s*&&\s*!coutsAutorises[^\n]+redirect\('\/tableau-de-bord'\)/);
+  assert.match(rendu, /ctx\.role === 'labo' && key === 'recettes'/);
+  assert.match(rendu, /<LabWorkspace module=\{key\} ctx=\{ctx\}/);
   assert.ok(role >= 0 && role < garde, 'la redirection doit dépendre du rôle de session');
   for (const premier of ['<DemoModule', 'await createClient()', 'supabase.from(']) {
     assert.ok(garde < rendu.indexOf(premier), `garde absente ou après ${premier}`);
@@ -117,8 +120,9 @@ test('sécu : les listes excluent les tables de coût pour le vendeur et projett
   assert.match(page, /const tables\s*=\s*info\.tables\.filter\(\(\[table\]\)\s*=>\s*coutsAutorises\s*\|\|\s*!estTableCout\(table\)\)/);
   assert.match(page, /Promise\.all\(tables\.map\(/);
   assert.match(page, /const colonnes\s*=\s*estTableCout\(table\)\s*\?\s*tablesCout\[table\]\s*:\s*'\*'/);
-  assert.match(page, /supabase\.from\(table\)\.select\(colonnes\)/);
-  assert.doesNotMatch(page, /supabase\.from\(table\)\s*\.select\(\s*(?:['"]\*['"])?\s*\)/);
+  assert.match(page, /ctx\.role==='vendeur'.*table==='lots' \? 'vendeur_lots'.*table==='ordres_fabrication' \? 'vendeur_ordres_fabrication'/);
+  assert.match(page, /supabase\.from\(source\)\.select\(colonnes\)/);
+  assert.doesNotMatch(page, /supabase\.from\(source\)\s*\.select\(\s*(?:['"]\*['"])?\s*\)/);
 });
 
 test('sécu : les lectures spécifiques de recettes sont aussi gardées et sans joker', () => {
@@ -307,10 +311,9 @@ test('sécu : toute migration révoque PUBLIC avant de donner un droit', () => {
       );
       if (/to\s+(public|anon)\b/i.test(g)) {
         // Seule dérogation : la RPC publique de la vitrine (voir plus haut).
-        assert.ok(
-          /patisgest_demander_commande/i.test(g),
-          `${f} : ${g.slice(0, 60)}… donne le droit à anon/PUBLIC`,
-        );
+        assert.match(g, /^grant\s+execute\s+on\s+function\s+(?:public\.)?patisgest_demander_commande\s*\(/i,
+          `${f} : fonction publique non autorisée`);
+        assert.doesNotMatch(g, /\bto\s+public\b/i, `${f} : grant PUBLIC interdit`);
       }
     }
   }
@@ -327,14 +330,31 @@ test('sécu : la restauration est SECURITY DEFINER mais gardée', () => {
 
 test('sécu : inventaire et production projettent les quantités sans coûts ni snapshots pour le vendeur', () => {
   const queries = read('src/lib/workspace-read.ts');
-  const lots = queries.match(/\.from\("lots"\)\.select\("([^"]+)"\)/)?.[1];
+  assert.match(queries, /role === "vendeur" \? "vendeur_lots" : "lots"/);
+  const lots = queries.match(/\.from\(source\)\.select\("([^"]+)"\)/)?.[1];
   assert.ok(lots?.includes('qte_rest'));
   assert.doesNotMatch(lots, /\bpu\b|\*/);
   assert.match(queries, /titre:snapshot->>recette/);
   assert.doesNotMatch(queries, /cout_reel|besoins|consommations/);
   const prod = read('src/components/production-workspace.tsx');
-  assert.match(prod, /const canEdit = canReadCosts\(ctx\.role\) && canWrite\(ctx\.role\)/);
-  assert.match(prod, /canEdit \? db\.from\("recette_versions"\)/);
+  assert.match(prod, /const canEdit = canWrite\(ctx\.role\)/);
+  assert.match(prod, /canEdit && !labo \? db\.from\("recette_versions"\)/);
+  assert.match(prod, /db\.from\("labo_recette_versions"\)/);
   const stocks = read('src/components/stock-workspace.tsx');
   assert.match(stocks, /peutEcrire && canReadCosts\(ctx\.role\)\s*\? db\.from\("recette_familles"\)/);
+});
+
+test('sécu : migration 21 protège historique_prix et bons_commande du vendeur et garde lireDemainAuLabo', () => {
+  const m21 = read('supabase/21-prix-demain-panier.sql');
+  assert.match(m21, /create policy historique_prix_cout_read on public\.historique_prix[\s\S]{0,200}\('proprietaire',\s*'labo'\)/i);
+  assert.match(m21, /create policy bons_commande_cout_read on public\.bons_commande[\s\S]{0,200}\('proprietaire',\s*'labo'\)/i);
+  assert.match(m21, /alter table public\.demandes_reassort enable row level security/i);
+  assert.match(m21, /create or replace function public\.vendre_panier/i);
+  assert.match(m21, /p_ticket/i);
+
+  // lireDemainAuLabo retourne avant toute lecture de recettes/OF si !canReadCosts(role)
+  const tomorrow = read('src/lib/tomorrow-lab-server.ts');
+  const guardIdx = tomorrow.indexOf('if (!canReadCosts(role))');
+  const recipeIdx = tomorrow.indexOf('.from("recette_versions")');
+  assert.ok(guardIdx > 0 && recipeIdx > guardIdx, 'la garde canReadCosts doit précéder toute lecture de recettes');
 });

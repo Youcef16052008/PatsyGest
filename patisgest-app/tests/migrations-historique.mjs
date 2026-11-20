@@ -1,0 +1,8 @@
+// Reconstitution explicitement figée pour les tests, pas pour production.
+// Les brouillons 101–128 sont distincts de la série main 24–31.
+// Ne jamais trier le répertoire entier pour déployer en production.
+import { readFileSync } from 'node:fs';
+const plan = JSON.parse(readFileSync(new URL('../migrations/repetition.json', import.meta.url), 'utf8'));
+const sequence = [...plan.historique, ...plan.brouillons_securite].map(x => x.file);
+// Un tri lexical mélangerait les 101–127 avec les 10–19 : suivre le manifeste.
+export function migrationsRepetition() { return [...sequence]; }

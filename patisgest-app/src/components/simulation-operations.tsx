@@ -1,6 +1,8 @@
 "use client";
+import Link from 'next/link';
 import { useState } from 'react';
 import { simulatePrice, type State } from '@/lib/patisgest-store';
+import { IngredientImpactDemo } from './ingredient-impact-panel';
 const box='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
 const field='w-full rounded-lg border border-slate-300 bg-white p-2 text-sm';
 const money=(n:number)=>new Intl.NumberFormat('fr-DZ',{maximumFractionDigits:2}).format(n)+' DA HT';
@@ -14,7 +16,8 @@ export function SimulationOperations({data}:{data:State}) {
   let output:ReturnType<typeof simulatePrice>|null=null; let error='';
   if (recipe) {try {if(price===''||variation==='') throw new Error('Renseignez les deux hypothèses.');output=simulatePrice(data,recipe.id,Number(price),Number(variation));} catch(err){error=err instanceof Error?err.message:'Hypothèses invalides.';}}
   function changeRecipe(id:string) {setRecipeId(id);const r=data.recipes.find(r=>r.id===id);setPrice(String(data.articles.find(a=>a.id===r?.productId)?.prix ?? 0));}
-  return <><div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Simulation indicative et locale : aucune modification de prix ni de données. Les calculs utilisent le prix du premier lot FEFO courant au laboratoire, sans garantir que la quantité disponible suffira.</div>
+  return <><IngredientImpactDemo state={data}/>
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-50 p-4 text-sm text-amber-900"><span>Simulation globale d’une recette : aucune modification de prix ni de données. Les lots bloqués et périmés sont exclus du coût FEFO.</span><Link href="/estimation" className="font-bold text-violet-800 underline">Calculateur parts &amp; moules (DA) →</Link></div>
     <section className={box}><h2 className="font-bold">Hypothèses</h2>{!data.recipes.length?<p className="mt-3 text-sm text-slate-500">Créez d’abord une recette.</p>:<div className="mt-3 grid gap-3 sm:grid-cols-3"><label className="text-xs font-semibold text-slate-600">Recette<select value={recipeId} onChange={e=>changeRecipe(e.target.value)} className={field}>{data.recipes.map(r=><option key={r.id} value={r.id}>{r.name} · v{r.versions.at(-1)?.version}</option>)}</select></label><label className="text-xs font-semibold text-slate-600">Prix de vente simulé (DA HT)<input type="number" min="0" max="1000000000" step="0.01" value={price} onChange={e=>setPrice(e.target.value)} className={field}/></label><label className="text-xs font-semibold text-slate-600">Variation du coût matières (%)<input type="number" min="-100" max="1000" step="0.01" value={variation} onChange={e=>setVariation(e.target.value)} className={field}/></label></div>}<p className="mt-3 text-xs text-slate-500">La variation s’applique aux matières seulement. Main-d’œuvre, emballage, énergie et frais généraux restent constants ; le rendement net tient compte de la cuisson.</p></section>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {output && output.missingPrices.length>0 && <p role="alert" className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900">Simulation impossible : prix FEFO absent ou incomplet pour {output.missingPrices.join(', ')}. Réceptionnez des lots avec des prix connus au laboratoire.</p>}

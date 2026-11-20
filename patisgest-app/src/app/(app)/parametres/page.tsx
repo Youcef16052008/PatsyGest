@@ -1,11 +1,15 @@
 import { requireSession, ROLE_LABELS } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import ModulesSettings, { type ModulesCompte } from "@/components/modules-settings";
+import SitesSettings, { type SiteCompte } from "@/components/sites-settings";
+import EquipeSettings, { type EquipeDonnees } from "@/components/equipe-settings";
 import EtablissementForm from "@/components/etablissement-form";
 import SauvegardePanel from "@/components/sauvegarde-panel";
 import AppearancePicker from "@/components/appearance";
 import { PageIntro } from "@/components/workspace-ui";
 import VitrineForm, { type RecetteVitrine, type SiteVitrine } from "@/components/vitrine-form";
 import type { Etablissement } from "@/lib/etablissement";
+import { equipeExperimentaleActive } from "@/lib/equipe-experimental";
 import { DOMAINE_SERVICE_PAR_DEFAUT } from "@/lib/domaines";
 
 export const dynamic = "force-dynamic";
@@ -53,10 +57,40 @@ export default async function Parametres() {
     }
   }
 
+  let accounts:ModulesCompte[]=[];
+  let sites: SiteCompte[] = [];
+  let sitesError = false;
+  let modulesError=false;
+  const equipeExperimentale = equipeExperimentaleActive();
+  let equipe: EquipeDonnees = { demandes: [], approbations: [], invitations: [], membres: [] };
+  let equipeError = true;
+  if(ctx.role==='proprietaire' && ctx.mode==='supabase') {
+    try {
+      const db=await createClient();
+      const [modulesResult, sitesResult] = await Promise.all([
+        db.rpc('lister_acces_modules'),
+        db.from('sites').select('id, nom, type, adresse', { count: 'exact' }).eq('client_id',ctx.clientId).order('nom').limit(1000),
+      ]);
+      modulesError=!!modulesResult.error || !Array.isArray(modulesResult.data);
+      accounts=(modulesResult.data??[]) as ModulesCompte[];
+      sitesError=!!sitesResult.error || sitesResult.count === null || sitesResult.count > 1000;
+      sites=(sitesResult.data??[]) as SiteCompte[];
+      if (equipeExperimentale && !sitesError) {
+        const [demandes, approbations, invitations, membres] = await Promise.all([
+          db.rpc('equipe_lister_demandes'), db.rpc('equipe_lister_approbations'), db.rpc('equipe_lister_invitations'), db.rpc('equipe_lister_membres'),
+        ]);
+        equipeError = !!demandes.error || !!approbations.error || !!invitations.error || !!membres.error ||
+          !Array.isArray(demandes.data) || !Array.isArray(approbations.data) || !Array.isArray(invitations.data) || !Array.isArray(membres.data) ||
+          (demandes.data?.length ?? 0) > 500 || (approbations.data?.length ?? 0) > 500 || (invitations.data?.length ?? 0) > 500 || (membres.data?.length ?? 0) > 500;
+        if (!equipeError) equipe = { demandes: demandes.data, approbations: approbations.data, invitations: invitations.data, membres: membres.data } as EquipeDonnees;
+      }
+    } catch { modulesError=true; sitesError=true; equipeError=true; }
+  }
+
   // Vitrine : sites + recettes du catalogue. Lecture réservée au personnel
   // connecté (RLS) ; en mode pilote local il n'y a pas de base, la section
   // est simplement masquée.
-  let sites: SiteVitrine[] = [];
+  let sitesVitrine: SiteVitrine[] = [];
   let recettes: RecetteVitrine[] = [];
   if (ctx.mode === "supabase") {
     try {
@@ -102,7 +136,7 @@ export default async function Parametres() {
       );
 
       const visiblesParClient = familles.filter((f) => f.visible_vitrine).length;
-      sites = ((sitesRes.data ?? []) as { id: string; nom: string; subdomain: string | null; publication: string }[])
+      sitesVitrine = ((sitesRes.data ?? []) as { id: string; nom: string; subdomain: string | null; publication: string }[])
         .map((s) => ({
           id: s.id,
           nom: s.nom,
@@ -140,10 +174,10 @@ export default async function Parametres() {
       </section>
 
       <div className="mt-6">
-        {ctx.mode === "supabase" && sites.length > 0 && (
+        {ctx.mode === "supabase" && sitesVitrine.length > 0 && (
           <VitrineForm
             role={ctx.role}
-            sites={sites}
+            sites={sitesVitrine}
             recettes={recettes}
             domaine={process.env.PATISGEST_DOMAINE ?? DOMAINE_SERVICE_PAR_DEFAUT}
           />
@@ -151,6 +185,9 @@ export default async function Parametres() {
         {ctx.role === "proprietaire" ? (
           <>
             <EtablissementForm etablissement={etablissement} />
+            {ctx.mode === 'supabase' && <SitesSettings sites={sites} error={sitesError}/>}
+            {ctx.mode === 'supabase' && equipeExperimentale && <EquipeSettings data={equipe} sites={sites} error={equipeError}/>}
+            {ctx.mode==='supabase' ? <ModulesSettings accounts={accounts} error={modulesError}/> : <section className="pg-card pg-card-pad mt-6"><h2>Accès aux modules</h2><p>Disponible en établissement connecté. La démo locale ne protège pas les données par compte.</p></section>}
             {ctx.mode === "supabase" ? (
               <SauvegardePanel />
             ) : (

@@ -41,7 +41,7 @@ export default function SauvegardePanel() {
   const analyseValide = !!analyse?.analyse && !enAnalyse;
   const { etat: restau, soumettre: restaurer, pending: enRestau } = useActionFichier(
     confirmerRestauration, analyseValide ? fichier : null,
-    "Pas de réponse à la restauration. Vérifiez votre connexion avant de réessayer ; les lignes déjà présentes ne seront pas dupliquées.",
+    "Résultat non confirmé. Vérifiez l’état des données avant de réessayer : une restauration partielle peut avoir eu lieu.",
   );
   const enCours = enAnalyse || enRestau;
   const tropVolumineux = (fichier?.size ?? 0) > MAX_OCTETS_SAUVEGARDE;
@@ -50,12 +50,13 @@ export default function SauvegardePanel() {
     <section className="mb-6 rounded-2xl border bg-white p-5">
       <h2 className="mb-1 font-bold">Sauvegarde &amp; restauration</h2>
       <p className="mb-3 text-xs text-slate-500">
-        Le fichier JSON contient toutes vos données métier (aucune donnée prisonnière). Réservé au
-        propriétaire. À conserver hors de la plateforme, une fois par semaine au minimum.
+        Export JSON partiel réservé au propriétaire. Les comptes, droits et données d’équipe ne sont pas
+        restaurés : ce fichier ne remplace pas une sauvegarde complète de la base et d’Auth.
+        Les tables sont lues successivement, sans instantané transactionnel : des changements pendant l’export peuvent le rendre incohérent.
       </p>
 
       <Link href="/api/sauvegarde" prefetch={false} className={`${btn} inline-block`}>
-        ⬇ Télécharger la sauvegarde complète
+        ⬇ Télécharger l’export partiel
       </Link>
 
       <details className="mt-5 rounded-xl border border-slate-200 p-3">
@@ -94,8 +95,9 @@ export default function SauvegardePanel() {
                 ))}
               </ul>
               <p className="mt-2 text-slate-500">
-                La restauration <b>ajoute</b> les lignes : elle ne supprime rien. Les lignes déjà
-                présentes (même identifiant) sont ignorées.
+                La restauration <b>ajoute</b> des lignes et ne supprime rien. Selon la version de la base,
+                une collision peut faire ignorer toute une table ou refuser la restauration. Ne l’utilisez
+                pas comme procédure de retour arrière complet.
               </p>
             </div>
           )}
@@ -124,10 +126,10 @@ export default function SauvegardePanel() {
         </div>
       </details>
 
-      <p className="mt-3 text-xs text-slate-500">
-        Non inclus dans le fichier : {TABLES_EXCLUES.map((e) => e.table).join(", ")} —
-        {TABLES_EXCLUES[0]?.raison}. Les comptes de connexion se recréent côté Supabase Auth.
-      </p>
+      <div className="mt-3 text-xs text-slate-500">
+        <p>Non inclus dans le fichier :</p>
+        <ul>{TABLES_EXCLUES.map((e) => <li key={e.table}>{e.table} : {e.raison}.</li>)}</ul>
+      </div>
     </section>
   );
 }

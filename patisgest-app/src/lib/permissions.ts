@@ -3,7 +3,7 @@
  * (NF-08). `auth.ts` ré-exporte ces fonctions pour ne pas dupliquer la règle.
  *
  * Cahier §5 / RG-15.2 : propriétaire (tout) · labo (production, recettes,
- * coûts) · vendeur (caisse + clôture en lecture).
+ * sans lecture des coûts) · vendeur (caisse + clôture en lecture).
  */
 
 export type Role = "proprietaire" | "labo" | "vendeur";
@@ -24,5 +24,5 @@ export function canWrite(role: Role): boolean {
  *   3. RLS Postgres (migration 17, policies SELECT par rôle).
  */
 export function canReadCosts(role: Role): boolean {
-  return canWrite(role);
+  return role === "proprietaire";
 }

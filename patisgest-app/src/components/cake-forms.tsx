@@ -1,19 +1,29 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import Link from "next/link";
+import { useActionState, useState, useSyncExternalStore } from "react";
 import {
-  accepterCgvReal, createCakeReal, editerCakeReal, evolveCakeReal, type JournalState,
+  accepterCgvReal, assignCakeProductionReal, createCakeReal, editerCakeReal, evolveCakeReal, type JournalState,
 } from "@/lib/actions-journaux";
+import { clearEstimatorDraft, ESTIMATOR_DRAFT_KEY, loadEstimatorDraft } from "@/lib/portion-estimator";
 import { traiterDemandeVitrine } from "@/lib/actions-vitrine";
 import { peutTraiterDemande, type Role } from "@/lib/vitrine-permissions";
 import CakeTicket from "./cake-ticket";
+import { cakeConnectedTotals } from "@/lib/cake-money";
+
+function subscribeDraft(cb: () => void) {
+  window.addEventListener("storage", cb);
+  return () => window.removeEventListener("storage", cb);
+}
+function getDraftRaw() {
+  try { return window.localStorage.getItem(ESTIMATOR_DRAFT_KEY); } catch { return null; }
+}
 
 export type CakeRow = {
-  id: string; numero: string; statut: string; clientNom: string;
+  id: string; numero: string; statut: string; ofId: string | null; clientNom: string;
   telephone: string | null; dateEvent: string; nbParts: number;
   prixHt: number; tvaPct: number; acompte: number;
-  notes: string | null; cgv: boolean; cgvVersion: string | null;
-  /** Vient de la vitrine publique (origine = 'vitrine') : à traiter. */
+  notes: string | null; cgv: boolean; cgvVersion: string | null; versionId: string | null; ofNumero: string | null; lots: { numero: string }[];
   origineVitrine?: boolean;
 };
 
@@ -24,8 +34,16 @@ const btn2 = "rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold d
 
 type Opt = { name: string; cout: string; minutes: string };
 
+type RecipeOption = {version_id:string; nom:string; version:number; rendement_qte:number; rendement_unite:string};
+type SiteOption = {id:string; nom:string};
+
+function ProductionFields({ recipes, sites }: { recipes: RecipeOption[]; sites: SiteOption[] }) {
+  return <div className="flex flex-wrap gap-3"><label className={`${label} min-w-48`}>Recette (version figée)<select name="versionId" required className={field} defaultValue=""><option value="">Choisir…</option>{recipes.map(r=><option key={r.version_id} value={r.version_id}>{r.nom} · v{r.version} · rendement {r.rendement_qte} {r.rendement_unite}</option>)}</select></label><label className={`${label} min-w-40`}>Site de fabrication<select name="siteId" required className={field} defaultValue=""><option value="">Choisir…</option>{sites.map(s=><option key={s.id} value={s.id}>{s.nom}</option>)}</select></label><label className={`${label} min-w-40`}>Quantité à fabriquer (unité du rendement)<input name="qteFabrication" type="number" min="0.001" max="100000000" step="0.001" required className={field}/></label></div>;
+}
+
 /** Cake Design : devis (tous rôles), rétroplanning, paiements et transitions verrouillées. */
-export default function CakeForms({ cakes, role }: { cakes: CakeRow[]; role: Role }) {
+export default function CakeForms({ cakes, recipes, sites, optionsError, role }: { cakes: CakeRow[]; recipes: RecipeOption[]; sites: SiteOption[]; optionsError: boolean; role: Role }) {
+  const [assignState, assignAction, assignPending] = useActionState(assignCakeProductionReal, {});
   const [createState, createAction, pending] = useActionState(createCakeReal, {});
   const [evolveState, evolveAction, evolvePending] = useActionState(evolveCakeReal, {});
   const [editState, editAction, editPending] = useActionState(editerCakeReal, {});
@@ -35,6 +53,13 @@ export default function CakeForms({ cakes, role }: { cakes: CakeRow[]; role: Rol
   const [payId, setPayId] = useState("");
   const [editId, setEditId] = useState("");
   const [ticketId, setTicketId] = useState("");
+  const rawDraft = useSyncExternalStore(subscribeDraft, getDraftRaw, () => null);
+  const [draftDismissed, setDraftDismissed] = useState(false);
+  const draft = rawDraft && !draftDismissed ? loadEstimatorDraft() : null;
+  const [nbPartsVal, setNbPartsVal] = useState("10");
+  const [prixHtVal, setPrixHtVal] = useState("");
+  const [notesVal, setNotesVal] = useState("");
+  const [draftNotice, setDraftNotice] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10);
   // Les demandes de vitrine ne sont PAS des devis : elles n'ont ni prix ni
   // paiement. On les isole en haut pour que le vendeur voie d'abord ce qui
@@ -45,6 +70,16 @@ export default function CakeForms({ cakes, role }: { cakes: CakeRow[]; role: Rol
   const autres = cakes.filter((c) => c.statut !== "demande");
   const sorted = [...autres].sort((a, b) => a.numero.localeCompare(b.numero));
   const peutTraiter = peutTraiterDemande(role);
+
+  function appliquerBrouillon() {
+    if (!draft) return;
+    setNbPartsVal(String(Math.max(1, Math.min(10000, Math.round(draft.parts)))));
+    if (!draft.coutIncomplet && draft.prixHtPropose != null && draft.prixHtPropose > 0) {
+      setPrixHtVal(String(draft.prixHtPropose));
+    }
+    setNotesVal((prev) => (prev ? `${prev}\n${draft.noteDevis}` : draft.noteDevis).slice(0, 500));
+    setDraftNotice("Estimation pré-remplie dans ce nouveau devis (aucun devis existant n’a été modifié).");
+  }
 
   return (
     <div className="space-y-6">
@@ -93,23 +128,48 @@ export default function CakeForms({ cakes, role }: { cakes: CakeRow[]; role: Rol
       )}
 
       <section className="rounded-2xl border bg-white p-5">
-        <h2 className="mb-1 font-bold">Nouveau devis gâteau</h2>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-bold">Nouveau devis gâteau</h2>
+          <Link href="/estimation" className="text-xs font-bold text-violet-700 underline">
+            Estimer moule / parts / prix (DA) →
+          </Link>
+        </div>
         <p className="mb-3 text-xs text-slate-500">
           Rétroplanning J-3 / J-1 / J automatique · transition à l&apos;acompte (30 %) pour passer en confirmé ·
           solde exigé avant livraison · historique de paiements conservé.
         </p>
+        {draft && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-950">
+            <span>
+              <strong>Brouillon d&apos;estimation disponible :</strong> {draft.modeleNom} · {draft.parts} parts · {draft.formatLabel}
+              {!draft.coutIncomplet && draft.prixHtPropose != null ? ` · ${draft.prixHtPropose.toLocaleString("fr-DZ")} DA HT` : " · coût partiel (prix à saisir)"}
+            </span>
+            <span className="flex gap-2">
+              <button type="button" onClick={appliquerBrouillon} className="rounded bg-violet-700 px-2.5 py-1 font-bold text-white">
+                Pré-remplir ce nouveau devis
+              </button>
+              <button type="button" onClick={() => { clearEstimatorDraft(); setDraftDismissed(true); setDraftNotice(null); }} className="rounded border border-violet-300 px-2 py-1 font-semibold">
+                Effacer
+              </button>
+            </span>
+          </div>
+        )}
+        {draftNotice && <p role="status" className="mb-2 text-xs text-emerald-700">{draftNotice}</p>}
+        {!optionsError && (!recipes.length || !sites.length) && <p className="text-sm text-amber-700">Une recette active avec ingrédients et un site sont nécessaires pour créer un devis lié à la production.</p>}
+        {optionsError && <p role="alert" className="text-sm text-red-700">Options de production indisponibles. Vérifiez la migration 22 et la connexion.</p>}
         <form action={createAction} className="space-y-3">
+          <ProductionFields recipes={recipes} sites={sites}/>
           <input type="hidden" name="optionCount" value={opts.length} />
           <div className="flex flex-wrap items-end gap-3">
             <label className={`${label} min-w-44 flex-1`}>Client<input name="clientNom" required maxLength={100} className={field} /></label>
             <label className={`${label} w-40`}>Téléphone<input name="telephone" maxLength={40} className={field} /></label>
             <label className={`${label} w-44`}>Date événement<input name="dateEvent" type="date" min="2000-01-04" required className={field} /></label>
-            <label className={`${label} w-28`}>Parts<input name="nbParts" type="number" min={1} max={10000} required defaultValue={10} className={field} /></label>
-            <label className={`${label} w-36`}>Prix HT (DA)<input name="prixHt" type="number" step="any" min={0.01} required className={field} /></label>
+            <label className={`${label} w-28`}>Parts<input name="nbParts" type="number" min={1} max={10000} required value={nbPartsVal} onChange={(e) => setNbPartsVal(e.target.value)} className={field} /></label>
+            <label className={`${label} w-36`}>Prix HT (DA)<input name="prixHt" type="number" step="any" min={0.01} required value={prixHtVal} onChange={(e) => setPrixHtVal(e.target.value)} className={field} /></label>
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <label className={`${label} flex items-center gap-2 py-2`}><input name="cgv" type="checkbox" defaultChecked className="h-4 w-4" /> CGV acceptées</label>
-            <label className={`${label} min-w-52 flex-1`}>Notes<textarea name="notes" maxLength={500} rows={2} className={field} /></label>
+            <label className={`${label} min-w-52 flex-1`}>Notes<textarea name="notes" maxLength={500} rows={2} value={notesVal} onChange={(e) => setNotesVal(e.target.value)} className={field} /></label>
             <button type="button" onClick={() => setOpts((o) => [...o, { name: "", cout: "", minutes: "" }])}
               className="rounded-lg border px-3 py-2 text-sm font-bold">+ Option</button>
           </div>
@@ -124,7 +184,7 @@ export default function CakeForms({ cakes, role }: { cakes: CakeRow[]; role: Rol
               <button type="button" onClick={() => setOpts((os) => os.filter((_, j) => j !== i))} className="py-2 text-xs font-bold text-red-700">Retirer</button>
             </div>
           ))}
-          <button disabled={pending} className={btn}>{pending ? "Création…" : "Créer le devis"}</button>
+          <button disabled={pending || optionsError || !recipes.length || !sites.length} className={btn}>{pending ? "Création…" : "Créer le devis"}</button>
           {createState.erreur && <p role="alert" className="text-sm text-red-700">{createState.erreur}</p>}
           {createState.succes && <p role="status" className="text-sm text-emerald-700">{createState.succes}</p>}
         </form>
@@ -133,7 +193,7 @@ export default function CakeForms({ cakes, role }: { cakes: CakeRow[]; role: Rol
       <section className="rounded-2xl border bg-white p-5">
         <h2 className="mb-3 font-bold">Devis &amp; commandes en cours</h2>
         <p className="mb-3 text-xs text-slate-500">
-          Édition réservée au statut devis · paiements historisés · acompte30 % minimum
+          Édition réservée au statut devis · paiements historisés · acompte 30 % HT minimum
           pour confirmer · solde avant livraison · preuve CGV horodatée · ticket imprimable.
         </p>
         <ul className="space-y-3">
@@ -146,7 +206,7 @@ export default function CakeForms({ cakes, role }: { cakes: CakeRow[]; role: Rol
                   <span>{c.clientNom}</span>
                   <span className="text-slate-500">{Number(c.prixHt).toLocaleString("fr-FR")} DA HT · TVA {c.tvaPct} %</span>
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 font-bold uppercase text-xs">{c.statut}</span>
-                  <span className="text-xs text-slate-500">versé {Number(c.acompte).toLocaleString("fr-FR")} DA</span>
+                  <span className="text-xs text-slate-500">versé {Number(c.acompte).toLocaleString("fr-FR")} DA · solde TTC {cakeConnectedTotals(Number(c.prixHt), Number(c.tvaPct), Number(c.acompte)).balance.toFixed(2)} DA</span>
                   {c.cgv
                     ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">CGV {c.cgvVersion ?? ""} ✓</span>
                     : <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">CGV non acceptées</span>}
@@ -156,18 +216,22 @@ export default function CakeForms({ cakes, role }: { cakes: CakeRow[]; role: Rol
                     )}
                     <button type="button" onClick={() => setTicketId(ticketId === c.id ? "" : c.id)} className={btn2}>ticket</button>
                     {["payer", "confirme", "produit", "livre", "annule"].map((t) => (
-                      <button key={t} type="submit" name="transition" value={t} disabled={evolvePending}
+                      <button key={t} type="submit" name="transition" value={t} disabled={evolvePending || (t === "annule" && !!c.ofId)}
                         className={btn2}>{t === "confirme" ? "confirmer" : t === "produit" ? "produire" : t === "livre" ? "livrer" : t === "annule" ? "annuler" : "payer"}</button>
                     ))}
                   </span>
                 </div>
                 {payId === c.id && (
-                  <label className={`${label} max-w-64`}>Montant du paiement (DA)
+                  <label className={`${label} max-w-64`}>Montant du paiement (DA TTC)
                     <input name="montant" type="number" step="any" min={0.01} required className={`${field} mt-0`} />
                   </label>
                 )}
               </form>
 
+              {!c.ofNumero && ["confirme","produit","livre"].includes(c.statut) && <p className="mt-2 text-xs text-amber-700">Ancien dossier sans OF lié : rapprochement manuel à vérifier.</p>}
+              {c.ofId && <p className="mt-2 text-xs text-slate-500">Un OF lié doit être terminé avec un lot avant de marquer produit. Annulation du dossier indisponible tant que cet OF existe.</p>}
+              {c.ofNumero && <p className="mt-2 text-xs">OF : {c.ofNumero} · Lots : {c.lots.map(l=>l.numero).join(", ") || "aucun"}</p>}
+              {!c.versionId && ["devis","acompte"].includes(c.statut) && <form action={assignAction} className="mt-3 rounded-lg border p-3 space-y-2"><p>Ancien devis : associez une production avant confirmation.</p><input type="hidden" name="id" value={c.id}/><ProductionFields recipes={recipes} sites={sites}/><button disabled={assignPending || optionsError || !recipes.length || !sites.length} className={btn2}>Associer</button></form>}
               {editId === c.id && (
                 <form action={editAction} className="mt-2 grid gap-2 rounded-lg border border-violet-200 bg-violet-50 p-3 sm:grid-cols-4">
                   <input type="hidden" name="id" value={c.id} />
@@ -222,6 +286,8 @@ export default function CakeForms({ cakes, role }: { cakes: CakeRow[]; role: Rol
           ))}
           {sorted.length === 0 && <li className="text-sm text-slate-500">Aucun devis.</li>}
         </ul>
+        {assignState.erreur && <p role="alert" className="mt-2 text-sm text-red-700">{assignState.erreur}</p>}
+        {assignState.succes && <p role="status" className="mt-2 text-sm text-emerald-700">{assignState.succes}</p>}
         {evolveState.erreur && <p role="alert" className="mt-2 text-sm text-red-700">{evolveState.erreur}</p>}
         {evolveState.succes && <p role="status" className="mt-2 text-sm text-emerald-700">{evolveState.succes}</p>}
         {editState.erreur && <p role="alert" className="text-sm text-red-700">{editState.erreur}</p>}

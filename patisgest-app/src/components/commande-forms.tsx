@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { createCommandeReal, receiveCommandeReal, type AchatsState } from "@/lib/actions-achats";
 import type { PriceAlert } from "@/lib/price-alerts";
 
 type Option = { id: string; label: string };
-export type CommandeRow = { id: string; numero: string; statut: string; fournisseur: string; lignes: { articleId: string; qte: number; pu: number; recu: number }[] };
+export type CommandeRow = { id: string; numero: string; statut: string; fournisseur: string; lignes: { articleId: string; qte: number; pu?: number; recu: number }[] };
 
 const field = "mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm";
 const label = "block text-xs font-semibold text-slate-600";
@@ -64,7 +65,7 @@ function CommandeCreate({ fournisseurs, articles, alerts }: { fournisseurs: Opti
   );
 }
 
-function ReceptionBlock({ commande, sites, articlesById }: { commande: CommandeRow; sites: Option[]; articlesById: Record<string, string> }) {
+function ReceptionBlock({ commande, sites, articlesById, voirPrix }: { commande: CommandeRow; sites: Option[]; articlesById: Record<string, string>; voirPrix: boolean }) {
   const [state, action, pending] = useActionState(receiveCommandeReal, {});
   const [on, setOn] = useState<boolean[]>(() => commande.lignes.map(() => false));
   const [vals, setVals] = useState(() => commande.lignes.map((l) => ({ qte: String(Math.max(0, l.qte - l.recu)), numero: "", dlc: today })));
@@ -95,7 +96,7 @@ function ReceptionBlock({ commande, sites, articlesById }: { commande: CommandeR
                   disabled={reste <= 0}
                   onChange={(e) => setOn((os) => os.map((v, j) => (j === i ? e.target.checked : v)))} />
                 <span className="font-bold">{articlesById[l.articleId] ?? l.articleId.slice(0, 8)}</span>
-                <span className="text-xs text-slate-500">{l.qte} @ {l.pu} DA — reçu {l.recu} (reste {reste})</span>
+                <span className="text-xs text-slate-500">{l.qte}{voirPrix && l.pu != null ? ` @ ${l.pu} DA` : ""} — reçu {l.recu} (reste {reste})</span>
               </label>
               {on[i] && (
                 <>
@@ -128,8 +129,8 @@ function ReceptionBlock({ commande, sites, articlesById }: { commande: CommandeR
 }
 
 /** Achats : BC multi-lignes + réceptions partielles/totales avec création de lots. */
-export default function CommandeForms({ fournisseurs, articles, sites, commandes, alerts = [] }: {
-  fournisseurs: Option[]; articles: Option[]; sites: Option[]; commandes: CommandeRow[]; alerts?: PriceAlert[];
+export default function CommandeForms({ fournisseurs, articles, sites, commandes, alerts = [], voirPrix = true }: {
+  fournisseurs: Option[]; articles: Option[]; sites: Option[]; commandes: CommandeRow[]; alerts?: PriceAlert[]; voirPrix?: boolean;
 }) {
   const articlesById = Object.fromEntries(articles.map((a) => [a.id, a.label]));
   const fournById = Object.fromEntries(fournisseurs.map((f) => [f.id, f.label]));
@@ -146,7 +147,13 @@ export default function CommandeForms({ fournisseurs, articles, sites, commandes
               {alerts.map((a) => (
                 <li key={`${a.articleId}-${a.fournisseurId}`}>
                   {articlesById[a.articleId] ?? a.articleId.slice(0, 8)} · {fournById[a.fournisseurId] ?? ""} —
-                  dernier prix {a.previous} DA → {a.latest} DA ({a.deltaPct > 0 ? "+" : ""}{a.deltaPct} %) le {a.dateLatest}
+                  dernier prix {a.previous} DA → {a.latest} DA ({a.deltaPct > 0 ? "+" : ""}{a.deltaPct} %) le {a.dateLatest}{" "}
+                  <Link
+                    href={`/simulation?matiere=${encodeURIComponent(a.articleId)}&ancien=${encodeURIComponent(String(a.previous))}&nouveau=${encodeURIComponent(String(a.latest))}#hausse-matiere`}
+                    className="font-bold text-violet-800 underline"
+                  >
+                    Voir l’impact sur les recettes →
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -161,7 +168,7 @@ export default function CommandeForms({ fournisseurs, articles, sites, commandes
           tout reçu → « reçu ». Historique des prix alimenté pour l&apos;alerte &gt; 10 %.
         </p>
         <div className="space-y-3">
-          {ouvertes.map((c) => <ReceptionBlock key={c.id} commande={c} sites={sites} articlesById={articlesById} />)}
+          {ouvertes.map((c) => <ReceptionBlock key={c.id} commande={c} voirPrix={voirPrix} sites={sites} articlesById={articlesById} />)}
           {ouvertes.length === 0 && <p className="text-sm text-slate-500">Aucune commande ouverte.</p>}
         </div>
       </section>

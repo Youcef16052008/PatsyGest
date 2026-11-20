@@ -3,7 +3,8 @@
 import { createHmac } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { demoEnabled, PILOT_ACCOUNTS, PILOT_COOKIE_NAME } from "./auth";
+import { demoEnabled, getSessionContext, PILOT_ACCOUNTS, PILOT_COOKIE_NAME } from "./auth";
+import { equipeExperimentaleActive } from "./equipe-experimental";
 import { createClient } from "./supabase/server";
 
 export interface LoginState { erreur: string }
@@ -20,6 +21,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur. Utilisez la démo locale si elle est activée." };
   }
+  if (equipeExperimentaleActive() && !(await getSessionContext())) redirect("/rejoindre");
   redirect("/tableau-de-bord");
 }
 

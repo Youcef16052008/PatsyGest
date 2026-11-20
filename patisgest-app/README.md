@@ -3,10 +3,15 @@
 Application Next.js 16 pour pâtisseries artisanales : connexion Supabase à trois rôles
 (propriétaire / labo / vendeur), isolement client par RLS, et modules Sprint 2.
 
+> **État de cette branche : non prête pour déploiement.** Les SQL de main et
+> les brouillons sécurité ont des numéros 24–31 en double ; ne jamais les
+> appliquer par tri lexical. Voir [PLAN-CLOTURE.md](PLAN-CLOTURE.md) et
+> [CERTIFICATION-PHASES-2-3.md](CERTIFICATION-PHASES-2-3.md). Les instructions
+> historiques ci-dessous ne constituent pas un ordre de migration validé.
+
 > **Démo et pilote connecté** : la démonstration manipule uniquement des données
 > fictives dans le navigateur. En mode Supabase, la caisse, les stocks et la
-> production utilisent les écritures et les contrôles de rôle existants. Cette
-> refonte ne demande pas de migration supplémentaire. Respecter la procédure
+> production utilisent les écritures et les contrôles de rôle existants. Les changements de cette branche nécessitent une réconciliation des migrations. Respecter la procédure
 > du [guide pilote](../GUIDE-PILOTE.md) avant d’utiliser des données réelles.
 
 ## Interface
@@ -56,7 +61,7 @@ propriétaire et au labo en mode Supabase. Il suit les six enregistrements
 existants dans l'établissement, pas les brouillons ni la file hors ligne.
 Pour le retest sur un établissement de test, voir [le guide pilote, étape 6](../GUIDE-PILOTE.md#étape-6--vérifier-et-chronométrer-le-guide-b).
 
-**Montée en charge (avant ~15 comptes)** : exécuter
+**Index d’exploitation (non validés pour ce déploiement)** : examiner
 `supabase/24-index-exploitation.sql`. Il crée 18 index composites par
 `client_id` là où les écrans et les RPC FEFO filtrent réellement. Sur le pilote
 (1 établissement) ils sont inutiles ; dès que plusieurs boutiques partagent les
@@ -103,32 +108,34 @@ pour le changer). Arrêtez le serveur de développement avant de lancer ce test.
 
 ### 5. Hors-ligne (NF-02)
 
-La caisse fonctionne sans réseau : service worker (`public/sw.js`, JS pur,
-sans dépendance), manifeste PWA (`/manifest.webmanifest`) et catalogue de
-secours (`src/lib/catalogue-cache.ts`).
+Une caisse déjà ouverte peut conserver les tickets localement lors d'une coupure ;
+leur synchronisation est **manuelle** et la vente n'est confirmée qu'après réponse
+du serveur. Le prix peut changer avant la synchronisation. Chaque compte et
+établissement utilise une clé de file distincte et le serveur refuse un envoi
+si la session a changé. La file utilise des verrous Web pour sérialiser les
+onglets récents : sans verrou navigateur ou stockage persistant, la vente est
+refusée avant envoi. Une file pleine ou corrompue n'est pas écrasée ; les refus
+métier restent à vérifier, avec retrait manuel explicite après rapprochement.
 
-- **Ce qui est mis en cache** : l'écran `/caisse`, `/tableau-de-bord` et
-  `/connexion`, les assets Next, les polices, les icônes.
-- **Ce qui ne l'est jamais** : les server actions, `/api/*` et les données de
-  coût. Une vente doit toujours être validée par le serveur.
-- **Catalogue de secours** : produits, sites et identité du ticket sont
-  conservés dans le navigateur ; ils ne servent que si le serveur ne répond
-  pas, et sont **refusés au-delà de 14 jours** (mieux vaut une erreur claire
-  qu'un prix périmé encaissé comme s'il était juste). Le stock n'est jamais
-  restauré depuis le cache.
-- **Synchronisation** : automatique au retour du réseau, plus un contrôle
-  toutes les 30 s ; idempotence par numéro de ticket, donc aucun doublon.
+**Limites :** les clés séparées ne protègent pas la confidentialité contre une
+personne ayant accès au profil navigateur ou à ses outils de développement.
+Le stockage local peut être supprimé par le navigateur et n'est pas une
+sauvegarde. L'ancienne file non attribuée `patisgest.saleQueue.v1` est laissée
+intacte, signalée et jamais rejouée automatiquement : conserver l'appareil,
+ne pas effacer son stockage, et faire rapprocher les tickets avec l'historique
+avant une reprise manuelle encadrée. La compatibilité avec les anciens onglets,
+les pannes réelles et la procédure de reprise exigent encore validation sur
+tablette. Les changements ici ne sont pas déployés au pilote.
 
-Tester en local (le SW est désactivé en développement, volontairement) :
-
-```bash
-npm run build && npm start
-# puis, dans l'onglet Réseau des DevTools : « Offline » et recharger /caisse
-```
-
-Limite connue : une **navigation directe vers une page jamais visitée** hors
-ligne affichera l'erreur du navigateur. Les écrans listés ci-dessus sont, eux,
-toujours disponibles.
+Le service worker ne conserve que les assets statiques et purge les anciens
+caches PâtisGest au changement de version. **Les pages authentifiées et les
+réponses API ne sont pas mises en cache** : rouvrir `/caisse` hors connexion
+n'est pas garanti. Le catalogue de secours de main n'est pas branché à la caisse
+et la synchronisation automatique n'est pas activée : leur isolation par compte,
+leurs risques sur les prix et la reprise des files doivent être revus. Le
+manifeste et les icônes restent disponibles. Sur les appareils possédant déjà
+l'ancien service worker, la purge n'intervient qu'après déploiement et activation
+du nouveau ; elle n'a pas encore eu lieu en production.
 
 ### 6. Vitrine publique (site web du client)
 
@@ -278,3 +285,19 @@ tests/smoke-http.mjs                    → tests HTTP de bout en bout
 | `npm test` | Tests unitaires du moteur local |
 | `npm run test:smoke` | Tests HTTP (gardes, login démo, logout) |
 | `npm run db:studio` | Explorer la base (nécessite `DATABASE_URL`) |
+
+### Dossier gâteau et migration 22
+
+`supabase/22-cake-production.sql` est appliquée au projet pilote `evepzygucfxarpdnflzv` sous la version `20261118161819 cake_production_22`. Elle n'est pas appliquée automatiquement sur d'autres bases : la lancer après 21 et après sauvegarde. Sans elle, les nouvelles options de production du module Cake Design sont indisponibles. Ne pas publier le nouveau parcours connecté avant d'avoir vérifié la migration sur un environnement de test.
+
+Un nouveau devis demande une version de recette active, un site et une quantité exprimée dans l'unité du rendement de cette recette : le nombre de parts n'est pas supposé égal à la quantité de produit fini. La confirmation, après un acompte d'au moins 30 % du HT, crée atomiquement un OF planifié avec besoins calculés côté serveur ; le stock n'est consommé qu'au lancement. Un devis ancien non confirmé peut recevoir cette association manuellement. Les dossiers déjà confirmés sans OF ne sont pas modifiés ni rapprochés automatiquement.
+
+Le ticket, le plafond de paiement et le solde avant livraison utilisent le TTC arrondi au centime. Les versements historiques sont conservés comme montants enregistrés : contrôler manuellement les dossiers existants à TVA non nulle, notamment ceux déjà marqués livrés, avant toute utilisation réelle. Ces écrans ne constituent pas une validation fiscale ou comptable. Un dossier avec OF lié ne peut être marqué produit qu'après finition de l'OF et création d'un lot. L'annulation d'un tel dossier est volontairement bloquée : aucun parcours d'annulation/compensation de l'OF n'est encore fourni, donc une procédure administrative doit être définie avant utilisation en pilote.
+
+Les tests locaux incluent un PostgreSQL embarqué avec schéma minimal et la fonction réelle de calcul des besoins de la migration 12 ; ils ne remplacent pas une vérification sur une base de test avec les vraies recettes, RLS, restaurations et opérations concurrentes.
+
+### Accueils et contrôles demandés — travail en cours
+
+L'accueil propriétaire compare les ventes TTC enregistrées sur deux périodes de sept jours, montre les produits sous leur seuil et les déclarations de clôture par boutique. Il ne calcule pas le bénéfice et ne décide pas de la fermeture définitive d'un établissement ; charges, dettes, jours d'ouverture et rapprochement réel ne sont pas tous disponibles. L'accueil laboratoire affiche quantités, seuils et fournées, sans y charger de ventes en mode connecté.
+
+**Non terminé / ne pas utiliser comme garantie de confidentialité :** les autorisations existantes donnent encore au laboratoire accès aux coûts et prix dans d'autres écrans et via Supabase ; le mode démo stocke toutes ses données dans le navigateur. Le contrôle d'activation des modules par compte n'est pas encore implémenté, et les modules qualité, traçabilité et transferts restent accessibles. Une revue des politiques RLS, colonnes, RPC `SECURITY DEFINER`, actions serveur, sauvegardes et flux de saisie est indispensable avant de considérer ces restrictions appliquées. La PR est à maintenir en brouillon jusqu'à ces vérifications.

@@ -1,3 +1,4 @@
+import http from 'node:http';
 /**
  * Tests de fumée HTTP — vérifient les gardes de routes et la connexion de démonstration
  * tels qu'ils se comportent réellement dans un navigateur (redirects, cookies, server actions).
@@ -254,6 +255,48 @@ test('Apparence : les cinq interfaces disposent d’un rendu clair et sombre ava
   }
 });
 
+test('Volet A : /estimation est accessible sans compte ni cookie et affiche le calculateur DA', async () => {
+  const res = await get('/estimation');
+  assert.equal(res.status, 200, '/estimation doit répondre 200 sans session');
+  const html = await res.text();
+  assert.match(html, /Estimateur parts, moule &amp; prix en dinars/);
+  assert.match(html, /Outil libre · sans compte · DA/);
+  assert.match(html, /href="\/connexion"/);
+
+  // La page de connexion propose l'entrée directe vers /estimation
+  const loginRes = await get('/connexion');
+  assert.equal(loginRes.status, 200);
+  assert.match(await loginRes.text(), /href="\/estimation"/);
+});
+
+test('Volet A & B : gardes de rôles maintenues sur /simulation, /planning et /caisse', async () => {
+  const vendeur = `patisgest_pilot_session=${demoCookie('amine@patisserie.dz')}`;
+  const proprio = `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`;
+
+  // Vendeur bloqué sur /simulation (coûts & impact hausse matière)
+  const vSim = await get('/simulation', vendeur);
+  assert.ok(vSim.status >= 300 && vSim.status < 400);
+  assert.equal(redirectPath(vSim), '/tableau-de-bord');
+
+  // Vendeur autorisé sur /caisse et /planning (réassort boutique)
+  assert.equal((await get('/caisse', vendeur)).status, 200);
+  assert.equal((await get('/planning', vendeur)).status, 200);
+
+  // Propriétaire autorisé sur /simulation, /planning, /caisse, /cloture, /cake-design
+  for (const route of ['/simulation', '/planning', '/caisse', '/cloture', '/cake-design', '/transferts']) {
+    assert.equal((await get(route, proprio)).status, 200, `${route} doit répondre 200 pour propriétaire`);
+  }
+});
+
+test('accueils différenciés propriétaire et labo', async () => {
+  const owner = await (await get('/tableau-de-bord', `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`)).text();
+  const lab = await (await get('/tableau-de-bord', `patisgest_pilot_session=${demoCookie('sara@patisserie.dz')}`)).text();
+  assert.match(owner, /Santé économique/);
+  assert.match(owner, /Fermeture de la journée/);
+  assert.match(lab, /Stocks à vérifier/);
+  assert.doesNotMatch(lab, /Santé économique|Fermeture de la journée|Ventes aujourd’hui|Produits à renforcer/);
+});
+
 /**
  * NF-02 (hors-ligne) : une PWA n'existe que si trois choses sont servies.
  * Sans ces tests, on peut « livrer le service worker » et découvrir sur la
@@ -268,10 +311,9 @@ test('NF-02 : le service worker est servi à la racine, avec la bonne portée im
   // Portée : servi depuis /sw.js = contrôle tout le site. Un SW sous /_next/
   // ne contrôlerait rien d'utile.
   assert.match(src, /addEventListener\("fetch"/);
-  assert.match(src, /CACHE_SHELL/);
-  // Les server actions et l'API ne doivent jamais être mises en cache :
-  // une vente ne doit pas paraître réussie depuis un cache.
-  assert.match(src, /url\.pathname\.startsWith\("\/api\/"\)/);
+  assert.match(src, /request\.mode === "navigate"/);
+  assert.doesNotMatch(src, /CACHE_SHELL/);
+  assert.match(src, /_next\/static\//);
 });
 
 test('NF-02 : le manifeste PWA est servi et déclare le nom, les icônes et le mode standalone', async () => {
@@ -333,4 +375,33 @@ test('vitrine : l’application n’est pas réécrite pour un hôte d’applica
   const res = await get('/');
   assert.equal(res.status, 307);
   assert.ok(['/connexion', '/tableau-de-bord'].includes(redirectPath(res)));
+});
+
+test('vitrine : un hôte boutique est réécrit vers son catalogue public', async () => {
+  const {status, body, rewrite} = await new Promise((resolve,reject) => {
+    const req = http.request(`${BASE}/`, {headers:{host:'elyasmine.patisgest.dz'},agent:false}, res => {
+      let body=''; res.setEncoding('utf8'); res.on('data', chunk => body+=chunk);
+      res.on('end',()=>resolve({status:res.statusCode, body, rewrite:res.headers['x-middleware-rewrite']}));
+    });
+    req.on('error',reject); req.end();
+  });
+  assert.equal(status,200);
+  assert.equal(new URL(rewrite, BASE).pathname,'/vitrine/elyasmine');
+  assert.match(body, /Boutique indisponible/);
+});
+
+test('caisse : un onglet lié à une autre session est refusé avant écriture', async () => {
+  const cookie = `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`;
+  assert.equal((await get('/caisse',cookie)).status,200);
+  const manifest=JSON.parse(await (await import('node:fs/promises')).readFile(path.join(APP_ROOT,'.next/dev/server/app/(app)/[module]/page/server-reference-manifest.json'),'utf8'));
+  const action=Object.entries(manifest.node).find(([,v])=>v.filename==='src/lib/actions-caisse.ts' && v.exportedName==='sellCart')?.[0];
+  assert.ok(action);
+  async function envoyer(client,user) {
+    const body=new FormData(); body.set('_1_expectedClientId',client); body.set('_1_expectedAuthUserId',user);
+    body.set('_1_siteId','invalide'); body.set('0',JSON.stringify([{},'$K1']));
+    const res=await fetch(`${BASE}/caisse`,{method:'POST',headers:{cookie,origin:BASE,'next-action':action},body});
+    assert.equal(res.status,200); return res.text();
+  }
+  assert.match(await envoyer('autre','autre'),/La session a changé/);
+  assert.match(await envoyer('11111111-1111-4111-8111-111111111111','33333333-3333-4333-8333-333333333301'),/Site : identifiant invalide/);
 });

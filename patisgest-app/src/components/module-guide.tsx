@@ -75,7 +75,7 @@ async function formulaire(ctx: SessionContext, db: Supabase, etape: EtapeOnboard
       if (!etape.fait && (!sites.data?.length || !produits.data?.length)) return <InfoGuide>Un produit et un site de vente sont nécessaires pour encaisser.</InfoGuide>;
       const etablissement = client.data ?? { nom: ctx.clientNom, adresse: null, telephone: null, nif: null, nis: null, rc: null };
       // Laisser SaleForm monté après revalidation pour conserver le ticket.
-      return <SaleForm guide guideTermine={etape.fait} etablissement={etablissement}
+      return <SaleForm key={`${ctx.clientId}:${ctx.authUserId}`} queueIdentity={{clientId:ctx.clientId,authUserId:ctx.authUserId}} guide guideTermine={etape.fait} etablissement={etablissement}
         articles={(produits.data ?? []).map((a) => ({ id: a.id, label: a.nom }))}
         sites={(sites.data ?? []).map((s) => ({ id: s.id, label: s.nom, type: s.type }))} />;
     }

@@ -15,8 +15,8 @@ export default function TransferForm({ articles, sites }: { articles: Option[]; 
     <section className="mb-6 rounded-2xl border bg-white p-5">
       <h2 className="mb-1 font-bold">Transfert entre sites · réel</h2>
       <p className="mb-3 text-xs text-slate-500">
-        Consomme les lots en FEFO sur le site de départ et recrée des lots miroirs (même n°, DLC,
-        prix) à l’arrivée. Un transfert supérieur au stock disponible est refusé.
+        Consomme les lots éligibles en FEFO sur le site de départ (lots bloqués et DLC dépassée exclus) et recrée
+        des lots miroirs (même n°, DLC, prix) à l’arrivée. Un transfert supérieur au stock éligible est refusé.
       </p>
       <form action={action} className="flex flex-wrap items-end gap-3">
         <label className={`${label} min-w-52 flex-1`}>Article
@@ -39,7 +39,10 @@ export default function TransferForm({ articles, sites }: { articles: Option[]; 
           <input name="qte" type="number" min={0.0001} step="any" required className={field} />
         </label>
         <label className={`${label} min-w-40 flex-1`}>Motif (optionnel)
-          <input name="motif" maxLength={120} placeholder="Réassort, événement…" className={field} />
+          <input name="motif" maxLength={120} placeholder="Réassort vitrine, événement…" className={field} />
+        </label>
+        <label className={`${label} min-w-40 flex-1`}>Responsable (optionnel)
+          <input name="responsable" maxLength={100} placeholder="Ex. Chef Karim → Vitrine" className={field} />
         </label>
         <button disabled={pending || articles.length === 0} className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
           {pending ? "Transfert…" : "Transférer"}

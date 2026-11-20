@@ -1,10 +1,8 @@
 /**
- * US-15.2 / CA-15 — sauvegarde et restauration complète (JSON).
- *
- * « Sauvegarde → restauration sur base vide = données identiques. » Ce critère
- * est **automatisable**, contrairement au second volet de CA-15 (onboarding en
- * moins d'une heure, qui est humain). Ce module porte la partie vérifiable :
- * format du fichier, ordre de restauration, et contrôle d'intégrité.
+ * Export et restauration JSON partiels : ce format ne sauvegarde ni Auth,
+ * ni comptes métier, droits d'accès, équipes ou historique de révocation.
+ * Il ne démontre pas une restauration complète ou un retour arrière.
+ * Ce module traite le format, l'ordre et un contrôle d'intégrité non cryptographique.
  *
  * Choix de conception :
  *  - **Ordre topologique** : `clients` d'abord, puis les tables sans
@@ -12,9 +10,8 @@
  *    désordre violerait les clés étrangères.
  *  - **Aucune donnée dérivée** : on n'exporte pas les compteurs ; ils se
  *    recalculent. En revanche on exporte tout ce qui a une valeur métier.
- *  - **Les comptes Auth ne sont pas dans le dump** (`auth.users` appartient à
- *    Supabase) : on sauvegarde `utilisateurs` (rôle + rattachement) qui les
- *    référence par `auth_user_id`.
+ *  - **Comptes et autorisations exclus** : ni `auth.users` ni `utilisateurs`
+ *    ne figurent dans cet export ; consulter `TABLES_EXCLUES`.
  *  - **Version de format** explicite : un dump d'il y a deux ans doit refuser
  *    de se restaurer dans un schéma qui a changé, pas corrompre la base.
  */
@@ -43,6 +40,7 @@ export const ORDRE_RESTAURATION = [
   "z_imports", // FK vers ventes : doit suivre ventes, pas le précéder
   "clotures",
   "transferts",
+  "demandes_reassort", // FK vers clients, sites, articles, ordres_fabrication, transferts
   "cakes",
   "releve_temperatures",
   "nettoyages",
@@ -53,6 +51,17 @@ export const ORDRE_RESTAURATION = [
 /** Tables volontairement exclues, avec la raison (transparence RG-15.1). */
 export const TABLES_EXCLUES: { table: string; raison: string }[] = [
   { table: "utilisateurs", raison: "rattachés à des comptes Auth Supabase (auth.users) — à recréer côté Auth" },
+  { table: "acces_modules", raison: "réglages par compte non restaurés par le format actuel" },
+  { table: "equipe_sites", raison: "affectations de sites non restaurées par le format actuel, si la fonctionnalité équipe est installée" },
+  { table: "equipe_demandes", raison: "demandes et décisions d'adhésion non restaurées par le format actuel, si la fonctionnalité équipe est installée" },
+  { table: "equipe_invitations", raison: "invitations non restaurées par le format actuel, si la fonctionnalité équipe est installée" },
+  { table: "equipe_codes", raison: "codes d'équipe non restaurés par le format actuel, si la fonctionnalité équipe est installée" },
+  { table: "equipe_journal_acces", raison: "journal d'accès non restauré par le format actuel, si la fonctionnalité équipe est installée" },
+  { table: "equipe_admission_securite", raison: "état de sécurité de l'admission non restauré par le format actuel, si la fonctionnalité équipe est installée" },
+  { table: "equipe_revocations", raison: "historique des identités révoquées non restauré par le format actuel, si la fonctionnalité équipe est installée" },
+  { table: "vitrine_photos", raison: "photos et métadonnées de vitrine non restaurées par le format actuel, si la vitrine est installée" },
+  { table: "sous_domaines_reserves", raison: "liste globale des noms réservés non restaurée par le format actuel, si la vitrine est installée" },
+  { table: "storage", raison: "fichiers Supabase Storage non inclus dans cet export JSON" },
 ];
 
 /**
@@ -91,7 +100,7 @@ export type Sauvegarde = {
   genere_le: string;
   client_id: string;
   client_nom: string;
-  /** Dump complet, une entrée par table de ORDRE_RESTAURATION. */
+  /** Tables métier incluses ; les comptes et droits sont exclus. */
   tables: TableSauvegardee[];
   /** Empreinte du contenu (détecte un fichier tronqué ou modifié). */
   empreinte: string;

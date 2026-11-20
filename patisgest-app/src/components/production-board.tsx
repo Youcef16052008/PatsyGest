@@ -33,9 +33,9 @@ export default function ProductionBoard({ orders, preview = false, renderAction 
         <div className="pg-lane-head"><h3><i/>{g.label}</h3><span>{g.orders.length}</span></div>
         {!g.orders.length && <p className="pg-lane-empty">Aucune fournée.</p>}
         {g.orders.slice(0, limit).map(o => <article className="pg-order" key={o.id}>
-          <div className="pg-order-top"><h4>{o.title}</h4>{o.date && <span><Icon name="calendar" size={14}/>{dateLisible(o.date)}</span>}</div>
+          <div className="pg-order-top"><h4>{o.title}{o.version != null ? ` · v${o.version}` : ""}</h4>{o.date && <span><Icon name="calendar" size={14}/>{dateLisible(o.date)}</span>}</div>
           <p className="pg-order-quantity"><strong>{quantite(o.planned)}</strong> prévue{o.planned !== 1 ? "s" : ""}{o.done > 0 && ` · ${quantite(o.done)} réalisées`}</p>
-          <div className="pg-order-foot"><span>{o.site || "Fabrication"}</span>{!preview && <span>{o.numero}</span>}{g.id === "autre" && <span>{o.statut === "annule" ? "Annulée" : "Autre état"}</span>}</div>
+          <div className="pg-order-foot"><span>{o.site || "Fabrication"}</span>{!preview && <span>{o.numero}</span>}{o.devis && <span>Devis {o.devis}</span>}{g.id === "autre" && <span>{o.statut === "annule" ? "Annulée" : "Autre état"}</span>}</div>
           {renderAction?.(o)}
         </article>)}
         {preview && g.orders.length > limit && <p className="pg-lane-empty">+ {g.orders.length - limit} dans Production</p>}

@@ -1,5 +1,6 @@
 "use client";
 import { useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { receive, type State, type Article } from '@/lib/patisgest-store';
 import type { Role } from '@/lib/auth';
 import { PurchaseOperations, ProductionOperations, TransferOperations } from './sprint2-operations';
@@ -36,7 +37,13 @@ export default function DemoModule({ module, role, filtre, shop }: { module: Mod
   const title={stocks:'Articles & stocks',achats:'Achats & fournisseurs',recettes:'Recettes & coûts',caisse:'Caisse',production:'Production',transferts:'Transferts',cloture:'Clôture & pertes',qualite:'HACCP & qualité','cake-design':'Cake Design Studio',tracabilite:'Traçabilité des lots',planning:'Planning de production',simulation:'Simulation de prix'}[module];
   return <div className="pg-stack"><PageIntro title={title} label={module === "stocks" ? "Inventaire" : module === "caisse" ? "Boutique" : module === "production" ? "Laboratoire" : undefined}
     description={module === "stocks" ? "Retrouvez vos produits, vos ingrédients et les quantités par site." : module === "caisse" ? "Choisissez un produit, vérifiez la quantité et enregistrez la vente." : undefined}
-    actions={module === "stocks" && canEdit && <a href="#nouvel-article" className="pg-button pg-button-secondary">Gérer le stock</a>}/>
+    actions={
+      module === "stocks" && canEdit ? (
+        <a href="#nouvel-article" className="pg-button pg-button-secondary">Gérer le stock</a>
+      ) : module === "production" ? (
+        <Link href="/planning#demain-au-labo" className="pg-button pg-button-secondary">Demain au labo →</Link>
+      ) : undefined
+    }/>
     {message && <p role="status" className="rounded-lg bg-violet-50 p-3 text-sm text-violet-900">{message}</p>}
     {module === 'stocks' && <>
       <StockList key={filtre ?? "tous"} articles={db.articles.slice().sort((a,b) => a.nom.localeCompare(b.nom,"fr"))} lots={demoLots(db)} sites={DEMO_SITES} today={jourUTC()} filtre={filtre}/>

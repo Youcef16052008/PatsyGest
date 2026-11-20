@@ -103,24 +103,65 @@ export async function transferReal(_prev: TransferState, formData: FormData): Pr
     return { erreur: e instanceof Error ? e.message : "Saisie invalide." };
   }
 
+  const responsableRaw = String(formData.get("responsable") ?? "").trim();
+  if (responsableRaw.length > 80) {
+    return { erreur: "Responsable : 80 caractères maximum." };
+  }
+  const demandesRaw = String(formData.get("demandesIds") ?? "").trim();
+  const demandesIds = demandesRaw
+    ? demandesRaw.split(",").map((s) => s.trim()).filter((s) => /^[0-9a-f-]{36}$/i.test(s))
+    : [];
+
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("transferer_article", {
+    let rpcRes = await supabase.rpc("transferer_article", {
       p_article_id: input.articleId,
       p_from_site_id: input.fromSiteId,
       p_to_site_id: input.toSiteId,
       p_qte: input.qte,
       p_motif: input.motif,
+      ...(responsableRaw ? { p_responsable: responsableRaw } : {}),
     });
+    if (rpcRes.error && (rpcRes.error.code === "PGRST202" || rpcRes.error.code === "42883") && responsableRaw) {
+      rpcRes = await supabase.rpc("transferer_article", {
+        p_article_id: input.articleId,
+        p_from_site_id: input.fromSiteId,
+        p_to_site_id: input.toSiteId,
+        p_qte: input.qte,
+        p_motif: [input.motif, `Resp. ${responsableRaw}`].filter(Boolean).join(" · ").slice(0, 120),
+      });
+    }
+    const { data, error } = rpcRes;
     if (error) {
       if (error.code === "P0001") return { erreur: error.message };
       if (error.code === "42501") return { erreur: "Votre rôle n'autorise pas ce transfert." };
       return { erreur: messageUtilisateur(error, "Transfert refusé") };
     }
-    const r = data as { ref?: string; lots?: number } | null;
+    const r = data as { transfert_id?: string; ref?: string; lots?: number } | null;
+    let demandesNonMisesAJour = false;
+    if (demandesIds.length > 0) {
+      if (!r?.transfert_id) demandesNonMisesAJour = true;
+      else {
+        try {
+        const suivi = await supabase.rpc("traiter_demandes_reassort", {
+          p_ids: demandesIds,
+          p_statut: "transferee",
+          p_transfert_id: r.transfert_id,
+        });
+        demandesNonMisesAJour = Boolean(suivi.error);
+        } catch { demandesNonMisesAJour = true; }
+      }
+    }
     revalidatePath("/transferts");
+    revalidatePath("/planning");
+    revalidatePath("/production");
     revalidatePath("/stocks");
-    return { succes: `Transfert enregistré (${r?.ref}) — ${r?.lots ?? 0} lot(s) déplacé(s) en FEFO.` };
+    if (demandesNonMisesAJour) return { erreur: `Transfert ${r?.ref ?? ""} effectué, mais demandes non mises à jour. Ne recommencez pas le transfert ; vérifiez le suivi.` };
+    return {
+      succes:
+        `Transfert enregistré (${r?.ref}) — ${r?.lots ?? 0} lot(s) éligible(s) déplacé(s) en FEFO` +
+        (responsableRaw ? ` · responsable : ${responsableRaw}.` : "."),
+    };
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur." };
   }

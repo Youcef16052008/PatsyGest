@@ -1,5 +1,11 @@
 # PâtisGest — Handoff (English)
 
+> Historical main-branch handoff, not deployment instructions for the current
+> security branch. Offline HTML caching and automatic replay are disabled here
+> pending account isolation; opening the cashier offline is not guaranteed.
+> Migrations 24–31 collide with separate security drafts: do not replay in
+> lexical order. See `patisgest-app/PLAN-CLOTURE.md` for current blockers.
+
 **Audience:** a senior engineer or an AI agent picking this repository up cold,
 with no access to the conversation that produced it.
 **Purpose:** explain *what* was built, *why*, *what was deliberately not built*,

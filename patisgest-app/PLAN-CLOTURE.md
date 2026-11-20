@@ -1,0 +1,174 @@
+# Plan de clôture PâtisGest
+
+## Décision utilisateur : reprise Supabase à 15 clients
+
+L'utilisateur reporte pour le moment l'activation du forfait/environnement
+Supabase isolé évoqué et souhaite y revenir lorsque PâtisGest aura 15 clients.
+Ce seuil est un rappel de reprise, pas une garantie de sécurité ni une validation
+automatique : l'utilisateur peut revenir plus tôt si nécessaire. Aucun dispositif
+ne surveille le nombre de clients ni ne relance le travail automatiquement.
+
+En attendant, les migrations de sécurité du pilote et la fusion de la PR #5
+restent bloquées : la base de production ne dispose pas encore des vues attendues
+par la branche, et une sauvegarde complète et une restauration représentative
+n'ont pas été vérifiées. Les données actuelles ont déjà de la valeur ; attendre
+15 clients ne les protège pas contre une perte. Une sauvegarde adaptée, sécurisée
+et testée est recommandée dès maintenant, même si l'option payante est différée.
+
+À la reprise : vérifier les coûts et l'accès à un environnement isolé, établir une
+sauvegarde couvrant base, Auth, Storage et configuration, la restaurer et tester
+le retour arrière, puis réconcilier les migrations avec le pilote et valider les
+parcours métier avant toute application ou fusion. Voir `migrations/ETAT-RESTAURATION.md`
+et `../HANDOFF-NEXT-SESSION.md` pour les limites connues.
+
+**État : inventaire de phase 1 terminé ; phase 2 partielle, phase 3 amorcée.** La PR #5 est en
+brouillon. Les brouillons sécurité 101 à 128 ne sont pas appliqués (101 à 127 portaient les numéros 24 à 50) ; depuis 23,
+le pilote a reçu indépendamment des migrations de vitrine numérotées 25 à 31.
+Il faut réconcilier ces historiques et le main publié. L'inventaire historique
+n'est pas une certification de sécurité du catalogue actuel.
+Ne pas activer de comptes ni fusionner avant les critères ci-dessous. Les tests
+métier et de sécurité se font sur la pile Supabase CLI jetable, jamais avec des
+écritures de test dans le pilote. Voir `SECURITE-MODULES-EN-COURS.md` et
+`AUDIT-PHASE-1.md` et `CERTIFICATION-PHASES-2-3.md` pour les détails et les
+critères de certification encore bloqués.
+
+## Phase 1 — état des lieux et garde-fous (inventaire terminé)
+
+1. Relever en lecture seule l'état du pilote et du déploiement, les migrations,
+   tables, policies et RPC accessibles ; distinguer les brouillons du réel.
+2. Recenser les entrées sensibles : sites, données communes, fonctions
+   `SECURITY DEFINER`, vues, comptes, modules, sauvegardes et chemins HTTP.
+3. Rendre l'inventaire contrôlable par test et identifier les cas encore non
+   couverts ; documenter les divergences de bootstrap et leurs conséquences.
+4. Éviter qu'un aperçu applicatif utilise le pilote comme bac à sable ; tester
+   le garde-fou sans effectuer de modifications sur le pilote.
+
+**Sortie :** inventaire et matrice de risques disponibles, contrôles reproductibles,
+état réel vérifié, trous restants documentés. Un inventaire ne prouve pas la
+sécurité et la couverture ne se réduit pas à un nombre de tests.
+
+## Phase 2 — isolation des sites et confidentialité
+
+- Décider quelles données sont communes à l'établissement et quelles données
+  doivent porter un site, y compris les historiques, données sans site et JSON.
+- Protéger chaque lecture/écriture directe, vue, RPC et appel imbriqué ; couvrir
+  les anciennes références et tout résultat ou message d'erreur. Un transfert
+  vérifie les deux sites ; rappel et blocage doivent gérer les descendants.
+- Finaliser confidentialité labo et règles des modules sans faire fuiter les
+  prix ou coûts par tables, vues, RPC, exports, sauvegardes ou erreurs.
+- Pour les fonctions temporairement inaccessibles, expliciter la limitation dans
+  l'interface ; ne pas prétendre les prendre en charge.
+
+**Sortie :** tests adversariaux Auth/PostgREST pour propriétaire, labo, vendeur,
+compte non approuvé et deux établissements avec plusieurs sites ; tests positifs
+et négatifs sur chaque chemin, sans contournement par un identifiant connu.
+
+## Phase 3 — équipe et approbation
+
+- Inscription avec identité vérifiée, demande de rattachement et invitation ;
+  acceptation/refus uniquement par le propriétaire du bon établissement.
+- Attribution et modification d'un ou plusieurs sites et des modules, comptes
+  individuels vendeurs, révocation immédiate et vérification des sessions déjà
+  émises. Protéger concurrence, invitations expirées, doublons et changements
+  d'adresse ; aucune élévation par métadonnées utilisateur.
+- Fournir interface et canal d'invitation vérifié ; ne pas supposer qu'un
+  serveur SMTP ou des modèles d'e-mail sont configurés.
+- Préparer une transition explicite des comptes existants : aucune attribution
+  silencieuse plus large et aucun verrouillage accidentel.
+
+**Sortie :** parcours complets d'invitation et de demande approuvés/refusés,
+affectation, modification et révocation testés avec Auth et PostgREST réels.
+
+## Phase 4 — parcours métier multisites et robustesse
+
+- Ajouter la prise en charge explicite de plusieurs laboratoires et boutiques
+  pour la prévision et le réassort, avec répartition traçable des quantités.
+- Parcours de bout en bout achats, recettes, stocks, OF partiels, transferts,
+  caisse, commandes et clôture ; confidentialité labo et modules désactivés.
+- Traiter idempotence, échecs partiels, simultanéité, pagination et restauration ;
+  préciser ce qui ne peut pas être transactionnel. Dans `vendre_panier` 21,
+  une exception d'unicité peut renvoyer `duplicate=true` avec `sale_id` nul si
+  aucune vente ne correspond au ticket ; l'action caisse conserve désormais la
+  file dans ce cas, mais le SQL pilote et les collisions doivent être audités.
+
+**Sortie :** scénarios représentatifs à plusieurs sites et tests de défaillance,
+plus lint, types, tests, build, smoke HTTP et revue des dépendances.
+
+## Phase 5 — répétition et préparation du déploiement
+
+- La fusion locale de main `24ec425` résout les conflits de pages, CSS,
+  formulaires, proxy et smoke ; garder le garde Preview avant le routage vitrine.
+  Les SQL de main 24–31 et les brouillons sécurité ont des numéros en double :
+  les tests utilisent une liste d'exclusion explicite et, pour la variante
+  vitrine, rejouent les fixtures avant la série sécurité. **Ce n'est pas un
+  ordre de déploiement validé** : établir un historique univoque, comparer
+  précisément les SQL du pilote et répéter sur une copie représentative.
+- Hors-ligne : le cache HTML de main expose potentiellement une session précédente
+  sur un appareil partagé ; le service worker de cette branche ne cache que
+  les assets et purge ses anciens caches à l'activation. La caisse multiproduit
+  utilise une file distincte par établissement et compte, une vérification
+  d'identité côté action serveur, des verrous Web entre onglets récents et une
+  reprise manuelle. Les anciennes files v1 non attribuées sont conservées sans
+  rejeu automatique. Une file pleine, corrompue ou un stockage défaillant
+  bloque l'envoi ; les refus restent en file jusqu'à vérification. Ceci n'est
+  pas une isolation de confidentialité du stockage face à l'accès physique.
+  Catalogue de secours et reprise automatique restent désactivés ; l'ouverture
+  de la caisse sans réseau n'est pas garantie. Tester la transition v1, les
+  anciens onglets et les pannes sur tablette avant toute activation.
+  Le correctif ne protège pas les appareils de production tant qu'il n'y est
+  pas déployé et que le nouveau service worker n'y est pas activé.
+- Comparer signatures, ACL, schéma et données historiques du pilote avec les
+  hypothèses des migrations ; résoudre les divergences, comptes existants et
+  anciens OF sans réécriture silencieuse.
+- Rejouer les migrations finales depuis l'état connu dans une base isolée,
+  tester l'application ancienne et nouvelle et documenter les incompatibilités.
+- Vérifier sauvegarde/restauration, retour arrière applicatif et base,
+  maintenance, ordre précis des opérations et critères d'arrêt. Un simple
+  redéploiement de l'ancienne application ne suffit pas à annuler des migrations.
+
+**Sortie :** répétition réussie, sauvegarde vérifiée et procédure de retour
+arrière testée ; aucun blocage critique ouvert.
+
+## Phase 6 — mise en production et clôture
+
+- Appliquer séquentiellement les migrations validées et coordonner le
+  déploiement de l'application ; ne pas faire passer du trafic réel sur une
+  combinaison base/application incompatible.
+- Vérifier santé, RLS, parcours et accès effectivement publiés sans données de
+  test destructives. Ne fusionner la PR que si toutes les portes sont franchies ;
+  en cas d'échec, appliquer le plan de retour arrière.
+- Confirmer l'état réel des migrations, de la production Vercel et de la PR.
+
+**Règle transversale :** un résultat vert partiel, un brouillon ou une démo ne
+signifie pas que le système est prêt pour la production.
+
+### État après réconciliation de main
+
+Le commit de fusion `d77a588` conserve la vitrine et le panier multiproduit ;
+les migrations sécurité restent des brouillons. La CI isolée
+[44696789590](https://github.com/Youcef16052008/PatsyGest/actions/runs/44696789590)
+a réussi les variantes historique et vitrine et le garde Preview (y compris
+un hôte de boutique). En local : 354 tests, types, lint, build, 25 smoke HTTP
+et 3 tests Preview réussis. Ces résultats ne valident ni la base pilote réelle,
+ni la restauration complète, ni la reprise hors ligne sur appareil partagé.
+Aucune nouvelle migration n'a été appliquée au pilote à cette étape.
+
+### Caisse : progrès et limites de reprise
+
+La file v2 est conservée par couple établissement/compte, avec contrôle de la
+session à l'envoi, verrou Web entre onglets récents et refus avant envoi si le
+stockage échoue. Le plafond ne supprime plus les tickets les plus anciens ;
+les erreurs métier ne sont plus retirées automatiquement. Un rejeu n'est
+confirmé que si l'enregistrement trouvé correspond au site, aux lignes et au
+mode ; une réponse `duplicate` sans `sale_id` reste ambiguë. Ces contrôles ne
+remplacent pas la correction et l'audit des RPC directement accessibles.
+
+La [CI 44701586576](https://github.com/Youcef16052008/PatsyGest/actions/runs/44701586576)
+a vérifié dans les deux piles jetables l'action Next avec Auth : session
+changée, vente, rejeu identique, rejeu différent et collision SQL simulée. Les
+360+ tests unitaires incluent des simulations de stockage plein/corrompu et de
+verrous entre onglets ; ils ne remplacent pas une qualification dans des
+navigateurs et tablettes réels. La file v1 est préservée, mais son attribution
+et sa reprise restent à traiter sans supposer son propriétaire. Le stockage
+local n'est ni une frontière de confidentialité ni une sauvegarde. La branche
+n'est pas déployée ; aucune migration n'a été appliquée au pilote à cette étape.

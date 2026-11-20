@@ -4,6 +4,8 @@
  * server actions qui ne doivent jamais faire confiance au navigateur.
  */
 
+import { parseCashDrawerDeclaration, type CashDrawerDeclaration } from "./reconciliation.ts";
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -73,6 +75,7 @@ export type ClosingInput = {
   siteId: string;
   revise: boolean;
   lignes: ClosingLineInput[];
+  caisseBilan: CashDrawerDeclaration | null;
 };
 
 const CLOSING_FLOWS = ["produit", "vendu", "reporte", "jete", "casse", "offert"] as const;
@@ -92,7 +95,37 @@ export function parseClosingInput(formData: FormData): ClosingInput {
     for (const flow of CLOSING_FLOWS) line[flow] = qty(formData.get(`line${i}_${flow}`), `${flow} ligne ${i + 1}`);
     lignes.push(line as unknown as ClosingLineInput);
   }
-  return { date, siteId, revise, lignes };
+  const caisseBilan = parseCashDrawerDeclaration({
+    fondInitial: formData.get("fondInitial"),
+    sortiesEspeces: formData.get("sortiesEspeces"),
+    especesComptees: formData.get("especesComptees"),
+    motifSortie: formData.get("motifSortie"),
+  });
+  return { date, siteId, revise, lignes, caisseBilan };
+}
+
+export type RestockRequestInput = {
+  dateCible: string;
+  siteId: string;
+  articleId: string;
+  qte: number;
+  motif: string;
+  demandeur: string;
+};
+
+export function parseRestockRequestInput(formData: FormData): RestockRequestInput {
+  const qte = qty(formData.get("qte"), "Quantité demandée");
+  if (qte < 0.0001 || qte > 100_000_000) {
+    throw new Error("Quantité demandée : entre 0,0001 et 100 000 000.");
+  }
+  return {
+    dateCible: day(formData.get("dateCible"), "Date cible", { min: "2000-01-01" }),
+    siteId: uuid(formData.get("siteId"), "Boutique"),
+    articleId: uuid(formData.get("articleId"), "Produit"),
+    qte,
+    motif: str(formData.get("motif"), "Motif / précision", 200, 0),
+    demandeur: str(formData.get("demandeur"), "Demandeur", 80, 0),
+  };
 }
 
 // --------------------------------------------------------------- qualité
@@ -238,6 +271,12 @@ export function parseCakeInput(formData: FormData): CakeInput {
     notes: notes === "" ? null : str(notes, "Notes", 500),
     cgv: bool(formData.get("cgv"), "CGV"),
   };
+}
+
+export function parseCakeProductionInput(formData: FormData) {
+  const qteFabrication = num(formData.get("qteFabrication"), "Quantité à fabriquer", 0.001, 100_000_000);
+  if (Math.round(qteFabrication * 1000) / 1000 !== qteFabrication) throw new Error("Quantité : trois décimales maximum.");
+  return { versionId: uuid(formData.get("versionId"), "Recette"), siteId: uuid(formData.get("siteId"), "Site"), qteFabrication };
 }
 
 export type CakeActionInput = { id: string; transition: string; montant: number | null };

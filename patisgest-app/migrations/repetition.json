@@ -1,0 +1,302 @@
+{
+  "version": 1,
+  "statut": "REPETITION UNIQUEMENT — noms des brouillons uniques, pas un ordre de déploiement ni preuve d’équivalence au pilote",
+  "historique": [
+    {
+      "file": "01-socle.sql",
+      "sha256": "c3154ec6e1c61c8a18ecd99ab26b3b7d0328e8d447cc97063eb6c6ee71d8846d"
+    },
+    {
+      "file": "03-sprint2-modules.sql",
+      "sha256": "43e94bb12a7afa7cf9a1fdc19d87bf194a4e6c870cd6a7871f7a567f6f6f581b"
+    },
+    {
+      "file": "04-securite-lecture.sql",
+      "sha256": "f7b6372fb50dad09dd44cebcc539c82f702c9b623335d32fe68301caeb47acc6"
+    },
+    {
+      "file": "05-ecritures-articles-lots.sql",
+      "sha256": "1ec87b5d82b0fcfdf66f80a161571407f4660b0e1cad6e3b05835470b32576c8"
+    },
+    {
+      "file": "06-ventes-caisse-fefo.sql",
+      "sha256": "f6586a0976a5eba6adbc367591aa44476edadc7c0c0cd102611fb1ceb6495985"
+    },
+    {
+      "file": "07-of-production.sql",
+      "sha256": "8cdad7f9b817d891e7c1dfd7ccfb132aeeee028e58e4a1129af010db3c084244"
+    },
+    {
+      "file": "08-transferts.sql",
+      "sha256": "c4d4714bf63fae67198034f2ae32911fff173d0506f25206f5615e6e0bd111fc"
+    },
+    {
+      "file": "09-journaux-ecritures.sql",
+      "sha256": "57e329ce0e2bb08cf3d9d77204901e8ae90ab9712612290887b9fbd9e6109d95"
+    },
+    {
+      "file": "10-achats-commandes.sql",
+      "sha256": "6a5344cc50d01a2b2df719d3c6c54173abcd1e7732f1e6d064425992b9f94ff2"
+    },
+    {
+      "file": "11-import-z.sql",
+      "sha256": "f7c31ab4b18aa2cc839156bd8c87cb87b3b32ce3a4fc98bebf2da924f9f4e71d"
+    },
+    {
+      "file": "12-sous-recettes-conversions.sql",
+      "sha256": "b498fbec3c059c2de4b71bdf64fc47d921ae48f5eed5e75ba61417a047bac805"
+    },
+    {
+      "file": "13-rappel-blocage-lots.sql",
+      "sha256": "dabfdaab4c40dede2ac535ff017d59ffc068c1f73cdf9a8b38eada13c60406e4"
+    },
+    {
+      "file": "14-cake-edition-cgv-ticket.sql",
+      "sha256": "2e6447e3fc3ccdc9c7164315f79a7fd49d84ff12daaff8f9edc441bf183a5416"
+    },
+    {
+      "file": "15-parametres-couts.sql",
+      "sha256": "635a58fadf093a51dce03b4bc028368a2c0b6c389994d5deabc3e179c46a5b15"
+    },
+    {
+      "file": "16-creer-of-idempotent.sql",
+      "sha256": "4e03d99dba3ab402139c15512465665cc0f4c53a037299bc7196972271bf02af"
+    },
+    {
+      "file": "17-confidentialite-couts-rls.sql",
+      "sha256": "0513d316835f610be35b6057cc30d9d91ab2b2fad59570e9f5e6570c81d05e4b"
+    },
+    {
+      "file": "18-restauration-sauvegarde.sql",
+      "sha256": "8ca69d523af8e0be933bcdf8c8c5119f33420b6e8705d4940c23733c717776cd"
+    },
+    {
+      "file": "19-confidentialite-familles-recettes.sql",
+      "sha256": "4b1f84824121c0d81cdd35b501bc1e58406ffe21cbc05422f79e021212699ccf"
+    },
+    {
+      "file": "20-creation-fournisseur.sql",
+      "sha256": "d87e5f92512d97db80d08a3933982d049fe3f2b25e845bd8ef3c4c8ca25a18a2"
+    },
+    {
+      "file": "21-prix-demain-panier.sql",
+      "sha256": "b7f760e25fa56f0785eeb075be7bc9835b75bb569d5cfdb11b1d91a1dc693f03"
+    },
+    {
+      "file": "22-cake-production.sql",
+      "sha256": "ec4b67026186216ecf67ec94139660d081f80f110f35e4901263fbaaea4c724a"
+    },
+    {
+      "file": "23-controle-modules.sql",
+      "sha256": "3bcaf087b8158d4bc0e88510c6f46011e0f73d45f543ff8ffb7510830758c64c"
+    }
+  ],
+  "fixtures_vitrine": [
+    {
+      "file": "25-domaines-boutiques.sql",
+      "sha256": "3ebd348c088fe94d5acf2d548d320389da6b8019b3ee9764f09f4aa22bd24127"
+    },
+    {
+      "file": "26-vitrine-publique.sql",
+      "sha256": "ece644b58a77ce3607b8a93543b76062cbfc6ae741dd39b0848661d4632770cb"
+    },
+    {
+      "file": "27-commandes-vitrine.sql",
+      "sha256": "1f895f099dc9ecb323094aae6ca93971e31c74251133e82bce5e99a43aa09f85"
+    },
+    {
+      "file": "28-fermeture-anon.sql",
+      "sha256": "3c5c9c0eb94952452b0eaa4abb4f630e30d4e3fd21e4deef37d32d58916c802c"
+    },
+    {
+      "file": "29-fermeture-public-fonctions.sql",
+      "sha256": "4de37c3e4d46fa4b8bf7fb818cad9d1dee1cc924fb544f2302a6529acc5d6d06"
+    },
+    {
+      "file": "30-edition-vitrine-rpc.sql",
+      "sha256": "b4902d71e03ac81ec395a7a730201da369258765a723f314ba0547b0efcc7caa"
+    },
+    {
+      "file": "31-publication-vitrine.sql",
+      "sha256": "e154b76fea7c4ec8411ea7ac275b6b6a9de6d778f06a8f96baed7ff23e351041"
+    }
+  ],
+  "brouillons_securite": [
+    {
+      "file": "101-confidentialite-labo.sql",
+      "sha256": "1a94e0a890eef2ed8457e41504c092430009f7499a5e0298ed1623cd1de140a6",
+      "ancien_fichier": "24-confidentialite-labo.sql"
+    },
+    {
+      "file": "102-cout-of-partiel.sql",
+      "sha256": "897a7b91bbfaaf18effcf43a6c16c2d84d066213f1720c72143cbdd48cc1d589",
+      "ancien_fichier": "25-cout-of-partiel.sql"
+    },
+    {
+      "file": "103-gestion-sites.sql",
+      "sha256": "3b46b1546fd330729dfab80b61957268f8b159a9dd598c527dc3512510a50f39",
+      "ancien_fichier": "26-gestion-sites.sql"
+    },
+    {
+      "file": "104-equipe-fondations.sql",
+      "sha256": "aca04e13aad24a9c2964db13b051612a98a799b2e9d0e309ffe9f69533c7aa5d",
+      "ancien_fichier": "27-equipe-fondations.sql"
+    },
+    {
+      "file": "105-sites-lecture-brouillon.sql",
+      "sha256": "7244da7a1962b57d02e162c76e71fd5bc6641e23bbd3074dc4c13bb99605c88c",
+      "ancien_fichier": "28-sites-lecture-brouillon.sql"
+    },
+    {
+      "file": "106-sites-rpc-brouillon.sql",
+      "sha256": "0b85fa8cc1a9bd90ccd32d935839f1c1ad4d2baec550386d7ee83d9e60d3d480",
+      "ancien_fichier": "29-sites-rpc-brouillon.sql"
+    },
+    {
+      "file": "107-tracabilite-sites-brouillon.sql",
+      "sha256": "26d4e4ec487a979931873ffa911deb66e96b7c8facd9fd19c38a33829a248584",
+      "ancien_fichier": "30-tracabilite-sites-brouillon.sql"
+    },
+    {
+      "file": "108-reassort-sites-brouillon.sql",
+      "sha256": "52f103e98bcdf8b1ee53920524046e8f5d71d850cd3c4af5c839699818c8bb64",
+      "ancien_fichier": "31-reassort-sites-brouillon.sql"
+    },
+    {
+      "file": "109-cake-sites-brouillon.sql",
+      "sha256": "80e5c9e3753bbfe56eb29c7ad228aa2a89f274506d243b55489b0f85e31c8108",
+      "ancien_fichier": "32-cake-sites-brouillon.sql"
+    },
+    {
+      "file": "110-equipe-approbation-brouillon.sql",
+      "sha256": "09ca921025f8275df0f8356ca72743f139da169907d2f0ebf4fc5e104dc312f0",
+      "ancien_fichier": "33-equipe-approbation-brouillon.sql"
+    },
+    {
+      "file": "111-of-idempotence-sites-brouillon.sql",
+      "sha256": "d4c235ecb8fe8859a977833029df116f5e45ad0a26a1faabe3f43bf563ff40eb",
+      "ancien_fichier": "34-of-idempotence-sites-brouillon.sql"
+    },
+    {
+      "file": "112-donnees-sans-site-brouillon.sql",
+      "sha256": "4e7fcab9b123d86871906bdba0c75db97c1e1102a6f066a15841ba7cb9a03bcd",
+      "ancien_fichier": "35-donnees-sans-site-brouillon.sql"
+    },
+    {
+      "file": "113-equipe-affectations-revocation-brouillon.sql",
+      "sha256": "f42969d7a5c33f3f988fda3c6661f9b725844c5ee9fba7c6176b09806148ac75",
+      "ancien_fichier": "36-equipe-affectations-revocation-brouillon.sql"
+    },
+    {
+      "file": "114-equipe-admission-brouillon.sql",
+      "sha256": "d2ae91b905968761004ec1025f6d4c8f734902fdeda062586fb22041d8127df4",
+      "ancien_fichier": "37-equipe-admission-brouillon.sql"
+    },
+    {
+      "file": "115-confidentialite-vendeur-lots-brouillon.sql",
+      "sha256": "ed634d6f70cb0bce4a1e5ce381ba21281a1f886adc616bd5219dee0e59ee2ea1",
+      "ancien_fichier": "38-confidentialite-vendeur-lots-brouillon.sql"
+    },
+    {
+      "file": "116-confidentialite-vendeur-of-brouillon.sql",
+      "sha256": "c23d556f947e010daefc5dbf495e1da90d9bd1950a6958d927cdb71c97ec2ab5",
+      "ancien_fichier": "39-confidentialite-vendeur-of-brouillon.sql"
+    },
+    {
+      "file": "117-rappel-perimetre-brouillon.sql",
+      "sha256": "91ef61eefad0f48337c696b14afed35c3e8c9e246f1484c9e0070605c1e36885",
+      "ancien_fichier": "40-rappel-perimetre-brouillon.sql"
+    },
+    {
+      "file": "118-equipe-liste-invitations-brouillon.sql",
+      "sha256": "1bc47a6eaf96b0343d37f309b49ea171819933d971569a75eab9907f30888847",
+      "ancien_fichier": "41-equipe-liste-invitations-brouillon.sql"
+    },
+    {
+      "file": "119-equipe-mes-demandes-brouillon.sql",
+      "sha256": "b91fa9acedf71089ad7ffb347a1c6b18b458a8f2cf549a6994e3a5909061eb0e",
+      "ancien_fichier": "42-equipe-mes-demandes-brouillon.sql"
+    },
+    {
+      "file": "120-equipe-membres-revision-brouillon.sql",
+      "sha256": "1286b00095d2f8f3477f429abc4bba5836b6f626dc7dcafae2d448deefa32559",
+      "ancien_fichier": "43-equipe-membres-revision-brouillon.sql"
+    },
+    {
+      "file": "121-vendeur-sites-boutique-brouillon.sql",
+      "sha256": "cecd1d9cbc5f6a6d3b81a80668b652a2b495d55b30817478f7cbd9c1b6d96831",
+      "ancien_fichier": "44-vendeur-sites-boutique-brouillon.sql"
+    },
+    {
+      "file": "122-revocation-adresses-brouillon.sql",
+      "sha256": "50dd8d37d723fa8a6346f86662f254880f2c39e5151819470fa70594c46da53e",
+      "ancien_fichier": "45-revocation-adresses-brouillon.sql"
+    },
+    {
+      "file": "123-revocation-decisions-brouillon.sql",
+      "sha256": "58cab965eccc055d2b153b38f919ef1c8c3a633ac7b7bb1bf05d68b2d57feb23",
+      "ancien_fichier": "46-revocation-decisions-brouillon.sql"
+    },
+    {
+      "file": "124-restauration-gardes-brouillon.sql",
+      "sha256": "feac3bef44c65f363f0afe9b1335f87a16f450c9995acf53ca1e3da97ff7579b",
+      "ancien_fichier": "47-restauration-gardes-brouillon.sql"
+    },
+    {
+      "file": "125-vitrine-perimetre-brouillon.sql",
+      "sha256": "96166ef9406cc9f2defd24908f63ae62b4e99df122ef20dafedf98b762fe8b29",
+      "ancien_fichier": "48-vitrine-perimetre-brouillon.sql"
+    },
+    {
+      "file": "126-vitrine-photos-modules-brouillon.sql",
+      "sha256": "75e36902676eeaee7926bb4c53a54a20800c8933bc144ec86b1838170134a7ba",
+      "ancien_fichier": "49-vitrine-photos-modules-brouillon.sql"
+    },
+    {
+      "file": "127-vitrine-depot-schema-brouillon.sql",
+      "sha256": "fc6f7a08ac73ca8b2fa587630467d561fc1edab34d1e5256920285bc24dfa4eb",
+      "ancien_fichier": "50-vitrine-depot-schema-brouillon.sql"
+    },
+    {
+      "file": "128-caisse-collision-ticket-brouillon.sql",
+      "sha256": "d982462cfde1e713c65d81a4fca3f7da1b8eb2f1196d848f4ff5be2463057b26"
+    }
+  ],
+  "main_hors_serie": [
+    {
+      "file": "24-index-exploitation.sql",
+      "sha256": "ae8e0f4f85e46c9d7bfd3692134832b2f86cd92318713fd94a3c136f1e7ee167"
+    },
+    {
+      "file": "25-domaines-boutiques.sql",
+      "sha256": "3ebd348c088fe94d5acf2d548d320389da6b8019b3ee9764f09f4aa22bd24127"
+    },
+    {
+      "file": "26-vitrine-publique.sql",
+      "sha256": "ece644b58a77ce3607b8a93543b76062cbfc6ae741dd39b0848661d4632770cb"
+    },
+    {
+      "file": "27-commandes-vitrine.sql",
+      "sha256": "1f895f099dc9ecb323094aae6ca93971e31c74251133e82bce5e99a43aa09f85"
+    },
+    {
+      "file": "28-fermeture-anon.sql",
+      "sha256": "3c5c9c0eb94952452b0eaa4abb4f630e30d4e3fd21e4deef37d32d58916c802c"
+    },
+    {
+      "file": "29-fermeture-public-fonctions.sql",
+      "sha256": "4de37c3e4d46fa4b8bf7fb818cad9d1dee1cc924fb544f2302a6529acc5d6d06"
+    },
+    {
+      "file": "30-edition-vitrine-rpc.sql",
+      "sha256": "b4902d71e03ac81ec395a7a730201da369258765a723f314ba0547b0efcc7caa"
+    },
+    {
+      "file": "31-publication-vitrine.sql",
+      "sha256": "e154b76fea7c4ec8411ea7ac275b6b6a9de6d778f06a8f96baed7ff23e351041"
+    }
+  ],
+  "exclus": [
+    "02-seed-pilote.sql"
+  ]
+}
