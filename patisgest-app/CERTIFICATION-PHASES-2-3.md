@@ -1,6 +1,6 @@
 # Évaluation de certification — phases 2 et 3
 
-**Décision : NON CERTIFIÉES ; brouillons sécurité 24–49 non autorisés pour application.**
+**Décision : NON CERTIFIÉES ; brouillons sécurité 24–50 non autorisés pour application.**
 Ce document décrit un état et des essais partiels, pas un certificat de sécurité.
 Le pilote est utilisé par la production : une migration de sécurité incomplète
 peut aussi verrouiller les utilisateurs existants ou casser l'ancienne application.
@@ -10,7 +10,7 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
 - Historique Supabase consulté en lecture seule : après `controle_modules_23`
   (`20261119045242`), sept migrations de vitrine et domaines ont été appliquées
   indépendamment, jusqu'à `publication_vitrine_31` (`20261119195618`). Ce ne
-  sont pas les brouillons sécurité 24–49 de cette branche, dont la numérotation
+  sont pas les brouillons sécurité 24–50 de cette branche, dont la numérotation
   entre en collision avec celle de la vitrine. Aucun de ces brouillons sécurité
   n'a été appliqué au pilote par cette session.
 - Production Vercel consultée en lecture seule : commit `24ec425` sur main,
@@ -43,7 +43,11 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   Le brouillon 48 ajoute une garde de périmètre et de module ; la CI 44692500455
   la teste avec Auth/PostgREST sur une reconstruction vitrine. Le brouillon 49
   ajoute une garde pour les photos et les RPC de recette, encore à vérifier en
-  CI. La compatibilité des autres chemins vitrine reste à démontrer. Les fixtures
+  CI. Un test a aussi détecté un défaut dans la migration vitrine du dépôt main :
+  une variable `v_site` sans champ `subdomain` est utilisée pour déposer une
+  commande. Le corps observé sur le pilote sélectionne déjà ce champ ; le
+  brouillon 50 corrige la reconstruction et échoue si le corps est inattendu.
+  La compatibilité des autres chemins vitrine reste à démontrer. Les fixtures
   copiées de main ne sont pas une copie du pilote. L'export partiel ne comprend
   pas `vitrine_photos` ni Storage et n'est pas un rollback.
 - Toutes les tables, politiques, vues, fonctions SECURITY DEFINER, JSON,
