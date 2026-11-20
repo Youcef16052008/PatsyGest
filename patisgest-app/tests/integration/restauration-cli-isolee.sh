@@ -24,6 +24,17 @@ supabase db dump --local -f "$work/schema.sql"
 # ce test n'est donc PAS une restauration complète de ces données.
 supabase db dump --local --data-only --use-copy -x storage.buckets_vectors -x storage.vector_indexes -f "$work/data.sql"
 for file in roles schema data; do test -s "$work/$file.sql"; done
+# Vérifier que la restauration consomme bien le coffre et non les originaux.
+# Le secret est fictif et la CI ne conserve pas ce fichier en artefact.
+export PATSYGEST_BACKUP_PASSPHRASE
+PATSYGEST_BACKUP_PASSPHRASE=$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('hex'))")
+tar -C "$work" -cf "$work/source.tar" roles.sql schema.sql data.sql
+node "$root/scripts/coffre-sauvegarde.mjs" chiffrer "$work/source.tar" "$work/coffre.pgcgcm"
+rm "$work/source.tar" "$work/roles.sql" "$work/schema.sql" "$work/data.sql"
+node "$root/scripts/coffre-sauvegarde.mjs" dechiffrer "$work/coffre.pgcgcm" "$work/restaure.tar"
+tar -C "$work" -xf "$work/restaure.tar"
+rm "$work/restaure.tar"
+unset PATSYGEST_BACKUP_PASSPHRASE
 # Cette commande ne doit jamais fonctionner hors du projet et conteneur CI ci-dessus.
 supabase stop --no-backup
 supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta,inbucket
