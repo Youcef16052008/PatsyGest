@@ -711,8 +711,9 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    assert.ok(saleAction,'Action caisse introuvable dans le manifeste Next');
    const saleTicket='cccccccc-cccc-4ccc-8ccc-ccccccccccc1';
    async function envoyerVente(expectedUser, ticket=saleTicket, qte=1) {
-    const body=new FormData(); body.set('0',JSON.stringify([{},'$K1']));
-    for(const [k,v] of Object.entries({expectedClientId:A,expectedAuthUserId:expectedUser,siteId:site,ticket,modePaiement:'especes',lignesJson:JSON.stringify([{articleId:product,qte}])})) body.set(`1_${k}`,v);
+    const body=new FormData();
+    for(const [k,v] of Object.entries({expectedClientId:A,expectedAuthUserId:expectedUser,siteId:site,ticket,modePaiement:'especes',lignesJson:JSON.stringify([{articleId:product,qte}])})) body.set(`_1_${k}`,v);
+    body.set('0',JSON.stringify([{},'$K1']));
     const res=await fetch('http://127.0.0.1:3414/caisse',{method:'POST',headers:{cookie:renewed,origin:'http://127.0.0.1:3414','next-action':saleAction},body});
     assert.equal(res.status,200); return res.text();
    }

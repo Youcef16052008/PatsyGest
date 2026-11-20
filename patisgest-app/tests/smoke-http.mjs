@@ -396,7 +396,12 @@ test('caisse : un onglet lié à une autre session est refusé avant écriture',
   const manifest=JSON.parse(await (await import('node:fs/promises')).readFile(path.join(APP_ROOT,'.next/dev/server/app/(app)/[module]/page/server-reference-manifest.json'),'utf8'));
   const action=Object.entries(manifest.node).find(([,v])=>v.filename==='src/lib/actions-caisse.ts' && v.exportedName==='sellCart')?.[0];
   assert.ok(action);
-  const body=new FormData(); body.set('0',JSON.stringify([{},'$K1'])); body.set('1_expectedClientId','autre'); body.set('1_expectedAuthUserId','autre');
-  const res=await fetch(`${BASE}/caisse`,{method:'POST',headers:{cookie,origin:BASE,'next-action':action},body});
-  assert.equal(res.status,200); assert.match(await res.text(),/La session a changé/);
+  async function envoyer(client,user) {
+    const body=new FormData(); body.set('_1_expectedClientId',client); body.set('_1_expectedAuthUserId',user);
+    body.set('_1_siteId','invalide'); body.set('0',JSON.stringify([{},'$K1']));
+    const res=await fetch(`${BASE}/caisse`,{method:'POST',headers:{cookie,origin:BASE,'next-action':action},body});
+    assert.equal(res.status,200); return res.text();
+  }
+  assert.match(await envoyer('autre','autre'),/La session a changé/);
+  assert.match(await envoyer('11111111-1111-4111-8111-111111111111','33333333-3333-4333-8333-333333333301'),/Site : identifiant invalide/);
 });
