@@ -66,9 +66,10 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   exclusivement pour les adresses example.test, sans lien ni droit dans le
   message. L'acceptation SMTP n'est pas une preuve de livraison ; annulation
   et envoi peuvent encore courir en concurrence. Aucun fournisseur réel n'est
-  configuré. La CI 44690862739 vérifie sur Auth/PostgREST jetables les formulaires
-  de demande, d'invitation, de renvoi et d'annulation, avec SMTP fictif. Le canal
-  réel et la couverture complète des formulaires restent à établir.
+  configuré. La CI 44691423347 vérifie sur Auth/PostgREST jetables les formulaires
+  de demande, approbation, réponse avec admission verrouillée, invitation, renvoi,
+  annulation, affectation et révocation, avec SMTP fictif et une session déjà
+  émise. Le canal réel et la couverture complète des formulaires restent à établir.
 - Le brouillon 36 modifie les affectations de membres existants et retire leur
   adhésion lors d'une révocation. Une transaction déjà en cours peut conserver
   son snapshot ; la concurrence avec les autres RPC de gestion, les changements

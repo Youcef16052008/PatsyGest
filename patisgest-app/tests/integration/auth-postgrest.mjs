@@ -617,6 +617,7 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
     let body=''; stream.on('data',chunk=>body+=chunk); stream.on('end',()=>{courriels.push({body,recipients:session.envelope.rcptTo.map(x=>x.address)});done();});
   }});
   await new Promise((resolve,reject)=>smtp.once('error',reject).listen(54325,'127.0.0.1',resolve));
+  let smtpOuvert=true;
   const app=spawn(path.join(root,'node_modules','.bin','next'),['dev','-p','3414','-H','127.0.0.1'],{
     cwd:root,env:{...process.env,VERCEL_ENV:'',PATISGEST_DEMO_MODE:'false',PATSYGEST_EQUIPE_EXPERIMENTAL:'true',PATSYGEST_TEST_INVITATION_EMAIL:'true',NEXT_PUBLIC_SUPABASE_URL:API_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY:ANON_KEY},stdio:['ignore','pipe','pipe']
   });
@@ -699,6 +700,9 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    assert.ok(!ok(await owner.rpc('equipe_lister_invitations'),'Invitation refusée via formulaire').some(i=>i.id===applicantInvite));
 
    const inviteForm=trouverFormulaire(settingsHtml,f=>f.some(x=>x.name==='email') && f.some(x=>x.name==='role'));
+   const forbiddenInvite=await soumettreFormulaire('/parametres',labCookie,inviteForm,{nom:'Interdit',email:'interdit@example.test',role:'vendeur',sites:newSite.id});
+   assert.equal(forbiddenInvite.status,200); assert.match(await forbiddenInvite.text(),/réservée au propriétaire/);
+   assert.equal(courriels.length,0);
    const inviteResponse=await soumettreFormulaire('/parametres',renewed,inviteForm,{nom:'Invitation formulaire',email:'formulaire@example.test',role:'vendeur',sites:newSite.id});
    assert.equal(inviteResponse.status,200); assert.match(await inviteResponse.text(),/Invitation enregistrée/);
    assert.equal(courriels.length,1); assert.deepEqual(courriels[0].recipients,['formulaire@example.test']);
@@ -731,11 +735,17 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    assert.equal(ok(await candidate.from('sites').select('id'),'Session émise après révocation par formulaire').length,0);
    assert.equal(ok(await candidate.rpc('patisgest_module_autorise',{p_module:'stocks'}),'Module après révocation'),false);
 
+   await new Promise(resolve=>smtp.close(resolve)); smtpOuvert=false;
+   const failedMail=await soumettreFormulaire('/parametres',renewed,inviteForm,{nom:'Test panne courrier',email:'panne@example.test',role:'vendeur',sites:newSite.id});
+   assert.equal(failedMail.status,200); const failedMailHtml=await failedMail.text();
+   assert.match(failedMailHtml,/Invitation enregistrée/); assert.match(failedMailHtml,/Envoi non confirmé/);
+   assert.ok(ok(await owner.rpc('equipe_lister_invitations'),'Invitation conservée après panne SMTP').some(i=>i.email==='panne@example.test'));
+
    const anonymousJoining=await fetch('http://127.0.0.1:3414/rejoindre',{redirect:'manual'});
    assert.equal(anonymousJoining.status,307,'Compte Auth requis');
    const memberJoining=await fetch('http://127.0.0.1:3414/rejoindre',{headers:{cookie:renewed},redirect:'manual'});
    assert.equal(memberJoining.status,307,'Un membre est redirigé vers son espace');
-  } finally {app.kill('SIGTERM'); await new Promise(resolve=>smtp.close(resolve));}
+  } finally {app.kill('SIGTERM'); if(smtpOuvert) await new Promise(resolve=>smtp.close(resolve));}
  } finally {
   await sql.end();
  }
