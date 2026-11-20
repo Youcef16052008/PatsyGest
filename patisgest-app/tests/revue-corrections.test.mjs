@@ -70,3 +70,11 @@ test('F-06 : la perte cuisson est bornée à 99,99 %', async () => {
   assert.throws(() => parseVersionInput(fd('150')), /Perte cuisson/);
   assert.equal(parseVersionInput(fd('99.99')).cuissonPertePct, 99.99);
 });
+
+test('F-19 : labo et vendeur sont masqués tant que le schéma n’est pas réconcilié', async () => {
+  const { roleDisponible, ROLES_LABO_VENDEUR_ACTIFS } = await import('../src/lib/permissions.ts');
+  assert.equal(ROLES_LABO_VENDEUR_ACTIFS, false);
+  assert.equal(roleDisponible('proprietaire'), true);
+  assert.equal(roleDisponible('labo'), false);
+  assert.equal(roleDisponible('vendeur'), false);
+});

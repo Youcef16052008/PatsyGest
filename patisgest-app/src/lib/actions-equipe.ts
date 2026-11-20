@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSessionContext } from "./auth";
 import { createClient } from "./supabase/server";
 import { equipeExperimentaleActive } from "./equipe-experimental";
+import { roleDisponible } from "./permissions";
 import { WORKSPACE_LINKS } from "./workspace-nav";
 import { notifierInvitationLocale, type NotificationInvitation } from "./invitation-mail";
 
@@ -123,6 +124,9 @@ export async function creerInvitationEquipe(_prev: EquipeActionState, form: Form
   const nom = String(form.get("nom") ?? "").trim();
   const role = String(form.get("role") ?? "");
   const affectations = sites(form);
+  if (["vendeur", "labo"].includes(role) && !roleDisponible(role as "labo" | "vendeur")) {
+    return { erreur: "Ce rôle n’est pas disponible sur cette version." };
+  }
   if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !nom || nom.length > 100 || !["vendeur", "labo"].includes(role) || !affectations) {
     return { erreur: "Adresse, nom, rôle ou sites invalides." };
   }

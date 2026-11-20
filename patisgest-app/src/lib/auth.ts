@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "./supabase/server";
 
-import { canWrite, canReadCosts, type Role } from "./permissions";
+import { canWrite, canReadCosts, roleDisponible, type Role } from "./permissions";
+export { roleDisponible };
 
 export { canWrite, canReadCosts };
 export type { Role };

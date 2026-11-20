@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ROLE_LABELS, canReadCosts, requireSession } from "@/lib/auth";
+import { ROLE_LABELS, canReadCosts, requireSession, roleDisponible } from "@/lib/auth";
 import { logout } from "@/lib/actions-auth";
 import { WORKSPACE_LINKS } from "@/lib/workspace-nav";
 import AppearancePicker, { QuickColorMode } from "@/components/appearance";
@@ -14,6 +14,8 @@ const navCouts = new Set(["/recettes", "/simulation"]);
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const ctx = await requireSession();
+  // F-19 : un compte labo/vendeur ne voit pas d’écrans qui s’appuient sur des vues absentes.
+  if (!roleDisponible(ctx.role)) return <div className="pg-shell"><main id="contenu" className="pg-content"><p role="alert">Le rôle {ROLE_LABELS[ctx.role]} n’est pas disponible sur cette version. Contactez le propriétaire de l’espace.</p><form action={logout}><button type="submit" className="pg-button">Déconnexion</button></form></main></div>;
   const disabled = await lireModulesDesactives(ctx);
   const nav = WORKSPACE_LINKS.filter(({ href }) => (!navCouts.has(href) || canReadCosts(ctx.role) || (ctx.role === "labo" && href === "/recettes")) && (href === '/parametres' || href === '/tableau-de-bord' || (disabled !== null && !disabled.has(href.slice(1)))));
   const demo = ctx.mode === "pilote-local";
