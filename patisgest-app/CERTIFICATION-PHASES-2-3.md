@@ -17,8 +17,8 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   avant le brouillon 36 et les usages applicatifs doivent être revérifiés.
 - Les tests locaux passent (314, typecheck, lint et build). La CI 44607099826 réussit
   sur pile jetable : sessions Auth, contrôles PostgREST, modifications
-  concurrentes, révocation et changement de type de site ou d'adresse. Les
-  formulaires ne sont pas encore testés de bout en bout. La CI 44572631200 réussit
+  concurrentes, révocation et changement de type de site ou d'adresse. La CI
+  44690862739 couvre aussi certains formulaires HTTP. La CI 44572631200 réussit
   sur une pile Supabase CLI jetable : requêtes authentifiées, modifications
   d'affectations et vérification d'un JWT vendeur déjà émis après révocation,
   build et garde Preview. La CI 44586560234 couvre en plus l'admission de test
@@ -45,8 +45,10 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   pilote et reconstruction ; leur impact sémantique doit être résolu avant
   rejeu. Trois anciens cakes sans site exigent une décision d'attribution.
 - L'export JSON n'inclut pas les comptes Auth, autorisations et tables équipe ;
-  il n'est pas une sauvegarde complète. Une restauration complète et un retour
-  arrière base + application doivent être vérifiés sur un environnement isolé.
+  il n'est pas une sauvegarde complète. Ses lectures paginées successives ne
+  garantissent pas un instantané cohérent si les données changent pendant l'export.
+  Une restauration complète et un retour arrière base + application doivent
+  être vérifiés sur un environnement isolé.
 
 ## Phase 3 — critères non satisfaits
 
@@ -60,13 +62,13 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   limitée au développement local sur API Supabase locale avec opt-in explicite ;
   l'admission reste verrouillée. Le brouillon 43 ajoute l'interface d'affectation
   et de révocation avec contrôle de version contre les formulaires périmés,
-  Un essai local optionnel raccorde désormais un SMTP fictif sur 127.0.0.1:54325,
+  et ne fournit pas encore de canal réel. Un essai local optionnel raccorde un SMTP fictif sur 127.0.0.1:54325,
   exclusivement pour les adresses example.test, sans lien ni droit dans le
   message. L'acceptation SMTP n'est pas une preuve de livraison ; annulation
   et envoi peuvent encore courir en concurrence. Aucun fournisseur réel n'est
-  configuré. Des scénarios HTTP de soumission de formulaires sont ajoutés à la
-  CI jetable mais ne sont pas encore validés sur Auth/PostgREST. Le canal réel
-  et la couverture complète des formulaires restent à établir.
+  configuré. La CI 44690862739 vérifie sur Auth/PostgREST jetables les formulaires
+  de demande, d'invitation, de renvoi et d'annulation, avec SMTP fictif. Le canal
+  réel et la couverture complète des formulaires restent à établir.
 - Le brouillon 36 modifie les affectations de membres existants et retire leur
   adhésion lors d'une révocation. Une transaction déjà en cours peut conserver
   son snapshot ; la concurrence avec les autres RPC de gestion, les changements
@@ -84,9 +86,10 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   transition doit être préparée et testée sans perte ou élargissement de droits.
 - Le brouillon 47 annule les collisions et contrôle les FK entre établissements
   lors d'une restauration partielle. Des tests PGlite vérifient une insertion,
-  l'annulation sur collision et le rejet d'une FK étrangère. Les scénarios
-  Auth/PostgREST de restauration ne sont pas encore exécutés ; les liens JSON,
-  les courses et la sauvegarde de l'historique de révocation restent à traiter.
+  l'annulation sur collision et le rejet d'une FK étrangère. La CI 44690862739
+  confirme aussi un aller-retour partiel sur quatre tables, les refus de rôle,
+  collisions et FK étrangères via Auth/PostgREST. Les liens JSON, les courses et
+  la sauvegarde de l'historique de révocation restent à traiter.
 
 ## Porte de sortie
 

@@ -668,7 +668,36 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    const requestResponse=await soumettreFormulaire('/rejoindre',applicantCookie,requestForm,{code:newCode,nom:'Candidat formulaire',role:'vendeur'});
    assert.equal(requestResponse.status,200); assert.match(await requestResponse.text(),/Demande transmise/);
    const demandesUi=ok(await owner.rpc('equipe_lister_demandes'),'Demande depuis formulaire');
-   assert.ok(demandesUi.some(d=>d.email===applicantEmail));
+   const demandeUi=demandesUi.find(d=>d.email===applicantEmail); assert.ok(demandeUi);
+   let ownerHtml=await (await fetch('http://127.0.0.1:3414/parametres',{headers:{cookie:renewed}})).text();
+   const approveForm=trouverFormulaire(ownerHtml,f=>f.some(x=>x.name==='id' && x.value===demandeUi.id) && f.some(x=>x.name==='decision' && x.value==='approuver'));
+   const forbiddenApproval=await soumettreFormulaire('/parametres',labCookie,approveForm,{sites:newSite.id});
+   assert.equal(forbiddenApproval.status,200); assert.match(await forbiddenApproval.text(),/réservée au propriétaire/);
+   const invalidApproval=await soumettreFormulaire('/parametres',renewed,approveForm,{});
+   assert.equal(invalidApproval.status,200); assert.match(await invalidApproval.text(),/Choisissez au moins un site valide/);
+   const approvedUi=await soumettreFormulaire('/parametres',renewed,approveForm,{sites:newSite.id});
+   assert.equal(approvedUi.status,200); assert.match(await approvedUi.text(),/Demande approuvée/);
+   assert.ok(ok(await owner.rpc('equipe_lister_approbations'),'Approbation via formulaire').some(d=>d.id===demandeUi.id));
+   let candidateHtml=await (await fetch('http://127.0.0.1:3414/rejoindre',{headers:{cookie:applicantCookie}})).text();
+   const acceptDemand=trouverFormulaire(candidateHtml,f=>f.some(x=>x.name==='id' && x.value===demandeUi.id) && f.some(x=>x.name==='choix' && x.value==='accepter_demande'));
+   const lockedDemand=await soumettreFormulaire('/rejoindre',applicantCookie,acceptDemand,{});
+   assert.equal(lockedDemand.status,200); assert.match(await lockedDemand.text(),/admission peut être verrouillée/i);
+   ownerHtml=await (await fetch('http://127.0.0.1:3414/parametres',{headers:{cookie:renewed}})).text();
+   const cancelApproval=trouverFormulaire(ownerHtml,f=>f.some(x=>x.name==='id' && x.value===demandeUi.id) && f.some(x=>x.name==='decision' && x.value==='annuler'));
+   const cancelledApproval=await soumettreFormulaire('/parametres',renewed,cancelApproval,{});
+   assert.equal(cancelledApproval.status,200); assert.match(await cancelledApproval.text(),/Décision enregistrée/);
+
+   // Réponse à une invitation sur l'identité Auth vérifiée, sans ouverture du verrou.
+   const applicantInvite=ok(await owner.rpc('equipe_inviter',{p_email:applicantEmail,p_nom:'Candidat formulaire',p_role:'vendeur',p_sites:[newSite.id]}),'Invitation candidate pour formulaire');
+   candidateHtml=await (await fetch('http://127.0.0.1:3414/rejoindre',{headers:{cookie:applicantCookie}})).text();
+   const acceptInvite=trouverFormulaire(candidateHtml,f=>f.some(x=>x.name==='id' && x.value===applicantInvite) && f.some(x=>x.name==='choix' && x.value==='accepter_invitation'));
+   const lockedInvite=await soumettreFormulaire('/rejoindre',applicantCookie,acceptInvite,{});
+   assert.equal(lockedInvite.status,200); assert.match(await lockedInvite.text(),/admission peut être verrouillée/i);
+   const declineInvite=trouverFormulaire(candidateHtml,f=>f.some(x=>x.name==='id' && x.value===applicantInvite) && f.some(x=>x.name==='choix' && x.value==='refuser_invitation'));
+   const declinedInvite=await soumettreFormulaire('/rejoindre',applicantCookie,declineInvite,{});
+   assert.equal(declinedInvite.status,200); assert.match(await declinedInvite.text(),/Invitation refusée/);
+   assert.ok(!ok(await owner.rpc('equipe_lister_invitations'),'Invitation refusée via formulaire').some(i=>i.id===applicantInvite));
+
    const inviteForm=trouverFormulaire(settingsHtml,f=>f.some(x=>x.name==='email') && f.some(x=>x.name==='role'));
    const inviteResponse=await soumettreFormulaire('/parametres',renewed,inviteForm,{nom:'Invitation formulaire',email:'formulaire@example.test',role:'vendeur',sites:newSite.id});
    assert.equal(inviteResponse.status,200); assert.match(await inviteResponse.text(),/Invitation enregistrée/);
@@ -686,6 +715,21 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    const revokedResponse=await soumettreFormulaire('/parametres',renewed,resendForm,{});
    assert.equal(revokedResponse.status,200); assert.match(await revokedResponse.text(),/Invitation indisponible/);
    assert.equal(courriels.length,2,'Une invitation annulée ne doit pas être renvoyée');
+
+   // Formulaire d'affectation versionné et révocation sur une session déjà émise.
+   ownerHtml=await (await fetch('http://127.0.0.1:3414/parametres',{headers:{cookie:renewed}})).text();
+   const memberForm=trouverFormulaire(ownerHtml,f=>f.some(x=>x.name==='id' && x.value===candidateMember) && f.some(x=>x.name==='modules'));
+   const updatedMember=await soumettreFormulaire('/parametres',renewed,memberForm,{sites:site,modules:['stocks','production']});
+   assert.equal(updatedMember.status,200); assert.match(await updatedMember.text(),/Affectations enregistrées/);
+   assert.equal(ok(await candidate.rpc('patisgest_module_autorise',{p_module:'production'}),'Affectation via formulaire'),true);
+   const staleMember=await soumettreFormulaire('/parametres',renewed,memberForm,{sites:site,modules:['stocks']});
+   assert.equal(staleMember.status,200); assert.match(await staleMember.text(),/Les accès ont changé/);
+   ownerHtml=await (await fetch('http://127.0.0.1:3414/parametres',{headers:{cookie:renewed}})).text();
+   const revokeMember=trouverFormulaire(ownerHtml,f=>f.some(x=>x.name==='id' && x.value===candidateMember) && f.some(x=>x.name==='confirmer') && f.some(x=>x.name==='revision'));
+   const revokedMember=await soumettreFormulaire('/parametres',renewed,revokeMember,{confirmer:'oui'});
+   assert.equal(revokedMember.status,200); assert.match(await revokedMember.text(),/Adhésion retirée/);
+   assert.equal(ok(await candidate.from('sites').select('id'),'Session émise après révocation par formulaire').length,0);
+   assert.equal(ok(await candidate.rpc('patisgest_module_autorise',{p_module:'stocks'}),'Module après révocation'),false);
 
    const anonymousJoining=await fetch('http://127.0.0.1:3414/rejoindre',{redirect:'manual'});
    assert.equal(anonymousJoining.status,307,'Compte Auth requis');

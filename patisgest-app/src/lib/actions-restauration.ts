@@ -23,10 +23,9 @@ export type RestaurationState = {
  * écrit ; `confirmer` écrit. Une restauration qui écrase des données sans
  * confirmation explicite serait dangereuse.
  *
- * Mode de restauration : **ajout** (`insert`). On n'efface jamais l'existant :
- * le cahier impose « alerte, jamais blocage », et une suppression en masse sur
- * une erreur de manipulation serait irréversible. Les doublons de clé
- * primaire sont comptés et signalés, pas fatals.
+ * Mode de restauration : **ajout** (`insert`), sans suppression de l'existant.
+ * Selon la version de la RPC, une collision ignore une table entière ou refuse
+ * la transaction. Ce fichier est partiel et ne constitue pas un rollback.
  */
 export async function analyserSauvegarde(_prev: RestaurationState, formData: FormData): Promise<RestaurationState> {
   const ctx = await getSessionContext();
@@ -73,9 +72,14 @@ export async function confirmerRestauration(_prev: RestaurationState, formData: 
     const { data, error } = await supabase.rpc("restaurer_sauvegarde", { p_dump: dump });
     if (error) return { erreur: messageUtilisateur(error, "Restauration refusée") };
 
-    const res = (data ?? {}) as { insere?: Record<string, number>; ignore?: Record<string, number> };
-    const insere = Object.entries(res.insere ?? {}).map(([table, lignes]) => ({ table, lignes }));
-    const ignorees = Object.keys(res.ignore ?? {});
+    // Une réponse absente ou mal formée n'est pas une preuve d'absence d'écriture.
+    if (!data || typeof data !== "object" || Array.isArray(data)) return { erreur: "Résultat non confirmé. Vérifiez les données avant de réessayer." };
+    const res = data as { insere?: unknown; ignore?: unknown };
+    const compteValide = (value: unknown): value is Record<string, number> => !!value && typeof value === "object" && !Array.isArray(value) &&
+      Object.values(value).every(n => typeof n === "number" && Number.isSafeInteger(n) && n >= 0);
+    if (!compteValide(res.insere) || !compteValide(res.ignore)) return { erreur: "Résultat non confirmé. Vérifiez les données avant de réessayer." };
+    const insere = Object.entries(res.insere).map(([table, lignes]) => ({ table, lignes }));
+    const ignorees = Object.keys(res.ignore);
     const total = insere.reduce((n, i) => n + i.lignes, 0);
 
     revalidatePath("/parametres");
@@ -90,6 +94,6 @@ export async function confirmerRestauration(_prev: RestaurationState, formData: 
           : "."),
     };
   } catch {
-    return { erreur: "Supabase est inaccessible depuis ce serveur." };
+    return { erreur: "Résultat non confirmé. Vérifiez l’état des données avant de réessayer." };
   }
 }

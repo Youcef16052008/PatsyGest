@@ -41,7 +41,7 @@ export default function SauvegardePanel() {
   const analyseValide = !!analyse?.analyse && !enAnalyse;
   const { etat: restau, soumettre: restaurer, pending: enRestau } = useActionFichier(
     confirmerRestauration, analyseValide ? fichier : null,
-    "Pas de réponse à la restauration. Vérifiez votre connexion avant de réessayer ; les lignes déjà présentes ne seront pas dupliquées.",
+    "Résultat non confirmé. Vérifiez l’état des données avant de réessayer : une restauration partielle peut avoir eu lieu.",
   );
   const enCours = enAnalyse || enRestau;
   const tropVolumineux = (fichier?.size ?? 0) > MAX_OCTETS_SAUVEGARDE;
@@ -52,6 +52,7 @@ export default function SauvegardePanel() {
       <p className="mb-3 text-xs text-slate-500">
         Export JSON partiel réservé au propriétaire. Les comptes, droits et données d’équipe ne sont pas
         restaurés : ce fichier ne remplace pas une sauvegarde complète de la base et d’Auth.
+        Les tables sont lues successivement, sans instantané transactionnel : des changements pendant l’export peuvent le rendre incohérent.
       </p>
 
       <Link href="/api/sauvegarde" prefetch={false} className={`${btn} inline-block`}>
@@ -94,8 +95,9 @@ export default function SauvegardePanel() {
                 ))}
               </ul>
               <p className="mt-2 text-slate-500">
-                La restauration <b>ajoute</b> les lignes : elle ne supprime rien. Les lignes déjà
-                présentes (même identifiant) sont ignorées.
+                La restauration <b>ajoute</b> des lignes et ne supprime rien. Selon la version de la base,
+                une collision peut faire ignorer toute une table ou refuser la restauration. Ne l’utilisez
+                pas comme procédure de retour arrière complet.
               </p>
             </div>
           )}
