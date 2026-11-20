@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/supabase-isole.yml'
       - 'patisgest-app/tests/integration/**'
+      - 'patisgest-app/tests/fixtures/pilote-vitrine/**'
       - 'patisgest-app/tests/preview*.mjs'
       - 'patisgest-app/tests/schema-complet.test.mjs'
       - 'patisgest-app/tests/equipe-experimental.test.mjs'
@@ -46,7 +47,12 @@ jobs:
       - run: node --experimental-strip-types --test tests/preview-guard.test.mjs tests/equipe-experimental.test.mjs tests/invitation-mail.test.mjs tests/schema-complet.test.mjs tests/inventaire-surface.test.mjs
         working-directory: patisgest-app
   integration:
+    name: Auth et PostgREST (${{ matrix.schema }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        schema: [historique, vitrine]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -71,6 +77,8 @@ jobs:
       - name: Tests avec sessions Auth et API PostgREST
         shell: bash
         working-directory: patisgest-app
+        env:
+          PATSYGEST_TEST_VITRINE: ${{ matrix.schema == 'vitrine' && 'yes' || 'no' }}
         run: |
           set -a
           source "$RUNNER_TEMP/supabase-test.env"

@@ -1,17 +1,23 @@
 # Évaluation de certification — phases 2 et 3
 
-**Décision : NON CERTIFIÉES ; migrations 24–47 non autorisées pour application.**
+**Décision : NON CERTIFIÉES ; brouillons sécurité 24–48 non autorisés pour application.**
 Ce document décrit un état et des essais partiels, pas un certificat de sécurité.
 Le pilote est utilisé par la production : une migration de sécurité incomplète
 peut aussi verrouiller les utilisateurs existants ou casser l'ancienne application.
 
 ## Constat vérifié
 
-- Historique Supabase consulté en lecture seule : dernière migration
-  `controle_modules_23` (`20261119045242`). Les brouillons 24–47 n'y sont pas.
-- Production Vercel consultée en lecture seule : commit `f11e371` ; elle ne
-  correspond pas à l'application de la branche. Preview et production sont
-  configurés sur la même base Supabase ; les tests destructifs sont interdits.
+- Historique Supabase consulté en lecture seule : après `controle_modules_23`
+  (`20261119045242`), sept migrations de vitrine et domaines ont été appliquées
+  indépendamment, jusqu'à `publication_vitrine_31` (`20261119195618`). Ce ne
+  sont pas les brouillons sécurité 24–48 de cette branche, dont la numérotation
+  entre en collision avec celle de la vitrine. Aucun de ces brouillons sécurité
+  n'a été appliqué au pilote par cette session.
+- Production Vercel consultée en lecture seule : commit `24ec425` sur main,
+  incluant la vitrine ; cette branche diverge depuis `f11e371`. Preview et
+  production sont configurés sur la même base Supabase ; les tests destructifs
+  y sont interdits. Il faut réconcilier application et migrations sans écraser
+  le travail publié sur main.
 - La base pilote n'a qu'une clé étrangère vers `utilisateurs` dans son état
   actuel (`acces_modules`, suppression en cascade), mais le schéma évoluera
   avant le brouillon 36 et les usages applicatifs doivent être revérifiés.
@@ -28,6 +34,16 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
 
 ## Phase 2 — critères non satisfaits
 
+- La vitrine ajoutée au pilote introduit `sous_domaines_reserves`,
+  `vitrine_photos`, une vue publique et de nouvelles RPC. Le catalogue réel
+  expose la vue `vitrine_catalogue` et `patisgest_demander_commande` à anon :
+  les affirmations anciennes « aucune vue ou RPC publique » ne sont plus
+  valables. `patisgest_traiter_demande` modifie un cake sous SECURITY DEFINER
+  sans contrôle de site ou module dans sa définition actuellement observée.
+  Le brouillon 48 ajoute une garde de périmètre et de module ; sa compatibilité
+  et celle des autres chemins vitrine restent à démontrer. Les fixtures copiées
+  de main permettent un second scénario CI, mais ne sont pas une copie du pilote.
+  L'export partiel ne comprend pas `vitrine_photos` et n'est pas un rollback.
 - Toutes les tables, politiques, vues, fonctions SECURITY DEFINER, JSON,
   historiques, erreurs et combinaisons de modules ne sont pas couverts par des
   tests adversariaux. Les brouillons 38 et 39 masquent au vendeur les lots,

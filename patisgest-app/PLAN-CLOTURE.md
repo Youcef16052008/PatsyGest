@@ -1,8 +1,10 @@
 # Plan de clôture PâtisGest
 
 **État : inventaire de phase 1 terminé ; phase 2 partielle, phase 3 amorcée.** La PR #5 est en
-brouillon. Les migrations 24 à 47 sont non appliquées ; le pilote conserve les
-migrations jusqu'à 23. L'inventaire n'est pas une certification de sécurité.
+brouillon. Les brouillons sécurité 24 à 48 ne sont pas appliqués ; depuis 23,
+le pilote a reçu indépendamment des migrations de vitrine numérotées 25 à 31.
+Il faut réconcilier ces historiques et le main publié. L'inventaire historique
+n'est pas une certification de sécurité du catalogue actuel.
 Ne pas activer de comptes ni fusionner avant les critères ci-dessous. Les tests
 métier et de sécurité se font sur la pile Supabase CLI jetable, jamais avec des
 écritures de test dans le pilote. Voir `SECURITE-MODULES-EN-COURS.md` et

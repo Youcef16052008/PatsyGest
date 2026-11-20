@@ -74,6 +74,13 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
     // pas une preuve que l'historique des migrations est directement rejouable.
     if (file.startsWith('07-')) await sql.unsafe("create function public.creer_of(uuid,uuid,numeric,date) returns jsonb language sql as $$select '{}'::jsonb$$");
     if (file.startsWith('09-')) await sql.unsafe('alter table public.clotures add column if not exists revision integer default 1');
+    if (file.startsWith('24-') && process.env.PATSYGEST_TEST_VITRINE === 'yes') {
+      const fixtures=new URL('../fixtures/pilote-vitrine/',import.meta.url);
+      for (const name of (await readdir(fixtures)).filter(n=>/^\d\d-.*\.sql$/.test(n)).sort()) {
+        try {await sql.unsafe(await readFile(new URL(name,fixtures),'utf8'));}
+        catch(e) {throw new Error(`Vitrine ${name}: ${e.message}`,{cause:e});}
+      }
+    }
     try { await sql.unsafe(await readFile(new URL(`../../supabase/${file}`, import.meta.url), 'utf8')); }
     catch (e) { throw new Error(`Migration ${file}: ${e.message}`, { cause: e }); }
   }
@@ -122,6 +129,24 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.equal(ok(await seller.from('clients').select('id'), 'Client vendeur')[0].id, A);
   const newSite = ok(await owner.from('sites').insert({client_id:A,nom:'Boutique 2',type:'boutique'}).select('id').single(), 'Ajout boutique propriétaire');
   assert.ok(newSite.id);
+  if (process.env.PATSYGEST_TEST_VITRINE === 'yes') {
+    // Les RPC vitrine sont absentes de la reconstruction historique. La vraie
+    // RPC de traitement contourne la RLS ; tester explicitement son garde 48.
+    const visible='aaaaaaaa-0000-0000-0000-000000000071',hidden='aaaaaaaa-0000-0000-0000-000000000072';
+    await sql`insert into cakes(id,client_id,numero,client_nom,date_event,nb_parts,site_id,statut,origine) values
+      (${visible},${A},'VIT-TEST1','Client fictif',current_date,1,${site},'demande','vitrine'),
+      (${hidden},${A},'VIT-TEST2','Client fictif',current_date,1,${newSite.id},'demande','vitrine')`;
+    denied(await seller.rpc('patisgest_traiter_demande',{p_id:hidden,p_decision:'accepter'}),'Site non autorise');
+    denied(await other.rpc('patisgest_traiter_demande',{p_id:visible,p_decision:'accepter'}),'Devis hors perimetre');
+    assert.ok((await client().rpc('patisgest_traiter_demande',{p_id:visible,p_decision:'accepter'})).error,'Traitement non accessible à anon');
+    assert.ok((await seller.rpc('patisgest_traiter_demande_interne',{p_id:hidden,p_decision:'accepter'})).error,'Interne inaccessible');
+    ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[2],p_module:'cake-design',p_actif:false}),'Désactiver module vendeur vitrine');
+    denied(await seller.rpc('patisgest_traiter_demande',{p_id:visible,p_decision:'accepter'}),'Module desactive');
+    ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[2],p_module:'cake-design',p_actif:true}),'Réactiver module vendeur vitrine');
+    assert.equal(ok(await seller.rpc('patisgest_traiter_demande',{p_id:visible,p_decision:'accepter'}),'Traitement site attribué').statut,'devis');
+    assert.equal((await sql`select statut from cakes where id=${hidden}`)[0].statut,'demande');
+    await sql`delete from cakes where id in (${visible},${hidden})`;
+  }
   ok(await owner.from('sites').update({nom:'Boutique modifiée'}).eq('id',newSite.id).select('id').single(), 'Modification boutique propriétaire');
   const otherLot = await sql`insert into lots(client_id,article_id,site_id,numero,qte_init,qte_rest,pu) values (${A},${article},${newSite.id},'AUTRE-SITE',4,4,77) returning id`;
   const legacyTask=await sql`insert into taches_planning(client_id,date_tache,tache) values (${A},'2099-01-01','Donnée sans site') returning id`;

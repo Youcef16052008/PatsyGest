@@ -59,6 +59,9 @@ export const TABLES_EXCLUES: { table: string; raison: string }[] = [
   { table: "equipe_journal_acces", raison: "journal d'accès non restauré par le format actuel, si la fonctionnalité équipe est installée" },
   { table: "equipe_admission_securite", raison: "état de sécurité de l'admission non restauré par le format actuel, si la fonctionnalité équipe est installée" },
   { table: "equipe_revocations", raison: "historique des identités révoquées non restauré par le format actuel, si la fonctionnalité équipe est installée" },
+  { table: "vitrine_photos", raison: "photos et métadonnées de vitrine non restaurées par le format actuel, si la vitrine est installée" },
+  { table: "sous_domaines_reserves", raison: "liste globale des noms réservés non restaurée par le format actuel, si la vitrine est installée" },
+  { table: "storage", raison: "fichiers Supabase Storage non inclus dans cet export JSON" },
 ];
 
 /**
