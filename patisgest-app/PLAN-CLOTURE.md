@@ -1,5 +1,26 @@
 # Plan de clôture PâtisGest
 
+## Décision utilisateur : reprise Supabase à 15 clients
+
+L'utilisateur reporte pour le moment l'activation du forfait/environnement
+Supabase isolé évoqué et souhaite y revenir lorsque PâtisGest aura 15 clients.
+Ce seuil est un rappel de reprise, pas une garantie de sécurité ni une validation
+automatique : l'utilisateur peut revenir plus tôt si nécessaire. Aucun dispositif
+ne surveille le nombre de clients ni ne relance le travail automatiquement.
+
+En attendant, les migrations de sécurité du pilote et la fusion de la PR #5
+restent bloquées : la base de production ne dispose pas encore des vues attendues
+par la branche, et une sauvegarde complète et une restauration représentative
+n'ont pas été vérifiées. Les données actuelles ont déjà de la valeur ; attendre
+15 clients ne les protège pas contre une perte. Une sauvegarde adaptée, sécurisée
+et testée est recommandée dès maintenant, même si l'option payante est différée.
+
+À la reprise : vérifier les coûts et l'accès à un environnement isolé, établir une
+sauvegarde couvrant base, Auth, Storage et configuration, la restaurer et tester
+le retour arrière, puis réconcilier les migrations avec le pilote et valider les
+parcours métier avant toute application ou fusion. Voir `migrations/ETAT-RESTAURATION.md`
+et `../HANDOFF-NEXT-SESSION.md` pour les limites connues.
+
 **État : inventaire de phase 1 terminé ; phase 2 partielle, phase 3 amorcée.** La PR #5 est en
 brouillon. Les brouillons sécurité 101 à 128 ne sont pas appliqués (101 à 127 portaient les numéros 24 à 50) ; depuis 23,
 le pilote a reçu indépendamment des migrations de vitrine numérotées 25 à 31.

@@ -4,6 +4,18 @@
 
 ## Demande et état immédiat
 
+**Dernière décision de l'utilisateur :** il reporte l'activation de l'option
+Supabase isolée et souhaite y revenir lorsque PâtisGest aura 15 clients. Le seuil
+n'est ni une certification, ni une automatisation, ni une autorisation d'appliquer
+les migrations sans contrôles. La sauvegarde et la restauration restent à prévoir
+le plus tôt possible ; la PR reste en brouillon tant que ses conditions de sécurité
+ne sont pas satisfaites. Voir `patisgest-app/PLAN-CLOTURE.md`.
+
+L'utilisateur indique avoir effectué les autres étapes d'accès ; toutefois,
+`gh secret list` renvoie encore HTTP 403 « Resource not accessible by integration ».
+Ne pas interpréter cela comme une absence de secrets. Il faut vérifier les
+permissions effectives de l'intégration GitHub/Arena sans demander de secret.
+
 L'utilisateur veut terminer à 100 % PâtisGest, réconcilier les migrations avec le pilote, vérifier une sauvegarde/restauration complète et un retour arrière, appliquer ensuite les migrations validées et finir le plan. Il a ensuite demandé ce handoff et la fusion de la PR #5. Au moment de rédiger ce document, la PR [#5](https://github.com/Youcef16052008/PatsyGest/pull/5) est ouverte en brouillon, branche `arena/28f0bb69-patsygest`, tête `9e3188a` avant ce handoff. Vérifier son état réel : ne pas supposer qu'elle a été fusionnée ou déployée.
 
 **Risque immédiat de fusion :** Vercel lie `main` à la production et la production utilise le pilote Supabase `evepzygucfxarpdnflzv`. La branche utilise notamment les vues `labo_articles`, `labo_lots` et `vendeur_lots` (`patisgest-app/src/lib/workspace-read.ts`) ; une vérification en lecture seule montre que ces trois vues sont absentes du pilote. Un déploiement de cette application avant réconciliation de la base risque donc de casser les lectures des utilisateurs labo/vendeur. Les migrations sécurité locales ne doivent pas être appliquées sans préparation ni sauvegarde vérifiée. Ne pas confondre fusion Git, application SQL et déploiement Vercel.
