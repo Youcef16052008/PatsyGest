@@ -66,8 +66,10 @@ export default async function VitrinePage({ params }: { params: Promise<Params> 
         <h1 className="text-2xl font-bold">Boutique indisponible</h1>
         <p className="text-slate-600">{vitrine.indisponible}</p>
         <p className="text-sm text-slate-500">
-          Si vous êtes le gérant, la publication de la vitrine se règle depuis
-          l&apos;espace de gestion, module « Établissement ».
+          Si vous êtes le gérant, la vitrine se règle depuis l&apos;espace de
+          gestion, page « Paramètres », encart « Vitrine » : réserver une
+          adresse, cocher « Publiée » sur au moins une recette, puis « Mettre
+          en ligne ».
         </p>
       </main>
     );
