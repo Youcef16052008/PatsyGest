@@ -277,3 +277,9 @@ Note **exactement** :
 
 Avec ces 4 éléments je peux reproduire et corriger. Sans eux, je devine — et
 deviner coûte plus cher que mesurer.
+
+### Contrôle des sauvegardes avant la première facture
+
+Dans le dépôt qui exécute `sauvegarde-free.yml`, configurer dans **Settings → Secrets and variables → Actions** `SUPABASE_DB_URL` (URI du **Session pooler**, port 5432, mot de passe encodé pour une URI) et `BACKUP_PASSPHRASE` (copie indépendante dans un coffre). Ne transmettre aucune de ces valeurs par messagerie. Le client PostgreSQL 17 doit être au moins aussi récent que le serveur. Le cron nocturne de la branche par défaut est à 02:15 UTC ; un artefact chiffré expire après 30 jours. Contrôler la date du dernier artefact, pas seulement le statut du garde-veille. Pour une rétention longue, vérifier la copie externe et sa politique de conservation.
+
+Chaque mois, télécharger un artefact et le restaurer **exclusivement dans un environnement Supabase jetable**, avec les rôles, extensions et propriétaires attendus. Ne pas ignorer les erreurs de restauration. Chronométrer depuis la récupération de la clé jusqu'au test applicatif : vente et total, accès vendeur, séparation de deux boutiques, vitrine anonyme. Vérifier les photos depuis une sauvegarde distincte des objets. Consigner date du dump, durée, contrôles et écarts (cibles : perte ≤ 24 h, reprise ≤ 4 h). Lire une archive avec `pg_restore` ne réalise pas cet exercice.

@@ -1,11 +1,11 @@
 name: Sauvegarde Supabase + garde-veille
 
 # COPIE PARTIELLE NON CERTIFIÉE, PAS UN PLAN DE REPRISE.
-# Ce workflow historique ne couvre pas Storage, les ACL/propriétaires, les
-# réglages des services ni les rôles et ne prouve pas une restauration. Ne pas
-# l'utiliser comme condition suffisante d'application de migrations.
+# Le dump PostgreSQL conserve les ACL et les propriétaires mais leur restauration
+# n'est pas démontrée. Il ne couvre pas les fichiers Storage, les rôles globaux,
+# ni les réglages des services. Ne pas utiliser comme condition suffisante
+# d'application des migrations ; cf. patisgest-app/migrations/ETAT-RESTAURATION.md.
 # SUPABASE_DB_URL et BACKUP_PASSPHRASE sont nécessaires dans GitHub Actions.
-# Cf. patisgest-app/migrations/ETAT-RESTAURATION.md pour les contrôles manquants.
 
 on:
   schedule:
@@ -32,9 +32,10 @@ jobs:
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          if [ -z "$DB_URL" ]; then
-            echo "::error::SUPABASE_DB_URL absent — aucune sauvegarde effectuée."
+          if [ "${{ github.event.schedule }}" = '15 7 */2 * *' ]; then
             echo "dump=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL absent : aucune sauvegarde possible."
             exit 1
           else
             echo "dump=true" >> "$GITHUB_OUTPUT"
@@ -45,7 +46,7 @@ jobs:
       # On passe par l'API publique : plus simple qu'un client psql, et cela
       # teste au passage que l'application répond.
       - name: Garde-veille (sonde non garantie contre la mise en pause)
-        if: always()
+        if: always() && (steps.config.outputs.dump == 'false' || steps.config.outcome == 'failure')
         id: health
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -83,27 +84,24 @@ jobs:
             echo "::error::BACKUP_PASSPHRASE absent ou trop court — aucune sauvegarde."
             exit 1
           fi
+          set -euo pipefail
           umask 077
-          tmpdir=$(mktemp -d "${RUNNER_TEMP}/patsygest-backup-XXXXXX")
-          trap 'rm -rf "$tmpdir"' EXIT
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client-17 >/dev/null
+          export PGDATABASE="$DB_URL"
           horodatage=$(date -u +%Y-%m-%dT%H%M%SZ)
           fichier="patisgest-$horodatage.dump.gz.enc"
           # -Fc : format personnalisé, restaurable table par table.
-          pg_dump --no-owner --no-privileges -Fc -f "$tmpdir/dump.pgc" "$DB_URL"
-          gzip -9 "$tmpdir/dump.pgc"
-          # AES-256 : le fichier contient des salaires, des tickets et des
-          # recettes. Un stockage objet n'est pas un coffre-fort.
-          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
-            -in "$tmpdir/dump.pgc.gz" -out "$fichier" -pass env:PASSPHRASE
+          # Conserver les ACL ; ne jamais écrire le dump clair sur disque.
+          docker run --rm -e PGDATABASE -e PGSSLMODE=require postgres:17-alpine \
+            pg_dump -Fc --compress=0 | gzip -9 | \
+            openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+              -out "$fichier" -pass env:PASSPHRASE
           taille=$(stat -c %s "$fichier" | numfmt --to=iec)
           echo "Sauvegarde : $fichier ($taille)"
-          # Contrôle d'intégrité minimal : le déchiffrement doit réussir.
+          # Lire toute l'archive PostgreSQL sans exécuter le SQL ni le journaliser.
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
-            -in "$fichier" -out "$tmpdir/verif.gz" -pass env:PASSPHRASE
-          gzip -t "$tmpdir/verif.gz"
-          echo "Déchiffrement et gzip vérifiés ; ceci ne certifie pas une restauration ni une intégrité authentifiée."
+            -in "$fichier" -pass env:PASSPHRASE | gzip -dc | \
+            docker run --rm -i postgres:17-alpine pg_restore --file=/dev/null
+          echo "Lecture du dump vérifiée ; ceci ne certifie pas une restauration ni une intégrité authentifiée."
           echo "FICHIER=$fichier" >> "$GITHUB_ENV"
 
       - name: Conserver la sauvegarde (artefact GitHub, 30 jours)
@@ -141,12 +139,12 @@ jobs:
             echo ""
             echo "- Étape de sonde : ${{ steps.health.outcome }} (les secrets peuvent manquer)."
             echo "- Copie partielle : ${{ steps.backup.outcome }}."
-            echo "- ACL, rôles, propriétaires, services et fichiers Storage non couverts."
+            echo "- Rôles globaux, services et fichiers Storage non couverts ; restauration des ACL et propriétaires non prouvée."
             echo "- Restauration réelle non testée par ce workflow."
             echo ""
             echo "**Essai limité**, uniquement sur une base de test isolée, non sur le pilote :"
             echo '```'
             echo 'openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in <fichier> -out d.gz -pass env:BACKUP_PASSPHRASE'
-            echo 'gunzip -c d.gz > d.pgc && pg_restore --no-owner -d "<base de test>" d.pgc'
+            echo 'gunzip -c d.gz > d.pgc && pg_restore --exit-on-error -d "<base de test>" d.pgc'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
