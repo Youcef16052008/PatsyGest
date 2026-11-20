@@ -25,9 +25,10 @@ exists=$(docker exec "$container" psql -U postgres -d postgres -Atc "select coun
 [ "$exists" = 0 ] || { echo 'Base de répétition déjà présente : arrêt' >&2; exit 1; }
 docker exec "$container" createdb -U postgres -T template0 patsy_restore_trial
 created=true
-# Contrairement au workflow historique, conserver les ACL. Les propriétaires
-# ne sont pas restaurés (--no-owner) : ce test ne certifie pas leur équivalence.
+# Conserver les ACL. La base CLI a un superutilisateur interne que le projet
+# hébergé n'expose pas : une réussite ici ne démontre pas que la restauration
+# Supabase distante est possible, ni que les propriétaires sont identiques.
 docker exec "$container" pg_dump -U postgres -d postgres --format=custom --no-owner > "$archive"
 test -s "$archive"
-docker exec -i "$container" pg_restore -U postgres -d patsy_restore_trial --no-owner --exit-on-error --single-transaction < "$archive"
+docker exec -i "$container" pg_restore -U supabase_admin -d patsy_restore_trial --no-owner --exit-on-error --single-transaction < "$archive"
 node tests/integration/verifier-restauration.mjs

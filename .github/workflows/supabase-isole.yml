@@ -117,7 +117,7 @@ jobs:
             while IFS= read -r line; do
               line=${line//'%'/'%25'}; line=${line//$'\r'/'%0D'}; line=${line//$'\n'/'%0A'}
               echo "::error::$line"
-            done < <(grep -E 'supabase_admin|postgres +\||pg_restore: error|Command was:' "$RUNNER_TEMP/restore-result.txt" | head -12)
+            done < <(grep -E 'supabase_admin|postgres +\||pg_restore: error|Command was:|AssertionError|Error:|actual:|expected:|at file:' "$RUNNER_TEMP/restore-result.txt" | head -20)
           fi
           exit "$result"
       - name: Détruire la pile et ses données fictives
