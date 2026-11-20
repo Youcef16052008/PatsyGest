@@ -50,3 +50,6 @@ supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supav
 } | docker exec -i supabase_db_patsygest-isole psql -U postgres -d postgres -X --single-transaction --set ON_ERROR_STOP=1 -q
 cd "$root"
 node tests/integration/empreinte-restauration.mjs compare
+# Les connexions Auth changent last_sign_in_at : les faire après la comparaison.
+docker exec supabase_db_patsygest-isole psql -U postgres -d postgres -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >/dev/null
+node tests/integration/auth-apres-restauration.mjs
