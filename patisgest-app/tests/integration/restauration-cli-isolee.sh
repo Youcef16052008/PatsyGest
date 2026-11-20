@@ -30,7 +30,10 @@ supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supav
 # Une seule transaction, échec explicite ; la pile neuve fournit les services
 # et schémas gérés exclus par le dump CLI.
 {
- cat "$work/roles.sql" "$work/schema.sql"
+ cat "$work/roles.sql"
+ # Ne pas ajouter les droits par défaut de la base Supabase neuve.
+ printf '\nALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated;\n'
+ cat "$work/schema.sql"
  printf '\nSET session_replication_role = replica;\n'
  cat "$work/data.sql"
 } | docker exec -i supabase_db_patsygest-isole psql -U postgres -d postgres -X --single-transaction --set ON_ERROR_STOP=1 -q
