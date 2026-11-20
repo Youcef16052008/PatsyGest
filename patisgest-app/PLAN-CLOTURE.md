@@ -131,3 +131,23 @@ un hôte de boutique). En local : 354 tests, types, lint, build, 25 smoke HTTP
 et 3 tests Preview réussis. Ces résultats ne valident ni la base pilote réelle,
 ni la restauration complète, ni la reprise hors ligne sur appareil partagé.
 Aucune nouvelle migration n'a été appliquée au pilote à cette étape.
+
+### Caisse : progrès et limites de reprise
+
+La file v2 est conservée par couple établissement/compte, avec contrôle de la
+session à l'envoi, verrou Web entre onglets récents et refus avant envoi si le
+stockage échoue. Le plafond ne supprime plus les tickets les plus anciens ;
+les erreurs métier ne sont plus retirées automatiquement. Un rejeu n'est
+confirmé que si l'enregistrement trouvé correspond au site, aux lignes et au
+mode ; une réponse `duplicate` sans `sale_id` reste ambiguë. Ces contrôles ne
+remplacent pas la correction et l'audit des RPC directement accessibles.
+
+La [CI 44701586576](https://github.com/Youcef16052008/PatsyGest/actions/runs/44701586576)
+a vérifié dans les deux piles jetables l'action Next avec Auth : session
+changée, vente, rejeu identique, rejeu différent et collision SQL simulée. Les
+360+ tests unitaires incluent des simulations de stockage plein/corrompu et de
+verrous entre onglets ; ils ne remplacent pas une qualification dans des
+navigateurs et tablettes réels. La file v1 est préservée, mais son attribution
+et sa reprise restent à traiter sans supposer son propriétaire. Le stockage
+local n'est ni une frontière de confidentialité ni une sauvegarde. La branche
+n'est pas déployée ; aucune migration n'a été appliquée au pilote à cette étape.
