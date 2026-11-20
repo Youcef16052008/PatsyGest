@@ -15,12 +15,21 @@ test('FEFO : DLC croissante d’abord', () => {
   assert.deepEqual(sorted.map((l) => l.id), ['a', 'b', 'c']);
 });
 
-test('FEFO : congelé avant non congelé, même DLC', () => {
+test('FEFO : non congelé avant congelé, même DLC (miroir du SQL order by congele asc)', () => {
   const sorted = sortFefo([
-    lot('n', { dlc: '2026-04-01', congele: false }),
     lot('f', { dlc: '2026-04-01', congele: true }),
+    lot('n', { dlc: '2026-04-01', congele: false }),
   ]);
-  assert.deepEqual(sorted.map((l) => l.id), ['f', 'n']);
+  assert.deepEqual(sorted.map((l) => l.id), ['n', 'f']);
+});
+
+test('FEFO : un lot congelé n’est consommé qu’après les lots frais, même si sa DLC est plus proche', () => {
+  const res = computeFefoCost([
+    lot('congele', { qte_rest: 5, pu: 10, dlc: '2026-04-01', congele: true }),
+    lot('frais', { qte_rest: 5, pu: 12, dlc: '2026-05-01', congele: false }),
+  ], 5);
+  assert.deepEqual(res.lignes.map((l) => l.lotId ?? l.id), ['frais']);
+  assert.equal(res.cout, 5 * 12);
 });
 
 test('FEFO : coût couvert en plusieurs lots', () => {

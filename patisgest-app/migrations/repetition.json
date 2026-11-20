@@ -294,6 +294,12 @@
     {
       "file": "31-publication-vitrine.sql",
       "sha256": "e154b76fea7c4ec8411ea7ac275b6b6a9de6d778f06a8f96baed7ff23e351041"
+    },
+    {
+      "file": "32-garde-prix-vitrine-rattrapage.sql",
+      "sha256": "3276d4d50ddbe8a6d375124b4817967d512c1d507b5e77ecf5e693c852e4ab3f",
+      "hors_fixture_pilote": true,
+      "note": "Rattrapage Phase 1 (F-01, F-18) : ajouté après 31, corps installé corrigé avec gardes. Non présent dans tests/fixtures/pilote-vitrine (pilote non encore réconcilié)."
     }
   ],
   "exclus": [
