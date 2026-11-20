@@ -45,13 +45,14 @@ test('F-19 migration 35 : lecture réservée aux authentifiés, pas d’écritur
 });
 
 test('F-19 vérification application : absent, ancien, à jour', () => {
-  assert.equal(VERSION_SCHEMA_REQUISE, 35);
+  assert.equal(VERSION_SCHEMA_REQUISE, 36);
   assert.equal(verifierVersionSchema(null, { code: '42P01' }).ok, false);
   assert.equal(verifierVersionSchema(null, null).ok, false);
   const ancien = verifierVersionSchema({ version: 34 }, null);
   assert.equal(ancien.ok, false);
   assert.equal(ancien.raison, 'ancien');
-  assert.match(ancien.message, /34.*35/);
-  assert.deepEqual(verifierVersionSchema({ version: 35 }, null), { ok: true, version: 35 });
-  assert.equal(verifierVersionSchema({ version: 36 }, null).ok, true);
+  assert.match(ancien.message, /34.*36/);
+  assert.deepEqual(verifierVersionSchema({ version: 36 }, null), { ok: true, version: 36 });
+  assert.equal(verifierVersionSchema({ version: 35 }, null).ok, false, '35 seul ne suffit plus');
+  assert.equal(verifierVersionSchema({ version: 37 }, null).ok, true);
 });

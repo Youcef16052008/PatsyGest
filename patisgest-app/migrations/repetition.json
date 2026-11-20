@@ -318,6 +318,12 @@
       "sha256": "80ac8758083e218c7406a88524c83bdfd3b888cad501b086b2ec0a80fe7a57f9",
       "hors_fixture_pilote": true,
       "note": "Revue F-19 : table app_schema_version (version 35) lue par l’application au chargement ; refus si version inférieure."
+    },
+    {
+      "file": "36-dates-algiers.sql",
+      "sha256": "17cd056efccaf72ab87b1a10962f982c8eec17989e04e84a15477e0ad2a508ad",
+      "hors_fixture_pilote": true,
+      "note": "Revue F-04 (SQL) : current_date -> date Africa/Algiers dans les fonctions publiques et défauts de colonnes ; version de schéma 36."
     }
   ],
   "exclus": [

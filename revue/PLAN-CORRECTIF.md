@@ -63,3 +63,30 @@ DNS `*.patisgest.dz` et version déployée sur Vercel (à vérifier via le conne
 - Tous les tests de la Phase 1 passent, et `npm test` reste vert.
 - F-01, F-02, F-03, F-04, F-18, F-19, F-20 sont soit corrigés et testés, soit ont une décision métier documentée.
 - Les migrations `32` et suivantes sont relues avant application sur le pilote, et `128` est régénéré si nécessaire.
+
+## État après la suite (Phases 2 à 4)
+
+Ce tableau fait foi. Il remplace les statuts ci-dessus lorsqu'ils diffèrent.
+
+| Constat | Statut | Détail |
+|---|---|---|
+| F-04 (SQL) | **Fait** (migration `36`, à relire avant le pilote) | `current_date` → date `Africa/Algiers` dans les fonctions publiques et les défauts de colonnes. Refus si une vue contient `current_date` (non traitées). Test PGlite sur la chaîne 01→36. Le comportement à minuit est prouvé par la définition, pas par une horloge simulée. |
+| F-06 | **Fait** | `tenterFicheCoutScaled` : perte 100 % = erreur de champ ; ≥ 99 % = avertissement (`RC-02-cuisson`). |
+| F-10 | **Fait** | Tickets à 0 DA comptés (`ticketsZero`) et signalés par une alerte `role="alert"` dans `recon-panel.tsx`. |
+| F-13 | **Vérifié, déjà correct** | `{}` → pas de bilan ; `'0'` → zéro explicite ; fond sans espèces → refus. Test permanent. |
+| F-15 | **Partiel** | Messages des exports explicites (limite nommée). Filtre de période sur l'export des mouvements : non fait. |
+| F-16 | **Fait** | `insuffisantStock` et `sansPrixConnu` séparés de `insuffisant` (coût). Test permanent. |
+| F-19 | **Partiel** | Drapeau labo/vendeur (1.7) ; table `app_schema_version` (migration `35`, version requise `36`) et refus au chargement de l'espace (mode `supabase`). **Non fait** : matrice app × schéma en test. |
+| B-011 | **Fait** (workflow) | `sauvegarde-free.yml` chiffre avec le coffre AES-256-GCM du dépôt, relecture authentifiée, dump clair en `/dev/shm` seulement. Les anciennes copies `.enc` (AES-CBC) restent lisibles avec openssl (procédure dans le résumé). Non exécuté : à vérifier au premier run. |
+| Phase 4 `error.tsx` | **Fait** | `src/app/error.tsx` et `src/app/(app)/error.tsx`. |
+| Phase 4 CI | **Fait** | `.github/workflows/ci.yml`. |
+| F-12 | **Non fait** | Brouillons et chemins référencés par tests et manifeste : passage dédié. |
+| F-08 | **Ouvert** | Pas de migration sûre vérifiable ici (voir ci-dessus). |
+| B-002 | **Non fait** | Clés composites : une quarantaine de relations, migration à données existantes. Pilote : 1 client, 0 incohérence sur `lots→articles` et `mouvements→lots`. Risque latent multi-client. |
+| B-007 / B-008 | **Non fait** | `client_ref` idempotent, RPC transactionnelle de transfert, anti-abus vitrine par source. Chantier distinct. |
+| N+1 fiche de coût | **Non fait** | Un `in()` unique risque de tronquer silencieusement (limite de 300 lignes par article, plafond PostgREST). À concevoir avec pagination. |
+| Phase 4 Playwright | **Non fait** | Navigateurs non téléchargeables depuis cet environnement (hôtes autorisés : npm, PyPI, GitHub). |
+| Phase 4 lint textuel `securite.test.mjs` | **Non fait** | Remplacement par des tests d'exécution : chantier distinct. |
+
+**Migrations à relire avant tout passage sur le pilote :** `33`, `34`, `35`, `36`. Aucune n'a été appliquée au pilote par ce travail.
+**Conséquence de F-19 au déploiement :** une base sans `app_schema_version` (ou en version 35) bloque l'espace tant que `36` n'est pas appliquée.
