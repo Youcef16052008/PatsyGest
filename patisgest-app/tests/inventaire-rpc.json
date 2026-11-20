@@ -1,5 +1,5 @@
 {
-  "metadata": "Inventaire du prototype 01 et 03–46. Une catégorie n'atteste pas la sécurité ni la couverture des tests ; les appels imbriqués et les données associées doivent être audités.",
+  "metadata": "Inventaire du prototype 01 et 03–47. Une catégorie n'atteste pas la sécurité ni la couverture des tests ; les appels imbriqués et les données associées doivent être audités.",
   "site_direct_ou_of_a_auditer": ["creer_of", "creer_demande_reassort", "receptionner_lot", "recevoir_commande", "vendre_panier", "vendre_article", "importer_z", "saisir_cloture", "creer_cake_production", "affecter_production_cake", "demarrer_of", "terminer_of", "transferer_article"],
   "identifiants_et_donnees_liees_a_auditer": ["accepter_cgv", "bloquer_lot", "cake_liens_production", "editer_cake", "evoluer_cake", "maj_non_conformite", "rappel_lot", "traiter_demandes_reassort"],
   "donnees_communes_a_delimiter": ["activer_version", "cake_options_production", "creer_cake", "creer_commande", "creer_famille", "creer_version", "simuler_recette"],

@@ -38,6 +38,7 @@
       "creerInvitationEquipe",
       "deciderDemande",
       "modifierAffectationsEquipe",
+      "renvoyerInvitationEquipe",
       "revoquerMembreEquipe"
     ],
     "src/lib/actions-etablissement.ts": [

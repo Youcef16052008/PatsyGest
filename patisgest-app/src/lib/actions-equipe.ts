@@ -5,6 +5,7 @@ import { getSessionContext } from "./auth";
 import { createClient } from "./supabase/server";
 import { equipeExperimentaleActive } from "./equipe-experimental";
 import { WORKSPACE_LINKS } from "./workspace-nav";
+import { notifierInvitationLocale, type NotificationInvitation } from "./invitation-mail";
 
 export type EquipeActionState = { erreur?: string; succes?: string; code?: string };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -95,6 +96,28 @@ export async function deciderDemande(_prev: EquipeActionState, form: FormData): 
   } catch { return { erreur: "Résultat non confirmé. Rechargez la liste avant de réessayer." }; }
 }
 
+function notificationMessage(result: NotificationInvitation): string {
+  if (result === "acceptee_smtp_test") return "Notification acceptée par le serveur SMTP de test ; la livraison n’est pas garantie.";
+  if (result === "destinataire_refuse") return "Aucun e-mail envoyé : seuls les destinataires fictifs example.test sont autorisés dans cet essai.";
+  if (result === "echec") return "Envoi non confirmé par le serveur SMTP de test ; vérifiez la liste avant de réessayer.";
+  return "Aucun e-mail envoyé : le canal de test n’est pas activé.";
+}
+
+export async function renvoyerInvitationEquipe(_prev: EquipeActionState, form: FormData): Promise<EquipeActionState> {
+  const id = String(form.get("id") ?? "");
+  if (!uuid.test(id)) return { erreur: "Invitation invalide." };
+  try {
+    const db = await clientProprietaire();
+    if (!db) return { erreur: "Gestion d’équipe indisponible ou réservée au propriétaire." };
+    const { data, error } = await db.rpc("equipe_lister_invitations");
+    if (error || !Array.isArray(data) || data.length > 500) return { erreur: "Liste indisponible ; aucun e-mail envoyé." };
+    const invitation = data.find(i => i.id === id);
+    if (!invitation || typeof invitation.email !== "string" || !Number.isFinite(Date.parse(invitation.expire_le)) || Date.parse(invitation.expire_le) <= Date.now()) return { erreur: "Invitation indisponible ou expirée ; aucun e-mail envoyé." };
+    const result = await notifierInvitationLocale(invitation.email);
+    return result === "acceptee_smtp_test" ? { succes: notificationMessage(result) } : { erreur: notificationMessage(result) };
+  } catch { return { erreur: "Envoi non confirmé ; vérifiez la liste avant de réessayer." }; }
+}
+
 export async function creerInvitationEquipe(_prev: EquipeActionState, form: FormData): Promise<EquipeActionState> {
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   const nom = String(form.get("nom") ?? "").trim();
@@ -103,14 +126,21 @@ export async function creerInvitationEquipe(_prev: EquipeActionState, form: Form
   if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !nom || nom.length > 100 || !["vendeur", "labo"].includes(role) || !affectations) {
     return { erreur: "Adresse, nom, rôle ou sites invalides." };
   }
+  let enregistree = false;
   try {
     const db = await clientProprietaire();
     if (!db) return { erreur: "Gestion d’équipe indisponible ou réservée au propriétaire." };
     const { error } = await db.rpc("equipe_inviter", { p_email: email, p_nom: nom, p_role: role, p_sites: affectations });
     if (error) return { erreur: "Invitation refusée. Vérifiez les sites et réessayez." };
+    enregistree = true;
     revalidatePath("/parametres");
-    return { succes: "Invitation enregistrée. Aucun e-mail n’a été envoyé et aucun accès n’est encore activé." };
-  } catch { return { erreur: "Résultat non confirmé. Rechargez la liste avant de réessayer." }; }
+    const notification = await notifierInvitationLocale(email);
+    return { succes: `Invitation enregistrée. Aucun accès n’est encore activé. ${notificationMessage(notification)}` };
+  } catch {
+    return enregistree
+      ? { succes: "Invitation enregistrée, mais notification non confirmée. Rechargez la liste avant de réessayer." }
+      : { erreur: "Résultat non confirmé. Rechargez la liste avant de réessayer." };
+  }
 }
 
 export async function annulerInvitationEquipe(_prev: EquipeActionState, form: FormData): Promise<EquipeActionState> {

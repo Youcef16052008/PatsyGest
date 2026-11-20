@@ -1,6 +1,6 @@
 # Évaluation de certification — phases 2 et 3
 
-**Décision : NON CERTIFIÉES ; migrations 24–46 non autorisées pour application.**
+**Décision : NON CERTIFIÉES ; migrations 24–47 non autorisées pour application.**
 Ce document décrit un état et des essais partiels, pas un certificat de sécurité.
 Le pilote est utilisé par la production : une migration de sécurité incomplète
 peut aussi verrouiller les utilisateurs existants ou casser l'ancienne application.
@@ -8,14 +8,14 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
 ## Constat vérifié
 
 - Historique Supabase consulté en lecture seule : dernière migration
-  `controle_modules_23` (`20261119045242`). Les brouillons 24–46 n'y sont pas.
+  `controle_modules_23` (`20261119045242`). Les brouillons 24–47 n'y sont pas.
 - Production Vercel consultée en lecture seule : commit `f11e371` ; elle ne
   correspond pas à l'application de la branche. Preview et production sont
   configurés sur la même base Supabase ; les tests destructifs sont interdits.
 - La base pilote n'a qu'une clé étrangère vers `utilisateurs` dans son état
   actuel (`acces_modules`, suppression en cascade), mais le schéma évoluera
   avant le brouillon 36 et les usages applicatifs doivent être revérifiés.
-- Les tests locaux passent (312, typecheck et lint). La CI 44607099826 réussit
+- Les tests locaux passent (314, typecheck, lint et build). La CI 44607099826 réussit
   sur pile jetable : sessions Auth, contrôles PostgREST, modifications
   concurrentes, révocation et changement de type de site ou d'adresse. Les
   formulaires ne sont pas encore testés de bout en bout. La CI 44572631200 réussit
@@ -60,8 +60,13 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   limitée au développement local sur API Supabase locale avec opt-in explicite ;
   l'admission reste verrouillée. Le brouillon 43 ajoute l'interface d'affectation
   et de révocation avec contrôle de version contre les formulaires périmés,
-  mais elle n'envoie pas de notification. Le canal d'invitation vérifié et les
-  tests de bout en bout des formulaires ne sont pas opérationnels.
+  Un essai local optionnel raccorde désormais un SMTP fictif sur 127.0.0.1:54325,
+  exclusivement pour les adresses example.test, sans lien ni droit dans le
+  message. L'acceptation SMTP n'est pas une preuve de livraison ; annulation
+  et envoi peuvent encore courir en concurrence. Aucun fournisseur réel n'est
+  configuré. Des scénarios HTTP de soumission de formulaires sont ajoutés à la
+  CI jetable mais ne sont pas encore validés sur Auth/PostgREST. Le canal réel
+  et la couverture complète des formulaires restent à établir.
 - Le brouillon 36 modifie les affectations de membres existants et retire leur
   adhésion lors d'une révocation. Une transaction déjà en cours peut conserver
   son snapshot ; la concurrence avec les autres RPC de gestion, les changements
@@ -73,8 +78,15 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   de décisions antérieures même après changement d'adresse ; sa sauvegarde,
   sa restauration et ses courses doivent encore être validées. La suppression
   ne désactive pas le compte Supabase Auth lui-même.
-- La transition des comptes existants doit être définie et testée sans élargir
-  leurs droits ni les priver involontairement de leurs sites.
+- Un test PGlite reconstitue des comptes préexistants, vérifie l'absence de
+  sites implicites puis des affectations explicites en conservant leurs modules.
+  Cela ne définit ni ne valide les affectations des comptes réels ; la
+  transition doit être préparée et testée sans perte ou élargissement de droits.
+- Le brouillon 47 annule les collisions et contrôle les FK entre établissements
+  lors d'une restauration partielle. Des tests PGlite vérifient une insertion,
+  l'annulation sur collision et le rejet d'une FK étrangère. Les scénarios
+  Auth/PostgREST de restauration ne sont pas encore exécutés ; les liens JSON,
+  les courses et la sauvegarde de l'historique de révocation restent à traiter.
 
 ## Porte de sortie
 

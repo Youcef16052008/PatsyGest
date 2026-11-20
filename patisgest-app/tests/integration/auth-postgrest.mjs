@@ -8,6 +8,8 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { SMTPServer } from 'smtp-server';
+import { parse } from 'parse5';
 
 const { API_URL, ANON_KEY, SERVICE_ROLE_KEY, DB_URL, PATSYGEST_DISPOSABLE } = process.env;
 function assertLocal(value, port) {
@@ -30,7 +32,36 @@ const A = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', B = 'bbbbbbbb-bbbb-bbbb-bbbb-b
 const site = 'dddddddd-dddd-dddd-dddd-dddddddddddd', article = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
 const ids = ['11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222','33333333-3333-3333-3333-333333333333','44444444-4444-4444-4444-444444444444'];
 
-test('Auth et PostgREST réels : isolation, confidentialité et modules', { timeout: 180000 }, async () => {
+// Les formulaires HTML sont soumis sans JavaScript, comme un navigateur avec
+// progressive enhancement. Les marqueurs Next sont repris depuis le HTML.
+function trouverFormulaire(html, predicate) {
+  const forms=[];
+  function visit(node) { if (node.tagName==='form') forms.push(node); for (const child of node.childNodes??[]) visit(child); }
+  visit(parse(html));
+  for(const form of forms) {
+    const fields=[];
+    function collect(node) {
+      if (node.tagName==='input' || node.tagName==='select') {
+        const a=Object.fromEntries((node.attrs??[]).map(x=>[x.name,x.value]));
+        if (a.name) fields.push(a);
+      }
+      for(const child of node.childNodes??[]) collect(child);
+    }
+    collect(form);
+    if(predicate(fields)) return fields;
+  }
+  throw new Error('Formulaire attendu introuvable');
+}
+async function soumettreFormulaire(path,cookie,fields,values) {
+  const body=new FormData();
+  for(const f of fields) if(f.type==='hidden') body.append(f.name,f.value??'');
+  for(const [key,value] of Object.entries(values)) {
+    body.delete(key); for(const item of Array.isArray(value)?value:[value]) body.append(key,item);
+  }
+  return fetch(`http://127.0.0.1:3414${path}`,{method:'POST',headers:{cookie,origin:'http://127.0.0.1:3414'},body,redirect:'manual'});
+}
+
+test('Auth et PostgREST réels : isolation, confidentialité et modules', { timeout: 240000 }, async () => {
  try {
   // Garde supplémentaire : base vierge, afin de ne jamais rejouer sur une base existante.
   const existing = await sql`select to_regclass('public.clients') as table_name`;
@@ -532,11 +563,62 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   denied(await pending.rpc('equipe_accepter_invitation',{p_id:invitation}),'Invitation indisponible');
   await sql`update public.equipe_admission_securite set autorisee=false where cle`;
 
+  // Restauration JSON PARTIELLE dans un troisième tenant fictif. Auth, membres,
+  // droits et révocations sont volontairement hors fichier : ce test ne prouve
+  // pas une sauvegarde complète ni un retour arrière de la base pilote.
+  const C='cccccccc-cccc-cccc-cccc-cccccccccccc';
+  const restoreSite='cccccccc-0000-0000-0000-000000000001';
+  const restoreArticle='cccccccc-0000-0000-0000-000000000002';
+  const restoreLot='cccccccc-0000-0000-0000-000000000003';
+  const restoreMove='cccccccc-0000-0000-0000-000000000004';
+  const foreignSite='bbbbbbbb-0000-0000-0000-000000000001';
+  const restoreUser=ok(await admin.auth.admin.createUser({email:'restore@example.test',password,email_confirm:true}),'Compte fictif restauration').user;
+  const restoreOwner=client(); ok(await restoreOwner.auth.signInWithPassword({email:'restore@example.test',password}),'Session restauration');
+  await sql`insert into clients(id,nom) values (${C},'Restauration fictive')`;
+  const restoreMember=(await sql`insert into utilisateurs(client_id,auth_user_id,email,nom,role) values (${C},${restoreUser.id},'restore@example.test','Propriétaire','proprietaire') returning id`)[0].id;
+  await sql`insert into sites(id,client_id,nom,type) values (${restoreSite},${C},'Boutique','boutique'),(${foreignSite},${B},'Site étranger','boutique')`;
+  await sql`insert into articles(id,client_id,code,nom,niveau,unite) values (${restoreArticle},${C},'REST','Farine','matiere','kg')`;
+  await sql`insert into lots(id,client_id,site_id,article_id,numero,qte_init,qte_rest,pu) values (${restoreLot},${C},${restoreSite},${restoreArticle},'R1',4,3,12)`;
+  await sql`insert into mouvements(id,client_id,site_id,article_id,lot_id,type,qte,pu) values (${restoreMove},${C},${restoreSite},${restoreArticle},${restoreLot},'reception',4,12)`;
+  const saved={};
+  for (const table of ['sites','articles','lots','mouvements']) {
+    saved[table]=(await sql.unsafe(`select to_jsonb(t) as row from public.${table} t where client_id=$1 order by id`,[C])).map(r=>r.row);
+  }
+  const dump={client_id:C,tables:Object.entries(saved).map(([table,lignes])=>({table,lignes}))};
+  await sql`delete from mouvements where client_id=${C}`; await sql`delete from lots where client_id=${C}`;
+  await sql`delete from articles where client_id=${C}`; await sql`delete from sites where client_id=${C}`;
+  denied(await lab.rpc('restaurer_sauvegarde',{p_dump:dump}),'restauration reservee|Reserve au proprietaire');
+  assert.ok((await client().rpc('restaurer_sauvegarde',{p_dump:dump})).error,'Restauration interdite à anon');
+  denied(await owner.rpc('restaurer_sauvegarde',{p_dump:dump}),'autre etablissement');
+  assert.ok((await restoreOwner.rpc('patisgest_restaurer_sauvegarde_interne',{p_dump:dump})).error,'Ancienne restauration interne inaccessible');
+  assert.ok((await restoreOwner.rpc('patisgest_restaurer_garde_interne',{p_dump:dump})).error,'Restauration interne de la garde inaccessible');
+  const restored=ok(await restoreOwner.rpc('restaurer_sauvegarde',{p_dump:dump}),'Restaurer les données fictives');
+  assert.equal(restored.insere.sites,1); assert.equal(restored.insere.articles,1); assert.equal(restored.insere.lots,1); assert.equal(restored.insere.mouvements,1);
+  for (const table of Object.keys(saved)) {
+    const actual=(await sql.unsafe(`select to_jsonb(t) as row from public.${table} t where client_id=$1 order by id`,[C])).map(r=>r.row);
+    assert.deepEqual(actual,saved[table],`Aller-retour partiel ${table}`);
+  }
+  const newArticle={...saved.articles[0],id:'cccccccc-0000-0000-0000-000000000005',code:'REST-2'};
+  const collision={client_id:C,tables:[{table:'sites',lignes:saved.sites},{table:'articles',lignes:[newArticle]}]};
+  denied(await restoreOwner.rpc('restaurer_sauvegarde',{p_dump:collision}),'Conflit de restauration');
+  assert.equal((await sql`select count(*)::int n from articles where id=${newArticle.id}`)[0].n,0,'Collision : aucune insertion partielle');
+  const foreignLot={...saved.lots[0],id:'cccccccc-0000-0000-0000-000000000006',site_id:foreignSite};
+  denied(await restoreOwner.rpc('restaurer_sauvegarde',{p_dump:{client_id:C,tables:[{table:'lots',lignes:[foreignLot]}]}}),'Lien inter-etablissement');
+  assert.equal((await sql`select count(*)::int n from lots where id=${foreignLot.id}`)[0].n,0,'Lien étranger annulé');
+  ok(await restoreOwner.rpc('modifier_acces_module',{p_utilisateur_id:restoreMember,p_module:'stocks',p_actif:false}),'Désactiver module restauration');
+  denied(await restoreOwner.rpc('restaurer_sauvegarde',{p_dump:dump}),'modules desactives');
+  ok(await restoreOwner.rpc('modifier_acces_module',{p_utilisateur_id:restoreMember,p_module:'stocks',p_actif:true}),'Réactiver module restauration');
+
   // Next réel + Auth réelle, jamais la production : une session périmée est
   // renouvelée par le proxy et son cookie permet ensuite d'ouvrir une page.
   const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
+  const courriels=[];
+  const smtp=new SMTPServer({authOptional:true,disabledCommands:['AUTH','STARTTLS'],onData(stream,session,done){
+    let body=''; stream.on('data',chunk=>body+=chunk); stream.on('end',()=>{courriels.push({body,recipients:session.envelope.rcptTo.map(x=>x.address)});done();});
+  }});
+  await new Promise((resolve,reject)=>smtp.once('error',reject).listen(54325,'127.0.0.1',resolve));
   const app=spawn(path.join(root,'node_modules','.bin','next'),['dev','-p','3414','-H','127.0.0.1'],{
-    cwd:root,env:{...process.env,VERCEL_ENV:'',PATISGEST_DEMO_MODE:'false',PATSYGEST_EQUIPE_EXPERIMENTAL:'true',NEXT_PUBLIC_SUPABASE_URL:API_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY:ANON_KEY},stdio:['ignore','pipe','pipe']
+    cwd:root,env:{...process.env,VERCEL_ENV:'',PATISGEST_DEMO_MODE:'false',PATSYGEST_EQUIPE_EXPERIMENTAL:'true',PATSYGEST_TEST_INVITATION_EMAIL:'true',NEXT_PUBLIC_SUPABASE_URL:API_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY:ANON_KEY},stdio:['ignore','pipe','pipe']
   });
   let logs=''; app.stdout.on('data',s=>{logs=(logs+s).slice(-2000)}); app.stderr.on('data',s=>{logs=(logs+s).slice(-2000)});
   try {
@@ -564,7 +646,7 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    assert.equal(settings.status,200,'Paramètres propriétaire accessibles');
    const settingsHtml=await settings.text();
    assert.ok(settingsHtml.includes('Équipe · expérimental'),'Interface expérimentale visible sur pile locale');
-   assert.ok(settingsHtml.includes('Aucune notification n’est envoyée'),'Aucun envoi de courrier annoncé');
+   assert.ok(settingsHtml.includes('Aucun e-mail réel n’est envoyé'),'Aucun envoi de courrier réel annoncé');
    assert.ok(settingsHtml.includes('Membres existants') && settingsHtml.includes('Enregistrer les affectations'),'Interface des membres disponible au propriétaire');
    assert.ok(settingsHtml.includes('Révoquer l’adhésion'),'Interface de révocation disponible au propriétaire');
    const labSession=ok(await client().auth.signInWithPassword({email:emails[1],password}),'Session HTTP labo').session;
@@ -580,11 +662,36 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    assert.equal(joining.status,200,'Page candidat authentifié');
    const joiningHtml=await joining.text();
    assert.ok(joiningHtml.includes('Vos demandes') && joiningHtml.includes('Vos invitations'));
+
+   // Soumission HTTP des formulaires réels avec sessions Auth et SMTP fictif.
+   const requestForm=trouverFormulaire(joiningHtml,f=>f.some(x=>x.name==='code') && f.some(x=>x.name==='role'));
+   const requestResponse=await soumettreFormulaire('/rejoindre',applicantCookie,requestForm,{code:newCode,nom:'Candidat formulaire',role:'vendeur'});
+   assert.equal(requestResponse.status,200); assert.match(await requestResponse.text(),/Demande transmise/);
+   const demandesUi=ok(await owner.rpc('equipe_lister_demandes'),'Demande depuis formulaire');
+   assert.ok(demandesUi.some(d=>d.email===applicantEmail));
+   const inviteForm=trouverFormulaire(settingsHtml,f=>f.some(x=>x.name==='email') && f.some(x=>x.name==='role'));
+   const inviteResponse=await soumettreFormulaire('/parametres',renewed,inviteForm,{nom:'Invitation formulaire',email:'formulaire@example.test',role:'vendeur',sites:newSite.id});
+   assert.equal(inviteResponse.status,200); assert.match(await inviteResponse.text(),/Invitation enregistrée/);
+   assert.equal(courriels.length,1); assert.deepEqual(courriels[0].recipients,['formulaire@example.test']);
+   const invitationsUi=ok(await owner.rpc('equipe_lister_invitations'),'Invitation depuis formulaire');
+   const inviteUi=invitationsUi.find(i=>i.email==='formulaire@example.test'); assert.ok(inviteUi);
+   const updatedHtml=await (await fetch('http://127.0.0.1:3414/parametres',{headers:{cookie:renewed}})).text();
+   const resendForm=trouverFormulaire(updatedHtml,f=>f.some(x=>x.name==='id' && x.value===inviteUi.id) && !f.some(x=>x.name==='confirmer'));
+   const resendResponse=await soumettreFormulaire('/parametres',renewed,resendForm,{});
+   assert.equal(resendResponse.status,200); assert.match(await resendResponse.text(),/Notification acceptée/);
+   assert.equal(courriels.length,2);
+   const cancelForm=trouverFormulaire(updatedHtml,f=>f.some(x=>x.name==='id' && x.value===inviteUi.id) && f.some(x=>x.name==='confirmer'));
+   const cancelResponse=await soumettreFormulaire('/parametres',renewed,cancelForm,{confirmer:'oui'});
+   assert.equal(cancelResponse.status,200); assert.match(await cancelResponse.text(),/Invitation annulée/);
+   const revokedResponse=await soumettreFormulaire('/parametres',renewed,resendForm,{});
+   assert.equal(revokedResponse.status,200); assert.match(await revokedResponse.text(),/Invitation indisponible/);
+   assert.equal(courriels.length,2,'Une invitation annulée ne doit pas être renvoyée');
+
    const anonymousJoining=await fetch('http://127.0.0.1:3414/rejoindre',{redirect:'manual'});
    assert.equal(anonymousJoining.status,307,'Compte Auth requis');
    const memberJoining=await fetch('http://127.0.0.1:3414/rejoindre',{headers:{cookie:renewed},redirect:'manual'});
    assert.equal(memberJoining.status,307,'Un membre est redirigé vers son espace');
-  } finally {app.kill('SIGTERM');}
+  } finally {app.kill('SIGTERM'); await new Promise(resolve=>smtp.close(resolve));}
  } finally {
   await sql.end();
  }

@@ -26,7 +26,7 @@ export default async function RejoindrePage() {
     } catch { unavailable = true; }
   }
   return <main className="mx-auto max-w-3xl space-y-5 p-6"><h1 className="text-2xl font-bold">Rejoindre un établissement · expérimental</h1>
-    <p>Connecté : {data.user.email}. Parcours réservé à une pile locale jetable ; aucun e-mail n’est envoyé par cette interface.</p>
+    <p>Connecté : {data.user.email}. Parcours réservé à une pile locale jetable ; aucun e-mail réel n’est envoyé par cette interface.</p>
     <p role="alert">L’admission reste verrouillée jusqu’à validation complète. Une demande ou une invitation ne donne pas accès automatiquement.</p>
     {unavailable ? <p role="alert">Adresse vérifiée ou données d’équipe indisponibles. Contactez le propriétaire ; aucune action n’est proposée.</p> : <RejoindreEquipe demandes={demandes} invitations={invitations}/>}
     <form action={logout}><button className="pg-button pg-button-secondary">Se déconnecter</button></form>

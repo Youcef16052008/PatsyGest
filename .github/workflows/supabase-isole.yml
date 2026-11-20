@@ -9,6 +9,7 @@ on:
       - 'patisgest-app/tests/preview*.mjs'
       - 'patisgest-app/tests/schema-complet.test.mjs'
       - 'patisgest-app/tests/equipe-experimental.test.mjs'
+      - 'patisgest-app/tests/invitation-mail.test.mjs'
       - 'patisgest-app/tests/inventaire-rpc.json'
       - 'patisgest-app/tests/inventaire-surface*'
       - 'patisgest-app/supabase/**'
@@ -42,7 +43,7 @@ jobs:
         working-directory: patisgest-app
         env:
           PREVIEW_SMOKE_BUILT: '1'
-      - run: node --experimental-strip-types --test tests/preview-guard.test.mjs tests/equipe-experimental.test.mjs tests/schema-complet.test.mjs tests/inventaire-surface.test.mjs
+      - run: node --experimental-strip-types --test tests/preview-guard.test.mjs tests/equipe-experimental.test.mjs tests/invitation-mail.test.mjs tests/schema-complet.test.mjs tests/inventaire-surface.test.mjs
         working-directory: patisgest-app
   integration:
     runs-on: ubuntu-latest

@@ -133,6 +133,25 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
   await assert.rejects(db.query("select public.modifier_acces_module('22222222-2222-2222-2222-222222222222','qualite',false)"),/Reserve au proprietaire/);
   await db.exec("select set_config('test.uid','10000000-0000-0000-0000-000000000001',false)");
   assert.equal((await db.query('select count(*)::int n from public.articles')).rows[0].n,3);
+  const emptyDump={client_id:'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',tables:[]};
+  const restore=(await db.query('select public.restaurer_sauvegarde($1::jsonb) r',[JSON.stringify(emptyDump)])).rows[0].r;
+  assert.deepEqual(restore.ignore,{});
+  // Une collision sur les sites ne doit pas laisser passer l'article suivant.
+  const existingSite=(await db.query("select to_jsonb(s) row from sites s where id='dddddddd-dddd-dddd-dddd-dddddddddddd'")).rows[0].row;
+  const existingArticle=(await db.query("select to_jsonb(a) row from articles a where id='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'")).rows[0].row;
+  const newArticle={...existingArticle,id:'aaaaaaaa-0000-0000-0000-000000000099',code:'REST-NOUVEAU'};
+  const collision={client_id:emptyDump.client_id,tables:[{table:'sites',lignes:[existingSite]},{table:'articles',lignes:[newArticle]}]};
+  await assert.rejects(db.query('select public.restaurer_sauvegarde($1::jsonb)',[JSON.stringify(collision)]),/Conflit de restauration/);
+  assert.equal((await db.query('select count(*)::int n from articles where id=$1',[newArticle.id])).rows[0].n,0);
+  // FK valide en PostgreSQL mais vers un autre établissement : refus atomique.
+  await db.exec(`reset role; insert into sites(id,client_id,nom) values ('bbbbbbbb-0000-0000-0000-000000000099','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','Site étranger'); set role authenticated`);
+  const existingLot=(await db.query('select to_jsonb(l) row from lots l limit 1')).rows[0].row;
+  const foreignLot={...existingLot,id:'aaaaaaaa-0000-0000-0000-000000000098',site_id:'bbbbbbbb-0000-0000-0000-000000000099'};
+  await assert.rejects(db.query('select public.restaurer_sauvegarde($1::jsonb)',[JSON.stringify({client_id:emptyDump.client_id,tables:[{table:'lots',lignes:[foreignLot]}]})]),/Lien inter-etablissement/);
+  assert.equal((await db.query('select count(*)::int n from lots where id=$1',[foreignLot.id])).rows[0].n,0);
+  const restoredArticle=(await db.query('select public.restaurer_sauvegarde($1::jsonb) r',[JSON.stringify({client_id:emptyDump.client_id,tables:[{table:'articles',lignes:[newArticle]}]})])).rows[0].r;
+  assert.equal(restoredArticle.insere.articles,1);
+  assert.deepEqual((await db.query('select to_jsonb(a) row from articles a where id=$1',[newArticle.id])).rows[0].row,newArticle);
   await assert.rejects(db.query("select public.modifier_acces_module('33333333-3333-3333-3333-333333333333','qualite',false)"),/Compte introuvable/);
   await db.query("select public.modifier_acces_module('22222222-2222-2222-2222-222222222222','qualite',false)");
   await db.query("select public.modifier_acces_module('22222222-2222-2222-2222-222222222222','planning',false)");
@@ -169,5 +188,56 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
   assert.equal((await db.query("select public.patisgest_module_autorise('stocks') ok")).rows[0].ok,false);
   await assert.rejects(db.query('select * from public.equipe_journal_acces'),/permission denied/);
 
+ } finally {await db.close();}
+});
+
+test('transition isolée : comptes existants, droits inchangés et sites choisis explicitement', async () => {
+ const db=new PGlite();
+ const A='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', lab='22222222-2222-2222-2222-222222222222', seller='33333333-3333-3333-3333-333333333333';
+ const ownerAuth='10000000-0000-0000-0000-000000000001',labAuth='10000000-0000-0000-0000-000000000002',sellerAuth='10000000-0000-0000-0000-000000000003';
+ const labSite='dddddddd-dddd-dddd-dddd-dddddddddddd',shop='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+ const modules=['stocks','achats','recettes','caisse','production','transferts','cloture','qualite','cake-design','tracabilite','planning','simulation'];
+ try {
+  await db.exec(`create role authenticated; create role anon; create role service_role;
+   create schema auth; grant usage on schema public,auth to authenticated,anon,service_role;
+   create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.uid',true),'')::uuid$$;
+   create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz,deleted_at timestamptz);
+   create function public.rls_auto_enable() returns event_trigger language plpgsql as $$begin end$$;
+   alter default privileges in schema public grant all on tables to authenticated,service_role;
+   alter default privileges in schema public grant execute on functions to authenticated,service_role;
+   grant execute on function auth.uid() to authenticated,anon,service_role;`);
+  const files=(await readdir(new URL('../supabase/',import.meta.url))).filter(x=>/^\d\d-.*\.sql$/.test(x) && !x.startsWith('02-')).sort();
+  for(const file of files) {
+   if(file.startsWith('07-')) await db.exec("create function public.creer_of(uuid,uuid,numeric,date) returns jsonb language sql as $$select '{}'::jsonb$$");
+   if(file.startsWith('09-')) await db.exec('alter table public.clotures add column if not exists revision integer default 1');
+   if(file.startsWith('27-')) {
+    await db.query('insert into clients(id,nom) values ($1,$2)',[A,'Atelier fictif']);
+    await db.query(`insert into utilisateurs(id,client_id,auth_user_id,email,nom,role) values
+     ('11111111-1111-1111-1111-111111111111',$1,$2,'owner@example.test','Owner','proprietaire'),
+     ($3,$1,$4,'lab@example.test','Labo','labo'),($5,$1,$6,'seller@example.test','Vendeur','vendeur')`,[A,ownerAuth,lab,labAuth,seller,sellerAuth]);
+    await db.query("insert into sites(id,client_id,nom,type) values ($1,$3,'Labo','laboratoire'),($2,$3,'Boutique','boutique')",[labSite,shop,A]);
+    await db.query("insert into acces_modules(utilisateur_id,module,actif) values ($1,'simulation',false),($2,'achats',false)",[lab,seller]);
+   }
+   const migration=(await readFile(new URL(`../supabase/${file}`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;','');
+   try {await db.exec(migration);} catch(e) {throw new Error(`${file}: ${e.message}`,{cause:e});}
+  }
+  await db.exec(`select set_config('test.uid','${labAuth}',false); set role authenticated`);
+  const initialLab=(await db.query('select m,public.patisgest_module_autorise(m) actif from unnest($1::text[]) m order by m',[modules])).rows;
+  assert.equal((await db.query('select count(*)::int n from sites')).rows[0].n,0,'Aucun site attribué implicitement');
+  await db.exec(`select set_config('test.uid','${sellerAuth}',false)`);
+  const initialSeller=(await db.query('select m,public.patisgest_module_autorise(m) actif from unnest($1::text[]) m order by m',[modules])).rows;
+  assert.equal((await db.query('select count(*)::int n from sites')).rows[0].n,0);
+  await db.exec(`select set_config('test.uid','${ownerAuth}',false)`);
+  const comptes=(await db.query('select * from public.equipe_lister_membres()')).rows;
+  for(const [id,sites,original] of [[lab,[labSite],initialLab],[seller,[shop],initialSeller]]) {
+   const account=comptes.find(c=>c.id===id); assert.ok(account); assert.deepEqual(account.sites,[]);
+   await db.query('select public.equipe_modifier_affectations_versionnees($1,$2::bigint,$3::uuid[],$4::text[])',[id,account.revision,sites,original.filter(x=>x.actif).map(x=>x.m)]);
+  }
+  await db.exec(`select set_config('test.uid','${labAuth}',false)`);
+  assert.deepEqual((await db.query('select m,public.patisgest_module_autorise(m) actif from unnest($1::text[]) m order by m',[modules])).rows,initialLab,'Modules labo inchangés');
+  assert.deepEqual((await db.query('select id from sites')).rows.map(x=>x.id),[labSite]);
+  await db.exec(`select set_config('test.uid','${sellerAuth}',false)`);
+  assert.deepEqual((await db.query('select m,public.patisgest_module_autorise(m) actif from unnest($1::text[]) m order by m',[modules])).rows,initialSeller,'Modules vendeur inchangés');
+  assert.deepEqual((await db.query('select id from sites')).rows.map(x=>x.id),[shop]);
  } finally {await db.close();}
 });

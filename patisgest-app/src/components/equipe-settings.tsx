@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { afficherCodeEquipe, annulerInvitationEquipe, creerInvitationEquipe, deciderDemande, modifierAffectationsEquipe, revoquerMembreEquipe, type EquipeActionState } from "@/lib/actions-equipe";
+import { afficherCodeEquipe, annulerInvitationEquipe, creerInvitationEquipe, deciderDemande, modifierAffectationsEquipe, renvoyerInvitationEquipe, revoquerMembreEquipe, type EquipeActionState } from "@/lib/actions-equipe";
 import { WORKSPACE_LINKS } from "@/lib/workspace-nav";
 import type { SiteCompte } from "./sites-settings";
 
@@ -57,11 +57,13 @@ function InvitationForm({ sites }: { sites: SiteCompte[] }) {
 function InvitationItem({ invitation, sites }: { invitation: Invitation; sites: SiteCompte[] }) {
   const [state, action, pending] = useActionState(annulerInvitationEquipe, {});
   const labels = invitation.sites.map(id => sites.find(site => site.id === id)?.nom ?? "Site indisponible").join(", ");
-  return <form action={action} className="rounded-xl border p-3 space-y-2"><p><strong>{invitation.nom}</strong> · {invitation.email} · {invitation.role}</p>
+  const [mail, mailAction, sending] = useActionState(renvoyerInvitationEquipe, {});
+  return <div className="rounded-xl border p-3 space-y-2"><p><strong>{invitation.nom}</strong> · {invitation.email} · {invitation.role}</p>
     <p>Sites : {labels} · expiration : {new Date(invitation.expire_le).toLocaleString("fr-FR")}</p>
-    <input type="hidden" name="id" value={invitation.id}/><label className="block"><input type="checkbox" name="confirmer" value="oui" required/> Confirmer l’annulation</label>
-    <button disabled={pending} className="pg-button pg-button-secondary">Annuler l’invitation</button><Feedback state={state}/>
-  </form>;
+    <form action={mailAction}><input type="hidden" name="id" value={invitation.id}/><button disabled={sending || pending} className="pg-button pg-button-secondary">Renvoyer la notification de test</button><Feedback state={mail}/></form>
+    <form action={action}><input type="hidden" name="id" value={invitation.id}/><label className="block"><input type="checkbox" name="confirmer" value="oui" required/> Confirmer l’annulation</label>
+      <button disabled={pending || sending} className="pg-button pg-button-secondary">Annuler l’invitation</button><Feedback state={state}/></form>
+  </div>;
 }
 function MembreForm({ membre, sites }: { membre: Membre; sites: SiteCompte[] }) {
   const [state, action, pending] = useActionState(modifierAffectationsEquipe, {});
@@ -89,7 +91,7 @@ function MembreForm({ membre, sites }: { membre: Membre; sites: SiteCompte[] }) 
 }
 export default function EquipeSettings({ data, sites, error }: { data: EquipeDonnees; sites: SiteCompte[]; error: boolean }) {
   return <section className="pg-card pg-card-pad mt-6 space-y-4"><h2>Équipe · expérimental</h2>
-    <p role="alert">Parcours non certifié. Aucune notification n’est envoyée par cette interface. L’admission reste verrouillée en base jusqu’à validation complète. Ne pas utiliser sur le pilote.</p>
+    <p role="alert">Parcours non certifié. Les notifications ne sont possibles que sur un serveur SMTP local de test, pour des adresses fictives example.test. Aucun e-mail réel n’est envoyé. L’admission reste verrouillée jusqu’à validation complète. Ne pas utiliser sur le pilote.</p>
     {error ? <p role="alert">Données d’équipe ou sites indisponibles. Aucune action n’est proposée ; rechargez la page.</p> : <>
       <h3>Membres existants</h3>
       {data.membres.length ? data.membres.map(m => <MembreForm key={`${m.id}-${m.revision}`} membre={m} sites={sites}/>) : <p>Aucun membre laboratoire ou vendeur.</p>}
@@ -97,7 +99,7 @@ export default function EquipeSettings({ data, sites, error }: { data: EquipeDon
       <CodeForm/><details><summary>Renouveler le code de demande</summary><CodeForm renouveler/></details>
       <h3>Demandes en attente</h3>{data.demandes.length ? data.demandes.map(d => <DemandeForm key={d.id} demande={d} sites={sites}/>) : <p>Aucune demande.</p>}
       <h3>Approbations en attente d’acceptation</h3>{data.approbations.length ? data.approbations.map(d => <AnnulerApprobation key={d.id} demande={d}/>) : <p>Aucune approbation.</p>}
-      <details><summary>Enregistrer une invitation</summary><p>L’invitation est liée à une adresse Auth vérifiée ; elle ne constitue pas un envoi de courrier et aucun accès n’est activé ici.</p><InvitationForm sites={sites}/></details>
+      <details><summary>Enregistrer une invitation</summary><p>L’invitation est liée à une adresse Auth vérifiée ; aucune admission n’est activée ici. La notification ne peut être envoyée qu’au serveur local de test si celui-ci est activé.</p><InvitationForm sites={sites}/></details>
       <h3>Invitations non annulées et non utilisées</h3>{data.invitations.length ? data.invitations.map(i => <InvitationItem key={i.id} invitation={i} sites={sites}/>) : <p>Aucune invitation.</p>}
     </>}
   </section>;
