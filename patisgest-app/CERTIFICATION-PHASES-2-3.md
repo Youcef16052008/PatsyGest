@@ -1,6 +1,8 @@
 # Évaluation de certification — phases 2 et 3
 
-**Décision : NON CERTIFIÉES ; brouillons sécurité 24–50 non autorisés pour application.**
+> Les numéros de brouillons cités ci-dessous sont historiques : 24–50 correspondent désormais à 101–127 (+77). Voir `migrations/repetition.json`. La renumérotation ne valide pas leur compatibilité avec le pilote.
+
+**Décision : NON CERTIFIÉES ; brouillons sécurité 101–128 non autorisés pour application.**
 Ce document décrit un état et des essais partiels, pas un certificat de sécurité.
 Le pilote est utilisé par la production : une migration de sécurité incomplète
 peut aussi verrouiller les utilisateurs existants ou casser l'ancienne application.
@@ -10,8 +12,8 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
 - Historique Supabase consulté en lecture seule : après `controle_modules_23`
   (`20261119045242`), sept migrations de vitrine et domaines ont été appliquées
   indépendamment, jusqu'à `publication_vitrine_31` (`20261119195618`). Ce ne
-  sont pas les brouillons sécurité 24–50 de cette branche, dont la numérotation
-  entre en collision avec celle de la vitrine. Aucun de ces brouillons sécurité
+  sont pas les anciens brouillons sécurité 24–50 de cette branche, dont la numérotation
+  entrait en collision avec celle de la vitrine (désormais renommés 101–127). Aucun de ces brouillons sécurité
   n'a été appliqué au pilote par cette session.
 - Production Vercel consultée en lecture seule : commit `24ec425` sur main,
   incluant la vitrine ; cette branche diverge depuis `f11e371`. Preview et

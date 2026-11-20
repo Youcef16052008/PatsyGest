@@ -1,9 +1,13 @@
 # Contrôle des modules et confidentialité labo — travail en cours
 
-**Ne pas déployer la migration 24 ni considérer la PR comme prête.** Les
-migrations 22 et 23 sont appliquées au pilote ; 24 ne l’est pas. Le code des
-nouvelles interfaces a été poussé sur la branche, mais pas déployé en
-production. Il attend les vues 24 : ne pas le déployer séparément de la base.
+**Ne pas déployer les brouillons sécurité 101–128 ni considérer la PR comme prête.** Les
+migrations 22 et 23 sont appliquées au pilote ; la confidentialité labo anciennement 24,
+renommée 101, ne l’est pas. Le code des nouvelles interfaces attend ces vues : ne pas
+le déployer séparément de la base.
+
+> Les numéros de brouillons mentionnés dans le récit ci-dessous sont historiques :
+> 24–50 correspondent désormais à 101–127 (+77), voir `migrations/repetition.json`.
+> La renumérotation ne prouve pas la compatibilité avec le pilote.
 
 ## Ce qui est prototypé et testé localement
 
@@ -56,11 +60,11 @@ Le propriétaire souhaite créer et modifier plusieurs boutiques et laboratoires
 inviter ses employés ou approuver leurs demandes, et attribuer à chaque compte
 labo ou vendeur un ou plusieurs sites. Les vendeurs ont des comptes individuels,
 sans gestion séparée de caisses physiques. Une interface de gestion des sites
-et la migration brouillon `26-gestion-sites.sql` sont préparées : elles ne sont
+et la migration brouillon `103-gestion-sites.sql` sont préparées : elles ne sont
 pas déployées ; 26 réserve l'écriture des sites au propriétaire, mais **ne
 restreint pas les employés aux sites qui leur seraient attribués**.
 
-La migration brouillon `27-equipe-fondations.sql` prépare les demandes, les
+La migration brouillon `104-equipe-fondations.sql` prépare les demandes, les
 invitations et la table d'attribution des sites. Les demandes sont liées à
 l'identité Auth et à une adresse vérifiée ; les invitations ne sont visibles
 qu'au compte Auth portant cette adresse. **Aucune fonction d'approbation ou
@@ -70,9 +74,9 @@ employé reste aussi à réaliser. Un compte Auth sans ligne `utilisateurs` ne
 constitue pas un accès à l'établissement, mais ce constat ne remplace pas une
 procédure d'admission. Les RLS du pilote isolent
 par client, pas par site ; de nombreuses RPC `SECURITY DEFINER` contournent les
-policies. Le brouillon `28-sites-lecture-brouillon.sql` filtre les sites et
+policies. Le brouillon `105-sites-lecture-brouillon.sql` filtre les sites et
 plusieurs tables directes ainsi que quatre vues labo dans l'environnement isolé.
-Le brouillon `29-sites-rpc-brouillon.sql` ajoute une garde à certaines RPC qui
+Le brouillon `106-sites-rpc-brouillon.sql` ajoute une garde à certaines RPC qui
 reçoivent un site ou un OF. Les autres RPC et les données sans site restent à
 sécuriser : ces brouillons ne doivent pas être appliqués. Le brouillon 30
 bloque de façon conservatrice rappel et blocage pour un employé qui n'a pas
@@ -157,7 +161,7 @@ sites vérifiés, mais n'active aucun compte ni ne crée d'adhésion : c'est une
 
 - Un défaut de valorisation a été confirmé dans `terminer_of` : lorsque la
   fabrication est réceptionnée en plusieurs lots, le coût des matières peut
-  être imputé plusieurs fois. La migration locale `25-cout-of-partiel.sql`,
+  être imputé plusieurs fois. La migration locale `102-cout-of-partiel.sql`,
   prévue après 24, répartit le coût sur la quantité prévue et un test PGlite
   couvre deux lots ; elle n'est pas appliquée. Un contrôle en lecture seule du
   pilote n'a trouvé aucun OF partiel ni aucun OF avec plusieurs lots produits.

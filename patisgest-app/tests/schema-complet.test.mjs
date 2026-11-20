@@ -1,7 +1,7 @@
-import { migrationSecurite } from './migrations-historique.mjs';
+import { migrationsRepetition } from './migrations-historique.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 
 // Reconstitue les migrations métier, non les services Auth/PostgREST Supabase.
@@ -17,7 +17,7 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
    alter default privileges in schema public grant all on tables to authenticated,service_role;
    alter default privileges in schema public grant execute on functions to authenticated,service_role;
    grant execute on function auth.uid() to authenticated,anon,service_role;`);
-  const migrations=(await readdir(new URL('../supabase/',import.meta.url))).filter(migrationSecurite).sort();
+  const migrations=migrationsRepetition();
   for (const file of migrations) {
    let sql=await readFile(new URL(`../supabase/${file}`,import.meta.url),'utf8');
    sql=sql.replace('create extension if not exists pgcrypto;', ''); // gen_random_uuid est natif dans PGlite
@@ -207,11 +207,11 @@ test('transition isolée : comptes existants, droits inchangés et sites choisis
    alter default privileges in schema public grant all on tables to authenticated,service_role;
    alter default privileges in schema public grant execute on functions to authenticated,service_role;
    grant execute on function auth.uid() to authenticated,anon,service_role;`);
-  const files=(await readdir(new URL('../supabase/',import.meta.url))).filter(migrationSecurite).sort();
+  const files=migrationsRepetition();
   for(const file of files) {
    if(file.startsWith('07-')) await db.exec("create function public.creer_of(uuid,uuid,numeric,date) returns jsonb language sql as $$select '{}'::jsonb$$");
    if(file.startsWith('09-')) await db.exec('alter table public.clotures add column if not exists revision integer default 1');
-   if(file.startsWith('27-')) {
+   if(file.startsWith('104-')) {
     await db.query('insert into clients(id,nom) values ($1,$2)',[A,'Atelier fictif']);
     await db.query(`insert into utilisateurs(id,client_id,auth_user_id,email,nom,role) values
      ('11111111-1111-1111-1111-111111111111',$1,$2,'owner@example.test','Owner','proprietaire'),

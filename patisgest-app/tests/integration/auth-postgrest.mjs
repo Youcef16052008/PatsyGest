@@ -1,4 +1,4 @@
-import { migrationSecurite } from '../migrations-historique.mjs';
+import { migrationsRepetition } from '../migrations-historique.mjs';
 // Uniquement dans une pile Supabase CLI jetable. Ne jamais viser un projet distant.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -69,13 +69,13 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
   assert.equal(existing[0].table_name, null, 'La base doit être vierge');
   // Utilitaire DDL présent sur le pilote mais absent de la pile locale CLI.
   await sql.unsafe('create function public.rls_auto_enable() returns event_trigger language plpgsql as $$begin end$$');
-  const files = (await readdir(new URL('../../supabase/', import.meta.url))).filter(migrationSecurite).sort();
+  const files = migrationsRepetition();
   for (const file of files) {
     // Les mêmes adaptations historiques que schema-complet.test.mjs ; ce n'est
     // pas une preuve que l'historique des migrations est directement rejouable.
     if (file.startsWith('07-')) await sql.unsafe("create function public.creer_of(uuid,uuid,numeric,date) returns jsonb language sql as $$select '{}'::jsonb$$");
     if (file.startsWith('09-')) await sql.unsafe('alter table public.clotures add column if not exists revision integer default 1');
-    if (file.startsWith('24-') && process.env.PATSYGEST_TEST_VITRINE === 'yes') {
+    if (file.startsWith('101-') && process.env.PATSYGEST_TEST_VITRINE === 'yes') {
       const fixtures=new URL('../fixtures/pilote-vitrine/',import.meta.url);
       for (const name of (await readdir(fixtures)).filter(n=>/^\d\d-.*\.sql$/.test(n)).sort()) {
         try {await sql.unsafe(await readFile(new URL(name,fixtures),'utf8'));}
@@ -725,16 +725,27 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    assert.match(await envoyerVente(authIds[0],saleTicket,2),/Ticket existant non vérifié ou différent/);
    assert.equal((await sql`select count(*)::int n from ventes where ticket=${saleTicket}`)[0].n,1,'Rejeu : une seule vente');
 
-   // Collision d'un autre index que le ticket : la fonction historique peut
-   // renvoyer duplicate=true avec sale_id NULL. L'action doit conserver l'état
-   // ambigu, jamais annoncer un doublon confirmé.
+   // Deux requêtes réellement concurrentes par PostgREST : une seule vente,
+   // l'autre réponse ne confirme que le ticket de ce même site.
+   const concurrentTicket='cccccccc-cccc-4ccc-8ccc-ccccccccccc3';
+   const args={p_site_id:site,p_lignes:[{articleId:product,qte:1}],p_ticket:concurrentTicket,p_mode_paiement:'especes'};
+   const pair=await Promise.all([owner.rpc('vendre_panier',args),owner.rpc('vendre_panier',args)]);
+   const results=pair.map((result)=>ok(result,'Ventes concurrentes'));
+   assert.deepEqual(results.map(x=>x.duplicate).sort(),[false,true]);
+   assert.equal(results[0].sale_id,results[1].sale_id);
+   assert.equal((await sql`select count(*)::int n from ventes where ticket=${concurrentTicket}`)[0].n,1);
+   const interSite=await owner.rpc('vendre_panier',{...args,p_site_id:newSite.id});
+   denied(interSite,'Ticket deja utilise pour une autre vente');
+   assert.ok(!JSON.stringify(interSite).includes(results[0].sale_id),'Pas de fuite de la vente d’un autre site');
+
+   // Collision d’un autre index : le brouillon 128 propage 23505 plutôt
+   // que de confirmer un ticket inexistant.
    const conflitTicket='cccccccc-cccc-4ccc-8ccc-ccccccccccc2';
    await sql.unsafe(`create function public.test_collision_vente() returns trigger language plpgsql as $$begin if new.ticket='cccccccc-cccc-4ccc-8ccc-ccccccccccc2' then raise exception 'collision fictive' using errcode='23505'; end if; return new; end$$`);
    await sql.unsafe('create trigger test_collision_vente before insert on public.ventes for each row execute function public.test_collision_vente()');
    try {
     const collision=await envoyerVente(authIds[0],conflitTicket);
-    assert.match(collision,/Résultat de vente non confirmé/);
-    assert.match(collision,/"reessayer":true/);
+    assert.match(collision,/Conflit lors de la vente/);
     assert.equal((await sql`select count(*)::int n from ventes where ticket=${conflitTicket}`)[0].n,0);
    } finally {
     await sql.unsafe('drop trigger test_collision_vente on public.ventes');

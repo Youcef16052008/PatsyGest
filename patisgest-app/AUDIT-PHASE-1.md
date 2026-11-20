@@ -1,5 +1,7 @@
 # Phase 1 — inventaire et écarts de sécurité
 
+> Les références historiques aux brouillons sécurité 24–50 correspondent désormais aux fichiers 101–127 (+77), sans validation pour le pilote. Voir `migrations/repetition.json`.
+
 État relevé en lecture seule sur le pilote `evepzygucfxarpdnflzv` et le projet
 Vercel `patsy-gest`. Aucun compte ou donnée pilote n'a été créé ni modifié pour
 cet audit. Les constatations sont ponctuelles et doivent être vérifiées à

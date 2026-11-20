@@ -1,6 +1,6 @@
 # Répétition des migrations et restauration — non validées
 
-Ce document n'autorise ni application au pilote ni fusion. `repetition.json` fige les fichiers et empreintes de la **reconstruction des tests** : historique jusqu'à 23, fixtures vitrine 25–31 de main, puis brouillons sécurité 24–50. Ce n'est pas un ordre de déploiement. L'index main 24 n'est pas inclus dans cette répétition et sa présence sur le pilote n'est pas établie. Les adaptations historiques et les écarts observés sur le catalogue pilote empêchent de déduire une équivalence à partir de ces tests. Les migrations vitrine 25–31 ont déjà été enregistrées sur le pilote ; les brouillons de sécurité du même numéro sont différents et ne sont pas appliqués.
+Ce document n'autorise ni application au pilote ni fusion. `repetition.json` fige les fichiers et empreintes de la **reconstruction des tests** : historique jusqu'à 23, fixtures vitrine 25–31 de main, puis brouillons sécurité 101–128 (les anciens 24–50 ont été renumérotés 101–127). Ce n'est pas un ordre de déploiement. L'index main 24 n'est pas inclus dans cette répétition et sa présence sur le pilote n'est pas établie. Les adaptations historiques et les écarts observés sur le catalogue pilote empêchent de déduire une équivalence à partir de ces tests. Les migrations vitrine 25–31 ont déjà été enregistrées sur le pilote ; les anciens brouillons de sécurité étaient différents et ne sont pas appliqués.
 
 ## Test de restauration jetable
 

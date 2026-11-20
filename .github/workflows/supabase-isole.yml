@@ -8,6 +8,7 @@ on:
       - 'patisgest-app/tests/integration/**'
       - 'patisgest-app/tests/migrations*.mjs'
       - 'patisgest-app/migrations/**'
+      - 'patisgest-app/tests/caisse-collision-db.test.mjs'
       - 'patisgest-app/tests/sale-queue.test.mjs'
       - 'patisgest-app/tests/sale-session.test.mjs'
       - 'patisgest-app/tests/coffre-sauvegarde.test.mjs'
@@ -51,7 +52,7 @@ jobs:
         working-directory: patisgest-app
         env:
           PREVIEW_SMOKE_BUILT: '1'
-      - run: node --experimental-strip-types --test tests/preview-guard.test.mjs tests/coffre-sauvegarde.test.mjs tests/migrations-repetition.test.mjs tests/sale-queue.test.mjs tests/sale-session.test.mjs tests/equipe-experimental.test.mjs tests/invitation-mail.test.mjs tests/schema-complet.test.mjs tests/vitrine-perimetre.test.mjs tests/inventaire-surface.test.mjs
+      - run: node --experimental-strip-types --test tests/preview-guard.test.mjs tests/coffre-sauvegarde.test.mjs tests/migrations-repetition.test.mjs tests/sale-queue.test.mjs tests/sale-session.test.mjs tests/equipe-experimental.test.mjs tests/invitation-mail.test.mjs tests/schema-complet.test.mjs tests/vitrine-perimetre.test.mjs tests/caisse-collision-db.test.mjs tests/inventaire-surface.test.mjs
         working-directory: patisgest-app
   integration:
     name: Auth et PostgREST (${{ matrix.schema }})

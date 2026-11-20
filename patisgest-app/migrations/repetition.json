@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "statut": "REPETITION UNIQUEMENT — pas un ordre de déploiement ni preuve d’équivalence au pilote",
+  "statut": "REPETITION UNIQUEMENT — noms des brouillons uniques, pas un ordre de déploiement ni preuve d’équivalence au pilote",
   "historique": [
     {
       "file": "01-socle.sql",
@@ -123,112 +123,143 @@
   ],
   "brouillons_securite": [
     {
-      "file": "24-confidentialite-labo.sql",
-      "sha256": "1a94e0a890eef2ed8457e41504c092430009f7499a5e0298ed1623cd1de140a6"
+      "file": "101-confidentialite-labo.sql",
+      "sha256": "1a94e0a890eef2ed8457e41504c092430009f7499a5e0298ed1623cd1de140a6",
+      "ancien_fichier": "24-confidentialite-labo.sql"
     },
     {
-      "file": "25-cout-of-partiel.sql",
-      "sha256": "897a7b91bbfaaf18effcf43a6c16c2d84d066213f1720c72143cbdd48cc1d589"
+      "file": "102-cout-of-partiel.sql",
+      "sha256": "897a7b91bbfaaf18effcf43a6c16c2d84d066213f1720c72143cbdd48cc1d589",
+      "ancien_fichier": "25-cout-of-partiel.sql"
     },
     {
-      "file": "26-gestion-sites.sql",
-      "sha256": "3b46b1546fd330729dfab80b61957268f8b159a9dd598c527dc3512510a50f39"
+      "file": "103-gestion-sites.sql",
+      "sha256": "3b46b1546fd330729dfab80b61957268f8b159a9dd598c527dc3512510a50f39",
+      "ancien_fichier": "26-gestion-sites.sql"
     },
     {
-      "file": "27-equipe-fondations.sql",
-      "sha256": "aca04e13aad24a9c2964db13b051612a98a799b2e9d0e309ffe9f69533c7aa5d"
+      "file": "104-equipe-fondations.sql",
+      "sha256": "aca04e13aad24a9c2964db13b051612a98a799b2e9d0e309ffe9f69533c7aa5d",
+      "ancien_fichier": "27-equipe-fondations.sql"
     },
     {
-      "file": "28-sites-lecture-brouillon.sql",
-      "sha256": "7244da7a1962b57d02e162c76e71fd5bc6641e23bbd3074dc4c13bb99605c88c"
+      "file": "105-sites-lecture-brouillon.sql",
+      "sha256": "7244da7a1962b57d02e162c76e71fd5bc6641e23bbd3074dc4c13bb99605c88c",
+      "ancien_fichier": "28-sites-lecture-brouillon.sql"
     },
     {
-      "file": "29-sites-rpc-brouillon.sql",
-      "sha256": "0b85fa8cc1a9bd90ccd32d935839f1c1ad4d2baec550386d7ee83d9e60d3d480"
+      "file": "106-sites-rpc-brouillon.sql",
+      "sha256": "0b85fa8cc1a9bd90ccd32d935839f1c1ad4d2baec550386d7ee83d9e60d3d480",
+      "ancien_fichier": "29-sites-rpc-brouillon.sql"
     },
     {
-      "file": "30-tracabilite-sites-brouillon.sql",
-      "sha256": "26d4e4ec487a979931873ffa911deb66e96b7c8facd9fd19c38a33829a248584"
+      "file": "107-tracabilite-sites-brouillon.sql",
+      "sha256": "26d4e4ec487a979931873ffa911deb66e96b7c8facd9fd19c38a33829a248584",
+      "ancien_fichier": "30-tracabilite-sites-brouillon.sql"
     },
     {
-      "file": "31-reassort-sites-brouillon.sql",
-      "sha256": "52f103e98bcdf8b1ee53920524046e8f5d71d850cd3c4af5c839699818c8bb64"
+      "file": "108-reassort-sites-brouillon.sql",
+      "sha256": "52f103e98bcdf8b1ee53920524046e8f5d71d850cd3c4af5c839699818c8bb64",
+      "ancien_fichier": "31-reassort-sites-brouillon.sql"
     },
     {
-      "file": "32-cake-sites-brouillon.sql",
-      "sha256": "80e5c9e3753bbfe56eb29c7ad228aa2a89f274506d243b55489b0f85e31c8108"
+      "file": "109-cake-sites-brouillon.sql",
+      "sha256": "80e5c9e3753bbfe56eb29c7ad228aa2a89f274506d243b55489b0f85e31c8108",
+      "ancien_fichier": "32-cake-sites-brouillon.sql"
     },
     {
-      "file": "33-equipe-approbation-brouillon.sql",
-      "sha256": "09ca921025f8275df0f8356ca72743f139da169907d2f0ebf4fc5e104dc312f0"
+      "file": "110-equipe-approbation-brouillon.sql",
+      "sha256": "09ca921025f8275df0f8356ca72743f139da169907d2f0ebf4fc5e104dc312f0",
+      "ancien_fichier": "33-equipe-approbation-brouillon.sql"
     },
     {
-      "file": "34-of-idempotence-sites-brouillon.sql",
-      "sha256": "d4c235ecb8fe8859a977833029df116f5e45ad0a26a1faabe3f43bf563ff40eb"
+      "file": "111-of-idempotence-sites-brouillon.sql",
+      "sha256": "d4c235ecb8fe8859a977833029df116f5e45ad0a26a1faabe3f43bf563ff40eb",
+      "ancien_fichier": "34-of-idempotence-sites-brouillon.sql"
     },
     {
-      "file": "35-donnees-sans-site-brouillon.sql",
-      "sha256": "4e7fcab9b123d86871906bdba0c75db97c1e1102a6f066a15841ba7cb9a03bcd"
+      "file": "112-donnees-sans-site-brouillon.sql",
+      "sha256": "4e7fcab9b123d86871906bdba0c75db97c1e1102a6f066a15841ba7cb9a03bcd",
+      "ancien_fichier": "35-donnees-sans-site-brouillon.sql"
     },
     {
-      "file": "36-equipe-affectations-revocation-brouillon.sql",
-      "sha256": "f42969d7a5c33f3f988fda3c6661f9b725844c5ee9fba7c6176b09806148ac75"
+      "file": "113-equipe-affectations-revocation-brouillon.sql",
+      "sha256": "f42969d7a5c33f3f988fda3c6661f9b725844c5ee9fba7c6176b09806148ac75",
+      "ancien_fichier": "36-equipe-affectations-revocation-brouillon.sql"
     },
     {
-      "file": "37-equipe-admission-brouillon.sql",
-      "sha256": "d2ae91b905968761004ec1025f6d4c8f734902fdeda062586fb22041d8127df4"
+      "file": "114-equipe-admission-brouillon.sql",
+      "sha256": "d2ae91b905968761004ec1025f6d4c8f734902fdeda062586fb22041d8127df4",
+      "ancien_fichier": "37-equipe-admission-brouillon.sql"
     },
     {
-      "file": "38-confidentialite-vendeur-lots-brouillon.sql",
-      "sha256": "ed634d6f70cb0bce4a1e5ce381ba21281a1f886adc616bd5219dee0e59ee2ea1"
+      "file": "115-confidentialite-vendeur-lots-brouillon.sql",
+      "sha256": "ed634d6f70cb0bce4a1e5ce381ba21281a1f886adc616bd5219dee0e59ee2ea1",
+      "ancien_fichier": "38-confidentialite-vendeur-lots-brouillon.sql"
     },
     {
-      "file": "39-confidentialite-vendeur-of-brouillon.sql",
-      "sha256": "c23d556f947e010daefc5dbf495e1da90d9bd1950a6958d927cdb71c97ec2ab5"
+      "file": "116-confidentialite-vendeur-of-brouillon.sql",
+      "sha256": "c23d556f947e010daefc5dbf495e1da90d9bd1950a6958d927cdb71c97ec2ab5",
+      "ancien_fichier": "39-confidentialite-vendeur-of-brouillon.sql"
     },
     {
-      "file": "40-rappel-perimetre-brouillon.sql",
-      "sha256": "91ef61eefad0f48337c696b14afed35c3e8c9e246f1484c9e0070605c1e36885"
+      "file": "117-rappel-perimetre-brouillon.sql",
+      "sha256": "91ef61eefad0f48337c696b14afed35c3e8c9e246f1484c9e0070605c1e36885",
+      "ancien_fichier": "40-rappel-perimetre-brouillon.sql"
     },
     {
-      "file": "41-equipe-liste-invitations-brouillon.sql",
-      "sha256": "1bc47a6eaf96b0343d37f309b49ea171819933d971569a75eab9907f30888847"
+      "file": "118-equipe-liste-invitations-brouillon.sql",
+      "sha256": "1bc47a6eaf96b0343d37f309b49ea171819933d971569a75eab9907f30888847",
+      "ancien_fichier": "41-equipe-liste-invitations-brouillon.sql"
     },
     {
-      "file": "42-equipe-mes-demandes-brouillon.sql",
-      "sha256": "b91fa9acedf71089ad7ffb347a1c6b18b458a8f2cf549a6994e3a5909061eb0e"
+      "file": "119-equipe-mes-demandes-brouillon.sql",
+      "sha256": "b91fa9acedf71089ad7ffb347a1c6b18b458a8f2cf549a6994e3a5909061eb0e",
+      "ancien_fichier": "42-equipe-mes-demandes-brouillon.sql"
     },
     {
-      "file": "43-equipe-membres-revision-brouillon.sql",
-      "sha256": "1286b00095d2f8f3477f429abc4bba5836b6f626dc7dcafae2d448deefa32559"
+      "file": "120-equipe-membres-revision-brouillon.sql",
+      "sha256": "1286b00095d2f8f3477f429abc4bba5836b6f626dc7dcafae2d448deefa32559",
+      "ancien_fichier": "43-equipe-membres-revision-brouillon.sql"
     },
     {
-      "file": "44-vendeur-sites-boutique-brouillon.sql",
-      "sha256": "cecd1d9cbc5f6a6d3b81a80668b652a2b495d55b30817478f7cbd9c1b6d96831"
+      "file": "121-vendeur-sites-boutique-brouillon.sql",
+      "sha256": "cecd1d9cbc5f6a6d3b81a80668b652a2b495d55b30817478f7cbd9c1b6d96831",
+      "ancien_fichier": "44-vendeur-sites-boutique-brouillon.sql"
     },
     {
-      "file": "45-revocation-adresses-brouillon.sql",
-      "sha256": "50dd8d37d723fa8a6346f86662f254880f2c39e5151819470fa70594c46da53e"
+      "file": "122-revocation-adresses-brouillon.sql",
+      "sha256": "50dd8d37d723fa8a6346f86662f254880f2c39e5151819470fa70594c46da53e",
+      "ancien_fichier": "45-revocation-adresses-brouillon.sql"
     },
     {
-      "file": "46-revocation-decisions-brouillon.sql",
-      "sha256": "58cab965eccc055d2b153b38f919ef1c8c3a633ac7b7bb1bf05d68b2d57feb23"
+      "file": "123-revocation-decisions-brouillon.sql",
+      "sha256": "58cab965eccc055d2b153b38f919ef1c8c3a633ac7b7bb1bf05d68b2d57feb23",
+      "ancien_fichier": "46-revocation-decisions-brouillon.sql"
     },
     {
-      "file": "47-restauration-gardes-brouillon.sql",
-      "sha256": "feac3bef44c65f363f0afe9b1335f87a16f450c9995acf53ca1e3da97ff7579b"
+      "file": "124-restauration-gardes-brouillon.sql",
+      "sha256": "feac3bef44c65f363f0afe9b1335f87a16f450c9995acf53ca1e3da97ff7579b",
+      "ancien_fichier": "47-restauration-gardes-brouillon.sql"
     },
     {
-      "file": "48-vitrine-perimetre-brouillon.sql",
-      "sha256": "96166ef9406cc9f2defd24908f63ae62b4e99df122ef20dafedf98b762fe8b29"
+      "file": "125-vitrine-perimetre-brouillon.sql",
+      "sha256": "96166ef9406cc9f2defd24908f63ae62b4e99df122ef20dafedf98b762fe8b29",
+      "ancien_fichier": "48-vitrine-perimetre-brouillon.sql"
     },
     {
-      "file": "49-vitrine-photos-modules-brouillon.sql",
-      "sha256": "75e36902676eeaee7926bb4c53a54a20800c8933bc144ec86b1838170134a7ba"
+      "file": "126-vitrine-photos-modules-brouillon.sql",
+      "sha256": "75e36902676eeaee7926bb4c53a54a20800c8933bc144ec86b1838170134a7ba",
+      "ancien_fichier": "49-vitrine-photos-modules-brouillon.sql"
     },
     {
-      "file": "50-vitrine-depot-schema-brouillon.sql",
-      "sha256": "fc6f7a08ac73ca8b2fa587630467d561fc1edab34d1e5256920285bc24dfa4eb"
+      "file": "127-vitrine-depot-schema-brouillon.sql",
+      "sha256": "fc6f7a08ac73ca8b2fa587630467d561fc1edab34d1e5256920285bc24dfa4eb",
+      "ancien_fichier": "50-vitrine-depot-schema-brouillon.sql"
+    },
+    {
+      "file": "128-caisse-collision-ticket-brouillon.sql",
+      "sha256": "f45bbec3955f02d278cb4eba6dc02aeed9b88a98d1de18dc4c11c9b2e507e88a"
     }
   ],
   "main_hors_serie": [

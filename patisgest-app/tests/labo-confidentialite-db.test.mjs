@@ -33,7 +33,7 @@ test('labo : tables financières masquées, vues minimales et RPC assainies',asy
   if(!['ventes','bons_commande','articles','lots','recette_versions','ordres_fabrication','cakes'].includes(t)) await db.exec(`create table public.${t}(id int,client_id uuid);`);
   await db.exec(`alter table public.${t} enable row level security; create policy base on public.${t} for select to authenticated using(client_id=public.patisgest_mon_client()); grant select on public.${t} to authenticated;`);
  }
- await db.exec(await readFile(new URL('../supabase/24-confidentialite-labo.sql',import.meta.url),'utf8'));
+ await db.exec(await readFile(new URL('../supabase/101-confidentialite-labo.sql',import.meta.url),'utf8'));
  await db.exec("select set_config('test.uid','00000000-0000-0000-0000-000000000001',false);set role authenticated;");
  assert.equal((await db.query('select * from public.articles')).rows.length,0);
  const safe=await db.query('select * from public.labo_articles');

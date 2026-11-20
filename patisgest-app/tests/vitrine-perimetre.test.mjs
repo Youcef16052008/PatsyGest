@@ -1,4 +1,4 @@
-import { migrationSecurite } from './migrations-historique.mjs';
+import { migrationsRepetition } from './migrations-historique.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
@@ -17,11 +17,11 @@ test('vitrine : traitement d’une demande limité au site et au module attribu�
    alter default privileges in schema public grant all on tables to authenticated,service_role;
    alter default privileges in schema public grant execute on functions to authenticated,service_role;
    grant execute on function auth.uid() to authenticated,anon,service_role;`);
-  const migrations=(await readdir(new URL('../supabase/',import.meta.url))).filter(migrationSecurite).sort();
+  const migrations=migrationsRepetition();
   for(const file of migrations){
    if(file.startsWith('07-')) await db.exec("create function public.creer_of(uuid,uuid,numeric,date) returns jsonb language sql as $$select '{}'::jsonb$$");
    if(file.startsWith('09-')) await db.exec('alter table public.clotures add column if not exists revision integer default 1');
-   if(file.startsWith('24-')) {
+   if(file.startsWith('101-')) {
     const dir=new URL('./fixtures/pilote-vitrine/',import.meta.url);
     for(const fixture of (await readdir(dir)).filter(x=>/^\d\d-.*\.sql$/.test(x)).sort()) {
      try {await db.exec((await readFile(new URL(fixture,dir),'utf8')).replace('create extension if not exists pgcrypto;',''));}
