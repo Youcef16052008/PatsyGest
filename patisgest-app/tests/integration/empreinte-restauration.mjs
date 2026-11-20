@@ -23,8 +23,8 @@ try {
  }
  const statements = {
   policies: `select tablename,policyname,permissive,roles::text,cmd,qual,with_check from pg_policies where schemaname='public' order by tablename,policyname`,
-  tables: `select c.relname,c.relrowsecurity,c.relforcerowsecurity,coalesce(c.relacl::text,'') acl from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p','v','m','S') order by c.relname`,
-  functions: `select p.proname,pg_get_function_identity_arguments(p.oid) args,p.prosecdef,coalesce(p.proacl::text,'') acl,md5(pg_get_functiondef(p.oid)) definition from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prokind='f' and p.prorettype<>'event_trigger'::regtype order by p.proname,args`,
+  tables: `select c.relname,c.relrowsecurity,c.relforcerowsecurity,coalesce((select array_agg(a::text order by a::text)::text from unnest(c.relacl) a),'') acl from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p','v','m','S') order by c.relname`,
+  functions: `select p.proname,pg_get_function_identity_arguments(p.oid) args,p.prosecdef,coalesce((select array_agg(a::text order by a::text)::text from unnest(p.proacl) a),'') acl,md5(pg_get_functiondef(p.oid)) definition from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prokind='f' and p.prorettype<>'event_trigger'::regtype order by p.proname,args`,
   auth: `select count(*)::int n,md5(coalesce(string_agg(md5(to_jsonb(u)::text),'' order by md5(to_jsonb(u)::text)),'')) hash from auth.users u`,
  };
  const result = { rows };
