@@ -30,5 +30,7 @@ created=true
 # Supabase distante est possible, ni que les propriétaires sont identiques.
 docker exec "$container" pg_dump -U postgres -d postgres --format=custom --no-owner > "$archive"
 test -s "$archive"
-docker exec -i "$container" pg_restore -U supabase_admin -d patsy_restore_trial --no-owner --exit-on-error --single-transaction < "$archive"
+# Le rôle postgres CLI est autorisé à SET ROLE supabase_admin ; aucun mot de
+# passe supplémentaire ou secret hébergé ne transite dans la commande.
+docker exec -i "$container" pg_restore -U postgres --role=supabase_admin -d patsy_restore_trial --no-owner --exit-on-error --single-transaction < "$archive"
 node tests/integration/verifier-restauration.mjs
