@@ -33,14 +33,18 @@ Branche : `arena/27fe0740-patsygest` (base `2fba72c`).
 | # | Constat | Action |
 |---|---|---|
 | 2.1 | F-08 | **Ouvert, sans migration.** La forme `alter default privileges … in schema public` ne retire pas EXECUTE de PUBLIC (vérifié PGlite) ; la forme globale a un effet de bord non testable ici. |
-| 2.2 | F-05 | Contrôle de `version` dans `restaurer_sauvegarde` ; erreurs par table. |
+| 2.2 | F-05 | **Fait** par la migration `33` (contrôle `version = 1` dans l'interne ; compteurs par table). |
 | 2.3 | F-06 | **Fait** : borne 99,99 testée. Erreurs de fiche typées : non faites. |
-| 2.4 | F-12 | Une seule liste ordonnée `01→32` pour tests et déploiement ; brouillons dans un sous-dossier. Le manifeste doit inclure `32` (fait). |
+| 2.4 | F-12 | **Non fait.** Les tests et le manifeste d'empreintes référencent les chemins `supabase/NN-*.sql` ; déplacer les brouillons casse ces références. À faire dans un passage dédié, avec la liste ordonnée unique. |
 | 2.5 | F-10 | **Partiel** : tickets à 0 DA comptés dans `ticketsZero` (testé). Alerte à l'écran : non faite. |
-| 2.6 | — (rapport B-010) | **CI sur `pull_request` et `main`** : aucun workflow ne s'exécute avant merge aujourd'hui. Gates : `npm ci`, typecheck, lint, tests, build, tests de migration. |
+| 2.6 | — (rapport B-010) | **Fait** : `.github/workflows/ci.yml` (lint, typecheck, tests sur `pull_request` et `main`). Build non inclus (il demande des variables d'environnement, déjà couvertes par `supabase-isole.yml`). Workflow non exécuté localement : à vérifier au premier run GitHub. |
 | 2.7 | — (rapport B-011) | Sauvegarde : passer d'AES-CBC non authentifié à AES-GCM ou `age` ; restauration testée. |
 | 2.8 | — (rapport B-007/B-008) | Transfert : `client_ref` et RPC transactionnelle ; anti-abus vitrine par source plutôt que compteur global. |
 | 2.9 | — (rapport B-002) | Clés étrangères composites `(client_id, …)` après contrôle des données existantes. |
+
+> **F-20, recensement sur le pilote (lecture seule) :** 2 OF au total, 1 `termine`, 0 lot de production rattaché : aucun coût historique à corriger sur le pilote.
+>
+> **Contrainte de chaîne de `34` :** la migration cible `terminer_of(uuid,numeric,text,date)`. Si `101` (brouillon, hors chemin déployable) était appliquée avant, cette fonction devient un wrapper et la garde de `34` refuse. Ne pas appliquer `101` avant `34` sans revoir `34`. `102` est un brouillon concurrent de `34` : ne pas appliquer les deux.
 
 ## Phase 3 — Amélioration ultérieure
 

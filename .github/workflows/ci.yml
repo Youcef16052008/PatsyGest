@@ -1,0 +1,37 @@
+name: CI
+
+# Revue Phase 2 (§2.6) : aucun contrôle ne tournait avant merge.
+# Ce workflow s'exécute sur chaque pull request et sur main.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verifier:
+    name: Lint, typecheck et tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: patisgest-app/package-lock.json
+      - run: npm ci
+        working-directory: patisgest-app
+      - run: npm run lint
+        working-directory: patisgest-app
+      - run: npm run typecheck
+        working-directory: patisgest-app
+      - run: npm test
+        working-directory: patisgest-app
