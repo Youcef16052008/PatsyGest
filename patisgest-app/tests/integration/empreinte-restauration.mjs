@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import postgres from 'postgres';
+import { isDeepStrictEqual } from 'node:util';
 const { DB_URL, PATSYGEST_DISPOSABLE, RUNNER_TEMP } = process.env;
 assert.equal(PATSYGEST_DISPOSABLE, 'yes');
 assert.ok(RUNNER_TEMP);
@@ -33,19 +34,19 @@ try {
  else {
   const previous = JSON.parse(await readFile(path,'utf8'));
   for(const key of Object.keys(result)) {
-   try { assert.deepEqual(result[key],previous[key],`Différence : ${key}`); }
-   catch (error) {
-    if (key === 'tables') {
-     const before = new Map(previous.tables.map(x => [x.relname,x]));
-     for (const after of result.tables) {
-      const original = before.get(after.relname);
-      if (JSON.stringify(original) !== JSON.stringify(after)) {
-       console.error(`DIFF_TABLE ${after.relname} avant=${JSON.stringify(original)} apres=${JSON.stringify(after)}`);
-      }
-     }
+   if (isDeepStrictEqual(result[key], previous[key])) continue;
+   if (key === 'tables' || key === 'functions') {
+    const identity = key === 'tables' ? x => x.relname : x => `${x.proname}(${x.args})`;
+    const before = new Map(previous[key].map(x => [identity(x),x]));
+    const after = new Map(result[key].map(x => [identity(x),x]));
+    let shown=0;
+    for (const name of new Set([...before.keys(), ...after.keys()])) {
+     if (!isDeepStrictEqual(before.get(name), after.get(name)) && shown++ < 15)
+      console.error(`DIFF_${key.toUpperCase()} ${name} avant=${JSON.stringify(before.get(name))} apres=${JSON.stringify(after.get(name))}`);
     }
-    throw error;
+    console.error(`DIFF_TOTAL ${key} : ${shown}`);
    }
+   throw new Error(`Différence : ${key}`);
   }
   console.log(`Empreintes égales : ${tables.length} tables publiques, données, policies, ACL, fonctions et auth.users.`);
  }
