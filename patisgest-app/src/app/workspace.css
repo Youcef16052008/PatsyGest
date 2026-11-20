@@ -433,3 +433,20 @@
   .pg-content :where(.min-w-64, .min-w-56, .min-w-52, .min-w-48, .min-w-44, .min-w-40) { min-width: min(100%, 13rem); }
   .pg-content :where(.cake-ticket) { max-width: 100%; overflow-wrap: anywhere; }
 }
+
+/* Service worker : bandeau « nouvelle version disponible » (NF-02).
+   Discret, en bas à droite, au-dessus du contenu : il ne doit jamais
+   masquer le bouton « Encaisser » pendant une vente. */
+.pg-sw-update {
+  position: fixed; z-index: 60; right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
+  padding: 10px 12px; border-radius: 12px; font-size: .8rem; font-weight: 650;
+  background: var(--pg-surface, #fff); color: var(--pg-ink, #1e293b);
+  border: 1px solid var(--pg-line, #e2e8f0);
+  box-shadow: 0 10px 28px rgb(15 23 42 / .18);
+}
+.pg-sw-update button {
+  border: 0; border-radius: 8px; padding: .4rem .7rem; cursor: pointer;
+  background: #6d28d9; color: #fff; font-size: .78rem; font-weight: 800;
+}

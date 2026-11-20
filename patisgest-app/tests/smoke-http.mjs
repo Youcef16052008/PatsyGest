@@ -253,3 +253,84 @@ test('Apparence : les cinq interfaces disposent d’un rendu clair et sombre ava
     }
   }
 });
+
+/**
+ * NF-02 (hors-ligne) : une PWA n'existe que si trois choses sont servies.
+ * Sans ces tests, on peut « livrer le service worker » et découvrir sur la
+ * tablette du pilote qu'il n'est jamais chargé (mauvais chemin, 404, mauvaise
+ * portée, ou manifest absent du <head>).
+ */
+test('NF-02 : le service worker est servi à la racine, avec la bonne portée implicite', async () => {
+  const res = await get('/sw.js');
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type') ?? '', /javascript/);
+  const src = await res.text();
+  // Portée : servi depuis /sw.js = contrôle tout le site. Un SW sous /_next/
+  // ne contrôlerait rien d'utile.
+  assert.match(src, /addEventListener\("fetch"/);
+  assert.match(src, /CACHE_SHELL/);
+  // Les server actions et l'API ne doivent jamais être mises en cache :
+  // une vente ne doit pas paraître réussie depuis un cache.
+  assert.match(src, /url\.pathname\.startsWith\("\/api\/"\)/);
+});
+
+test('NF-02 : le manifeste PWA est servi et déclare le nom, les icônes et le mode standalone', async () => {
+  const res = await get('/manifest.webmanifest');
+  assert.equal(res.status, 200);
+  const manifest = await res.json();
+  assert.equal(manifest.short_name, 'PâtisGest');
+  assert.equal(manifest.display, 'standalone');
+  assert.equal(manifest.start_url, '/');
+  const tailles = manifest.icons.map((i) => i.sizes);
+  assert.ok(tailles.includes('192x192') && tailles.includes('512x512'), 'icônes 192 et 512 requises pour l’installation');
+});
+
+test('NF-02 : le manifeste et l’icône sont liés dans le HTML (sinon pas d’installation)', async () => {
+  const html = await (await get('/connexion')).text();
+  assert.match(html, /rel="manifest"/);
+  assert.match(html, /icons\/icon-192\.png/);
+});
+
+test('NF-02 : les icônes PWA existent réellement (pas de 404 à l’installation)', async () => {
+  for (const chemin of ['/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png']) {
+    const res = await get(chemin);
+    assert.equal(res.status, 200, `${chemin} manquant`);
+    assert.match(res.headers.get('content-type') ?? '', /image\/png/);
+  }
+});
+
+/**
+ * Vitrine publique (migrations 25-28).
+ *
+ * Le serveur de test n'a PAS de base Supabase : ces tests vérifient donc
+ * exactement ce qui compte pour un visiteur — la page répond, explique
+ * pourquoi elle est vide, et ne fuit ni erreur 500 ni identifiant interne.
+ */
+test('vitrine : une adresse inconnue répond 200 avec un message honnête (pas de 500)', async () => {
+  const res = await get('/vitrine/elyasmine');
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /Boutique indisponible/);
+  // Aucune erreur technique ne doit apparaître dans la page publique.
+  assert.equal(/SUPABASE|stack|at async/i.test(html), false, 'détail technique exposé au visiteur');
+});
+
+test('vitrine : le slug est validé avant tout accès base', async () => {
+  // Un souligné n'est pas un nom DNS valide : le slug doit être refusé
+  // AVANT tout accès base (sinon on interroge PostgREST pour rien).
+  const res = await get('/vitrine/pas_valide');
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), /Adresse de boutique invalide/);
+});
+
+test('vitrine : /vitrine sans slug ne renvoie pas une 500', async () => {
+  const res = await get('/vitrine');
+  assert.ok([307, 308, 404].includes(res.status), `statut inattendu : ${res.status}`);
+});
+
+test('vitrine : l’application n’est pas réécrite pour un hôte d’application', async () => {
+  // Sans routage, `/` redirige vers /connexion ou /tableau-de-bord (307).
+  const res = await get('/');
+  assert.equal(res.status, 307);
+  assert.ok(['/connexion', '/tableau-de-bord'].includes(redirectPath(res)));
+});

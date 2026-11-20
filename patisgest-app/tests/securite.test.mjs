@@ -56,6 +56,14 @@ test('sécu : les fichiers .env sont ignorés par Git', () => {
   assert.ok(/^\.env/m.test(gi), '.gitignore doit couvrir .env*');
 });
 
+/**
+ * Exception unique et nominative : la vitrine publique a besoin d'UNE
+ * fonction appelable par un visiteur non connecté. Elle ne prend aucun
+ * `client_id`, ne fixe aucun prix et exige un site publié (migration 27).
+ * Toute autre fonction ouverte à `anon` fait échouer ce test.
+ */
+const FONCTIONS_ANON_AUTORISEES = ['patisgest_demander_commande'];
+
 test('sécu : aucune migration n’accorde de droit d’exécution à anon', () => {
   const dir = 'supabase';
   const migrations = readdirSync(path.join(ROOT, dir)).filter((f) => f.endsWith('.sql'));
@@ -63,11 +71,14 @@ test('sécu : aucune migration n’accorde de droit d’exécution à anon', () 
   for (const m of migrations) {
     const sql = lire(path.join(dir, m)).toLowerCase();
     // `grant ... to anon` ou `grant ... to public` ouvrirait la RPC à Internet.
-    assert.equal(
-      /grant\s+execute\s+on\s+function[^;]*\bto\b[^;]*\banon\b/.test(sql),
-      false,
-      `grant à anon dans ${m}`,
-    );
+    const regex = /grant\s+execute\s+on\s+function\s+([\w.]+)[^;]*\bto\b[^;]*\banon\b/g;
+    for (const [, nom] of sql.matchAll(regex)) {
+      const courte = nom.trim().split('.').pop();
+      assert.ok(
+        FONCTIONS_ANON_AUTORISEES.includes(courte),
+        `grant à anon pour ${courte} dans ${m} (hors liste blanche)`,
+      );
+    }
   }
 });
 
@@ -294,7 +305,13 @@ test('sécu : toute migration révoque PUBLIC avant de donner un droit', () => {
         /revoke\s+(all|execute)\s+on\s+function/i.test(src),
         `${f} donne un droit d'exécution sans révoquer PUBLIC d'abord`,
       );
-      assert.equal(/to\s+(public|anon)\b/i.test(g), false, `${f} : ${g.slice(0, 60)}… donne le droit à anon/PUBLIC`);
+      if (/to\s+(public|anon)\b/i.test(g)) {
+        // Seule dérogation : la RPC publique de la vitrine (voir plus haut).
+        assert.ok(
+          /patisgest_demander_commande/i.test(g),
+          `${f} : ${g.slice(0, 60)}… donne le droit à anon/PUBLIC`,
+        );
+      }
     }
   }
 });

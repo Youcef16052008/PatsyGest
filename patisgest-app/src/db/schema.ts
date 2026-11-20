@@ -329,6 +329,23 @@ export const cakes = pgTable("cakes", {
   cgv: boolean("cgv").notNull().default(false),
   notes: text("notes"),
   retro: jsonb("retro").notNull().default([]),
+  paiements: jsonb("paiements").notNull().default([]),
+  tvaPct: numeric("tva_pct", { precision: 5, scale: 2 }).notNull().default("0"),
+  cgvAcceptedAt: timestamp("cgv_accepted_at", { withTimezone: true }),
+  cgvVersion: text("cgv_version"),
+  versionId: uuid("version_id").references(() => recetteVersions.id),
+  qteFabrication: numeric("qte_fabrication", { precision: 12, scale: 3 }),
+  ofId: uuid("of_id").references(() => ordresFabrication.id),
+  // ---- vitrine publique (migrations 26/27)
+  /**
+   * 'interne' (saisi en boutique) ou 'vitrine' (déposé par un visiteur).
+   * Contrainte `cakes_origine_valeurs` : ne jamais écrire 'manuel'.
+   */
+  origine: text("origine").notNull().default("interne"),
+  siteId: uuid("site_id").references(() => sites.id),
+  /** Clé d'idempotence fournie par le navigateur du visiteur. */
+  cleVitrine: text("cle_vitrine"),
+  statutNote: text("statut_note"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

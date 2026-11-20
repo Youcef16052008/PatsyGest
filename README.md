@@ -12,6 +12,8 @@ Solution de gestion tout-en-un pour ateliers et laboratoires de pâtisserie.
 | `patisgest-app/` | **Application Next.js** : interface web, authentification Supabase, base de données PostgreSQL & Drizzle ORM. |
 | `patisgest-desktop/` | **Application Bureau Electron** : encapsule le prototype en application Windows de bureau. |
 | `LISEZ-MOI.md` | Guide de démarrage initial. |
+| [`HANDOFF-EN.md`](HANDOFF-EN.md) | **Handoff in English** — what the storefront (vitrine) work does, why, what it deliberately does not do, and the traps that cost time. Start here if you are new to the project. |
+| `HANDOFF.md` | Passation en français (livraison antérieure, PR #4). |
 
 ## 🚀 Démarrage rapide
 
