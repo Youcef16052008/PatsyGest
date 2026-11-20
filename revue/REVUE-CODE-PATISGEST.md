@@ -922,7 +922,7 @@ Je n'ai pas fait de test de charge ; ces points sont des déductions sur le nomb
 
 ## 6. Plan d'action priorisé
 
-> Plan détaillé par phases, avec statut d'avancement : voir `revue/PLAN-CORRECTIF.md`. Phase 1 : F-01, F-03, F-18 faits ; F-02, F-04, F-19, F-20 restent à faire.
+> Plan détaillé par phases, avec statut d'avancement : voir `revue/PLAN-CORRECTIF.md`. Phase 1 : F-01, F-02, F-03, F-18, F-20 faits (migrations 32–34, non appliquées au pilote) ; F-04 fait côté application (RPC SQL restantes) ; F-19 bloqué par une décision produit.
 
 ### À corriger avant toute mise en production (bloquant)
 

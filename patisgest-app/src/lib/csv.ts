@@ -21,7 +21,7 @@ export const CSV_BOM = "\uFEFF";
 /** Délimiteurs qui déclenchent l'échappement RFC 4180. */
 const A_ESCAPER = /["\n\r;]/;
 /** Préfixes interprétés comme formules par Excel / LibreOffice. */
-const FORMULE = /^[=+\-@\t\r]/;
+const FORMULE = /^\s*[=+\-@\t\r]/;
 
 export type ValeurCsv = string | number | boolean | null | undefined | Date | string[];
 

@@ -210,7 +210,9 @@ import { libellePrix } from '../src/lib/vitrine-format.ts';
 test('vitrine : un prix inconnu s’affiche « sur demande », jamais « 0 DA »', () => {
   // Cas réel mesuré : la famille « Cake » pointe sur un article à pv_ht = 0.
   assert.equal(libellePrix({ prixHt: null, unite: 'kg' }), 'Prix sur demande');
-  assert.equal(libellePrix({ prixHt: 0, unite: 'kg' }).includes('0 DA'), true);
+  // F-07 : un prix à 0 n'est pas un prix : jamais « 0 DA » sur la vitrine.
+  assert.equal(libellePrix({ prixHt: 0, unite: 'kg' }), 'Prix sur demande');
+  assert.equal(libellePrix({ prixHt: -5, unite: 'kg' }), 'Prix sur demande');
   // Un vrai prix garde son unité.
   assert.equal(libellePrix({ prixHt: 260, unite: 'pcs' }), '260 DA / pcs');
   assert.equal(libellePrix({ prixHt: 12.5, unite: null }), '12,5 DA');

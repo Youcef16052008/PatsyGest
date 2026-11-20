@@ -300,6 +300,18 @@
       "sha256": "3276d4d50ddbe8a6d375124b4817967d512c1d507b5e77ecf5e693c852e4ab3f",
       "hors_fixture_pilote": true,
       "note": "Rattrapage Phase 1 (F-01, F-18) : ajouté après 31, corps installé corrigé avec gardes. Non présent dans tests/fixtures/pilote-vitrine (pilote non encore réconcilié)."
+    },
+    {
+      "file": "33-restauration-sans-perte.sql",
+      "sha256": "419dd37d89fcfccfaf942a263a5d06435e5f91f8f59c389572e6df5f90a4946a",
+      "hors_fixture_pilote": true,
+      "note": "Phase 1 (F-02, F-05) : restauration sans perte silencieuse + contrôle de version. Redéfinit l'interne patisgest_restaurer_sauvegarde_interne ; l'enveloppe (modules) intacte."
+    },
+    {
+      "file": "34-cout-of-partiel.sql",
+      "sha256": "14ca8032ee5258979fe162c6702c4746fdf053716e425e38e575416e164fa708",
+      "hors_fixture_pilote": true,
+      "note": "Phase 1 (F-20) : diviseur du coût d'OF partiel = quantité prévue. Ne modifie pas les coûts historiques."
     }
   ],
   "exclus": [

@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { DEMO_SITES, demoLots, demoProducts, demoSales } from "@/lib/demo-workspace";
 import { sellCart } from "@/lib/patisgest-store";
 import { isPaymentMode, PAYMENT_MODE_LABELS, type PaymentMode } from "@/lib/pos-cart";
-import { jourUTC, quantite, stockParSite, stockPerimeParSite } from "@/lib/workspace-data";
+import { jourLocal, quantite, stockParSite, stockPerimeParSite } from "@/lib/workspace-data";
 import { useDemoWorkspace } from "./demo-workspace";
 import SaleComposer from "./sale-composer";
 import SaleHistory from "./sale-history";
@@ -30,7 +30,7 @@ export default function DemoCaisse({
 
   const articles = demoProducts(data);
   const lots = demoLots(data);
-  const today = jourUTC();
+  const today = jourLocal();
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

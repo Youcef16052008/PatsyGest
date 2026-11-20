@@ -17,10 +17,10 @@ Branche : `arena/27fe0740-patsygest` (base `2fba72c`).
 | 1.1 | **F-03** FEFO inversé | `sortFefo` aligné sur le SQL (`congele asc` : non congelé d'abord). Test de la DLC plus proche d'un lot congelé ajouté. | `src/lib/fefo-cost.ts`, `tests/fefo-cost.test.mjs` | **Fait** |
 | 1.2 | **F-01** vente à 0 DA | Panier : ligne à `prixHT ≤ 0` ⇒ `valide=false` (avant : `valide` ignorait le prix) ; message visible au caissier. SQL : `vendre_panier` refuse `pv_ht <= 0` (migration `32`). | `src/lib/pos-cart.ts`, `src/components/sale-composer.tsx`, `supabase/32-…sql`, `tests/pos-cart-prix-nul.test.mjs`, `tests/phase1-rattrapage-db.test.mjs` | **Fait** |
 | 1.3 | **F-18** (rapport B-005) migration 27 cassée | Migration `32` remplace la sélection `s.nom` par `s.subdomain` dans le corps installé. Reproduit avant, vérifié après. | `supabase/32-…sql`, `tests/phase1-rattrapage-db.test.mjs` | **Fait** (corps installé ; `27` non modifiée) |
-| 1.4 | **F-02** restauration : un doublon fait perdre la table | `on conflict (id) do nothing` + `get diagnostics` pour compter les lignes réellement insérées et les lignes ignorées, avec rapport honnête. Test : 1 doublon + 2 nouvelles ⇒ 2 insérées. | `supabase/18-…sql` (via `32` ou `33`), `src/lib/sauvegarde.ts`, `tests/` | À faire |
-| 1.5 | **F-04** dates UTC | `jourLocal()` avec `Africa/Algiers`, propagé aux ~20 composants par prop serveur ; `at time zone 'Africa/Algiers'` dans les RPC qui datent. Test aux limites de minuit. | `src/lib/*` (`jourUTC`), composants, RPC | À faire |
-| 1.6 | **F-20** (rapport B-004) coût d'OF partiel compté N fois | Diviseur `v_of.qte_prevue` au lieu de `p_qte` (correctif du brouillon `102`). **Décision** : que faire des OF déjà valorisés (non corrigés rétroactivement). | migration à créer ; `supabase/07` et `102` | À faire — décision sur l'historique requise |
-| 1.7 | **F-19** (rapport B-001) application ↔ schéma | Le code interroge `labo_*`/`vendeur_*`, absentes du chemin déployable. **Décision** : soit retenir `101/115/116` et les réconcilier, soit masquer le code labo/vendeur derrière un drapeau. Ajouter `app_schema_version` et un refus de démarrage si version incompatible. | `src/lib/workspace-read.ts`, `src/app/(app)/[module]/page.tsx`, composants labo | À faire — décision produit requise |
+| 1.4 | **F-02** restauration : un doublon fait perdre la table | `on conflict (id) do nothing` + compteurs `insere`/`ignore` par table, contrôle `version = 1`. Test : doublon + nouvelles lignes ⇒ nouvelles lignes insérées. | `supabase/33-restauration-sans-perte.sql`, `tests/phase1-f02-f20-db.test.mjs` | **Fait** (migration `33`, hors fixture pilote, à relire avant application) |
+| 1.5 | **F-04** dates UTC | `jourLocal()` avec `Africa/Algiers`, propagé à 9 fichiers `src/**` ; test de minuit. | `src/lib/workspace-data.ts`, composants, `tests/revue-corrections.test.mjs` | **Fait côté application.** RPC `at time zone 'Africa/Algiers'` : **non fait** |
+| 1.6 | **F-20** (rapport B-004) coût d'OF partiel compté N fois | Diviseur `v_of.qte_prevue` au lieu de `p_qte`. **Décision** : que faire des OF déjà valorisés (non corrigés rétroactivement). | `supabase/34-cout-of-partiel.sql`, `tests/phase1-f02-f20-db.test.mjs` | **Fait** (migration `34`). **Décision requise** sur l'historique |
+| 1.7 | **F-19** (rapport B-001) application ↔ schéma | Le code interroge `labo_*`/`vendeur_*`, absentes du chemin déployable. **Décision** : soit retenir `101/115/116` et les réconcilier, soit masquer le code labo/vendeur derrière un drapeau. Ajouter `app_schema_version` et un refus de démarrage si version incompatible. | `src/lib/workspace-read.ts`, `src/app/(app)/[module]/page.tsx`, composants labo | **Décision produit requise** ; `app_schema_version` non fait |
 
 ### Points à faire valider avant d'aller plus loin
 
@@ -32,11 +32,11 @@ Branche : `arena/27fe0740-patsygest` (base `2fba72c`).
 
 | # | Constat | Action |
 |---|---|---|
-| 2.1 | F-08 | `alter default privileges … revoke execute on functions from public` (migration courte). |
+| 2.1 | F-08 | **Ouvert, sans migration.** La forme `alter default privileges … in schema public` ne retire pas EXECUTE de PUBLIC (vérifié PGlite) ; la forme globale a un effet de bord non testable ici. |
 | 2.2 | F-05 | Contrôle de `version` dans `restaurer_sauvegarde` ; erreurs par table. |
-| 2.3 | F-06 | Borner `cuissonPertePct` à 99,99 ; erreurs de fiche typées. |
+| 2.3 | F-06 | **Fait** : borne 99,99 testée. Erreurs de fiche typées : non faites. |
 | 2.4 | F-12 | Une seule liste ordonnée `01→32` pour tests et déploiement ; brouillons dans un sous-dossier. Le manifeste doit inclure `32` (fait). |
-| 2.5 | F-10 | Remonter les ventes à 0 DA comme alerte (garde-fou de 1.2). |
+| 2.5 | F-10 | **Partiel** : tickets à 0 DA comptés dans `ticketsZero` (testé). Alerte à l'écran : non faite. |
 | 2.6 | — (rapport B-010) | **CI sur `pull_request` et `main`** : aucun workflow ne s'exécute avant merge aujourd'hui. Gates : `npm ci`, typecheck, lint, tests, build, tests de migration. |
 | 2.7 | — (rapport B-011) | Sauvegarde : passer d'AES-CBC non authentifié à AES-GCM ou `age` ; restauration testée. |
 | 2.8 | — (rapport B-007/B-008) | Transfert : `client_ref` et RPC transactionnelle ; anti-abus vitrine par source plutôt que compteur global. |
@@ -44,7 +44,7 @@ Branche : `arena/27fe0740-patsygest` (base `2fba72c`).
 
 ## Phase 3 — Amélioration ultérieure
 
-F-09 (`plusJours` validé), F-07 (`libellePrix` ≤ 0), F-14 (`FORMULE` avec espaces), F-13 (tiroir `{}` vs `'0'`), F-16 (séparer `insuffisantStock` / `insuffisantCout`), F-15 (filtre de période à l'export), F-11 (supprimer `src/db/` et les deux dépendances mortes), F-17 (`asOf` obligatoire dans `computeFefoCost`).
+F-09 (`plusJours` validé) **fait**, F-07 (`libellePrix` ≤ 0) **fait**, F-14 (regex CSV) **fait**, F-17 (`asOf` obligatoire ; `ingredient-impact` corrigé) **fait**, F-11 (`src/db/`, `drizzle-orm`, `drizzle-kit`, `postgres`, scripts `db:*` retirés) **fait**. Restent : F-13 (tiroir `{}` vs `'0'`), F-16 (séparer `insuffisantStock` / `insuffisantCout`), F-15 (filtre de période à l'export).
 
 ## Phase 4 — Optionnel
 

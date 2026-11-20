@@ -70,7 +70,7 @@ export function sortFefo<T extends FefoLot>(lots: T[]): T[] {
  * non bloqués, et DLC >= `asOf` lorsque `asOf` est fourni).
  * Les lots en `pu <= 0` sont ignorés (pas de coût connu).
  */
-export function computeFefoCost(lots: FefoLot[], qty: number, asOf?: string): FefoResult {
+export function computeFefoCost(lots: FefoLot[], qty: number, asOf: string): FefoResult {
   if (!Number.isFinite(qty) || qty <= 0) {
     throw new Error("Quantité de simulation invalide.");
   }

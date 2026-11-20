@@ -13,8 +13,16 @@ const monnaie = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maxim
 const monnaieCompacte = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 });
 export const quantite = (n: number, unit?: string) => `${decimal.format(n)}${unit ? ` ${unit}` : ""}`;
 export const dinars = (n: number, exact = true) => `${(exact ? monnaie : monnaieCompacte).format(n)} DA`;
-export const jourUTC = () => new Date().toISOString().slice(0, 10);
+/**
+ * Jour métier (AAAA-MM-JJ) à Oran : Africa/Algiers (UTC+1, sans heure d'été).
+ * Ne pas utiliser toISOString() : entre 00:00 et 01:00 locales, il donne la veille (F-04).
+ */
+export const jourLocal = (d: Date = new Date()) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Algiers", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 export function plusJours(day: string, n: number) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(`${day}T00:00:00Z`))) {
+    throw new Error(`Date invalide (AAAA-MM-JJ attendu) : ${day}`);
+  }
   const d = new Date(`${day}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
