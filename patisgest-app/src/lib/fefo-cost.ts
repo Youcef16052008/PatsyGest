@@ -28,6 +28,10 @@ export type FefoResult = {
   insuffisant: boolean;
   /** Quantité exclue car périmée avant `asOf` (0 si `asOf` non fourni). */
   perimeExclu: number;
+  /** F-16 : quantité éligible en stock mais sans prix connu (pu <= 0), ignorée du coût. */
+  sansPrixConnu: number;
+  /** F-16 : true si le STOCK éligible (prix connu ou non) ne suffit pas. Distinct de `insuffisant` (coût). */
+  insuffisantStock: boolean;
 };
 
 const DATE_ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -79,6 +83,8 @@ export function computeFefoCost(lots: FefoLot[], qty: number, asOf: string): Fef
   let cout = 0;
   let couvert = 0;
   let perimeExclu = 0;
+  let sansPrixConnu = 0;
+  let stockEligible = 0;
   const checkDate = Boolean(asOf && DATE_ISO.test(asOf));
 
   for (const lot of sortFefo(lots)) {
@@ -87,6 +93,8 @@ export function computeFefoCost(lots: FefoLot[], qty: number, asOf: string): Fef
       perimeExclu = round4(perimeExclu + lot.qte_rest);
       continue;
     }
+    stockEligible = round4(stockEligible + lot.qte_rest);
+    if (!(lot.pu > 0)) sansPrixConnu = round4(sansPrixConnu + lot.qte_rest);
     if (reste <= 0 || !(lot.pu > 0)) continue;
     const take = Math.min(round4(lot.qte_rest), reste);
     if (take <= 0) continue;
@@ -101,5 +109,7 @@ export function computeFefoCost(lots: FefoLot[], qty: number, asOf: string): Fef
     couvert: round4(couvert),
     insuffisant: reste > 1e-9,
     perimeExclu,
+    sansPrixConnu,
+    insuffisantStock: stockEligible + 1e-9 < round4(qty),
   };
 }

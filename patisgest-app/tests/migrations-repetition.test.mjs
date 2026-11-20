@@ -42,5 +42,5 @@ test('aucune collision de numéro SQL et correspondance complète des brouillons
   assert.ok(entry.ancien_fichier.startsWith(`${old}-`));
   assert.match(entry.sha256,/^[a-f0-9]{64}$/,'Empreinte SHA-256 réelle requise');
  }
- assert.deepEqual(plan.main_hors_serie.map(x=>x.file.match(/^\d+/)[0]),['24','25','26','27','28','29','30','31','32','33','34']);
+ assert.deepEqual(plan.main_hors_serie.map(x=>x.file.match(/^\d+/)[0]),['24','25','26','27','28','29','30','31','32','33','34','35']);
 });

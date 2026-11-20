@@ -46,7 +46,7 @@ export async function GET() {
         lignes.push(...data as Record<string, unknown>[]);
         if (data.length < 500) { complete = true; break; }
       }
-      if (!complete) { echecs.push(`${table} : lecture incomplète ou limite atteinte`); continue; }
+      if (!complete) { echecs.push(`${table} : plus de 50 000 lignes, sauvegarde incomplète refusée (F-15)`); continue; }
       tables.push({ table, lignes });
     }
 

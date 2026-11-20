@@ -41,7 +41,7 @@ export async function GET(request: Request) {
       lignes.push(...data as Record<string, ValeurCsv>[]);
       if(data.length<500) {complete=true;break;}
     }
-    if(!complete) return NextResponse.json({erreur:"Export incomplet : limite de lignes atteinte."},{status:500});
+    if(!complete) return NextResponse.json({erreur:"Export refusé : plus de 20 000 lignes pour cette table. Limitez l’export à une période ou exportez par tranches (F-15)."},{status:500});
     // Colonnes = union des clés rencontrées, ordre stable (alphabétique) pour
     // que deux exports successifs soient comparables au diff.
     const entetes = [...new Set(lignes.flatMap((l) => Object.keys(l)))].sort();

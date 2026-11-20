@@ -96,3 +96,39 @@ test('F-06 : perte de cuisson à 100 % → erreur de champ, pas une exception ; 
   assert.equal(ok.avertissements.length, 1);
   assert.equal(ok.fiche.rc02RendementNet, 0.001);
 });
+
+test('F-13 : « rien saisi » reste distinct de « 0 compté »', async () => {
+  const { parseCashDrawerDeclaration } = await import('../src/lib/reconciliation.ts');
+  assert.equal(parseCashDrawerDeclaration({}), null, 'rien saisi : pas de bilan');
+  const zero = parseCashDrawerDeclaration({ especesComptees: '0', fondInitial: '500' });
+  assert.equal(zero.especesComptees, 0, '0 saisi : zéro explicite');
+  assert.equal(zero.fondInitial, 500);
+  assert.throws(
+    () => parseCashDrawerDeclaration({ fondInitial: '500' }),
+    /espèces comptées/,
+    'fond saisi sans espèces comptées : refus',
+  );
+});
+
+test('F-16 : un lot sans prix n’est pas un « stock insuffisant »', async () => {
+  const { computeFefoCost } = await import('../src/lib/fefo-cost.ts');
+  const lot = (over) => ({ id: 'l', qte_rest: 100, pu: 0, dlc: null, bloque: false, congele: false, dlv: null, date_reception: '2026-10-01', ...over });
+  const r = computeFefoCost([lot({ pu: 0 })], 5, '2026-11-20');
+  assert.equal(r.cout, 0);
+  assert.equal(r.insuffisant, true, 'le coût reste partiel');
+  assert.equal(r.insuffisantStock, false, 'le stock est là');
+  assert.equal(r.sansPrixConnu, 100);
+  // Stock réellement absent : les deux indicateurs sont vrais.
+  const vide = computeFefoCost([lot({ qte_rest: 2, pu: 0 })], 5, '2026-11-20');
+  assert.equal(vide.insuffisantStock, true);
+});
+
+test('B-011 : la sauvegarde CI chiffre avec le coffre GCM, pas avec openssl AES-CBC', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const yml = await readFile(new URL('../../.github/workflows/sauvegarde-free.yml', import.meta.url), 'utf8');
+  const etape = yml.slice(yml.indexOf('Copie partielle chiffrée'), yml.indexOf('Conserver la sauvegarde'));
+  assert.ok(etape.includes('coffre-sauvegarde.mjs chiffrer'), 'chiffrement par le coffre attendu');
+  assert.ok(etape.includes('coffre-sauvegarde.mjs dechiffrer'), 'relecture authentifiée attendue');
+  assert.ok(!etape.includes('aes-256-cbc'), 'plus d’AES-CBC dans la sauvegarde');
+  assert.ok(etape.includes('/dev/shm'), 'dump clair hors disque');
+});

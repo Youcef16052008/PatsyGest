@@ -420,7 +420,7 @@ export function computeIngredientImpact(params: {
     // Valorisation FEFO sur les lots éligibles (hors bloqués et hors périmés si asOf).
     let autresMatieresFefo = 0;
     const autresPartiels: string[] = [];
-    let targetFefo = { cout: 0, couvert: 0, insuffisant: true, perimeExclu: 0 };
+    let targetFefo = { cout: 0, couvert: 0, insuffisant: true, perimeExclu: 0, sansPrixConnu: 0, insuffisantStock: true };
 
     for (const need of needs) {
       const lots = lotsByArticle.get(need.articleId) ?? [];
