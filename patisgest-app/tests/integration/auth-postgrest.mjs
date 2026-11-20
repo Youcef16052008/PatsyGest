@@ -722,7 +722,7 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    const venteHttp=await envoyerVente(authIds[0]);
    if (!/Vente enregistrée/.test(venteHttp)) throw new Error(`Réponse vente HTTP inattendue : ${venteHttp.replace(/\s+/g,' ').slice(0,1000)}`);
    assert.match(await envoyerVente(authIds[0]),/déjà enregistré/);
-   assert.match(await envoyerVente(authIds[0],saleTicket,2),/Ticket existant non vérifié ou différent/);
+   assert.match(await envoyerVente(authIds[0],saleTicket,2),/Ticket deja utilise pour une autre vente/);
    assert.equal((await sql`select count(*)::int n from ventes where ticket=${saleTicket}`)[0].n,1,'Rejeu : une seule vente');
 
    // Deux requêtes réellement concurrentes par PostgREST : une seule vente,
@@ -734,6 +734,8 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    assert.deepEqual(results.map(x=>x.duplicate).sort(),[false,true]);
    assert.equal(results[0].sale_id,results[1].sale_id);
    assert.equal((await sql`select count(*)::int n from ventes where ticket=${concurrentTicket}`)[0].n,1);
+   denied(await owner.rpc('vendre_panier',{...args,p_lignes:[{articleId:product,qte:2}]}),'Ticket deja utilise pour une autre vente');
+   denied(await owner.rpc('vendre_panier',{...args,p_mode_paiement:'carte'}),'Ticket deja utilise pour une autre vente');
    const interSite=await owner.rpc('vendre_panier',{...args,p_site_id:newSite.id});
    denied(interSite,'Ticket deja utilise pour une autre vente');
    assert.ok(!JSON.stringify(interSite).includes(results[0].sale_id),'Pas de fuite de la vente d’un autre site');

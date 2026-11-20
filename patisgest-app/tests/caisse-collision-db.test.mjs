@@ -32,14 +32,30 @@ test('caisse : collision étrangère, rejeu et ticket associé à un autre site'
    create function public.test_collision_vente() returns trigger language plpgsql as $$begin if new.ticket='collision' then raise exception 'collision fictive' using errcode='23505'; end if; return new; end$$;
    create trigger test_collision_vente before insert on public.ventes for each row execute function public.test_collision_vente();
    select set_config('test.uid','${auth}',false); set role authenticated;`);
-  const sale=async(site,ticket)=> (await db.query('select public.vendre_panier($1,$2::jsonb,$3,$4) as r',[site,JSON.stringify([{articleId:article,qte:1}]),ticket,'especes'])).rows[0].r;
+  const sale=async(site,ticket,lines=[{articleId:article,qte:1}],mode='especes')=> (await db.query('select public.vendre_panier($1,$2::jsonb,$3,$4) as r',[site,JSON.stringify(lines),ticket,mode])).rows[0].r;
   const first=await sale(s1,'vente-1'); assert.equal(first.duplicate,false); assert.ok(first.sale_id);
   const retry=await sale(s1,'vente-1'); assert.equal(retry.duplicate,true); assert.equal(retry.sale_id,first.sale_id);
+  const split=await sale(s1,'vente-1',[{articleId:article,qte:0.25},{article_id:article,qte:0.75}]);
+  assert.equal(split.sale_id,first.sale_id); assert.equal(split.duplicate,true);
+  await assert.rejects(sale(s1,'vente-1',[{articleId:article,qte:2}]),/Ticket deja utilise pour une autre vente/);
+  await assert.rejects(sale(s1,'vente-1',[{articleId:article,qte:1}],'carte'),/Ticket deja utilise pour une autre vente/);
+  await assert.rejects(sale(s1,'vente-1',[{articleId:'ffffffff-ffff-ffff-ffff-ffffffffffff',qte:1}]),/Ticket deja utilise pour une autre vente/);
   await assert.rejects(sale(s2,'vente-1'),/Ticket deja utilise pour une autre vente/);
   await assert.rejects(sale(s1,'import-z'),/Ticket deja utilise pour une autre vente/);
   await assert.rejects(sale(s1,'collision'),e=>e.code==='23505');
   const counts=await db.query("select count(*)::int n from public.ventes where ticket in ('vente-1','collision')");
   assert.equal(counts.rows[0].n,1);
   assert.equal((await db.query("select count(*)::int n from public.mouvements where ref='vente-1'")).rows[0].n,1);
+  // La migration échoue fermement si le corps ne correspond plus au prototype
+  // attendu (ici, parce que le correctif est déjà présent). Pas de remplacement
+  // silencieux d'une fonction différente du pilote.
+  await db.exec('reset role');
+  const avant=(await db.query("select pg_get_functiondef('public.vendre_panier(uuid,jsonb,text,text)'::regprocedure) as def")).rows[0].def;
+  const patch=await readFile(new URL('../supabase/128-caisse-collision-ticket-brouillon.sql',import.meta.url),'utf8');
+  await assert.rejects(db.exec(patch),/Corps de vendre_panier inattendu/);
+  await db.exec('rollback');
+  const apres=(await db.query("select pg_get_functiondef('public.vendre_panier(uuid,jsonb,text,text)'::regprocedure) as def")).rows[0].def;
+  assert.equal(apres,avant);
+
  } finally { await db.close(); }
 });
