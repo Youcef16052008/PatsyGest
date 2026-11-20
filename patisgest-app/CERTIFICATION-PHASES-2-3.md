@@ -1,6 +1,6 @@
 # Évaluation de certification — phases 2 et 3
 
-**Décision : NON CERTIFIÉES ; brouillons sécurité 24–48 non autorisés pour application.**
+**Décision : NON CERTIFIÉES ; brouillons sécurité 24–49 non autorisés pour application.**
 Ce document décrit un état et des essais partiels, pas un certificat de sécurité.
 Le pilote est utilisé par la production : une migration de sécurité incomplète
 peut aussi verrouiller les utilisateurs existants ou casser l'ancienne application.
@@ -10,7 +10,7 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
 - Historique Supabase consulté en lecture seule : après `controle_modules_23`
   (`20261119045242`), sept migrations de vitrine et domaines ont été appliquées
   indépendamment, jusqu'à `publication_vitrine_31` (`20261119195618`). Ce ne
-  sont pas les brouillons sécurité 24–48 de cette branche, dont la numérotation
+  sont pas les brouillons sécurité 24–49 de cette branche, dont la numérotation
   entre en collision avec celle de la vitrine. Aucun de ces brouillons sécurité
   n'a été appliqué au pilote par cette session.
 - Production Vercel consultée en lecture seule : commit `24ec425` sur main,
@@ -40,10 +40,12 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   les affirmations anciennes « aucune vue ou RPC publique » ne sont plus
   valables. `patisgest_traiter_demande` modifie un cake sous SECURITY DEFINER
   sans contrôle de site ou module dans sa définition actuellement observée.
-  Le brouillon 48 ajoute une garde de périmètre et de module ; sa compatibilité
-  et celle des autres chemins vitrine restent à démontrer. Les fixtures copiées
-  de main permettent un second scénario CI, mais ne sont pas une copie du pilote.
-  L'export partiel ne comprend pas `vitrine_photos` et n'est pas un rollback.
+  Le brouillon 48 ajoute une garde de périmètre et de module ; la CI 44692500455
+  la teste avec Auth/PostgREST sur une reconstruction vitrine. Le brouillon 49
+  ajoute une garde pour les photos et les RPC de recette, encore à vérifier en
+  CI. La compatibilité des autres chemins vitrine reste à démontrer. Les fixtures
+  copiées de main ne sont pas une copie du pilote. L'export partiel ne comprend
+  pas `vitrine_photos` ni Storage et n'est pas un rollback.
 - Toutes les tables, politiques, vues, fonctions SECURITY DEFINER, JSON,
   historiques, erreurs et combinaisons de modules ne sont pas couverts par des
   tests adversariaux. Les brouillons 38 et 39 masquent au vendeur les lots,

@@ -146,6 +146,22 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
     assert.equal(ok(await seller.rpc('patisgest_traiter_demande',{p_id:visible,p_decision:'accepter'}),'Traitement site attribué').statut,'devis');
     assert.equal((await sql`select statut from cakes where id=${hidden}`)[0].statut,'demande');
     await sql`delete from cakes where id in (${visible},${hidden})`;
+    const familyA='aaaaaaaa-0000-0000-0000-000000000081',familyB='bbbbbbbb-0000-0000-0000-000000000081';
+    await sql`insert into recette_familles(id,client_id,code,nom) values (${familyA},${A},'VIT-TEST-A','Fictif A'),(${familyB},${B},'VIT-TEST-B','Fictif B')`;
+    assert.ok((await owner.from('vitrine_photos').insert({client_id:A,famille_id:familyB,chemin:'foreign.jpg'})).error,'Photo vers famille étrangère refusée');
+    const photo=ok(await owner.from('vitrine_photos').insert({client_id:A,famille_id:familyA,chemin:'photo.jpg'}).select('id').single(),'Photo du même tenant');
+    assert.ok((await owner.from('vitrine_photos').update({famille_id:familyB}).eq('id',photo.id).select()).error,'Modification vers famille étrangère refusée');
+    const fiche={p_famille_id:familyA,p_visible:true,p_nom_vitrine:'Fictif',p_description:null,p_photo:null,p_ordre:100};
+    denied(await seller.rpc('patisgest_enregistrer_fiche_vitrine',fiche),'Role non autorise');
+    ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[0],p_module:'recettes',p_actif:false}),'Désactiver recettes propriétaire');
+    denied(await owner.rpc('patisgest_enregistrer_fiche_vitrine',fiche),'Module desactive');
+    denied(await owner.rpc('patisgest_supprimer_recette',{p_famille_id:familyA}),'Module desactive');
+    assert.ok((await owner.from('vitrine_photos').insert({client_id:A,famille_id:familyA,chemin:'blocked.jpg'})).error,'Photo bloquée sans module recettes');
+    ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[0],p_module:'recettes',p_actif:true}),'Réactiver recettes propriétaire');
+    assert.equal(ok(await owner.rpc('patisgest_enregistrer_fiche_vitrine',fiche),'Fiche autorisée').visible,true);
+    assert.ok((await owner.rpc('patisgest_enregistrer_fiche_vitrine_interne',fiche)).error,'Fiche interne inaccessible');
+    await sql`delete from vitrine_photos where id=${photo.id}`;
+    await sql`delete from recette_familles where id in (${familyA},${familyB})`;
   }
   ok(await owner.from('sites').update({nom:'Boutique modifiée'}).eq('id',newSite.id).select('id').single(), 'Modification boutique propriétaire');
   const otherLot = await sql`insert into lots(client_id,article_id,site_id,numero,qte_init,qte_rest,pu) values (${A},${article},${newSite.id},'AUTRE-SITE',4,4,77) returning id`;

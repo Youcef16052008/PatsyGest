@@ -1,7 +1,7 @@
 # Plan de clôture PâtisGest
 
 **État : inventaire de phase 1 terminé ; phase 2 partielle, phase 3 amorcée.** La PR #5 est en
-brouillon. Les brouillons sécurité 24 à 48 ne sont pas appliqués ; depuis 23,
+brouillon. Les brouillons sécurité 24 à 49 ne sont pas appliqués ; depuis 23,
 le pilote a reçu indépendamment des migrations de vitrine numérotées 25 à 31.
 Il faut réconcilier ces historiques et le main publié. L'inventaire historique
 n'est pas une certification de sécurité du catalogue actuel.
