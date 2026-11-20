@@ -30,6 +30,10 @@ test('vitrine : traitement d’une demande limité au site et au module attribu�
    try {await db.exec((await readFile(new URL(`../supabase/${file}`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;',''));}
    catch(e){throw new Error(`${file}: ${e.message}`,{cause:e});}
   }
+  const depot=(await db.query(`select pg_get_functiondef('public.patisgest_demander_commande(text,text,text,text,date,integer,text,text)'::regprocedure) definition,
+   has_function_privilege('anon','public.patisgest_demander_commande(text,text,text,text,date,integer,text,text)','execute') anon_execute`)).rows[0];
+  assert.match(depot.definition,/select s\.id, s\.client_id, s\.subdomain/);
+  assert.equal(depot.anon_execute,true,'Le dépôt public doit rester disponible à anon');
   await db.exec(`insert into clients(id,nom) values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','A'),('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','B');
    insert into utilisateurs(id,client_id,auth_user_id,email,nom,role) values
     ('11111111-1111-1111-1111-111111111111','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','10000000-0000-0000-0000-000000000001','owner@example.test','Owner','proprietaire'),

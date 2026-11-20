@@ -21,7 +21,7 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
 - La base pilote n'a qu'une clé étrangère vers `utilisateurs` dans son état
   actuel (`acces_modules`, suppression en cascade), mais le schéma évoluera
   avant le brouillon 36 et les usages applicatifs doivent être revérifiés.
-- Les tests locaux passent (314, typecheck, lint et build). La CI 44607099826 réussit
+- Les tests locaux passent (315, typecheck, lint et build). La CI 44607099826 réussit
   sur pile jetable : sessions Auth, contrôles PostgREST, modifications
   concurrentes, révocation et changement de type de site ou d'adresse. La CI
   44690862739 couvre aussi certains formulaires HTTP. La CI 44572631200 réussit
@@ -40,10 +40,11 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   les affirmations anciennes « aucune vue ou RPC publique » ne sont plus
   valables. `patisgest_traiter_demande` modifie un cake sous SECURITY DEFINER
   sans contrôle de site ou module dans sa définition actuellement observée.
-  Le brouillon 48 ajoute une garde de périmètre et de module ; la CI 44692500455
+  Le brouillon 48 ajoute une garde de périmètre et de module ; la CI 44694110523
   la teste avec Auth/PostgREST sur une reconstruction vitrine. Le brouillon 49
-  ajoute une garde pour les photos et les RPC de recette, encore à vérifier en
-  CI. Un test a aussi détecté un défaut dans la migration vitrine du dépôt main :
+  ajoute une garde pour les photos et les RPC de recette, testée dans cette CI.
+  Le même essai couvre un dépôt public fictif et sa répétition séquentielle.
+  Un test a aussi détecté un défaut dans la migration vitrine du dépôt main :
   une variable `v_site` sans champ `subdomain` est utilisée pour déposer une
   commande. Le corps observé sur le pilote sélectionne déjà ce champ ; le
   brouillon 50 corrige la reconstruction et échoue si le corps est inattendu.
