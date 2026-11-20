@@ -8,6 +8,8 @@ node -e 'const u=new URL(process.env.DB_URL);if(!["127.0.0.1","localhost","::1"]
 # On ne détruit que la base nommée ci-dessous dans le conteneur CLI exact.
 container=supabase_db_patsygest-isole
 docker inspect "$container" >/dev/null
+# Diagnostic de droits sans informations de connexion ni données client.
+docker exec "$container" psql -U postgres -d postgres -c "select rolname, rolsuper, rolcreaterole, rolcreatedb from pg_roles where rolname in ('postgres','supabase_admin') order by rolname"
 archive="$RUNNER_TEMP/patsygest-restore-trial.pgc"
 umask 077
 created=false
