@@ -112,3 +112,14 @@ arrière testée ; aucun blocage critique ouvert.
 
 **Règle transversale :** un résultat vert partiel, un brouillon ou une démo ne
 signifie pas que le système est prêt pour la production.
+
+### État après réconciliation de main
+
+Le commit de fusion `d77a588` conserve la vitrine et le panier multiproduit ;
+les migrations sécurité restent des brouillons. La CI isolée
+[44696789590](https://github.com/Youcef16052008/PatsyGest/actions/runs/44696789590)
+a réussi les variantes historique et vitrine et le garde Preview (y compris
+un hôte de boutique). En local : 354 tests, types, lint, build, 25 smoke HTTP
+et 3 tests Preview réussis. Ces résultats ne valident ni la base pilote réelle,
+ni la restauration complète, ni la reprise hors ligne sur appareil partagé.
+Aucune nouvelle migration n'a été appliquée au pilote à cette étape.
