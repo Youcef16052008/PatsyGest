@@ -78,3 +78,21 @@ test('F-19 : labo et vendeur sont masqués tant que le schéma n’est pas réco
   assert.equal(roleDisponible('labo'), false);
   assert.equal(roleDisponible('vendeur'), false);
 });
+
+test('F-06 : perte de cuisson à 100 % → erreur de champ, pas une exception ; 99,9 % → accepté avec avertissement', async () => {
+  const { tenterFicheCoutScaled } = await import('../src/lib/cost-sheet.ts');
+  const base = { matiereFefo: 100, tauxHoraire: 400, chargesPct: 25, pvHt: 500 };
+  const version = (cuissonPct) => ({
+    produitId: 'p', code: 'P', nom: 'Produit', rendementQte: 1, moMin: 0, energie: 0,
+    emballage: 0, fraisGeneraux: 0, cuissonPct,
+  });
+  const ko = tenterFicheCoutScaled({ ...base, version: version(100), qte: 1 });
+  assert.equal(ko.ok, false);
+  assert.equal(ko.champ, 'cuissonPertePct');
+  assert.match(ko.message, /Perte cuisson/);
+
+  const ok = tenterFicheCoutScaled({ ...base, version: version(99.9), qte: 1 });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.avertissements.length, 1);
+  assert.equal(ok.fiche.rc02RendementNet, 0.001);
+});

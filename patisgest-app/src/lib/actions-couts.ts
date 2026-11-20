@@ -5,7 +5,7 @@ import { canWrite, canReadCosts, getSessionContext } from "./auth";
 import { messageUtilisateur } from "./erreurs-db";
 import {
   aggregatePertes,
-  computeScaledFicheCout,
+  tenterFicheCoutScaled,
   rc07TauxPerte,
   rc08ManqueAJagner,
   rc10GardeFous,
@@ -218,7 +218,7 @@ export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Prom
     const matiere = Math.round(lignes.reduce((s, l) => s + l.cout, 0) * 100) / 100;
     const coutPartiel = lignes.some((l) => l.insuffisant);
 
-    const fiche = computeScaledFicheCout({
+    const resultatFiche = tenterFicheCoutScaled({
       version: selected,
       qte,
       matiereFefo: matiere,
@@ -226,6 +226,8 @@ export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Prom
       chargesPct,
       pvHt,
     });
+    if (!resultatFiche.ok) return { erreur: resultatFiche.message };
+    const fiche = resultatFiche.fiche;
 
     const clotureLignes: ClotureLigne[] = [];
     for (const c of (cloRes.data ?? []) as { lignes: unknown }[]) {
@@ -255,6 +257,7 @@ export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Prom
         };
 
     const gardeFous = rc10GardeFous(fiche.rc03Total, reference, pvHt, null);
+    for (const message of resultatFiche.avertissements) gardeFous.push({ code: "RC-02-cuisson", message });
     if (coutPartiel) {
       gardeFous.push({
         code: "RC-10-x10",
