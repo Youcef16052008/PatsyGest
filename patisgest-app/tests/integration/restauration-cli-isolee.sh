@@ -20,7 +20,9 @@ cd "$project"
 # données immobiles. La sauvegarde réelle nécessite un arrêt des écritures.
 supabase db dump --local --role-only -f "$work/roles.sql"
 supabase db dump --local -f "$work/schema.sql"
-supabase db dump --local --data-only --use-copy -f "$work/data.sql"
+# La documentation Supabase exclut ces deux tables vectorielles gérées :
+# ce test n'est donc PAS une restauration complète de ces données.
+supabase db dump --local --data-only --use-copy -x storage.buckets_vectors -x storage.vector_indexes -f "$work/data.sql"
 for file in roles schema data; do test -s "$work/$file.sql"; done
 # Cette commande ne doit jamais fonctionner hors du projet et conteneur CI ci-dessus.
 supabase stop --no-backup
