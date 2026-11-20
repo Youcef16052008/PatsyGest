@@ -718,7 +718,8 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    }
    assert.match(await envoyerVente(authIds[1]),/La session a changé/);
    assert.equal((await sql`select count(*)::int n from ventes where ticket=${saleTicket}`)[0].n,0,'Changement de compte : aucune vente');
-   assert.match(await envoyerVente(authIds[0]),/Vente enregistrée/);
+   const venteHttp=await envoyerVente(authIds[0]);
+   if (!/Vente enregistrée/.test(venteHttp)) throw new Error(`Réponse vente HTTP inattendue : ${venteHttp.replace(/\s+/g,' ').slice(0,1000)}`);
    assert.match(await envoyerVente(authIds[0]),/déjà enregistré/);
    assert.match(await envoyerVente(authIds[0],saleTicket,2),/Ticket existant non vérifié ou différent/);
    assert.equal((await sql`select count(*)::int n from ventes where ticket=${saleTicket}`)[0].n,1,'Rejeu : une seule vente');
