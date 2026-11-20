@@ -389,3 +389,14 @@ test('vitrine : un hôte boutique est réécrit vers son catalogue public', asyn
   assert.equal(new URL(rewrite, BASE).pathname,'/vitrine/elyasmine');
   assert.match(body, /Boutique indisponible/);
 });
+
+test('caisse : un onglet lié à une autre session est refusé avant écriture', async () => {
+  const cookie = `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`;
+  assert.equal((await get('/caisse',cookie)).status,200);
+  const manifest=JSON.parse(await (await import('node:fs/promises')).readFile(path.join(APP_ROOT,'.next/dev/server/app/(app)/[module]/page/server-reference-manifest.json'),'utf8'));
+  const action=Object.entries(manifest.node).find(([,v])=>v.filename==='src/lib/actions-caisse.ts' && v.exportedName==='sellCart')?.[0];
+  assert.ok(action);
+  const body=new FormData(); body.set('0',JSON.stringify([{},'$K1'])); body.set('1_expectedClientId','autre'); body.set('1_expectedAuthUserId','autre');
+  const res=await fetch(`${BASE}/caisse`,{method:'POST',headers:{cookie,origin:BASE,'next-action':action},body});
+  assert.equal(res.status,200); assert.match(await res.text(),/La session a changé/);
+});

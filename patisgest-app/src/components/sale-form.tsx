@@ -1,18 +1,18 @@
 "use client";
 
-import { useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { sellCart, type SaleState } from "@/lib/actions-caisse";
 import type { Etablissement } from "@/lib/etablissement";
 import { isPaymentMode, isValidCartQty, PAYMENT_MODE_LABELS, type PaymentMode } from "@/lib/pos-cart";
 import {
   createQueuedCartSale,
   enqueueSale,
-  getQueue,
+  createSaleQueueStore,
+  emptyQueueSnapshot,
   queuedSaleLines,
   queuedSaleSummary,
   removeSale,
-  setQueue,
-  subscribeQueue,
+  type QueueIdentity,
   type QueuedSale,
   type QueuedSaleLine,
 } from "@/lib/sale-queue";
@@ -22,7 +22,6 @@ import SaleComposer from "./sale-composer";
 import { Notice } from "./workspace-ui";
 import { quantite, siteCaisse, type CatalogProduct, type SiteStock, type WorkspaceSite } from "@/lib/workspace-data";
 
-const noQueue: QueuedSale[] = [];
 const label = "block text-xs font-semibold text-slate-600";
 
 type Msg = { kind: "err" | "ok" | "info"; text: string };
@@ -46,6 +45,7 @@ type VenteAffichee = SaleState & {
 export default function SaleForm({
   articles,
   sites,
+  queueIdentity,
   stock = null,
   expiredStock = null,
   etablissement,
@@ -54,6 +54,7 @@ export default function SaleForm({
 }: {
   articles: CatalogProduct[];
   sites: WorkspaceSite[];
+  queueIdentity: QueueIdentity;
   stock?: SiteStock | null;
   expiredStock?: SiteStock | null;
   etablissement?: Etablissement | null;
@@ -78,8 +79,10 @@ export default function SaleForm({
     () => true,
   );
 
-  const queued = useSyncExternalStore(subscribeQueue, getQueue, () => noQueue);
-  const commitQueue = (q: QueuedSale[]) => setQueue(q);
+  const { clientId, authUserId } = queueIdentity;
+  const store = useMemo(() => createSaleQueueStore({ clientId, authUserId }), [clientId, authUserId]);
+  const queueState = useSyncExternalStore(store.subscribe, store.getSnapshot, () => emptyQueueSnapshot);
+  const queued = queueState.sales;
 
   /** Synchronise un ticket panier : 'ok' | 'dup' (déjà enregistré) | 'network' | 'business'. */
   async function trySync(
@@ -87,6 +90,8 @@ export default function SaleForm({
   ): Promise<{ status: "ok" | "dup" | "network" | "business"; state: SaleState }> {
     const lines = queuedSaleLines(sale);
     const fd = new FormData();
+    fd.set("expectedClientId", queueIdentity.clientId);
+    fd.set("expectedAuthUserId", queueIdentity.authUserId);
     fd.set("siteId", sale.siteId);
     fd.set("ticket", sale.ticket);
     fd.set("modePaiement", sale.modePaiement ?? "especes");
@@ -135,7 +140,7 @@ export default function SaleForm({
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (lock.current || (guide && (guideTermine || getQueue().length > 0))) return;
+    if (lock.current || queueState.error || (guide && (guideTermine || queued.length > 0))) return;
     const formulaire = e.currentTarget;
     const fd = new FormData(formulaire);
     const siteId = String(fd.get("siteId") ?? "");
@@ -186,81 +191,94 @@ export default function SaleForm({
     });
 
     lock.current = true;
-    commitQueue(enqueueSale(getQueue(), sale));
-    setMsg({ kind: "info", text: "Ticket mis en file — synchronisation…" });
     startTransition(async () => {
-      const { status, state } = await trySync(sale);
-      if (status === "ok" || status === "dup") {
-        commitQueue(removeSale(getQueue(), sale.ticket));
-        const ticket = ticketVente(state, sale);
-        if (ticket) setLastSale(ticket);
-        setMsg({
-          kind: "ok",
-          text:
-            status === "dup"
-              ? "Ticket déjà enregistré — aucun doublon créé."
-              : (state.manquant ?? 0) > 0
-                ? `Ticket enregistré (${lignes.length} produit${lignes.length > 1 ? "s" : ""}, ${PAYMENT_MODE_LABELS[modePaiement]}). Stock éligible manquant : ${quantite(state.manquant ?? 0)}.`
-                : `Ticket enregistré (${lignes.length} produit${lignes.length > 1 ? "s" : ""}, ${PAYMENT_MODE_LABELS[modePaiement]}).`,
+      let stored = false;
+      try {
+        await store.transact(async (queue) => {
+          const current = queue.read();
+          if (guide && current.length > 0) throw new Error("Synchronisez d'abord les tickets en attente.");
+          queue.write(enqueueSale(current, sale));
+          stored = true;
+          setMsg({ kind: "info", text: "Ticket conservé localement — synchronisation…" });
+          const { status, state } = await trySync(sale);
+          if (status === "ok" || status === "dup") {
+            // Chaque retrait est persistant immédiatement, sous le même verrou.
+            queue.write(removeSale(queue.read(), sale.ticket));
+            const ticket = ticketVente(state, sale);
+            if (ticket) setLastSale(ticket);
+            setMsg({ kind: "ok", text: status === "dup" ? "Ticket déjà enregistré." :
+              (state.manquant ?? 0) > 0
+                ? `Ticket enregistré (${lignes.length} produit(s), ${PAYMENT_MODE_LABELS[modePaiement]}). Stock manquant : ${quantite(state.manquant ?? 0)}.`
+                : `Ticket enregistré (${lignes.length} produit(s), ${PAYMENT_MODE_LABELS[modePaiement]}).` });
+          } else if (status === "network") {
+            setMsg({ kind: "info", text: "Résultat inconnu : ticket conservé localement. Vérifiez puis synchronisez avec le même compte au retour du réseau." });
+          } else {
+            setMsg({ kind: "err", text: `${state.erreur ?? "Vente refusée."} Ticket conservé en attente de vérification.` });
+          }
         });
-        formulaire.reset();
-      } else if (status === "network") {
-        setMsg({
-          kind: "info",
-          text: "Ticket conservé dans la file locale avec sa référence unique. Reprenez la synchronisation dès le retour du réseau (aucun doublon possible).",
-        });
-        formulaire.reset();
-      } else {
-        commitQueue(removeSale(getQueue(), sale.ticket));
-        setMsg({ kind: "err", text: state.erreur ?? "Vente refusée." });
+      } catch (err) {
+        setMsg({ kind: "err", text: stored
+          ? "Mise à jour locale impossible après l'envoi. Le résultat peut être enregistré : vérifiez l'historique et la file avant de réessayer."
+          : `Vente non envoyée : ${err instanceof Error ? err.message : "stockage local indisponible."}` });
+      } finally {
+        // Dès qu'un ticket est durable, ne pas conserver le panier prérempli :
+        // une nouvelle soumission générerait un autre UUID pour la même vente.
+        if (stored) formulaire.reset();
+        lock.current = false;
       }
-      lock.current = false;
     });
   }
 
   function syncAll() {
-    if (lock.current || queued.length === 0) return;
+    if (lock.current || queued.length === 0 || queueState.error) return;
     lock.current = true;
     setMsg({ kind: "info", text: `Synchronisation de ${queued.length} ticket(s)…` });
     startTransition(async () => {
-      let q = getQueue();
-      let ok = 0;
-      let dup = 0;
-      const errs: string[] = [];
-      let stopped = false;
-      let firstOk: VenteAffichee | null = null;
-      for (const sale of [...q]) {
-        const { status, state } = await trySync(sale);
-        if (status === "network") {
-          stopped = true;
-          break;
-        }
-        if (status === "ok" || status === "dup") {
-          q = removeSale(q, sale.ticket);
-          if (status === "ok") ok++;
-          else dup++;
-          firstOk ??= ticketVente(state, sale);
-        } else {
-          q = removeSale(q, sale.ticket);
-          errs.push(`${queuedSaleSummary(sale)} : ${state.erreur ?? "refusé"}`);
-        }
-      }
-      commitQueue(q);
-      if (firstOk) setLastSale(firstOk);
-      const parts: string[] = [];
-      if (ok > 0) parts.push(`${ok} synchronisé(s)`);
-      if (dup > 0) parts.push(`${dup} déjà enregistré(s) sans doublon`);
-      if (errs.length > 0) parts.push(`${errs.length} refusé(s) : ${errs.join(" ; ")}`);
-      if (stopped) parts.push("réseau indisponible — le reste demeure en file");
-      setMsg({
-        kind: errs.length > 0 ? "err" : stopped ? "info" : "ok",
-        text: parts.join(" · ") || "File vide.",
-      });
-      lock.current = false;
+      try {
+        await store.transact(async (queue) => {
+          let ok = 0, dup = 0;
+          const errs: string[] = [];
+          let stopped = false;
+          let firstOk: VenteAffichee | null = null;
+          for (const sale of queue.read()) {
+            const { status, state } = await trySync(sale);
+            if (status === "network") { stopped = true; break; }
+            if (status === "ok" || status === "dup") {
+              queue.write(removeSale(queue.read(), sale.ticket));
+              if (status === "ok") ok++; else dup++;
+              firstOk ??= ticketVente(state, sale);
+            } else {
+              // Un refus ne prouve pas qu'un ancien envoi ambigu n'a pas abouti.
+              errs.push(`${queuedSaleSummary(sale)} : ${state.erreur ?? "refusé"}`);
+            }
+          }
+          if (firstOk) setLastSale(firstOk);
+          const parts: string[] = [];
+          if (ok) parts.push(`${ok} synchronisé(s)`);
+          if (dup) parts.push(`${dup} déjà enregistré(s)`);
+          if (errs.length) parts.push(`${errs.length} refusé(s), conservés : ${errs.join(" ; ")}`);
+          if (stopped) parts.push("résultat inconnu — le reste demeure en file");
+          setMsg({ kind: errs.length ? "err" : stopped ? "info" : "ok", text: parts.join(" · ") || "File vide." });
+        });
+      } catch {
+        setMsg({ kind: "err", text: "Synchronisation interrompue ou stockage indisponible. Vérifiez l'historique et la file avant de reprendre." });
+      } finally { lock.current = false; }
     });
   }
 
-  if (guideTermine && !lastSale && !msg && queued.length === 0) return null;
+  function retirerTicket(ticket: string) {
+    if (lock.current || !window.confirm("Vérifiez d'abord l'historique de caisse. Le résultat peut déjà être enregistré. Retirer ce ticket de la file locale ?")) return;
+    lock.current = true;
+    startTransition(async () => {
+      try {
+        await store.transact(async (queue) => { queue.write(removeSale(queue.read(), ticket)); });
+        setMsg({ kind: "info", text: "Ticket retiré de la file locale uniquement. Vérifiez l'historique de caisse." });
+      } catch { setMsg({ kind: "err", text: "Retrait impossible : la file n'a pas été modifiée." }); }
+      finally { lock.current = false; }
+    });
+  }
+
+  if (guideTermine && !lastSale && !msg && queued.length === 0 && !queueState.error && !queueState.legacy) return null;
 
   const produit = (
     <label className={label}>
@@ -311,7 +329,7 @@ export default function SaleForm({
             onSubmit={onSubmit}
             pending={pending}
             valider="Encaisser"
-            indisponible={!articles.length || !sites.length || queued.length > 0}
+            indisponible={!articles.length || !sites.length || queued.length > 0 || !!queueState.error}
             groupes={[
               {
                 nom: "Produit et site",
@@ -333,7 +351,7 @@ export default function SaleForm({
             stock={stock}
             expiredStock={expiredStock}
             onSubmit={onSubmit}
-            busy={pending}
+            busy={pending || !!queueState.error}
             status={
               !online ? (
                 <span className="pg-badge" data-tone="warning">Hors ligne</span>
@@ -343,6 +361,9 @@ export default function SaleForm({
             }
           />
         ))}
+      {!online && <Notice kind="warning">La vente n’est pas confirmée tant que le serveur ne l’a pas acceptée. Le prix appliqué peut changer avant synchronisation ; vérifiez le ticket final.</Notice>}
+      {queueState.error && <Notice kind="error">{queueState.error}</Notice>}
+      {queueState.legacy && <Notice kind="warning">Une ancienne file non attribuée à un compte existe sur cet appareil. Elle n’est ni effacée ni synchronisée automatiquement. Faites vérifier son contenu avant toute reprise.</Notice>}
       {msg && (
         <Notice kind={msg.kind === "err" ? "error" : msg.kind === "ok" ? "success" : "info"}>
           {msg.text}
@@ -354,7 +375,7 @@ export default function SaleForm({
           <div className="pg-card-head">
             <div>
               <h3>Tickets hors-ligne à synchroniser · {queued.length}</h3>
-              <p className="pg-help">Chaque ticket porte une référence unique : la reprise ne crée jamais de doublon.</p>
+              <p className="pg-help">Les tickets refusés restent en attente. Vérifiez l’historique avant de retirer un ticket ; le stockage du navigateur n’est pas une sauvegarde.</p>
             </div>
             <button
               type="button"
@@ -369,7 +390,7 @@ export default function SaleForm({
             {queued.map((s) => (
               <li key={s.ticket} className="pg-list-between">
                 <span>
-                  <strong>{queuedSaleSummary(s)}</strong> · {s.siteLabel}
+                  <strong>{queuedSaleSummary(s)}</strong> · {s.siteLabel} · réf. {s.ticket}
                   {s.modePaiement && ` · ${PAYMENT_MODE_LABELS[s.modePaiement]}`}
                 </span>
                 <span className="pg-muted">
@@ -377,6 +398,7 @@ export default function SaleForm({
                     hour: "2-digit",
                     minute: "2-digit",
                   })}
+                  {" "}<button type="button" className="pg-button pg-button-secondary" disabled={pending} onClick={() => retirerTicket(s.ticket)}>Retirer après vérification</button>
                 </span>
               </li>
             ))}

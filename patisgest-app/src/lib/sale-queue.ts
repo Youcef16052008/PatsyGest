@@ -106,11 +106,20 @@ export function enqueueSale(queue: QueuedSale[], sale: QueuedSale): QueuedSale[]
   ) {
     throw new Error("Vente incomplète pour la file.");
   }
-  const without = queue.filter((q) => q.ticket !== sale.ticket);
-  return [...without, sale].slice(-MAX);
+  const existing = queue.find((q) => q.ticket === sale.ticket);
+  if (existing) {
+    const signature = (s: QueuedSale) => JSON.stringify({
+      siteId: s.siteId, mode: s.modePaiement ?? "especes",
+      lignes: queuedSaleLines(s).map(({ articleId, qte }) => ({ articleId, qte })),
+    });
+    if (signature(existing) !== signature(sale)) throw new Error("Référence de ticket déjà utilisée pour une autre vente.");
+    return queue;
+  }
+  if (queue.length >= MAX) throw new Error("File pleine : synchronisez les tickets avant une nouvelle vente.");
+  return [...queue, sale];
 }
 
-/** Retire une vente (après synchronisation réussie ou erreur métier). */
+/** Retire une vente après confirmation ou vérification manuelle explicite. */
 export function removeSale(queue: QueuedSale[], ticket: string): QueuedSale[] {
   return queue.filter((q) => q.ticket !== ticket);
 }
@@ -139,10 +148,14 @@ function isValidStoredSale(q: unknown): q is QueuedSale {
     !s.ticket ||
     typeof s.articleId !== "string" ||
     !s.articleId ||
+    typeof s.articleLabel !== "string" ||
     typeof s.siteId !== "string" ||
     !s.siteId ||
+    typeof s.siteLabel !== "string" ||
+    typeof s.queuedAt !== "string" ||
+    !Number.isFinite(Date.parse(s.queuedAt)) ||
     typeof s.qte !== "number" ||
-    !(s.qte > 0)
+    !Number.isFinite(s.qte) || s.qte <= 0
   ) {
     return false;
   }
@@ -154,56 +167,96 @@ function isValidStoredSale(q: unknown): q is QueuedSale {
   return true;
 }
 
-/** Lecture de la file (localStorage absent ou corrompu → []). */
-export function loadQueue(storage?: StorageLike | null): QueuedSale[] {
-  try {
-    const store = storage ?? (typeof window !== "undefined" ? window.localStorage : null);
-    if (!store) return [];
-    const raw = store.getItem(KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidStoredSale);
-  } catch {
-    return [];
+// Le stockage local n'est pas une frontière de confidentialité : toute personne
+// ayant accès au profil navigateur peut inspecter les clés de tous les comptes.
+// Les clés séparées empêchent seulement l'affichage/rejeu accidentel par l'app.
+export type QueueIdentity = { clientId: string; authUserId: string };
+export type QueueSnapshot = { sales: QueuedSale[]; error: string | null; legacy: boolean };
+type LockProvider = { request<T>(name: string, callback: () => Promise<T>): Promise<T> };
+type QueueEnvironment = { storage: StorageLike; locks: LockProvider; notify?: () => void };
+export const emptyQueueSnapshot: QueueSnapshot = { sales: [], error: null, legacy: false };
+
+export function scopedQueueKey(identity: QueueIdentity): string {
+  if (!identity.clientId || !identity.authUserId) throw new Error("Identité de caisse manquante.");
+  return `patisgest.saleQueue.v2.${JSON.stringify([identity.clientId, identity.authUserId])}`;
+}
+
+/** Une file corrompue ne doit jamais être filtrée ni écrasée silencieusement. */
+export function readQueueStrict(storage: StorageLike, key: string): QueuedSale[] {
+  const raw = storage.getItem(key);
+  if (raw === null) return [];
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { throw new Error("File locale illisible : ne l'effacez pas, contactez le support."); }
+  if (!Array.isArray(parsed) || parsed.length > MAX || !parsed.every(isValidStoredSale)) {
+    throw new Error("File locale invalide : ne l'effacez pas, contactez le support.");
   }
-}
-
-export function saveQueue(queue: QueuedSale[], storage?: StorageLike | null): void {
-  try {
-    const store = storage ?? (typeof window !== "undefined" ? window.localStorage : null);
-    if (!store) return;
-    store.setItem(KEY, JSON.stringify(queue.slice(-MAX)));
-  } catch {
-    // stockage plein/indisponible : la file reste en mémoire côté React
+  if (new Set(parsed.map((s) => s.ticket)).size !== parsed.length) {
+    throw new Error("Références en double dans la file locale : contactez le support.");
   }
+  return parsed;
 }
 
-// ------------------------------------------------------ store React (SSR safe)
-let cache: QueuedSale[] | null = null;
-const listeners = new Set<() => void>();
-
-/** Snapshot stable (Object.is) pour useSyncExternalStore. */
-export function getQueue(): QueuedSale[] {
-  if (cache === null) cache = loadQueue();
-  return cache;
+/**
+ * Sérialise lecture, envoi et écriture entre onglets du même profil. Si les
+ * verrous Web ou le stockage sont indisponibles, refuser plutôt que prétendre
+ * avoir conservé un ticket. Les anciens clients v1 ne coopèrent pas : leurs
+ * tickets restent intacts et ne sont jamais rejoués automatiquement ici.
+ */
+export async function withSaleQueue<T>(identity: QueueIdentity, environment: QueueEnvironment, work: (queue: {
+  read: () => QueuedSale[];
+  write: (sales: QueuedSale[]) => void;
+}) => Promise<T>): Promise<T> {
+  const key = scopedQueueKey(identity);
+  return environment.locks.request(key, async () => {
+    const read = () => readQueueStrict(environment.storage, key);
+    // Tester la lecture avant toute opération, même si work n'appelle pas read.
+    read();
+    const write = (sales: QueuedSale[]) => {
+      if (sales.length > MAX || !sales.every(isValidStoredSale) || new Set(sales.map(s => s.ticket)).size !== sales.length) {
+        throw new Error("File invalide ou pleine : aucun ticket n'a été supprimé.");
+      }
+      environment.storage.setItem(key, JSON.stringify(sales));
+      // Une notification UI défaillante ne doit pas masquer une écriture réussie.
+      try { environment.notify?.(); } catch { /* l'état reste durable dans le stockage */ }
+    };
+    return work({ read, write });
+  });
 }
 
-/** Écrit la file, notifie les abonnés (et le localStorage). */
-export function setQueue(queue: QueuedSale[]): void {
-  cache = queue;
-  saveQueue(queue);
-  for (const l of listeners) l();
-}
-
-export function subscribeQueue(cb: () => void): () => void {
-  listeners.add(cb);
-  return () => {
-    listeners.delete(cb);
+export function createSaleQueueStore(identity: QueueIdentity) {
+  const key = scopedQueueKey(identity);
+  let lastRaw: string | null | undefined;
+  let lastLegacy: string | null | undefined;
+  let snapshot: QueueSnapshot = emptyQueueSnapshot;
+  const getSnapshot = (): QueueSnapshot => {
+    try {
+      const storage = window.localStorage;
+      const raw = storage.getItem(key);
+      const legacy = storage.getItem(KEY);
+      if (raw === lastRaw && legacy === lastLegacy && snapshot.error === null) return snapshot;
+      const sales = readQueueStrict(storage, key);
+      // Même une ancienne file corrompue ne doit pas être effacée ni reprise.
+      const hasLegacy = legacy !== null && legacy !== "[]";
+      snapshot = { sales, error: null, legacy: hasLegacy };
+      lastRaw = raw; lastLegacy = legacy;
+    } catch {
+      if (snapshot.error === null) snapshot = { sales: [], error: "Stockage ou file locale indisponible. Ne l'effacez pas ; contactez le support.", legacy: false };
+    }
+    return snapshot;
   };
-}
-
-/** Côté serveur : file toujours vide (le SSR ne connaît pas le localStorage). */
-export function getServerQueue(): QueuedSale[] {
-  return [];
+  const subscribe = (cb: () => void) => {
+    const changed = () => cb();
+    window.addEventListener("storage", changed);
+    window.addEventListener("patisgest-sale-queue", changed);
+    return () => { window.removeEventListener("storage", changed); window.removeEventListener("patisgest-sale-queue", changed); };
+  };
+  const transact = async <T,>(work: Parameters<typeof withSaleQueue<T>>[2]): Promise<T> => {
+    if (!navigator.locks) throw new Error("Ce navigateur ne permet pas de sécuriser la file entre onglets. Utilisez un navigateur compatible ou contactez le support.");
+    return withSaleQueue(identity, {
+      storage: window.localStorage,
+      locks: navigator.locks,
+      notify: () => window.dispatchEvent(new Event("patisgest-sale-queue")),
+    }, work);
+  };
+  return { getSnapshot, subscribe, transact };
 }

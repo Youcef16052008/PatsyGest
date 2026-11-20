@@ -108,11 +108,24 @@ pour le changer). Arrêtez le serveur de développement avant de lancer ce test.
 
 ### 5. Hors-ligne (NF-02)
 
-La file de tickets locale reste disponible lorsqu'une caisse déjà ouverte perd
-le réseau ; sa synchronisation est **manuelle**. Elle n'est pas isolée entre
-comptes d'un même navigateur : ne pas partager l'appareil sans procédure de
-contrôle des tickets. La reprise ne garantit pas l'encaissement : une vente
-peut être refusée lors de sa vérification côté serveur.
+Une caisse déjà ouverte peut conserver les tickets localement lors d'une coupure ;
+leur synchronisation est **manuelle** et la vente n'est confirmée qu'après réponse
+du serveur. Le prix peut changer avant la synchronisation. Chaque compte et
+établissement utilise une clé de file distincte et le serveur refuse un envoi
+si la session a changé. La file utilise des verrous Web pour sérialiser les
+onglets récents : sans verrou navigateur ou stockage persistant, la vente est
+refusée avant envoi. Une file pleine ou corrompue n'est pas écrasée ; les refus
+métier restent à vérifier, avec retrait manuel explicite après rapprochement.
+
+**Limites :** les clés séparées ne protègent pas la confidentialité contre une
+personne ayant accès au profil navigateur ou à ses outils de développement.
+Le stockage local peut être supprimé par le navigateur et n'est pas une
+sauvegarde. L'ancienne file non attribuée `patisgest.saleQueue.v1` est laissée
+intacte, signalée et jamais rejouée automatiquement : conserver l'appareil,
+ne pas effacer son stockage, et faire rapprocher les tickets avec l'historique
+avant une reprise manuelle encadrée. La compatibilité avec les anciens onglets,
+les pannes réelles et la procédure de reprise exigent encore validation sur
+tablette. Les changements ici ne sont pas déployés au pilote.
 
 Le service worker ne conserve que les assets statiques et purge les anciens
 caches PâtisGest au changement de version. **Les pages authentifiées et les

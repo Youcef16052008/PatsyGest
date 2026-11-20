@@ -7,6 +7,7 @@ import { parseCartSaleInput, PAYMENT_MODE_LABELS, type PaymentMode } from "./pos
 import { createClient } from "./supabase/server";
 import { parseSaleInput } from "./stock-input";
 import { parseZCsv } from "./z-input";
+import { sameSaleReplay, sameSaleSession } from "./sale-session";
 
 export type SaleReceiptLine = {
   articleId: string;
@@ -82,6 +83,12 @@ function readTicketLines(raw: unknown): SaleReceiptLine[] {
 export async function sellCart(_prev: SaleState, formData: FormData): Promise<SaleState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise.", reessayer: true };
+  // Empêche un ancien onglet d'envoyer sa file après changement de session.
+  // Ces valeurs ne sont pas une autorisation : la session et la RLS restent
+  // contrôlées côté serveur, et les identifiants déclarés doivent correspondre.
+  if (!sameSaleSession(ctx, formData.get("expectedClientId"), formData.get("expectedAuthUserId"))) {
+    return { erreur: "La session a changé. Reconnectez-vous avec le compte d'origine pour reprendre ce ticket." };
+  }
 
   let input;
   try {
@@ -123,11 +130,16 @@ export async function sellCart(_prev: SaleState, formData: FormData): Promise<Sa
     if (error) {
       if (error.code === "P0001") return { erreur: error.message };
       if (error.code === "42501") return { erreur: "Votre rôle n'autorise pas cette vente." };
-      if (error.code === "23505") return { erreur: "Ce ticket a déjà été enregistré.", duplicate: true };
+      if (error.code === "23505") return { erreur: "Conflit lors de la vente. Vérifiez l’historique avant toute reprise." };
       return { erreur: messageUtilisateur(error, "Vente refusée"), reessayer: echecHttpReessayable(status) };
     }
 
     const result = data as SaleResult | null;
+    // Certaines violations d'unicité SQL peuvent produire duplicate=true mais
+    // sans vente retrouvée. Ce n'est pas une confirmation d'enregistrement.
+    if (!result || typeof result.sale_id !== "string" || !result.sale_id || typeof result.duplicate !== "boolean") {
+      return { erreur: "Résultat de vente non confirmé. Vérifiez l'historique avant de reprendre.", reessayer: true };
+    }
     revalidatePath("/caisse");
     revalidatePath("/cloture");
     revalidatePath("/tableau-de-bord");
@@ -137,12 +149,12 @@ export async function sellCart(_prev: SaleState, formData: FormData): Promise<Sa
     if (result?.duplicate) {
       const { data: vente } = await supabase
         .from("ventes")
-        .select("numero, total_ht, total_ttc, lignes, created_at")
+        .select("id, numero, total_ht, total_ttc, lignes, mode_paiement, created_at")
         .eq("client_id", ctx.clientId)
         .eq("site_id", input.siteId)
         .eq("ticket", pTicket)
         .maybeSingle();
-      if (vente) {
+      if (vente && vente.id === result.sale_id && sameSaleReplay(input, vente)) {
         const lignesTicket = readTicketLines(vente.lignes);
         const allLots = lignesTicket.flatMap((l) => l.lots ?? []);
         return {
@@ -158,7 +170,7 @@ export async function sellCart(_prev: SaleState, formData: FormData): Promise<Sa
           lignesTicket,
         };
       }
-      return { duplicate: true, erreur: "Ce ticket a déjà été enregistré." };
+      return { erreur: "Ticket existant non vérifié ou différent : contrôlez l'historique avant toute reprise.", reessayer: true };
     }
 
     const { data: vente } = result?.sale_id
@@ -201,6 +213,8 @@ export async function sellProduct(prev: SaleState, formData: FormData): Promise<
     const input = parseSaleInput(formData);
     const cartData = new FormData();
     cartData.set("siteId", input.siteId);
+    cartData.set("expectedClientId", String(formData.get("expectedClientId") ?? ""));
+    cartData.set("expectedAuthUserId", String(formData.get("expectedAuthUserId") ?? ""));
     cartData.set("lignesJson", JSON.stringify([{ articleId: input.articleId, qte: input.qte }]));
     const ticket = String(formData.get("ticket") ?? "").trim();
     if (ticket) cartData.set("ticket", ticket);

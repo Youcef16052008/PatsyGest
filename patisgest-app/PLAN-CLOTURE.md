@@ -65,7 +65,10 @@ affectation, modification et révocation testés avec Auth et PostgREST réels.
 - Parcours de bout en bout achats, recettes, stocks, OF partiels, transferts,
   caisse, commandes et clôture ; confidentialité labo et modules désactivés.
 - Traiter idempotence, échecs partiels, simultanéité, pagination et restauration ;
-  préciser ce qui ne peut pas être transactionnel.
+  préciser ce qui ne peut pas être transactionnel. Dans `vendre_panier` 21,
+  une exception d'unicité peut renvoyer `duplicate=true` avec `sale_id` nul si
+  aucune vente ne correspond au ticket ; l'action caisse conserve désormais la
+  file dans ce cas, mais le SQL pilote et les collisions doivent être audités.
 
 **Sortie :** scénarios représentatifs à plusieurs sites et tests de défaillance,
 plus lint, types, tests, build, smoke HTTP et revue des dépendances.
@@ -82,10 +85,15 @@ plus lint, types, tests, build, smoke HTTP et revue des dépendances.
 - Hors-ligne : le cache HTML de main expose potentiellement une session précédente
   sur un appareil partagé ; le service worker de cette branche ne cache que
   les assets et purge ses anciens caches à l'activation. La caisse multiproduit
-  garde sa file locale et sa reprise manuelle ; catalogue de secours et reprise
-  automatique restent désactivés faute d'isolation de la file et du catalogue
-  par compte. L'ouverture de la caisse sans réseau est donc non garantie ;
-  concevoir et tester une isolation adaptée avant de réactiver ces fonctions.
+  utilise une file distincte par établissement et compte, une vérification
+  d'identité côté action serveur, des verrous Web entre onglets récents et une
+  reprise manuelle. Les anciennes files v1 non attribuées sont conservées sans
+  rejeu automatique. Une file pleine, corrompue ou un stockage défaillant
+  bloque l'envoi ; les refus restent en file jusqu'à vérification. Ceci n'est
+  pas une isolation de confidentialité du stockage face à l'accès physique.
+  Catalogue de secours et reprise automatique restent désactivés ; l'ouverture
+  de la caisse sans réseau n'est pas garantie. Tester la transition v1, les
+  anciens onglets et les pannes sur tablette avant toute activation.
   Le correctif ne protège pas les appareils de production tant qu'il n'y est
   pas déployé et que le nouveau service worker n'y est pas activé.
 - Comparer signatures, ACL, schéma et données historiques du pilote avec les

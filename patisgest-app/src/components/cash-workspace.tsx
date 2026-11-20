@@ -16,12 +16,12 @@ export async function lireIdentiteCaisse(db: WorkspaceDB, ctx: SessionContext): 
     nif: data?.nif ?? null, nis: data?.nis ?? null, rc: data?.rc ?? null };
 }
 
-export function CashPanel({ articles, sites, lots, identite }: {
-  articles: ArticleRow[] | null; sites: WorkspaceSite[] | null; lots: StockLot[] | null; identite: Etablissement;
+export function CashPanel({ articles, sites, lots, identite, queueIdentity }: {
+  articles: ArticleRow[] | null; sites: WorkspaceSite[] | null; lots: StockLot[] | null; identite: Etablissement; queueIdentity: { clientId: string; authUserId: string };
 }) {
   if (articles === null || sites === null) return <Notice kind="error">Impossible de charger les produits ou les sites. Rechargez la page avant d’encaisser.</Notice>;
   const today = jourUTC();
-  return <SaleForm articles={articles.filter(a => a.niveau === "produit").map(produitCaisse)} sites={sites}
+  return <SaleForm key={`${queueIdentity.clientId}:${queueIdentity.authUserId}`} queueIdentity={queueIdentity} articles={articles.filter(a => a.niveau === "produit").map(produitCaisse)} sites={sites}
     stock={lots ? stockParSite(lots, today) : null} expiredStock={lots ? stockPerimeParSite(lots, today) : null} etablissement={identite}/>;
 }
 
@@ -35,7 +35,7 @@ export default async function CashWorkspace({ ctx, db }: { ctx: SessionContext; 
     <PageIntro title="Caisse" label="Boutique" description="Composez le panier client (un ou plusieurs produits), choisissez le mode de règlement et enregistrez le ticket."
       actions={<Link href="/stocks" className="pg-button pg-button-secondary"><Icon name="box" size={18}/> Voir les stocks</Link>}/>
     <div className="pg-stack">
-      <CashPanel articles={articles} sites={sites} lots={lots} identite={identite}/>
+      <CashPanel queueIdentity={{clientId:ctx.clientId,authUserId:ctx.authUserId}} articles={articles} sites={sites} lots={lots} identite={identite}/>
       <SaleHistory sales={sales}/>
       {canWrite(ctx.role) && <Disclosure title="Importer un Z de caisse" description="Ajouter les ventes d’une caisse externe." icon="list"><ZImportForm sites={sites ?? []}/></Disclosure>}
     </div>

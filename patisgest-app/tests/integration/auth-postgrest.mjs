@@ -701,6 +701,43 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    const renewed=setCookies.map(c=>c.split(';')[0]).join('; ');
    const dashboard=await fetch('http://127.0.0.1:3414/tableau-de-bord',{headers:{cookie:renewed},redirect:'manual'});
    assert.equal(dashboard.status,200,'La session renouvelée ouvre le tableau de bord');
+
+   // Action Next réelle (protocole RSC), compte et base fictifs. Un ancien
+   // onglet lié à un autre compte ne doit jamais créer la vente.
+   const cashPage=await fetch('http://127.0.0.1:3414/caisse',{headers:{cookie:renewed},redirect:'manual'});
+   assert.equal(cashPage.status,200);
+   const manifest=JSON.parse(await readFile(path.join(root,'.next/dev/server/app/(app)/[module]/page/server-reference-manifest.json'),'utf8'));
+   const saleAction=Object.entries(manifest.node).find(([,v])=>v.filename==='src/lib/actions-caisse.ts' && v.exportedName==='sellCart')?.[0];
+   assert.ok(saleAction,'Action caisse introuvable dans le manifeste Next');
+   const saleTicket='cccccccc-cccc-4ccc-8ccc-ccccccccccc1';
+   async function envoyerVente(expectedUser, ticket=saleTicket, qte=1) {
+    const body=new FormData(); body.set('0',JSON.stringify([{},'$K1']));
+    for(const [k,v] of Object.entries({expectedClientId:A,expectedAuthUserId:expectedUser,siteId:site,ticket,modePaiement:'especes',lignesJson:JSON.stringify([{articleId:product,qte}])})) body.set(`1_${k}`,v);
+    const res=await fetch('http://127.0.0.1:3414/caisse',{method:'POST',headers:{cookie:renewed,origin:'http://127.0.0.1:3414','next-action':saleAction},body});
+    assert.equal(res.status,200); return res.text();
+   }
+   assert.match(await envoyerVente(authIds[1]),/La session a changé/);
+   assert.equal((await sql`select count(*)::int n from ventes where ticket=${saleTicket}`)[0].n,0,'Changement de compte : aucune vente');
+   assert.match(await envoyerVente(authIds[0]),/Vente enregistrée/);
+   assert.match(await envoyerVente(authIds[0]),/déjà enregistré/);
+   assert.match(await envoyerVente(authIds[0],saleTicket,2),/Ticket existant non vérifié ou différent/);
+   assert.equal((await sql`select count(*)::int n from ventes where ticket=${saleTicket}`)[0].n,1,'Rejeu : une seule vente');
+
+   // Collision d'un autre index que le ticket : la fonction historique peut
+   // renvoyer duplicate=true avec sale_id NULL. L'action doit conserver l'état
+   // ambigu, jamais annoncer un doublon confirmé.
+   const conflitTicket='cccccccc-cccc-4ccc-8ccc-ccccccccccc2';
+   await sql.unsafe(`create function public.test_collision_vente() returns trigger language plpgsql as $$begin if new.ticket='cccccccc-cccc-4ccc-8ccc-ccccccccccc2' then raise exception 'collision fictive' using errcode='23505'; end if; return new; end$$`);
+   await sql.unsafe('create trigger test_collision_vente before insert on public.ventes for each row execute function public.test_collision_vente()');
+   try {
+    const collision=await envoyerVente(authIds[0],conflitTicket);
+    assert.match(collision,/Résultat de vente non confirmé/);
+    assert.match(collision,/"reessayer":true/);
+    assert.equal((await sql`select count(*)::int n from ventes where ticket=${conflitTicket}`)[0].n,0);
+   } finally {
+    await sql.unsafe('drop trigger test_collision_vente on public.ventes');
+    await sql.unsafe('drop function public.test_collision_vente()');
+   }
    const settings=await fetch('http://127.0.0.1:3414/parametres',{headers:{cookie:renewed},redirect:'manual'});
    assert.equal(settings.status,200,'Paramètres propriétaire accessibles');
    const settingsHtml=await settings.text();
