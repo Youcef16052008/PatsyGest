@@ -6,12 +6,16 @@
     "src/app/(app)/tableau-de-bord/page.tsx",
     "src/app/(auth)/connexion/page.tsx",
     "src/app/(auth)/rejoindre/page.tsx",
+    "src/app/(vitrine)/vitrine/[slug]/page.tsx",
     "src/app/api/export/route.ts",
     "src/app/api/sauvegarde/route.ts",
     "src/app/estimation/page.tsx",
     "src/app/page.tsx"
   ],
   "actions": {
+    "src/app/(vitrine)/vitrine/[slug]/commander/actions.ts": [
+      "demanderCommande"
+    ],
     "src/lib/actions-achats.ts": [
       "createCommandeReal",
       "createFournisseur",
@@ -97,6 +101,14 @@
       "createArticle",
       "receiveLot",
       "transferReal"
+    ],
+    "src/lib/actions-vitrine.ts": [
+      "enregistrerPhotoVitrine",
+      "publierVitrine",
+      "reglerVitrineRecette",
+      "reserverSousDomaine",
+      "supprimerRecetteVitrine",
+      "traiterDemandeVitrine"
     ]
   }
 }

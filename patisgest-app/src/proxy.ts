@@ -1,6 +1,7 @@
 import { createServerClient, type CookieMethodsServer } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { previewBloquee, routePubliquePreview } from "./lib/preview-guard";
+import { DOMAINE_SERVICE_PAR_DEFAUT, deciderRoutage } from "@/lib/domaines";
 
 /**
  * Rafraîchit la session Supabase à chaque requête (cookies à jour).
@@ -17,6 +18,24 @@ export async function proxy(request: NextRequest) {
       headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
     });
   }
+  // --- 1. Routage par hôte : `slug.patisgest.dz` → vitrine publique.
+  // Décision pure, aucun appel réseau : elle doit rester instantanée même
+  // si Supabase est injoignable (mode hors-ligne de la caisse).
+  const routage = deciderRoutage(
+    request.headers.get("host"),
+    request.nextUrl.pathname,
+    request.nextUrl.search,
+    process.env.PATISGEST_DOMAINE ?? DOMAINE_SERVICE_PAR_DEFAUT,
+  );
+  if (routage.type === "reecrire") {
+    // Réécriture sur la MÊME origine : l'URL du visiteur reste
+    // `elyasmine.patisgest.dz`, seul le chemin interne change.
+    const cible = request.nextUrl.clone();
+    cible.pathname = routage.chemin;
+    cible.search = routage.recherche;
+    return NextResponse.rewrite(cible);
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

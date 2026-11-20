@@ -3,10 +3,15 @@
 Application Next.js 16 pour pâtisseries artisanales : connexion Supabase à trois rôles
 (propriétaire / labo / vendeur), isolement client par RLS, et modules Sprint 2.
 
+> **État de cette branche : non prête pour déploiement.** Les SQL de main et
+> les brouillons sécurité ont des numéros 24–31 en double ; ne jamais les
+> appliquer par tri lexical. Voir [PLAN-CLOTURE.md](PLAN-CLOTURE.md) et
+> [CERTIFICATION-PHASES-2-3.md](CERTIFICATION-PHASES-2-3.md). Les instructions
+> historiques ci-dessous ne constituent pas un ordre de migration validé.
+
 > **Démo et pilote connecté** : la démonstration manipule uniquement des données
 > fictives dans le navigateur. En mode Supabase, la caisse, les stocks et la
-> production utilisent les écritures et les contrôles de rôle existants. Cette
-> refonte ne demande pas de migration supplémentaire. Respecter la procédure
+> production utilisent les écritures et les contrôles de rôle existants. Les changements de cette branche nécessitent une réconciliation des migrations. Respecter la procédure
 > du [guide pilote](../GUIDE-PILOTE.md) avant d’utiliser des données réelles.
 
 ## Interface
@@ -56,6 +61,15 @@ propriétaire et au labo en mode Supabase. Il suit les six enregistrements
 existants dans l'établissement, pas les brouillons ni la file hors ligne.
 Pour le retest sur un établissement de test, voir [le guide pilote, étape 6](../GUIDE-PILOTE.md#étape-6--vérifier-et-chronométrer-le-guide-b).
 
+**Index d’exploitation (non validés pour ce déploiement)** : examiner
+`supabase/24-index-exploitation.sql`. Il crée 18 index composites par
+`client_id` là où les écrans et les RPC FEFO filtrent réellement. Sur le pilote
+(1 établissement) ils sont inutiles ; dès que plusieurs boutiques partagent les
+mêmes tables, leur absence transforme chaque écran en balayage complet. Sur une
+base déjà volumineuse, remplacer chaque `create index` par
+`create index concurrently` hors transaction pour ne pas bloquer la caisse.
+Coût d'infrastructure et arbitrage Free/Pro : [`../NOTE-HEBERGEMENT.md`](../NOTE-HEBERGEMENT.md).
+
 ### 2. Comptes
 
 Les comptes `amina@patisserie.dz` (propriétaire), `sara@patisserie.dz` (labo) et
@@ -91,6 +105,97 @@ npm run build          # build de production (celui que Vercel exécute)
 
 Le test de fumée démarre son propre `next dev` sur le port 3411 (variable `SMOKE_PORT`
 pour le changer). Arrêtez le serveur de développement avant de lancer ce test.
+
+### 5. Hors-ligne (NF-02)
+
+La file de tickets locale reste disponible lorsqu'une caisse déjà ouverte perd
+le réseau ; sa synchronisation est **manuelle**. Elle n'est pas isolée entre
+comptes d'un même navigateur : ne pas partager l'appareil sans procédure de
+contrôle des tickets. La reprise ne garantit pas l'encaissement : une vente
+peut être refusée lors de sa vérification côté serveur.
+
+Le service worker ne conserve que les assets statiques et purge les anciens
+caches PâtisGest au changement de version. **Les pages authentifiées et les
+réponses API ne sont pas mises en cache** : rouvrir `/caisse` hors connexion
+n'est pas garanti. Le catalogue de secours de main n'est pas branché à la caisse
+et la synchronisation automatique n'est pas activée : leur isolation par compte,
+leurs risques sur les prix et la reprise des files doivent être revus. Le
+manifeste et les icônes restent disponibles. Sur les appareils possédant déjà
+l'ancien service worker, la purge n'intervient qu'après déploiement et activation
+du nouveau ; elle n'a pas encore eu lieu en production.
+
+### 6. Vitrine publique (site web du client)
+
+Chaque boutique peut publier un site : `elyasmine.patisgest.dz` (ou
+`/vitrine/elyasmine` sur le domaine de l'application). C'est un **catalogue
+public**, pas un accès à l'application.
+
+Migrations : `25-domaines-boutiques.sql` (sous-domaines), `26-vitrine-publique.sql`
+(champs + vue `vitrine_catalogue`), `27-commandes-vitrine.sql` (RPC publiques),
+`28-fermeture-anon.sql` (droits).
+
+**Ce qu'un visiteur anonyme peut faire — et rien d'autre :**
+
+| Action | `anon` | vendeur | labo | propriétaire |
+|---|---|---|---|---|
+| Lire le catalogue (`vitrine_catalogue`) | oui | oui | oui | oui |
+| Déposer une demande de commande | oui (RPC) | — | — | — |
+| Accepter / refuser une demande | non | oui | oui | oui |
+| Changer une photo | non | **non** | oui | oui |
+| Modifier la fiche (nom, description, ordre) | non | **non** | oui | oui |
+| Ajouter / supprimer une recette | non | **non** | **non** | oui |
+| Publier / dépublier la vitrine | non | non | non | oui |
+
+Les règles de rôle vivent dans `src/lib/vitrine-permissions.ts` (pur, testé) ;
+la base les revalide (RLS + RPC).
+
+**Dédoublonnage :** deux recettes de même **nom** ne donnent qu'une entrée.
+La clé `patisgest_cle_nom()` ignore accents, casse et ponctuation (« Éclair »,
+« éclair » et « ECLAIR » = un seul gâteau). Les ingrédients ne sont pas
+comparés : c'est la règle métier demandée.
+
+**Ce qui n'est jamais publié :** aucune colonne de coût (matières, MO,
+énergie, emballage, frais généraux), aucun ingrédient, aucune marge. Un
+prix de vente à 0 sort à `null` et s'affiche « prix sur demande » — jamais
+« 0 DA ».
+
+**Traitement d'une demande :** le visiteur dépose un besoin (recette, date,
+parts, téléphone). Le statut initial est `demande`, le prix n'est pas fixé
+par lui. Un vendeur *accepte* (→ la demande devient un `devis` à chiffrer)
+ou *refuse* (→ `annule`). Aucun paiement ne circule sur la vitrine.
+
+**Idempotence :** la clé `cakes.cle_vitrine` est tirée par le navigateur et
+unique par établissement ; un double clic ou une reprise réseau renvoie la
+même demande au lieu d'en créer une seconde. Garde-fou anti-flood : 30
+demandes par heure et par établissement, sans stocker d'IP.
+
+**Routage :** `middleware.ts` classe l'hôte avec `resoudreHote()`. Un
+sous-domaine boutique réécrit `/` vers `/vitrine/<slug>` (même origine,
+pas de redirection). `/connexion`, `/tableau-de-bord`, `/api/*` et
+`/parametres` restent ceux de l'application : le gérant gère sa boutique
+depuis l'adresse de sa vitrine.
+
+**Mise en service par le client (Paramètres → Vitrine) :**
+
+1. réserver un sous-domaine (`ma-boutique`) — propriétaire seul ;
+2. cocher « Publiée » sur les recettes à montrer, régler nom affiché, description, ordre ;
+3. « Mettre en ligne » — refusé si aucune recette n'est publiée, ou sans adresse.
+
+Le visiteur remplit ensuite un formulaire de commande sur la vitrine. La clé
+d'idempotence est tirée une fois par page : un double clic renvoie la même
+demande. Ces demandes apparaissent **en haut de Cake Design**, dans un encart
+ambré « Demandes de la vitrine », séparé des devis : une demande n'a ni prix
+ni acompte, la mêler aux devis laisserait croire qu'elle est chiffrée.
+
+Le bouton **Accepter → devis** appelle `patisgest_traiter_demande` et passe le
+statut à `devis` **sans fixer de prix** : c'est le personnel qui chiffre
+ensuite. **Refuser** passe à `annule`. Les deux boutons sont affichés selon
+`peutTraiterDemande(role)` — propriétaire, labo et vendeur ; le rôle n'est
+jamais comparé en dur dans le composant.
+
+Migrations 31 : publication par RPC, car la policy `sites_update_staff`
+autorise propriétaire **et** labo — un `update` direct aurait laissé le
+laboratoire publier un site.
 
 ## Déploiement (Vercel)
 

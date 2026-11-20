@@ -72,14 +72,22 @@ plus lint, types, tests, build, smoke HTTP et revue des dépendances.
 
 ## Phase 5 — répétition et préparation du déploiement
 
-- Réconcilier cette branche avec main `24ec425` sans perdre la vitrine, le
-  hors-ligne ni les correctifs de sécurité. Un aperçu `git merge-tree` révèle
-  sept conflits (pages module et paramètres, CSS, formulaires cake et caisse,
-  proxy et smoke HTTP). Les fichiers SQL de main et les brouillons de sécurité
-  ont des numéros 24–31 en double : établir un ordre et un historique univoques,
-  au lieu de les rejouer par simple tri de noms. Revoir notamment l'interaction
-  du middleware vitrine avec le proxy Next et le garde Preview ; intégrer les
-  nouvelles pages, actions, vues et RPC dans les inventaires et essais.
+- La fusion locale de main `24ec425` résout les conflits de pages, CSS,
+  formulaires, proxy et smoke ; garder le garde Preview avant le routage vitrine.
+  Les SQL de main 24–31 et les brouillons sécurité ont des numéros en double :
+  les tests utilisent une liste d'exclusion explicite et, pour la variante
+  vitrine, rejouent les fixtures avant la série sécurité. **Ce n'est pas un
+  ordre de déploiement validé** : établir un historique univoque, comparer
+  précisément les SQL du pilote et répéter sur une copie représentative.
+- Hors-ligne : le cache HTML de main expose potentiellement une session précédente
+  sur un appareil partagé ; le service worker de cette branche ne cache que
+  les assets et purge ses anciens caches à l'activation. La caisse multiproduit
+  garde sa file locale et sa reprise manuelle ; catalogue de secours et reprise
+  automatique restent désactivés faute d'isolation de la file et du catalogue
+  par compte. L'ouverture de la caisse sans réseau est donc non garantie ;
+  concevoir et tester une isolation adaptée avant de réactiver ces fonctions.
+  Le correctif ne protège pas les appareils de production tant qu'il n'y est
+  pas déployé et que le nouveau service worker n'y est pas activé.
 - Comparer signatures, ACL, schéma et données historiques du pilote avec les
   hypothèses des migrations ; résoudre les divergences, comptes existants et
   anciens OF sans réécriture silencieuse.

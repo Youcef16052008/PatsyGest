@@ -1,3 +1,4 @@
+import { migrationSecurite } from './migrations-historique.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
@@ -16,7 +17,7 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
    alter default privileges in schema public grant all on tables to authenticated,service_role;
    alter default privileges in schema public grant execute on functions to authenticated,service_role;
    grant execute on function auth.uid() to authenticated,anon,service_role;`);
-  const migrations=(await readdir(new URL('../supabase/',import.meta.url))).filter(x=>/^\d\d-.*\.sql$/.test(x) && !x.startsWith('02-')).sort();
+  const migrations=(await readdir(new URL('../supabase/',import.meta.url))).filter(migrationSecurite).sort();
   for (const file of migrations) {
    let sql=await readFile(new URL(`../supabase/${file}`,import.meta.url),'utf8');
    sql=sql.replace('create extension if not exists pgcrypto;', ''); // gen_random_uuid est natif dans PGlite
@@ -206,7 +207,7 @@ test('transition isolée : comptes existants, droits inchangés et sites choisis
    alter default privileges in schema public grant all on tables to authenticated,service_role;
    alter default privileges in schema public grant execute on functions to authenticated,service_role;
    grant execute on function auth.uid() to authenticated,anon,service_role;`);
-  const files=(await readdir(new URL('../supabase/',import.meta.url))).filter(x=>/^\d\d-.*\.sql$/.test(x) && !x.startsWith('02-')).sort();
+  const files=(await readdir(new URL('../supabase/',import.meta.url))).filter(migrationSecurite).sort();
   for(const file of files) {
    if(file.startsWith('07-')) await db.exec("create function public.creer_of(uuid,uuid,numeric,date) returns jsonb language sql as $$select '{}'::jsonb$$");
    if(file.startsWith('09-')) await db.exec('alter table public.clotures add column if not exists revision integer default 1');

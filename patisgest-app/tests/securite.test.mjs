@@ -56,18 +56,30 @@ test('sécu : les fichiers .env sont ignorés par Git', () => {
   assert.ok(/^\.env/m.test(gi), '.gitignore doit couvrir .env*');
 });
 
-test('sécu : aucune migration n’accorde de droit d’exécution à anon', () => {
+/**
+ * Exception unique et nominative : la vitrine publique a besoin d'UNE
+ * fonction appelable par un visiteur non connecté. Elle ne prend aucun
+ * `client_id`, ne fixe aucun prix et exige un site publié (migration 27).
+ * Toute autre fonction ouverte à `anon` fait échouer ce test.
+ */
+const FONCTIONS_ANON_AUTORISEES = ['patisgest_demander_commande'];
+
+test('sécu : seule la RPC vitrine nominative est accordée à anon, jamais à PUBLIC', () => {
   const dir = 'supabase';
   const migrations = readdirSync(path.join(ROOT, dir)).filter((f) => f.endsWith('.sql'));
   assert.ok(migrations.length >= 17, `migrations manquantes (${migrations.length})`);
   for (const m of migrations) {
     const sql = lire(path.join(dir, m)).toLowerCase();
-    // `grant ... to anon` ou `grant ... to public` ouvrirait la RPC à Internet.
-    assert.equal(
-      /grant\s+execute\s+on\s+function[^;]*\bto\b[^;]*\banon\b/.test(sql),
-      false,
-      `grant à anon dans ${m}`,
-    );
+    const grants = sql.match(/grant\s+execute\s+on\s+function[^;]*;/g) ?? [];
+    for (const grant of grants) {
+      const match = grant.match(/^grant\s+execute\s+on\s+function\s+([\w.]+)\s*\([^)]*\)\s+to\s+([^;]+)/);
+      assert.ok(match, `grant non analysable dans ${m}: ${grant}`);
+      const [, nom, roles] = match;
+      assert.doesNotMatch(roles, /\bpublic\b/, `grant PUBLIC dans ${m}`);
+      if (/\banon\b/.test(roles)) {
+        assert.ok(FONCTIONS_ANON_AUTORISEES.includes(nom.split('.').pop()), `grant à anon pour ${nom} dans ${m}`);
+      }
+    }
   }
 });
 
@@ -297,7 +309,12 @@ test('sécu : toute migration révoque PUBLIC avant de donner un droit', () => {
         /revoke\s+(all|execute)\s+on\s+function/i.test(src),
         `${f} donne un droit d'exécution sans révoquer PUBLIC d'abord`,
       );
-      assert.equal(/to\s+(public|anon)\b/i.test(g), false, `${f} : ${g.slice(0, 60)}… donne le droit à anon/PUBLIC`);
+      if (/to\s+(public|anon)\b/i.test(g)) {
+        // Seule dérogation : la RPC publique de la vitrine (voir plus haut).
+        assert.match(g, /^grant\s+execute\s+on\s+function\s+(?:public\.)?patisgest_demander_commande\s*\(/i,
+          `${f} : fonction publique non autorisée`);
+        assert.doesNotMatch(g, /\bto\s+public\b/i, `${f} : grant PUBLIC interdit`);
+      }
     }
   }
 });

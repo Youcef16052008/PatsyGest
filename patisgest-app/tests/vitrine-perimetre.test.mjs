@@ -1,3 +1,4 @@
+import { migrationSecurite } from './migrations-historique.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
@@ -16,7 +17,7 @@ test('vitrine : traitement d’une demande limité au site et au module attribu�
    alter default privileges in schema public grant all on tables to authenticated,service_role;
    alter default privileges in schema public grant execute on functions to authenticated,service_role;
    grant execute on function auth.uid() to authenticated,anon,service_role;`);
-  const migrations=(await readdir(new URL('../supabase/',import.meta.url))).filter(x=>/^\d\d-.*\.sql$/.test(x) && !x.startsWith('02-')).sort();
+  const migrations=(await readdir(new URL('../supabase/',import.meta.url))).filter(migrationSecurite).sort();
   for(const file of migrations){
    if(file.startsWith('07-')) await db.exec("create function public.creer_of(uuid,uuid,numeric,date) returns jsonb language sql as $$select '{}'::jsonb$$");
    if(file.startsWith('09-')) await db.exec('alter table public.clotures add column if not exists revision integer default 1');

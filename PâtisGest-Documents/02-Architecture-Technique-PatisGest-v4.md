@@ -166,16 +166,44 @@ test d'intrusion léger externe si budget, mentions légales + CGU rédigées.
 
 ## 8. Hébergement, domaines & coûts (DZD)
 
-| Poste | Choix | Coût année 1 |
+| Poste | Choix | Coût |
 |---|---|---|
-| App + API | Vercel (Hobby → Pro à ~20 clients) | 0 → ~3 000 DA/mois |
-| Base + Auth | Supabase (Free → Pro à ~15 clients) | 0 → ~3 500 DA/mois |
+| App + API | Vercel **Pro** (obligatoire dès qu'un client paie : Hobby est réservé au non-commercial) | 20 $/mois ≈ 4 900 DA |
+| Base + Auth | Supabase **Pro** (le Free met le projet en pause après 7 jours sans requête et n'a aucune sauvegarde automatique) | 25 $/mois ≈ 6 100 DA |
 | Domaine | `patisgest.dz` (via NIC Algérie, RC requis) + `patisgest.com` en repli | ~3 000–5 000 DA/an |
-| E-mail transactionnel | Resend / Brevo (offre gratuite) | 0 DA |
-| Sauvegardes externes | Stockage objet 50 Go | ~1 000 DA/mois |
-| **Total** | | **≈ 5 000 DA/an puis ~7 500 DA/mois à 20 clients** |
+| E-mail transactionnel | Resend / Brevo (offre gratuite) — **SMTP custom obligatoire** : le SMTP intégré de Supabase plafonne à 2 e-mails/h, même en Pro | 0 DA |
+| Sauvegardes | Incluses (quotidiennes, 7 jours) + export client `GET /api/sauvegarde` | 0 DA (le poste « stockage objet 50 Go » devient inutile) |
+| **Total pilote (1 à 5 pilotes)** | Free + Hobby | **0 DA** |
+| **Total commercial** | | **≈ 11 000 DA/mois** |
+| Variante « VPS + Coolify » (à partir de ~30 clients) | Supabase Pro + VPS Hetzner CX23 à la place de Vercel | **≈ 6 400 DA/mois** + 4–8 h/mois d'exploitation |
 
-Soit < 1 abonnement Solo : le modèle est rentable dès le 2ᵉ client.
+À 50 clients Solo (2 900 DA) : MRR 145 000 DA, charge d'infra **7,6 %**.
+Quotas Pro inclus et suffisants : 8 GB de base (≈ 2 ans à 100 boutiques pleine
+charge), 100 GB de fichiers, 250 GB d'egress, 100 000 comptes.
+
+**Domaines des boutiques en ligne** : par défaut un sous-domaine
+`<boutique>.patisgest.dz` (0 DA, couvert par un certificat wildcard). Un client
+qui veut son propre domaine crée un CNAME ; Cloudflare for SaaS en couvre 100
+gratuitement, puis 0,10 $. Le domaine du client (`.dz` réservé aux marques
+déposées, 1 500–6 000 DA/an) reste à sa charge — **ne jamais acheter un domaine
+par client**. Le routage devra être par hôte (colonne `sites.domaine` + résolution
+dans le middleware) avant la première boutique en ligne vendue.
+
+**Trois paliers de coût** (détail et procédures :
+[`NOTE-COUT-MINIMAL.md`](../NOTE-COUT-MINIMAL.md)) :
+
+| Palier | Déclencheur | Infra | Coût |
+|---|---|---|---|
+| 1 | 0 à ~15 comptes, **sans facturation** | Supabase Free + Vercel Hobby + sauvegarde pg_dump GitHub Actions + garde-veille | **0 DA** (+ domaine 1 500–3 000 DA/an) |
+| 2 | premier client **facturé** | Supabase Free + **Cloudflare Workers** (commercial autorisé en gratuit) + mêmes sauvegardes | ≈ 1 700 DA |
+| 3 | ~15–20 clients | Supabase Pro + hébergeur Pro | ≈ 11 000 DA |
+
+Le palier 1 respecte la contrainte **C1 (< 60 000 DA/an)** ; payer tout de suite
+la dépasserait. Le passage du palier 1 au 2 n'est pas un choix de coût mais de
+**licence** : Vercel Hobby interdit l'usage commercial.
+
+Analyse complète, alternatives chiffrées (Neon, VPS, tout auto-hébergé) et
+arbitrage : [`NOTE-HEBERGEMENT.md`](../NOTE-HEBERGEMENT.md).
 
 ## 9. Environnements & méthode solo
 

@@ -593,3 +593,19 @@
 .pg-pilot-footnote { padding-top:10px; }
 @media(max-width:850px) { .pg-pilot-home .pg-home-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } .pg-pilot-home .pg-home-panels { grid-template-columns:1fr; } }
 @media(max-width:520px) { .pg-pilot-brief { align-items:flex-start; flex-direction:column; } .pg-pilot-home .pg-metric { min-height:115px; padding:14px; } .pg-pilot-section-title { align-items:start; flex-direction:column; } }
+/* Service worker : bandeau « nouvelle version disponible » (NF-02).
+   Discret, en bas à droite, au-dessus du contenu : il ne doit jamais
+   masquer le bouton « Encaisser » pendant une vente. */
+.pg-sw-update {
+  position: fixed; z-index: 60; right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
+  padding: 10px 12px; border-radius: 12px; font-size: .8rem; font-weight: 650;
+  background: var(--pg-surface, #fff); color: var(--pg-ink, #1e293b);
+  border: 1px solid var(--pg-line, #e2e8f0);
+  box-shadow: 0 10px 28px rgb(15 23 42 / .18);
+}
+.pg-sw-update button {
+  border: 0; border-radius: 8px; padding: .4rem .7rem; cursor: pointer;
+  background: #6d28d9; color: #fff; font-size: .78rem; font-weight: 800;
+}

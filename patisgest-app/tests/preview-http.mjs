@@ -1,3 +1,4 @@
+import http from 'node:http';
 // Vérification HTTP du blocage Preview sur un serveur Next local jetable.
 // Aucune connexion au pilote ; l'URL configurée est volontairement inutilisable.
 import { test, before, after } from 'node:test';
@@ -41,4 +42,18 @@ test('aperçu sans base isolée : routes métier et actions bloquées, calculate
 test('un en-tête externe de sous-requête ne contourne pas le garde-fou', async () => {
  const res = await fetch(base+'/connexion',{headers:{'x-middleware-subrequest':'middleware:middleware:middleware:middleware:middleware'},redirect:'manual'});
  assert.equal(res.status,503);
+});
+
+
+test('Preview bloque les hôtes de vitrine avant toute réécriture', async () => {
+ for (const [method, route] of [['GET','/'], ['POST','/commander']]) {
+  const {status, rewrite} = await new Promise((resolve,reject) => {
+   const req=http.request(base+route,{method,headers:{host:'atelier.patisgest.dz'},agent:false},res=>{
+    res.resume(); res.on('end',()=>resolve({status:res.statusCode,rewrite:res.headers['x-middleware-rewrite']}));
+   });
+   req.on('error',reject); req.end();
+  });
+  assert.equal(status,503,`${method} ${route}`);
+  assert.equal(rewrite,undefined);
+ }
 });
