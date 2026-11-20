@@ -66,7 +66,12 @@ peut aussi verrouiller les utilisateurs existants ou casser l'ancienne applicati
   il n'est pas une sauvegarde complète. Ses lectures paginées successives ne
   garantissent pas un instantané cohérent si les données changent pendant l'export.
   Une restauration complète et un retour arrière base + application doivent
-  être vérifiés sur un environnement isolé.
+  être vérifiés sur un environnement isolé. Le workflow de sauvegarde présent
+  sur main prévoit un pg_dump chiffré, mais aucun run n'a été trouvé lors du
+  contrôle ; l'accès à la liste des secrets GitHub a renvoyé HTTP 403, donc sa
+  configuration ne peut pas être confirmée ici. Il ignore les ACL (`--no-privileges`),
+  n'établit pas la sauvegarde des objets Storage et n'effectue pas de test de
+  restauration automatique : ne pas le considérer comme rollback vérifié.
 
 ## Phase 3 — critères non satisfaits
 

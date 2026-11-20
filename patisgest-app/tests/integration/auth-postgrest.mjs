@@ -152,7 +152,7 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
     const photo=ok(await owner.from('vitrine_photos').insert({client_id:A,famille_id:familyA,chemin:'photo.jpg'}).select('id').single(),'Photo du même tenant');
     assert.ok((await owner.from('vitrine_photos').update({famille_id:familyB}).eq('id',photo.id).select()).error,'Modification vers famille étrangère refusée');
     const fiche={p_famille_id:familyA,p_visible:true,p_nom_vitrine:'Fictif',p_description:null,p_photo:null,p_ordre:100};
-    denied(await seller.rpc('patisgest_enregistrer_fiche_vitrine',fiche),'Role non autorise');
+    denied(await seller.rpc('patisgest_enregistrer_fiche_vitrine',fiche),'R[oô]le non autoris[eé]');
     ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[0],p_module:'recettes',p_actif:false}),'Désactiver recettes propriétaire');
     denied(await owner.rpc('patisgest_enregistrer_fiche_vitrine',fiche),'Module desactive');
     denied(await owner.rpc('patisgest_supprimer_recette',{p_famille_id:familyA}),'Module desactive');
@@ -160,6 +160,22 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
     ok(await owner.rpc('modifier_acces_module',{p_utilisateur_id:ids[0],p_module:'recettes',p_actif:true}),'Réactiver recettes propriétaire');
     assert.equal(ok(await owner.rpc('patisgest_enregistrer_fiche_vitrine',fiche),'Fiche autorisée').visible,true);
     assert.ok((await owner.rpc('patisgest_enregistrer_fiche_vitrine_interne',fiche)).error,'Fiche interne inaccessible');
+    // Parcours public sur données inventées, jamais sur la vitrine réelle.
+    await sql`update sites set subdomain='essai-isole',publication='publiee' where id=${site}`;
+    const publicClient=client();
+    const catalogue=ok(await publicClient.from('vitrine_catalogue').select('*').eq('subdomain','essai-isole'),'Catalogue public fictif');
+    assert.equal(catalogue.length,1); assert.equal(catalogue[0].nom,'Fictif');
+    assert.ok(!('cout' in catalogue[0]) && !('ingredients' in catalogue[0]));
+    assert.ok((await publicClient.from('vitrine_photos').select('*')).error,'Table photos brute inaccessible à anon');
+    const ordrePublic={p_sous_domaine:'essai-isole',p_cle_recette:'Fictif A',p_client_nom:'Client fictif',p_telephone:'0123456789',p_date_event:new Date().toISOString().slice(0,10),p_nb_parts:1,p_note:null,p_cle_navigateur:'cle-fictive-123456'};
+    const depot=ok(await publicClient.rpc('patisgest_demander_commande',ordrePublic),'Dépôt public fictif');
+    assert.equal(depot.deja_enregistree,false);
+    const doublon=ok(await publicClient.rpc('patisgest_demander_commande',ordrePublic),'Dédoublonnage public');
+    assert.equal(doublon.id,depot.id); assert.equal(doublon.deja_enregistree,true);
+    assert.equal((await sql`select site_id from cakes where id=${depot.id}`)[0].site_id,site);
+    assert.ok((await publicClient.rpc('patisgest_demander_commande',{...ordrePublic,p_sous_domaine:'inconnue'})).error,'Vitrine absente refusée');
+    await sql`delete from cakes where id=${depot.id}`;
+    await sql`update sites set subdomain=null,publication='aucune' where id=${site}`;
     await sql`delete from vitrine_photos where id=${photo.id}`;
     await sql`delete from recette_familles where id in (${familyA},${familyB})`;
   }
