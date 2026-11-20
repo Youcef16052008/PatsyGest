@@ -72,6 +72,14 @@ plus lint, types, tests, build, smoke HTTP et revue des dépendances.
 
 ## Phase 5 — répétition et préparation du déploiement
 
+- Réconcilier cette branche avec main `24ec425` sans perdre la vitrine, le
+  hors-ligne ni les correctifs de sécurité. Un aperçu `git merge-tree` révèle
+  sept conflits (pages module et paramètres, CSS, formulaires cake et caisse,
+  proxy et smoke HTTP). Les fichiers SQL de main et les brouillons de sécurité
+  ont des numéros 24–31 en double : établir un ordre et un historique univoques,
+  au lieu de les rejouer par simple tri de noms. Revoir notamment l'interaction
+  du middleware vitrine avec le proxy Next et le garde Preview ; intégrer les
+  nouvelles pages, actions, vues et RPC dans les inventaires et essais.
 - Comparer signatures, ACL, schéma et données historiques du pilote avec les
   hypothèses des migrations ; résoudre les divergences, comptes existants et
   anciens OF sans réécriture silencieuse.
