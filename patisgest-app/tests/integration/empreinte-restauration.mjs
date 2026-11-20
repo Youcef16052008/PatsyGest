@@ -32,7 +32,21 @@ try {
  if (mode === 'capture') await writeFile(path, JSON.stringify(result), { mode: 0o600, flag: 'wx' });
  else {
   const previous = JSON.parse(await readFile(path,'utf8'));
-  for(const key of Object.keys(result)) assert.deepEqual(result[key],previous[key],`Différence : ${key}`);
+  for(const key of Object.keys(result)) {
+   try { assert.deepEqual(result[key],previous[key],`Différence : ${key}`); }
+   catch (error) {
+    if (key === 'tables') {
+     const before = new Map(previous.tables.map(x => [x.relname,x]));
+     for (const after of result.tables) {
+      const original = before.get(after.relname);
+      if (JSON.stringify(original) !== JSON.stringify(after)) {
+       console.error(`DIFF_TABLE ${after.relname} avant=${JSON.stringify(original)} apres=${JSON.stringify(after)}`);
+      }
+     }
+    }
+    throw error;
+   }
+  }
   console.log(`Empreintes égales : ${tables.length} tables publiques, données, policies, ACL, fonctions et auth.users.`);
  }
 } finally { await db.end(); }
