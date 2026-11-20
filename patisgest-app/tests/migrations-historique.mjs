@@ -1,11 +1,7 @@
-// Deux séries SQL portent les numéros 24–31. Les migrations de main sont
-// exercées séparément en fixtures, avant la série sécurité : le tri lexical du
-// répertoire fusionné n'est PAS un ordre de déploiement valide.
-const migrationsMain = new Set([
-  '24-index-exploitation.sql', '25-domaines-boutiques.sql', '26-vitrine-publique.sql',
-  '27-commandes-vitrine.sql', '28-fermeture-anon.sql', '29-fermeture-public-fonctions.sql',
-  '30-edition-vitrine-rpc.sql', '31-publication-vitrine.sql',
-]);
-export function migrationSecurite(name) {
-  return /^\d\d-.*\.sql$/.test(name) && !name.startsWith('02-') && !migrationsMain.has(name);
-}
+// Reconstitution explicitement figée pour les tests, pas pour production.
+// Les deux séries 24–31 sont distinctes ; ne jamais trier le répertoire entier.
+import { readFileSync } from 'node:fs';
+const plan = JSON.parse(readFileSync(new URL('../migrations/repetition.json', import.meta.url), 'utf8'));
+const sequence = [...plan.historique, ...plan.brouillons_securite].map(x => x.file);
+const names = new Set(sequence);
+export function migrationSecurite(name) { return names.has(name); }
