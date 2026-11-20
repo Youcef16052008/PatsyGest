@@ -43,7 +43,7 @@ supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supav
 {
  cat "$work/roles.sql"
  # Ne pas ajouter les droits par défaut de la base Supabase neuve.
- printf '\nALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated;\n'
+ printf '\nALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated;\nALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM anon, authenticated;\n'
  cat "$work/schema.sql"
  printf '\nSET session_replication_role = replica;\n'
  cat "$work/data.sql"
