@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ROLE_LABELS, canReadCosts, requireSession } from "@/lib/auth";
+import { ROLE_LABELS, canReadCosts, requireSession, roleDisponible } from "@/lib/auth";
 import { logout } from "@/lib/actions-auth";
 import { WORKSPACE_LINKS } from "@/lib/workspace-nav";
 import AppearancePicker, { QuickColorMode } from "@/components/appearance";
@@ -8,12 +8,25 @@ import { lireModulesDesactives } from "@/lib/modules-access";
 import WorkspaceNav from "@/components/workspace-nav";
 import { DemoWorkspaceProvider } from "@/components/demo-workspace";
 import { Icon } from "@/components/workspace-icons";
+import { createClient } from "@/lib/supabase/server";
+import { verifierVersionSchema } from "@/lib/schema-version";
 
 export const dynamic = "force-dynamic";
 const navCouts = new Set(["/recettes", "/simulation"]);
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const ctx = await requireSession();
+  // F-19 : refus explicite si la base n'est pas à la version attendue (mode Supabase seulement).
+  if (ctx.mode === "supabase") {
+    const db = await createClient();
+    const { data, error } = await db.from("app_schema_version").select("version").maybeSingle();
+    const verif = verifierVersionSchema(data as { version: unknown } | null, error);
+    if (!verif.ok) {
+      return <div className="pg-shell"><main id="contenu" className="pg-content"><p role="alert">{verif.message}</p><form action={logout}><button type="submit" className="pg-button">Déconnexion</button></form></main></div>;
+    }
+  }
+  // F-19 : un compte labo/vendeur ne voit pas d’écrans qui s’appuient sur des vues absentes.
+  if (!roleDisponible(ctx.role)) return <div className="pg-shell"><main id="contenu" className="pg-content"><p role="alert">Le rôle {ROLE_LABELS[ctx.role]} n’est pas disponible sur cette version. Contactez le propriétaire de l’espace.</p><form action={logout}><button type="submit" className="pg-button">Déconnexion</button></form></main></div>;
   const disabled = await lireModulesDesactives(ctx);
   const nav = WORKSPACE_LINKS.filter(({ href }) => (!navCouts.has(href) || canReadCosts(ctx.role) || (ctx.role === "labo" && href === "/recettes")) && (href === '/parametres' || href === '/tableau-de-bord' || (disabled !== null && !disabled.has(href.slice(1)))));
   const demo = ctx.mode === "pilote-local";

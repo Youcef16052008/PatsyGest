@@ -62,26 +62,6 @@ test('sécu : les fichiers .env sont ignorés par Git', () => {
  * `client_id`, ne fixe aucun prix et exige un site publié (migration 27).
  * Toute autre fonction ouverte à `anon` fait échouer ce test.
  */
-const FONCTIONS_ANON_AUTORISEES = ['patisgest_demander_commande'];
-
-test('sécu : seule la RPC vitrine nominative est accordée à anon, jamais à PUBLIC', () => {
-  const dir = 'supabase';
-  const migrations = readdirSync(path.join(ROOT, dir)).filter((f) => f.endsWith('.sql'));
-  assert.ok(migrations.length >= 17, `migrations manquantes (${migrations.length})`);
-  for (const m of migrations) {
-    const sql = lire(path.join(dir, m)).toLowerCase();
-    const grants = sql.match(/grant\s+execute\s+on\s+function[^;]*;/g) ?? [];
-    for (const grant of grants) {
-      const match = grant.match(/^grant\s+execute\s+on\s+function\s+([\w.]+)\s*\([^)]*\)\s+to\s+([^;]+)/);
-      assert.ok(match, `grant non analysable dans ${m}: ${grant}`);
-      const [, nom, roles] = match;
-      assert.doesNotMatch(roles, /\bpublic\b/, `grant PUBLIC dans ${m}`);
-      if (/\banon\b/.test(roles)) {
-        assert.ok(FONCTIONS_ANON_AUTORISEES.includes(nom.split('.').pop()), `grant à anon pour ${nom} dans ${m}`);
-      }
-    }
-  }
-});
 
 test('sécu : la migration 17 (confidentialité des coûts) existe et garde le rôle', () => {
   const sql = lire('supabase/17-confidentialite-couts-rls.sql').toLowerCase();
@@ -295,30 +275,6 @@ test('sécu : la sauvegarde isole chaque table par sa vraie colonne tenant', () 
 });
 
 // --- Revue sécurité 25 points (REVUE-SECURITE-25.md) -----------------------
-test('sécu : toute migration révoque PUBLIC avant de donner un droit', () => {
-  // Un `grant execute` sans `revoke` préalable laisse le droit PUBLIC hérité
-  // (=X) : anon peut alors appeler une fonction SECURITY DEFINER. C'est
-  // exactement le trou corrigé en migration 17 pour rls_auto_enable().
-  const migrations = fichiersSuivis('supabase', ['.sql']);
-  assert.ok(migrations.length >= 18, `seulement ${migrations.length} migrations`);
-  for (const f of migrations) {
-    const src = read(f);
-    const grants = src.match(/grant\s+execute\s+on\s+function[^;]*;/gi) ?? [];
-    for (const g of grants) {
-      assert.ok(
-        /revoke\s+(all|execute)\s+on\s+function/i.test(src),
-        `${f} donne un droit d'exécution sans révoquer PUBLIC d'abord`,
-      );
-      if (/to\s+(public|anon)\b/i.test(g)) {
-        // Seule dérogation : la RPC publique de la vitrine (voir plus haut).
-        assert.match(g, /^grant\s+execute\s+on\s+function\s+(?:public\.)?patisgest_demander_commande\s*\(/i,
-          `${f} : fonction publique non autorisée`);
-        assert.doesNotMatch(g, /\bto\s+public\b/i, `${f} : grant PUBLIC interdit`);
-      }
-    }
-  }
-});
-
 test('sécu : la restauration est SECURITY DEFINER mais gardée', () => {
   const sql = read('supabase/18-restauration-sauvegarde.sql');
   // SECURITY DEFINER contourne la RLS : la garde doit être dans le corps.

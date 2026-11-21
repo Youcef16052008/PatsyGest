@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
-import { migrationsRepetition } from './migrations-historique.mjs';
+import { migrationsRepetition, cheminMigration } from './migrations-historique.mjs';
 
 // Base jetable : ne remplace pas le test PostgREST/concurrence ni le pilote.
 test('caisse : collision étrangère, rejeu et ticket associé à un autre site', async () => {
@@ -19,7 +19,7 @@ test('caisse : collision étrangère, rejeu et ticket associé à un autre site'
   for (const file of migrationsRepetition()) {
    if (file.startsWith('07-')) await db.exec("create function public.creer_of(uuid,uuid,numeric,date) returns jsonb language sql as $$select '{}'::jsonb$$");
    if (file.startsWith('09-')) await db.exec('alter table public.clotures add column if not exists revision integer default 1');
-   const sql=(await readFile(new URL(`../supabase/${file}`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;','');
+   const sql=(await readFile(new URL(`../supabase/${cheminMigration(file)}`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;','');
    try { await db.exec(sql); } catch(e) { throw new Error(`${file}: ${e.message}`,{cause:e}); }
   }
   const client='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', user='11111111-1111-1111-1111-111111111111', auth='10000000-0000-0000-0000-000000000001';
@@ -51,7 +51,7 @@ test('caisse : collision étrangère, rejeu et ticket associé à un autre site'
   // silencieux d'une fonction différente du pilote.
   await db.exec('reset role');
   const avant=(await db.query("select pg_get_functiondef('public.vendre_panier(uuid,jsonb,text,text)'::regprocedure) as def")).rows[0].def;
-  const patch=await readFile(new URL('../supabase/128-caisse-collision-ticket-brouillon.sql',import.meta.url),'utf8');
+  const patch=await readFile(new URL('../supabase/brouillons/128-caisse-collision-ticket-brouillon.sql',import.meta.url),'utf8');
   await assert.rejects(db.exec(patch),/Corps de vendre_panier inattendu/);
   await db.exec('rollback');
   const apres=(await db.query("select pg_get_functiondef('public.vendre_panier(uuid,jsonb,text,text)'::regprocedure) as def")).rows[0].def;

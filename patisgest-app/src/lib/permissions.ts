@@ -26,3 +26,16 @@ export function canWrite(role: Role): boolean {
 export function canReadCosts(role: Role): boolean {
   return role === "proprietaire";
 }
+
+/**
+ * F-19 : les rôles labo et vendeur s'appuient sur des vues (`labo_*`,
+ * `vendeur_*`) absentes du chemin déployable 01–23 + 25–34. Décision produit :
+ * ils sont masqués tant que les migrations 101/115/116 ne sont pas réconciliées.
+ * Passer à `true` seulement après réconciliation et test de la matrice app × schéma.
+ */
+export const ROLES_LABO_VENDEUR_ACTIFS = false;
+
+/** Un rôle peut-il être attribué ou utilisé sur cette version ? */
+export function roleDisponible(role: Role): boolean {
+  return role === "proprietaire" || ROLES_LABO_VENDEUR_ACTIFS;
+}

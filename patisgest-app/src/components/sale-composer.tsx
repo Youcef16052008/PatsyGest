@@ -441,6 +441,12 @@ export default function SaleComposer({
               </strong>
             </div>
 
+            {totals.prixIncomplet && (
+              <p className="pg-sale-note" role="alert">
+                Un produit du ticket n&apos;a pas de prix de vente positif : retirez-le ou corrigez sa fiche avant d&apos;encaisser.
+              </p>
+            )}
+
             <button className="pg-button pg-sale-submit" type="submit" disabled={!canSell}>
               {busy ? "Enregistrement…" : demo ? "Simuler la vente" : "Encaisser"}
               <Icon name="arrow" size={17} />

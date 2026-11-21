@@ -3,12 +3,12 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "./supabase/server";
 
-import { canWrite, canReadCosts, type Role } from "./permissions";
+import { canWrite, canReadCosts, roleDisponible, type Role } from "./permissions";
 import { comptePilotePropre } from "./pilot-account";
 import { PILOT_ACCOUNTS } from "./pilot-accounts";
 export { PILOT_ACCOUNTS } from "./pilot-accounts";
 
-export { canWrite, canReadCosts };
+export { canWrite, canReadCosts, roleDisponible };
 export type { Role };
 
 export interface SessionContext {

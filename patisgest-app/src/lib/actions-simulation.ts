@@ -2,7 +2,8 @@
 
 import { canReadCosts, getSessionContext } from "./auth";
 import { messageUtilisateur } from "./erreurs-db";
-import { computeFefoCost, type FefoLot } from "./fefo-cost";
+import { computeFefoCost } from "./fefo-cost";
+import { lireLotsPourArticles, type ClientLots } from "./lots-batch";
 import { createClient } from "./supabase/server";
 
 export type SimuBesoins = {
@@ -60,17 +61,17 @@ export async function simulerReal(_prev: SimulationState, formData: FormData): P
       rendement_unite: string;
       besoins: SimuBesoins[];
     };
+    // N+1 : une lecture groupée pour tous les besoins (revue, simulation).
+    const besoins = r.besoins ?? [];
+    const { lots: lotsParArticle, erreur: erreurLots } = await lireLotsPourArticles(
+      supabase as unknown as ClientLots,
+      ctx.clientId,
+      besoins.map((b) => b.articleId),
+    );
+    if (erreurLots) return { erreur: `Lecture des lots impossible : ${erreurLots}` };
     const rows: SimuRow[] = await Promise.all(
-      (r.besoins ?? []).map(async (b) => {
-        const lotsRes = await supabase
-          .from("lots")
-          .select("id, qte_rest, pu, dlc, date_reception, congele, bloque")
-          .eq("client_id", ctx.clientId)
-          .eq("article_id", b.articleId)
-          .eq("bloque", false)
-          .gt("qte_rest", 0)
-          .limit(300);
-        const lots = (lotsRes.data ?? []) as (FefoLot & { id: string })[];
+      besoins.map(async (b) => {
+        const lots = lotsParArticle.get(b.articleId) ?? [];
         const fefo = computeFefoCost(lots, b.qty, today);
         return {
           ...b,

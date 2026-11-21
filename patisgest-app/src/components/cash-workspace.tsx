@@ -2,7 +2,7 @@ import "server-only";
 import Link from "next/link";
 import { canWrite, type SessionContext } from "@/lib/auth";
 import { articleAffiche, lireArticles, lireHistoriqueCaisse, lireLots, lireSites, produitCaisse, type ArticleRow, type WorkspaceDB } from "@/lib/workspace-read";
-import { jourUTC, stockParSite, stockPerimeParSite, type StockLot, type WorkspaceSite } from "@/lib/workspace-data";
+import { jourLocal, stockParSite, stockPerimeParSite, type StockLot, type WorkspaceSite } from "@/lib/workspace-data";
 import type { Etablissement } from "@/lib/etablissement";
 import SaleForm from "./sale-form";
 import SaleHistory from "./sale-history";
@@ -20,7 +20,7 @@ export function CashPanel({ articles, sites, lots, identite, queueIdentity }: {
   articles: ArticleRow[] | null; sites: WorkspaceSite[] | null; lots: StockLot[] | null; identite: Etablissement; queueIdentity: { clientId: string; authUserId: string };
 }) {
   if (articles === null || sites === null) return <Notice kind="error">Impossible de charger les produits ou les sites. Rechargez la page avant d’encaisser.</Notice>;
-  const today = jourUTC();
+  const today = jourLocal();
   return <SaleForm key={`${queueIdentity.clientId}:${queueIdentity.authUserId}`} queueIdentity={queueIdentity} articles={articles.filter(a => a.niveau === "produit").map(produitCaisse)} sites={sites}
     stock={lots ? stockParSite(lots, today) : null} expiredStock={lots ? stockPerimeParSite(lots, today) : null} etablissement={identite}/>;
 }

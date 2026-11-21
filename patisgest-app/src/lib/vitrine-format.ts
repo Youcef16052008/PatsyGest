@@ -20,7 +20,7 @@ export type ArticlePrix = {
  * article à 0 DA).
  */
 export function libellePrix(article: ArticlePrix): string {
-  if (article.prixHt === null || article.prixHt === undefined) return "Prix sur demande";
+  if (article.prixHt === null || article.prixHt === undefined || !(article.prixHt > 0)) return "Prix sur demande";
   const montant = article.prixHt.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
   return `${montant} DA${article.unite ? ` / ${article.unite}` : ""}`;
 }

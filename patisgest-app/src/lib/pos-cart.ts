@@ -202,7 +202,9 @@ export function computeCartTotals(cart: readonly CartItem[]): CartTotals {
       item.prixHT !== null &&
       item.tva !== null &&
       Number.isFinite(item.prixHT) &&
-      item.prixHT >= 0 &&
+      // Un prix nul n'est pas un prix : « 0 DA » encaissé décrémenterait le
+      // stock sans recette (F-01). Ligne à 0 → ticket invalide.
+      item.prixHT > 0 &&
       Number.isFinite(item.tva) &&
       item.tva >= 0 &&
       item.tva <= 100;
@@ -243,7 +245,8 @@ export function computeCartTotals(cart: readonly CartItem[]): CartTotals {
     totalTVA: prixIncomplet || !allValid ? null : (centsTTC - centsHT) / 100,
     totalTTC: prixIncomplet || !allValid ? null : centsTTC / 100,
     prixIncomplet,
-    valide: allValid,
+    // Un ticket avec une ligne sans prix strictement positif n'est jamais vendable (F-01).
+    valide: allValid && !prixIncomplet,
   };
 }
 

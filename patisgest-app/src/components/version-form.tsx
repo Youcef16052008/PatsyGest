@@ -85,7 +85,7 @@ export default function VersionForm({ familles, articles, subVersions, versions,
               <input name="rendementUnite" list="units-vf" required defaultValue="pcs" maxLength={10} className={field} />
             </label>
             <label className={`${label} w-28`}>Perte cuisson %
-              <input name="cuissonPertePct" type="number" step="any" min={0} max={100} defaultValue={0} className={field} />
+              <input name="cuissonPertePct" type="number" step="any" min={0} max={99.99} defaultValue={0} className={field} />
             </label>
             <label className={`${label} w-28`}>MO (min)
               <input name="moMin" type="number" step="any" min={0} defaultValue={0} className={field} />

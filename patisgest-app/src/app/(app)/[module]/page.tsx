@@ -17,7 +17,7 @@ import { computePriceAlerts } from "@/lib/price-alerts";
 import { computeCashReconciliation, computeReconciliation, type CashDrawerDeclaration, type ClosingRecord, type SaleRecord } from "@/lib/reconciliation";
 import { lireVentesPeriode } from "@/lib/workspace-read";
 import { lireDemainAuLabo } from "@/lib/tomorrow-lab-server";
-import { jourUTC, plusJours } from "@/lib/workspace-data";
+import { jourLocal, plusJours } from "@/lib/workspace-data";
 import ReconPanel from "@/components/recon-panel";
 import VersionForm, { type VersionRow } from "@/components/version-form";
 import RecallForm from "@/components/recall-form";
@@ -322,7 +322,7 @@ export default async function ModulePage({ params, searchParams }: {
   } else if (key==='planning') {
     // « Demain au labo » (propriétaire/labo) + demandes de réassort boutique (tous rôles, y compris vendeur).
     const rawDate = firstParam(recherche.demain);
-    const targetDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : plusJours(jourUTC(), 1);
+    const targetDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : plusJours(jourLocal(), 1);
     const demainData = await lireDemainAuLabo(supabase, ctx.clientId, ctx.role, targetDate);
     const planningSourcesDesactivees = ["stocks", "recettes", "production", "caisse", "cake-design"].some(m=>modulesDesactives.has(m));
     const tomorrowProps = {

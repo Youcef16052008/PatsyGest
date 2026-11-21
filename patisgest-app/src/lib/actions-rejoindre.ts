@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "./supabase/server";
 import { equipeExperimentaleActive } from "./equipe-experimental";
+import { roleDisponible } from "./permissions";
 
 export type RejoindreState = { erreur?: string; succes?: string };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -20,6 +21,7 @@ export async function demanderRattachement(_prev: RejoindreState, form: FormData
   const nom = String(form.get("nom") ?? "").trim();
   const role = String(form.get("role") ?? "");
   if (!uuid.test(code) || !nom || nom.length > 100 || !["vendeur", "labo"].includes(role)) return { erreur: "Code, nom ou rôle invalide." };
+  if (!roleDisponible(role as "labo" | "vendeur")) return { erreur: "Ce rôle n’est pas disponible sur cette version." };
   try {
     const db = await clientVerifie();
     if (!db) return { erreur: "Compte vérifié ou fonctionnalité indisponible." };

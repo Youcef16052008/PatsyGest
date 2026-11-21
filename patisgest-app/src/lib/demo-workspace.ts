@@ -23,7 +23,7 @@ import {
 } from "./ingredient-impact.ts";
 import type { FefoLot } from "./fefo-cost.ts";
 import { computeTomorrowLabPlan, type TomorrowLabPlan } from "./tomorrow-lab.ts";
-import { jourUTC, plusJours, type CatalogProduct, type ProductionItem, type SaleSummary, type StockLot, type WorkspaceSite } from "./workspace-data.ts";
+import { jourLocal, plusJours, type CatalogProduct, type ProductionItem, type SaleSummary, type StockLot, type WorkspaceSite } from "./workspace-data.ts";
 
 export const DEMO_STORAGE_KEY = "patisgest-demo-v1";
 export const DEMO_SITES: WorkspaceSite[] = [
@@ -155,7 +155,7 @@ export function demoImpactVersions(state: State): ImpactRecipeVersion[] {
   });
 }
 
-export function demoMercurialeFor(state: State, articleId: string, asOf = jourUTC()) {
+export function demoMercurialeFor(state: State, articleId: string, asOf = jourLocal()) {
   const lots = state.lots
     .filter((l) => l.site === "Labo")
     .map((l) => ({
@@ -183,7 +183,7 @@ export function demoIngredientImpact(
   state: State,
   params: { articleId: string; ancienPu: number; sourceAncien: string; nouveauPu: number; sourceNouveau: string; asOf?: string },
 ) {
-  const asOf = params.asOf ?? jourUTC();
+  const asOf = params.asOf ?? jourLocal();
   const articles: ImpactArticle[] = state.articles.map((a) => ({ id: a.id, code: a.code, nom: a.nom, unite: a.unite }));
   const target = articles.find((a) => a.id === params.articleId);
   if (!target) throw new Error("Ingrédient introuvable.");
@@ -332,7 +332,7 @@ export function demoTomorrowPlan(state: State, targetDate: string): TomorrowLabP
 }
 
 /** Cas illustratif initial uniquement. N’écrase jamais la démo déjà saisie. */
-export function createDemoWorkspace(today = jourUTC()): State {
+export function createDemoWorkspace(today = jourLocal()): State {
   let state = structuredClone(seed);
   // Sous-recette de démonstration pour illustrer la propagation d'une hausse matière (beurre en g → kg).
   state.articles.push({

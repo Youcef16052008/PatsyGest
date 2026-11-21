@@ -1,7 +1,7 @@
 import "server-only";
 import { canReadCosts, canWrite, type SessionContext } from "@/lib/auth";
 import { articleAffiche, lireArticles, lireLots, lireSites, type WorkspaceDB } from "@/lib/workspace-read";
-import { jourUTC } from "@/lib/workspace-data";
+import { jourLocal } from "@/lib/workspace-data";
 import { allergenesDerives, verifierDeclaration } from "@/lib/allergenes";
 import type { LabelIngredient, LabelLot } from "@/lib/label-model";
 import StockWriteForms from "./stock-write-forms";
@@ -42,7 +42,7 @@ export default async function StockWorkspace({ ctx, db, filtre }: { ctx: Session
     <PageIntro title="Articles & stocks" label="Inventaire" description="Retrouvez vos produits, vos ingrédients et les quantités par site."
       actions={peutEcrire && <a className="pg-button pg-button-secondary" href="#gerer-stocks">Gérer le stock</a>}/>
     <div className="pg-stack">
-      <StockList key={filtre ?? "tous"} articles={articles?.map(articleAffiche) ?? null} lots={lots} sites={sites} today={jourUTC()} filtre={filtre}/>
+      <StockList key={filtre ?? "tous"} articles={articles?.map(articleAffiche) ?? null} lots={lots} sites={sites} today={jourLocal()} filtre={filtre}/>
       {peutEcrire && <div id="gerer-stocks" className="pg-stack">
         <StockWriteForms articles={(articles ?? []).map(a => ({ id: a.id, label: `${a.nom} · ${a.code}` }))}
           sites={sites ?? []} fournisseurs={(fournisseurs?.data ?? []).map(f => ({ id: f.id, label: f.nom }))}/>

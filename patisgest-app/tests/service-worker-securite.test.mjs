@@ -28,3 +28,34 @@ test('service worker : purge les anciens HTML et ne cache aucune navigation, RSC
   assert.equal(handled,false,request.url);
  }
 });
+
+test('service worker : ne conserve que des assets conformes et invalide le cache v2', async () => {
+ const handlers = {}, deleted = [], put = [];
+ let response;
+ const cache = { match:async()=>undefined, put:async(req,res)=>put.push([req.url,res]) };
+ const context = {
+  URL,
+  self: { location:{origin:'https://shop.test'}, clients:{claim:async()=>{}}, skipWaiting:async()=>{}, addEventListener:(n,fn)=>{handlers[n]=fn;} },
+  caches:{ keys:async()=>['patisgest-assets-v2-static-only','patisgest-assets-v3-validated-assets'], delete:async name=>deleted.push(name), open:async()=>cache },
+  fetch:async()=>response,
+ };
+ vm.runInNewContext(await readFile(new URL('../public/sw.js',import.meta.url),'utf8'),context);
+ let promise;
+ handlers.activate({waitUntil:p=>{promise=p;}}); await promise;
+ assert.deepEqual(deleted,['patisgest-assets-v2-static-only']);
+ const run=async (url,type,options={})=>{
+  response={ok:options.ok??true,type:'basic',redirected:options.redirected??false,headers:{get:()=>type},clone(){return this;}};
+  const before=put.length;
+  handlers.fetch({request:{url,method:'GET',mode:'cors'},respondWith:p=>{promise=p;}});
+  assert.equal(await promise,response);
+  return put.length-before;
+ };
+ assert.equal(await run('https://shop.test/appearance/fraunces.woff2','text/html'),0);
+ assert.equal(await run('https://shop.test/appearance/fraunces.woff2','font/woff2'),1);
+ assert.equal(await run('https://shop.test/appearance/fraunces.woff2','font/woff2',{redirected:true}),0);
+ assert.equal(await run('https://shop.test/appearance/fraunces.woff2','font/woff2',{ok:false}),0);
+ assert.equal(await run('https://shop.test/_next/static/abc.js','application/javascript; charset=utf-8'),1);
+ assert.equal(await run('https://shop.test/_next/static/abc.js','text/html; charset=utf-8'),0);
+ assert.equal(await run('https://shop.test/icons/icon.png','image/png'),1);
+ assert.equal(await run('https://shop.test/icons/icon.png',''),0);
+});

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { canReadCosts, getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { TABLES_EXPORT, nomFichier, tableExportable, versCsv, type ValeurCsv } from "@/lib/csv";
+import { TABLES_EXPORT, interpreterPeriode, nomFichier, tableExportable, versCsv, type ValeurCsv } from "@/lib/csv";
 import { lireModulesDesactives } from "@/lib/modules-access";
 import { messageUtilisateur } from "@/lib/erreurs-db";
 import { lirePages } from "@/lib/pagination";
@@ -32,22 +32,31 @@ export async function GET(request: Request) {
   const disabled = await lireModulesDesactives(ctx);
   if (disabled === null || disabled.has(moduleParTable[cle])) return NextResponse.json({ erreur: "Export non autorisé." }, {status:403});
 
+  // F-15 : filtre de période optionnel (?du=AAAA-MM-JJ&au=AAAA-MM-JJ) sur les tables datées.
+  const params = new URL(request.url).searchParams;
+  const periode = interpreterPeriode(params.get("du"), params.get("au"));
+  if (!periode.ok) return NextResponse.json({ erreur: periode.message }, { status: 400 });
+  if ((periode.du || periode.au) && !def.colonneDate) {
+    return NextResponse.json({ erreur: "Filtre de période non applicable à cette table." }, { status: 400 });
+  }
+
   try {
     const supabase = await createClient();
     const lecture = await lirePages<Record<string, ValeurCsv>>(
       async (offset, limite) => {
-        const { data, error } = await supabase.from(def.table).select("*")
-          .eq("client_id", ctx.clientId).order("id").range(offset, offset + limite - 1);
+        let requete = supabase.from(def.table).select("*").eq("client_id", ctx.clientId);
+        if (def.colonneDate && periode.du) requete = requete.gte(def.colonneDate, periode.du);
+        if (def.colonneDate && periode.au) requete = requete.lte(def.colonneDate, periode.au);
+        const { data, error } = await requete.order("id").range(offset, offset + limite - 1);
         return { data: data as Record<string, ValeurCsv>[] | null, error };
       },
       20000,
     );
     if (!lecture.ok) {
       if (lecture.raison === "limite") {
-        return NextResponse.json({ erreur: "Export incomplet : limite de lignes atteinte." }, { status: 413 });
+        return NextResponse.json({ erreur: "Export refusé : plus de 20 000 lignes. Limitez l’export à une période ou exportez par tranches." }, { status: 413 });
       }
-      const error = lecture.error;
-      return NextResponse.json({ erreur: error ? messageUtilisateur(error, "Export impossible") : "Export impossible" }, { status: 500 });
+      return NextResponse.json({ erreur: lecture.error ? messageUtilisateur(lecture.error, "Export impossible") : "Export impossible" }, { status: 500 });
     }
     const lignes = lecture.lignes;
     // Colonnes = union des clés rencontrées, ordre stable (alphabétique) pour

@@ -5,7 +5,7 @@ import { canWrite, canReadCosts, getSessionContext } from "./auth";
 import { messageUtilisateur } from "./erreurs-db";
 import {
   aggregatePertes,
-  computeScaledFicheCout,
+  tenterFicheCoutScaled,
   rc07TauxPerte,
   rc08ManqueAJagner,
   rc10GardeFous,
@@ -15,6 +15,7 @@ import {
   type GardeFou,
 } from "./cost-sheet";
 import { computeFefoCost, type FefoLot } from "./fefo-cost";
+import { lireLotsPourArticles, type ClientLots } from "./lots-batch";
 import {
   buildPriceMercuriale,
   computeIngredientImpact,
@@ -191,17 +192,17 @@ export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Prom
     const pvHt = Number(artRow.pv_ht ?? 0);
     const articleCode = String(artRow.code ?? "");
 
+    // N+1 : une lecture groupée pour tous les ingrédients (revue, fiche de coût).
+    const besoins = sim.besoins ?? [];
+    const { lots: lotsParArticle, erreur: erreurLots } = await lireLotsPourArticles(
+      supabase as unknown as ClientLots,
+      ctx.clientId,
+      besoins.map((b) => b.articleId),
+    );
+    if (erreurLots) return { erreur: `Lecture des lots impossible : ${erreurLots}` };
     const lignes = await Promise.all(
-      (sim.besoins ?? []).map(async (b) => {
-        const lotsRes = await supabase
-          .from("lots")
-          .select("id, qte_rest, pu, dlc, date_reception, congele, bloque")
-          .eq("client_id", ctx.clientId)
-          .eq("article_id", b.articleId)
-          .eq("bloque", false)
-          .gt("qte_rest", 0)
-          .limit(300);
-        const lots = (lotsRes.data ?? []) as FefoLot[];
+      besoins.map(async (b) => {
+        const lots = lotsParArticle.get(b.articleId) ?? [];
         const fefo = computeFefoCost(lots, b.qty, today);
         return {
           code: b.code,
@@ -218,7 +219,7 @@ export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Prom
     const matiere = Math.round(lignes.reduce((s, l) => s + l.cout, 0) * 100) / 100;
     const coutPartiel = lignes.some((l) => l.insuffisant);
 
-    const fiche = computeScaledFicheCout({
+    const resultatFiche = tenterFicheCoutScaled({
       version: selected,
       qte,
       matiereFefo: matiere,
@@ -226,6 +227,8 @@ export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Prom
       chargesPct,
       pvHt,
     });
+    if (!resultatFiche.ok) return { erreur: resultatFiche.message };
+    const fiche = resultatFiche.fiche;
 
     const clotureLignes: ClotureLigne[] = [];
     for (const c of (cloRes.data ?? []) as { lignes: unknown }[]) {
@@ -255,6 +258,7 @@ export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Prom
         };
 
     const gardeFous = rc10GardeFous(fiche.rc03Total, reference, pvHt, null);
+    for (const message of resultatFiche.avertissements) gardeFous.push({ code: "RC-02-cuisson", message });
     if (coutPartiel) {
       gardeFous.push({
         code: "RC-10-x10",

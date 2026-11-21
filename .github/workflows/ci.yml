@@ -17,12 +17,24 @@ jobs:
   quality:
     name: Application · tests, types, lint et build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: patisgest-app
+    # La suite inclut les courses concurrentes testées sur un PostgreSQL réel.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       NEXT_TELEMETRY_DISABLED: '1'
+      PATSYGEST_PG_URL: postgres://postgres:ci-only@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -34,7 +46,7 @@ jobs:
       - run: npm audit --omit=dev
       - run: npm run typecheck
       - run: npm run lint
-      # Comprend les tests PGlite de répétition. Ils ne certifient pas le pilote.
+      # Comprend les tests PGlite et ceux de concurrence; aucun ne certifie le pilote.
       - run: npm test
       - name: Build sans accès ni secrets de production
         run: npm run build

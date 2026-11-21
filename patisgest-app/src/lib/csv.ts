@@ -21,63 +21,39 @@ export const CSV_BOM = "\uFEFF";
 /** Délimiteurs qui déclenchent l'échappement RFC 4180. */
 const A_ESCAPER = /["\n\r;]/;
 /** Préfixes interprétés comme formules par Excel / LibreOffice. */
-const FORMULE = /^[=+\-@\t\r]/;
+const FORMULE = /^[\s\uFEFF]*[=+\-@\t\r]/;
 
-export type ValeurCsv =
-  | string
-  | number
-  | boolean
-  | null
-  | undefined
-  | Date
-  | readonly ValeurCsv[]
-  | { readonly [cle: string]: ValeurCsv };
+export type ValeurCsv = string | number | boolean | null | undefined | Date | readonly ValeurCsv[] | { readonly [cle: string]: ValeurCsv };
 
 function echapper(valeur: string): string {
   let s = valeur;
-  // Excel/LibreOffice peuvent ignorer les espaces de tête avant une formule.
-  if (/^[\s\uFEFF]*[=+\-@]/.test(s) || FORMULE.test(s)) s = "'" + s;
+  if (FORMULE.test(s)) s = "'" + s;
   if (A_ESCAPER.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
   return s;
 }
 
-/** Rendu déterministe des valeurs complexes sans perdre leurs propriétés JSON. */
-function valeurTexte(valeur: Exclude<ValeurCsv, null | undefined>): string {
-  if (Array.isArray(valeur)) {
-    return valeur.map((item) => item == null ? "" : valeurTexte(item)).join(", ");
-  }
+/** Une valeur → une cellule CSV. Les dates sont rendues en ISO (tri lexicographique). */
+export function cellule(valeur: ValeurCsv): string {
+  if (valeur === null || valeur === undefined) return "";
   if (valeur instanceof Date) return Number.isNaN(valeur.getTime()) ? "" : valeur.toISOString();
+  // JSON et tableaux doivent rester reconstructibles, y compris les objets
+  // imbriqués des lignes de vente. Ne jamais les convertir via String().
+  if (typeof valeur === "object") {
+    return echapper(JSON.stringify(valeur, (_cle, item: unknown) => {
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        const objet = item as Record<string, unknown>;
+        return Object.fromEntries(Object.keys(objet).sort().map((cle) => [cle, objet[cle]]));
+      }
+      return item;
+    }));
+  }
   if (typeof valeur === "number") {
     if (!Number.isFinite(valeur)) return "";
     // Excel FR : virgule décimale, pas de séparateur de milliers.
     return String(valeur).replace(".", ",");
   }
   if (typeof valeur === "boolean") return valeur ? "oui" : "non";
-  if (typeof valeur === "object") {
-    // Une cellule JSON explicite est plus utile que [object Object]. Trier les
-    // clés à chaque niveau rend les exports comparables d'une exécution à l'autre.
-    return JSON.stringify(valeur, (_cle, item: unknown) => {
-      if (item && typeof item === "object" && !Array.isArray(item)) {
-        const objet = item as Record<string, unknown>;
-        return Object.fromEntries(Object.keys(objet).sort().map((cle) => [cle, objet[cle]]));
-      }
-      return item;
-    });
-  }
-  return String(valeur);
-}
-
-/** Une valeur → une cellule CSV. Les dates sont rendues en ISO (tri lexicographique). */
-export function cellule(valeur: ValeurCsv): string {
-  if (valeur === null || valeur === undefined) return "";
-  // Les nombres typés restent de vraies valeurs numériques (notamment les
-  // montants négatifs) ; c'est le texte utilisateur qui doit être neutralisé.
-  if (typeof valeur === "number") {
-    if (!Number.isFinite(valeur)) return "";
-    return String(valeur).replace(".", ",");
-  }
-  if (typeof valeur === "boolean") return valeur ? "oui" : "non";
-  return echapper(valeurTexte(valeur));
+  return echapper(String(valeur));
 }
 
 /** Assemble un CSV complet (entête + lignes) avec BOM et CRLF. */
@@ -113,15 +89,17 @@ export type TableExport = {
   table: string;
   titre: string;
   cout?: boolean;
+  /** F-15 : colonne de date pour le filtre de période (absente = pas de filtre). */
+  colonneDate?: string;
 };
 
 export const TABLES_EXPORT: readonly TableExport[] = [
-  { cle: "ventes", table: "ventes", titre: "Ventes" },
-  { cle: "mouvements", table: "mouvements", titre: "Mouvements de stock" },
-  { cle: "lots", table: "lots", titre: "Lots" },
+  { cle: "ventes", table: "ventes", titre: "Ventes", colonneDate: "date_vente" },
+  { cle: "mouvements", table: "mouvements", titre: "Mouvements de stock", colonneDate: "date_mvt" },
+  { cle: "lots", table: "lots", titre: "Lots", colonneDate: "date_reception" },
   { cle: "articles", table: "articles", titre: "Articles" },
-  { cle: "clotures", table: "clotures", titre: "Clôtures" },
-  { cle: "transferts", table: "transferts", titre: "Transferts" },
+  { cle: "clotures", table: "clotures", titre: "Clôtures", colonneDate: "date_cloture" },
+  { cle: "transferts", table: "transferts", titre: "Transferts", colonneDate: "date_transfert" },
   { cle: "ordres", table: "ordres_fabrication", titre: "Ordres de fabrication" },
   { cle: "z-imports", table: "z_imports", titre: "Imports Z" },
   { cle: "cakes", table: "cakes", titre: "Cake design" },
@@ -134,4 +112,21 @@ export function tableExportable(cle: string, peutLireCouts: boolean): boolean {
   const t = TABLES_EXPORT.find((x) => x.cle === cle);
   if (!t) return false;
   return t.cout ? peutLireCouts : true;
+}
+
+const DATE_ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * F-15 : période d'export `du` / `au` (AAAA-MM-JJ, bornes incluses).
+ * Renvoie les bornes valides, ou un message pour la réponse 400.
+ */
+export function interpreterPeriode(
+  du: string | null,
+  au: string | null,
+): { ok: true; du?: string; au?: string } | { ok: false; message: string } {
+  const valide = (v: string) => DATE_ISO.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
+  if (du !== null && !valide(du)) return { ok: false, message: "Période : « du » doit être une date AAAA-MM-JJ valide." };
+  if (au !== null && !valide(au)) return { ok: false, message: "Période : « au » doit être une date AAAA-MM-JJ valide." };
+  if (du !== null && au !== null && du > au) return { ok: false, message: "Période : « du » est postérieur à « au »." };
+  return { ok: true, ...(du !== null ? { du } : {}), ...(au !== null ? { au } : {}) };
 }

@@ -83,6 +83,8 @@ export type CashReconEntry = {
   ventesModeNonPreciseTTC: number;
   /** Imports Z externes (présentés à part : leur répartition espèces/carte n'est pas dans le CSV). */
   ventesImportZTTC: number;
+  /** F-10 : tickets à 0 DA, comptés pour alerte (ils n'entrent pas dans les montants). */
+  ticketsZero: number;
   sortiesEspeces: number;
   motifSortie: string;
   /** Fond initial + ventes espèces enregistrées − sorties d'espèces (DA TTC). */
@@ -183,15 +185,20 @@ export function computeCashReconciliation(
     inconnu: number;
     importZ: number;
     tickets: number;
+    zero: number;
   };
   const byKey = new Map<string, Bucket>();
 
   for (const s of sales) {
     const ttc = Number(s.totalTTC ?? 0);
-    if (!Number.isFinite(ttc) || ttc === 0) continue;
-    const cents = toCents(ttc);
     const key = `${s.date}|${s.siteId}`;
-    const b = byKey.get(key) ?? { especes: 0, carte: 0, autre: 0, inconnu: 0, importZ: 0, tickets: 0 };
+    const b = byKey.get(key) ?? { especes: 0, carte: 0, autre: 0, inconnu: 0, importZ: 0, tickets: 0, zero: 0 };
+    if (!Number.isFinite(ttc) || ttc === 0) {
+      b.zero += 1;
+      byKey.set(key, b);
+      continue;
+    }
+    const cents = toCents(ttc);
     if (s.source === "z-import" || s.source === "z") {
       b.importZ += cents;
     } else {
@@ -215,6 +222,7 @@ export function computeCashReconciliation(
       inconnu: 0,
       importZ: 0,
       tickets: 0,
+      zero: 0,
     };
     const fondCents = toCents(d.fondInitial);
     const sortiesCents = toCents(d.sortiesEspeces);
@@ -233,6 +241,7 @@ export function computeCashReconciliation(
       ventesAutreTTC: b.autre / 100,
       ventesModeNonPreciseTTC: b.inconnu / 100,
       ventesImportZTTC: b.importZ / 100,
+      ticketsZero: b.zero,
       sortiesEspeces: sortiesCents / 100,
       motifSortie: (d.motifSortie ?? "").trim(),
       attenduTiroir: attenduCents / 100,

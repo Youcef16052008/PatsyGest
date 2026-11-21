@@ -1,4 +1,4 @@
-import { migrationsRepetition } from './migrations-historique.mjs';
+import { migrationsRepetition, cheminMigration } from './migrations-historique.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
@@ -28,7 +28,7 @@ test('vitrine : traitement d’une demande limité au site et au module attribu�
      catch(e){throw new Error(`Vitrine ${fixture}: ${e.message}`,{cause:e});}
     }
    }
-   try {await db.exec((await readFile(new URL(`../supabase/${file}`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;',''));}
+   try {await db.exec((await readFile(new URL(`../supabase/${cheminMigration(file)}`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;',''));}
    catch(e){throw new Error(`${file}: ${e.message}`,{cause:e});}
   }
   const depot=(await db.query(`select pg_get_functiondef('public.patisgest_demander_commande(text,text,text,text,date,integer,text,text)'::regprocedure) definition,
