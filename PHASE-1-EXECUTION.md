@@ -10,6 +10,7 @@
    - Job qualité sous Node 22 : `npm ci`, `npm audit --omit=dev`, typecheck, ESLint, tests Node/PGlite, build avec URL/clé Supabase fictives, tests du design studio.
    - Job d’intégration en matrice `historique` / `vitrine` : Supabase CLI local, jetable; Auth et PostgREST réels de la pile locale et données fictives. Le script requiert `PATSYGEST_DISPOSABLE=yes`, vérifie les hôtes/ports loopback et exige une base vierge avant toute migration. Nettoyage avec `supabase stop --no-backup` en fin de job.
    - Aucun secret du pilote n’est injecté par le workflow. Ces tests ne certifient pas l’équivalence avec la base pilote.
+   - Après le premier run distant, les actions ont été mises à jour vers les versions courantes vérifiées et épinglées par SHA : checkout v7.0.1, setup-node v7.1.0, Supabase setup-cli v3.2.0. Le run initial avertissait que les versions v4/v1 basculaient sur Node 24 après dépréciation de Node 20; la nouvelle révision doit être relancée pour vérifier la disparition de ces avertissements.
 2. **`db:push` désactivé par défaut** : le script npm appelle maintenant un garde-fou qui échoue avant `drizzle-kit`; un test de régression lance réellement cette commande avec une URL DB invalide et vérifie qu’aucune commande Drizzle n’est exécutée. Le schéma Drizzle n’est pas la source de vérité Supabase. Ce verrou n’empêche pas une personne de lancer des commandes SQL manuelles; il évite le push accidentel par le chemin npm.
 3. **Audit de dépendances** : le workflow vérifie `npm audit --omit=dev`, soit les dépendances livrées en production. Scan observé : 0 vulnérabilité production. L’audit complet signale 4 vulnérabilités modérées uniquement dans la chaîne de dépendances de développement autour de `drizzle-kit` / `esbuild`; la recommandation automatique de npm implique une rétrogradation majeure de Drizzle Kit, non appliquée sans analyse de compatibilité.
 
@@ -29,7 +30,11 @@ Les commandes suivantes ont été lancées dans `patisgest-app` sous Node `v22.2
 | Validation du YAML du workflow (`js-yaml`) et assertions de présence des étapes | Réussies. |
 | `git diff --check` | Réussi; aucun problème d’espacement relevé. |
 
-Après le `npm ci`, les contrôles typecheck, lint, suite complète, build et tests du design studio ont été relancés sur cette installation propre et ont tous réussi. Les tests locaux n’incluent pas l’intégration Auth/PostgREST : Docker et Supabase CLI ne sont pas installés dans ce runner. **Aucun run GitHub Actions n’a été lancé** : le workflow et le garde-fou ne sont pas encore poussés/présents dans un run de branche. Les protections de `main` et la configuration des checks obligatoires ne sont pas modifiées et restent à faire confirmer par un administrateur.
+Après le `npm ci`, les contrôles typecheck, lint, suite complète, build et tests du design studio ont été relancés sur cette installation propre et ont tous réussi. Les tests locaux n’incluent pas l’intégration Auth/PostgREST : Docker et Supabase CLI ne sont pas installés dans ce runner.
+
+Le premier run GitHub Actions [`44882477492`](https://github.com/Youcef16052008/PatsyGest/actions/runs/44882477492), lancé par `workflow_dispatch` sur le commit `e4bef7afa8bb5626e326f5bbdd3c6d642b89fd13`, s’est terminé **SUCCESS** : qualité applicative et les deux matrices Auth/PostgREST isolées (`historique`, `vitrine`) sont toutes vertes. Le run a toutefois signalé les versions Node 20 dépréciées de `checkout@v4`, `setup-node@v4` et `setup-cli@v1`; leurs remplacements épinglés par SHA sont maintenant dans le workflow local, **pas encore poussés ni validés par un second run**.
+
+Les protections de `main` et la configuration des checks obligatoires ne sont pas modifiées et restent à faire confirmer par un administrateur.
 
 ## Revue de sécurité et limites
 
@@ -40,4 +45,4 @@ Après le `npm ci`, les contrôles typecheck, lint, suite complète, build et te
 
 ## État de sortie
 
-**Phase 1 CI — socle de dépôt ajouté et contrôles locaux réussis après installation propre; validation CI distante/intégration et protection de branche en attente.** Prochain pas sûr : faire exécuter la PR GitHub pour les deux matrices jetables; si elles réussissent, faire vérifier et rendre obligatoires les checks attendus. Poursuivre séparément les tests régressifs D2/D3/D4/D7 avant toute correction de sécurité SQL. Le pilote reste en lecture seule.
+**Phase 1 CI — socle local terminé; premier run CI distant et les deux intégrations isolées réussis.** La révision récente des actions, épinglées par SHA, attend un second run. Les checks requis/protections de branche ne sont pas établis ici; un administrateur doit les vérifier sur une PR. Poursuivre séparément les tests régressifs D2/D3/D4/D7 avant toute correction de sécurité SQL. Le pilote reste en lecture seule.
