@@ -65,3 +65,12 @@ test('FEFO : refuse une quantité invalide', () => {
   assert.throws(() => computeFefoCost([], 0));
   assert.throws(() => computeFefoCost([], -1));
 });
+
+test('FEFO : le coût utilise le lot frais comme la production SQL', () => {
+  const result = computeFefoCost([
+    lot('frozen', { congele: true, dlc: '2028-04-01', pu: 4 }),
+    lot('fresh', { congele: false, dlc: '2028-04-01', pu: 10 }),
+  ], 5, '2028-01-01');
+  assert.equal(result.cout, 50);
+  assert.deepEqual(result.lignes, [{ lotId: 'fresh', qte: 5, pu: 10 }]);
+});

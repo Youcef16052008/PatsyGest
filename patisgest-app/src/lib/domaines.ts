@@ -82,8 +82,9 @@ export function resoudreHote(
 
   if (h.endsWith(`.${service}`)) {
     const sousDomaine = h.slice(0, -(service.length + 1));
-    // Un seul niveau : `a.b.patisgest.dz` n'est pas un sous-domaine valide.
-    if (!sousDomaine || sousDomaine.includes(".")) return { type: "inconnu", hote: h };
+    // Un seul label DNS ASCII (1–63 caractères), jamais un chemin ou une
+    // valeur arbitraire de Host interpolée dans la cible de réécriture.
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(sousDomaine)) return { type: "inconnu", hote: h };
     if ((HOTES_APPLICATION as readonly string[]).includes(sousDomaine)) {
       return { type: "application", sousDomaine };
     }
@@ -117,6 +118,7 @@ const CHEMINS_APPLICATION = [
   "/api/",
   "/_next/",
   "/icons/",
+  "/appearance/",
   "/sw.js",
   "/manifest.webmanifest",
 ];
