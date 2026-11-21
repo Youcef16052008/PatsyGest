@@ -19,7 +19,7 @@ test('proposition locale : clôture partielle et perte matière atomiques, isol�
     // La migration contient BEGIN : libérer explicitement la transaction en échec.
     await db.exec('rollback');
     for (const file of ['101-confidentialite-labo.sql','102-cout-of-partiel.sql'])
-      await db.exec(await readFile(new URL(`../supabase/${file}`, import.meta.url), 'utf8'));
+      await db.exec(await readFile(new URL(`../supabase/brouillons/${file}`, import.meta.url), 'utf8'));
     await db.exec(proposal);
     await creerFixtureOfCout(db);
     await db.exec(`insert into clients(id,nom) values ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','Autre fictif');
@@ -77,7 +77,7 @@ test('proposition locale : rejette données incohérentes sans enregistrer de pe
   const db = await baseMain();
   try {
     for (const file of ['101-confidentialite-labo.sql','102-cout-of-partiel.sql'])
-      await db.exec(await readFile(new URL(`../supabase/${file}`, import.meta.url), 'utf8'));
+      await db.exec(await readFile(new URL(`../supabase/brouillons/${file}`, import.meta.url), 'utf8'));
     await db.exec(await readFile(new URL('../migrations/propositions/cloture-of-perte-experimentale.sql', import.meta.url), 'utf8'));
     await creerFixtureOfCout(db);
     await db.query("select public.terminer_of($1,78,'LOT-78',current_date+1)",[ofId]);
@@ -114,7 +114,7 @@ test('proposition locale : une erreur après insertion annule aussi la perte', a
   const db = await baseMain();
   try {
     for (const file of ['101-confidentialite-labo.sql','102-cout-of-partiel.sql'])
-      await db.exec(await readFile(new URL(`../supabase/${file}`, import.meta.url), 'utf8'));
+      await db.exec(await readFile(new URL(`../supabase/brouillons/${file}`, import.meta.url), 'utf8'));
     await db.exec(await readFile(new URL('../migrations/propositions/cloture-of-perte-experimentale.sql', import.meta.url), 'utf8'));
     await creerFixtureOfCout(db);
     await db.query("select public.terminer_of($1,78,'LOT-78',current_date+1)",[ofId]);
@@ -136,7 +136,7 @@ test('proposition locale : allocation matière et arrondi fractionnaire à réco
   const db = await baseMain();
   try {
     for (const file of ['101-confidentialite-labo.sql','102-cout-of-partiel.sql'])
-      await db.exec(await readFile(new URL(`../supabase/${file}`, import.meta.url), 'utf8'));
+      await db.exec(await readFile(new URL(`../supabase/brouillons/${file}`, import.meta.url), 'utf8'));
     await db.exec(await readFile(new URL('../migrations/propositions/cloture-of-perte-experimentale.sql', import.meta.url), 'utf8'));
     await creerFixtureOfCout(db);
     await db.query("update ordres_fabrication set qte_prevue=3,consommations='[{\"qty\":1,\"pu\":1}]' where id=$1",[ofId]);
@@ -157,7 +157,7 @@ test('proposition locale : refuse une perte fractionnaire au demi-centime', asyn
   const db = await baseMain();
   try {
     for (const file of ['101-confidentialite-labo.sql','102-cout-of-partiel.sql'])
-      await db.exec(await readFile(new URL(`../supabase/${file}`, import.meta.url), 'utf8'));
+      await db.exec(await readFile(new URL(`../supabase/brouillons/${file}`, import.meta.url), 'utf8'));
     await db.exec(await readFile(new URL('../migrations/propositions/cloture-of-perte-experimentale.sql', import.meta.url), 'utf8'));
     await creerFixtureOfCout(db);
     await db.query("update ordres_fabrication set qte_prevue=3,consommations='[{\"qty\":3,\"pu\":0.01}]' where id=$1",[ofId]);

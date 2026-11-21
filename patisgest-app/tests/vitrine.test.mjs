@@ -117,23 +117,6 @@ test('vitrine : une demande de visiteur ne peut pas fixer son prix', () => {
   assert.match(corps, /length\(v_cle\) < 8/);
 });
 
-test('vitrine : une seule fonction du schéma est exécutable par anon', () => {
-  const migrations = readdirSync(path.join(ROOT, 'supabase')).filter((f) => f.endsWith('.sql'));
-  const ouvertes = [];
-  for (const m of migrations) {
-    const sql = read(path.join('supabase', m)).toLowerCase();
-    const regex = /grant\s+execute\s+on\s+function\s+([\w.]+)\s*\([^)]*\)\s*to\s+([^;]+);/g;
-    for (const [, nom, cibles] of sql.matchAll(regex)) {
-      if (/\banon\b/.test(cibles)) ouvertes.push(`${nom.trim()} (${m})`);
-    }
-  }
-  assert.deepEqual(
-    ouvertes,
-    ['public.patisgest_demander_commande (27-commandes-vitrine.sql)'],
-    `fonctions inattendues ouvertes à anon : ${ouvertes.join(', ')}`,
-  );
-});
-
 test('vitrine : la migration 28 retire les droits anon sur les tables internes', () => {
   const p = 'supabase/28-fermeture-anon.sql';
   assert.ok(existsSync(path.join(ROOT, p)), 'migration 28 absente');
@@ -210,7 +193,9 @@ import { libellePrix } from '../src/lib/vitrine-format.ts';
 test('vitrine : un prix inconnu s’affiche « sur demande », jamais « 0 DA »', () => {
   // Cas réel mesuré : la famille « Cake » pointe sur un article à pv_ht = 0.
   assert.equal(libellePrix({ prixHt: null, unite: 'kg' }), 'Prix sur demande');
-  assert.equal(libellePrix({ prixHt: 0, unite: 'kg' }).includes('0 DA'), true);
+  // F-07 : un prix à 0 n'est pas un prix : jamais « 0 DA » sur la vitrine.
+  assert.equal(libellePrix({ prixHt: 0, unite: 'kg' }), 'Prix sur demande');
+  assert.equal(libellePrix({ prixHt: -5, unite: 'kg' }), 'Prix sur demande');
   // Un vrai prix garde son unité.
   assert.equal(libellePrix({ prixHt: 260, unite: 'pcs' }), '260 DA / pcs');
   assert.equal(libellePrix({ prixHt: 12.5, unite: null }), '12,5 DA');

@@ -153,6 +153,11 @@ export default function ReconPanel({
                         </div>
                       </div>
                     </div>
+                    {cb.ticketsZero > 0 && (
+                      <p role="alert" className="mt-2 text-xs text-amber-800">
+                        <strong>{cb.ticketsZero} ticket(s) à 0 DA</strong> sur cette journée : vérifiez qu’il ne s’agit pas d’un article sans prix de vente (F-10).
+                      </p>
+                    )}
                     {hasHorsEspeces && (
                       <p className="mt-2 text-xs text-slate-600">
                         <strong>Encaissements hors tiroir espèces :</strong>

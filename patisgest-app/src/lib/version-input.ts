@@ -84,7 +84,7 @@ export function parseVersionInput(formData: FormData): VersionInput {
     energie: num(formData.get("energie") ?? 0, "Énergie", 0, 1_000_000_000),
     emballage: num(formData.get("emballage") ?? 0, "Emballage", 0, 1_000_000_000),
     fraisGeneraux: num(formData.get("fraisGeneraux") ?? 0, "Frais généraux", 0, 1_000_000_000),
-    cuissonPertePct: num(formData.get("cuissonPertePct") ?? 0, "Perte cuisson", 0, 100),
+    cuissonPertePct: num(formData.get("cuissonPertePct") ?? 0, "Perte cuisson", 0, 99.99),
     active: formData.get("active") === "on",
   };
 }

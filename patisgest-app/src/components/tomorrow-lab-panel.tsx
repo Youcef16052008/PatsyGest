@@ -17,7 +17,7 @@ import {
   type State,
 } from "@/lib/patisgest-store";
 import type { RestockRequestItem, TomorrowLabPlan, TomorrowLine } from "@/lib/tomorrow-lab";
-import { dateLisible, jourUTC, plusJours, quantite, type WorkspaceSite } from "@/lib/workspace-data";
+import { dateLisible, jourLocal, plusJours, quantite, type WorkspaceSite } from "@/lib/workspace-data";
 
 function ValidateLineRowConnected({
   line,
@@ -429,7 +429,7 @@ export function TomorrowLabDemo({
   apply: (fn: (s: State) => State, ok: string) => boolean;
   canValidate?: boolean;
 }) {
-  const [targetDate, setTargetDate] = useState(() => plusJours(jourUTC(), 1));
+  const [targetDate, setTargetDate] = useState(() => plusJours(jourLocal(), 1));
   const [reqProduct, setReqProduct] = useState(
     () => state.articles.find((a) => a.niveau === "produit")?.id ?? "",
   );

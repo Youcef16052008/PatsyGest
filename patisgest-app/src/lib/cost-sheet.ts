@@ -88,7 +88,7 @@ export function rc08ManqueAJagner(jete: number, casse: number, pvHt: number): nu
   return round2((jete + casse) * pvHt);
 }
 
-export type GardeFou = { code: "RC-10-x10" | "RC-10-div10" | "RC-10-prix2x"; message: string };
+export type GardeFou = { code: "RC-10-x10" | "RC-10-div10" | "RC-10-prix2x" | "RC-02-cuisson"; message: string };
 
 /**
  * RC-10 : alertes non bloquantes — valeur ×10/÷10 vs référence,
@@ -258,4 +258,37 @@ export function aggregatePertes(lignes: ClotureLigne[], produitId: string): {
     casse: c,
     taux: p > 0 ? round4((j + c) / p) : 0,
   };
+}
+
+/**
+ * F-06 : variante non levante de `computeScaledFicheCout`. Une perte de cuisson
+ * qui annule le rendement net devient une erreur de champ affichable, au lieu
+ * d'une exception remontée en page d'erreur. Une perte ≥ 99 % est acceptée mais
+ * signalée : le coût par portion est alors multiplié par 100 ou plus.
+ */
+export type FicheCoutResultat =
+  | { ok: true; fiche: ReturnType<typeof computeScaledFicheCout>; avertissements: string[] }
+  | { ok: false; champ: "cuissonPertePct" | "fiche"; message: string };
+
+export function tenterFicheCoutScaled(
+  params: Parameters<typeof computeScaledFicheCout>[0],
+): FicheCoutResultat {
+  const perte = params.version.cuissonPct;
+  if (!Number.isFinite(perte) || perte < 0 || perte > 99.99) {
+    return { ok: false, champ: "cuissonPertePct", message: "Perte cuisson : valeur attendue entre 0 et 99,99 %." };
+  }
+  try {
+    const fiche = computeScaledFicheCout(params);
+    const avertissements =
+      perte >= 99
+        ? [`Perte cuisson de ${perte} % : le coût par portion est multiplié par ${Math.round(100 / (100 - perte))} ou plus. Vérifiez la saisie.`]
+        : [];
+    return { ok: true, fiche, avertissements };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Calcul de fiche impossible.";
+    if (/RC-02|rendement net|cuisson/i.test(message)) {
+      return { ok: false, champ: "cuissonPertePct", message: "Perte cuisson : le rendement net devient nul. Réduisez la perte." };
+    }
+    return { ok: false, champ: "fiche", message };
+  }
 }

@@ -21,8 +21,21 @@ jobs:
     defaults:
       run:
         working-directory: patisgest-app
+    # Revue B-007 : tests de concurrence sur un vrai PostgreSQL (sinon ignorés).
+    # Le job garde son nom : il est une vérification requise de la protection de main.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       NEXT_TELEMETRY_DISABLED: '1'
+      PATSYGEST_PG_URL: postgres://postgres:ci-only@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

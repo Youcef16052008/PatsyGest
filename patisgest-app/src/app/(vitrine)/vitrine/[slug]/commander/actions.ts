@@ -1,7 +1,9 @@
 "use server";
 
+import { headers } from "next/headers";
 import { messageUtilisateur } from "@/lib/erreurs-db";
 import { createClient } from "@/lib/supabase/server";
+import { CODES_FONCTION_ABSENTE, sourceVisiteur } from "@/lib/vitrine-anti-abus";
 
 export type CommandeState = {
   erreur?: string;
@@ -61,6 +63,17 @@ export async function demanderCommande(
 
   try {
     const supabase = await createClient();
+    // B-008 : plafond par source (migration 38). Sans secret, ou avant 38, seul le plafond global s'applique.
+    const source = sourceVisiteur(await headers(), process.env.VITRINE_SECRET_ANTI_ABUS);
+    if (source) {
+      const verif = await supabase.rpc("patisgest_verifier_source_vitrine", {
+        p_sous_domaine: sousDomaine,
+        p_source: source,
+      });
+      if (verif.error && !(CODES_FONCTION_ABSENTE as readonly string[]).includes(verif.error.code ?? "")) {
+        return { erreur: messageUtilisateur(verif.error, "Commande impossible") };
+      }
+    }
     const { data, error } = await supabase.rpc("patisgest_demander_commande", {
       p_sous_domaine: sousDomaine,
       p_cle_recette: cleRecette,

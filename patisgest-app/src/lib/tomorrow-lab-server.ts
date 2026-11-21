@@ -12,7 +12,7 @@ import {
   type TomorrowLot,
   type TomorrowProduct,
 } from "./tomorrow-lab";
-import { jourUTC, plusJours, type WorkspaceSite } from "./workspace-data";
+import { jourLocal, plusJours, type WorkspaceSite } from "./workspace-data";
 import { lireArticles, lireLots, lireSites, lireVentesPeriode, type WorkspaceDB } from "./workspace-read";
 
 export type TomorrowServerBundle = {
@@ -38,7 +38,7 @@ export async function lireDemainAuLabo(
   role: Role,
   requestedDate?: string,
 ): Promise<TomorrowServerBundle> {
-  const today = jourUTC();
+  const today = jourLocal();
   const targetDate =
     requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) && !Number.isNaN(Date.parse(requestedDate)) && new Date(requestedDate).toISOString().slice(0, 10) === requestedDate ? requestedDate : plusJours(today, 1);
 

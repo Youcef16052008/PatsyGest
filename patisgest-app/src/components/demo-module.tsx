@@ -15,7 +15,7 @@ import DemoCaisse from './demo-caisse';
 import { useDemoWorkspace } from './demo-workspace';
 import StockList from './stock-list';
 import { DEMO_SITES, demoLots } from '@/lib/demo-workspace';
-import { jourUTC } from '@/lib/workspace-data';
+import { jourLocal } from '@/lib/workspace-data';
 import { Disclosure, PageIntro } from './workspace-ui';
 
 type Module = 'stocks'|'achats'|'recettes'|'caisse'|'production'|'transferts'|'cloture'|'qualite'|'cake-design'|'tracabilite'|'planning'|'simulation';
@@ -46,7 +46,7 @@ export default function DemoModule({ module, role, filtre, shop }: { module: Mod
     }/>
     {message && <p role="status" className="rounded-lg bg-violet-50 p-3 text-sm text-violet-900">{message}</p>}
     {module === 'stocks' && <>
-      <StockList key={filtre ?? "tous"} articles={db.articles.slice().sort((a,b) => a.nom.localeCompare(b.nom,"fr"))} lots={demoLots(db)} sites={DEMO_SITES} today={jourUTC()} filtre={filtre}/>
+      <StockList key={filtre ?? "tous"} articles={db.articles.slice().sort((a,b) => a.nom.localeCompare(b.nom,"fr"))} lots={demoLots(db)} sites={DEMO_SITES} today={jourLocal()} filtre={filtre}/>
       {canEdit && <div id="nouvel-article"><Disclosure title="Nouvel article" description="Créer un produit fini ou un ingrédient." icon="plus">
         <form onSubmit={addArticle} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <label className="pg-field">Nom de l’article<input name="nom" required maxLength={120} placeholder="Mille-feuille" className="pg-input"/></label>

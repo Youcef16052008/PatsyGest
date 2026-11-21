@@ -17,17 +17,19 @@ test('répétition SQL : ordre explicite, inventaire complet et empreintes figé
  assert.equal(brouillons.at(-1),'128-caisse-collision-ticket-brouillon.sql');
  const listed=[...historique,...brouillons,...plan.main_hors_serie.map(x=>x.file),...plan.exclus];
  assert.equal(new Set(listed).size,listed.length,'Chaque SQL est classé une seule fois');
- const actual=(await readdir(new URL('supabase/',root))).filter(n=>/^\d{2,3}-.*\.sql$/.test(n)).sort();
+ // F-12 : les brouillons sont dans supabase/brouillons/ ; l'inventaire couvre les deux dossiers.
+ const actual=[...await readdir(new URL('supabase/',root)), ...await readdir(new URL('supabase/brouillons/',root))].filter(n=>/^\d{2,3}-.*\.sql$/.test(n)).sort();
+ const chemin=f=>(brouillons.includes(f)?'brouillons/':'')+f;
  assert.deepEqual([...listed].sort(),actual,'Classer tout SQL ajouté et examiner son ordre');
  for (const entry of [...plan.historique,...plan.brouillons_securite,...plan.main_hors_serie]) {
-  assert.equal(sha(await readFile(new URL(`supabase/${entry.file}`,root))),entry.sha256,entry.file);
+  assert.equal(sha(await readFile(new URL(`supabase/${chemin(entry.file)}`,root))),entry.sha256,entry.file);
  }
  for (const entry of plan.fixtures_vitrine) {
   const fixture=await readFile(new URL(`tests/fixtures/pilote-vitrine/${entry.file}`,root));
   assert.equal(sha(fixture),entry.sha256,entry.file);
   assert.equal(sha(fixture),sha(await readFile(new URL(`supabase/${entry.file}`,root))),`Fixture différente de main : ${entry.file}`);
  }
- assert.deepEqual(plan.fixtures_vitrine.map(x=>x.file),plan.main_hors_serie.filter(x=>!x.file.startsWith('24-')).map(x=>x.file));
+ assert.deepEqual(plan.fixtures_vitrine.map(x=>x.file),plan.main_hors_serie.filter(x=>!x.file.startsWith('24-') && !x.hors_fixture_pilote).map(x=>x.file));
 });
 
 test('aucune collision de numéro SQL et correspondance complète des brouillons', async () => {
@@ -42,5 +44,5 @@ test('aucune collision de numéro SQL et correspondance complète des brouillons
   assert.ok(entry.ancien_fichier.startsWith(`${old}-`));
   assert.match(entry.sha256,/^[a-f0-9]{64}$/,'Empreinte SHA-256 réelle requise');
  }
- assert.deepEqual(plan.main_hors_serie.map(x=>x.file.match(/^\d+/)[0]),['24','25','26','27','28','29','30','31']);
+ assert.deepEqual(plan.main_hors_serie.map(x=>x.file.match(/^\d+/)[0]),['24','25','26','27','28','29','30','31','32','33','34','35','36','37','38']);
 });

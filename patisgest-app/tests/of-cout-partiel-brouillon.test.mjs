@@ -10,7 +10,7 @@ async function baseAvecBrouillons() {
   const db = await baseMain();
   try {
     for (const file of ['101-confidentialite-labo.sql', '102-cout-of-partiel.sql']) {
-      await db.exec(await readFile(new URL(`../supabase/${file}`, import.meta.url), 'utf8'));
+      await db.exec(await readFile(new URL(`../supabase/brouillons/${file}`, import.meta.url), 'utf8'));
     }
     await creerFixtureOfCout(db);
     return db;

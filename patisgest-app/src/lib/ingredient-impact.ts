@@ -25,6 +25,7 @@ import {
   type GardeFou,
 } from "./cost-sheet.ts";
 import { computeFefoCost, type FefoLot } from "./fefo-cost.ts";
+import { jourLocal } from "./workspace-data.ts";
 
 export type UnitConversion = {
   uniteFrom: string;
@@ -286,7 +287,8 @@ export function buildPriceMercuriale(params: {
   defaultAncien: PriceSourceEntry | null;
   defaultNouveau: PriceSourceEntry | null;
 } {
-  const { articleId, history = [], lots = [], asOf } = params;
+  // F-17 : sans date, les lots périmés seraient valorisés comme disponibles.
+  const { articleId, history = [], lots = [], asOf = jourLocal() } = params;
   const receptions: PriceSourceEntry[] = history
     .filter((h) => h.articleId === articleId && Number.isFinite(h.pu) && h.pu > 0)
     .sort((a, b) => (a.datePrix === b.datePrix ? 0 : a.datePrix < b.datePrix ? 1 : -1))
@@ -381,7 +383,7 @@ export function computeIngredientImpact(params: {
     articles,
     lotsByArticle,
     conversions = [],
-    asOf,
+    asOf = jourLocal(),
   } = params;
 
   if (!Number.isFinite(ancienPu) || ancienPu < 0 || ancienPu > 100_000_000) {
@@ -418,7 +420,7 @@ export function computeIngredientImpact(params: {
     // Valorisation FEFO sur les lots éligibles (hors bloqués et hors périmés si asOf).
     let autresMatieresFefo = 0;
     const autresPartiels: string[] = [];
-    let targetFefo = { cout: 0, couvert: 0, insuffisant: true, perimeExclu: 0 };
+    let targetFefo = { cout: 0, couvert: 0, insuffisant: true, perimeExclu: 0, sansPrixConnu: 0, insuffisantStock: true };
 
     for (const need of needs) {
       const lots = lotsByArticle.get(need.articleId) ?? [];

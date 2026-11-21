@@ -3,11 +3,11 @@ import { recettesPlanValides } from './tomorrow-recipe-guard';
 import { expandRecipeNeeds, type ImpactArticle, type ImpactRecipeVersion, type ImpactRecipeLine, type UnitConversion } from './ingredient-impact';
 import { computeTomorrowLabPlan, type RestockRequestItem, type TomorrowExistingOf, type TomorrowConfirmedOrder, type TomorrowProduct, type TomorrowSale } from './tomorrow-lab';
 import { lireArticlesQuantites, lireLots, lirePages, lireSites, type WorkspaceDB } from './workspace-read';
-import { jourUTC, plusJours } from './workspace-data';
+import { jourLocal, plusJours } from './workspace-data';
 
 /** Une erreur ou une limite de pagination ne doit jamais devenir un stock nul. */
 export async function lirePlanLaboPrive(db: WorkspaceDB, clientId: string, requestedDate?: string) {
- const today=jourUTC();
+ const today=jourLocal();
  const targetDate=requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) && !Number.isNaN(Date.parse(requestedDate)) && new Date(requestedDate).toISOString().slice(0,10)===requestedDate ? requestedDate : plusJours(today,1);
  const [articles,lots,sites,families,versions,conversions,orders,cakes,sales,requests] = await Promise.all([
   lireArticlesQuantites(db,clientId,true),lireLots(db,clientId,'labo'),lireSites(db,clientId),
