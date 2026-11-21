@@ -21,7 +21,7 @@ export const CSV_BOM = "\uFEFF";
 /** Délimiteurs qui déclenchent l'échappement RFC 4180. */
 const A_ESCAPER = /["\n\r;]/;
 /** Préfixes interprétés comme formules par Excel / LibreOffice. */
-const FORMULE = /^\s*[=+\-@\t\r]/;
+const FORMULE = /^[\s\uFEFF]*[=+\-@\t\r]/;
 
 export type ValeurCsv = string | number | boolean | null | undefined | Date | readonly ValeurCsv[] | { readonly [cle: string]: ValeurCsv };
 
@@ -38,7 +38,15 @@ export function cellule(valeur: ValeurCsv): string {
   if (valeur instanceof Date) return Number.isNaN(valeur.getTime()) ? "" : valeur.toISOString();
   // JSON et tableaux doivent rester reconstructibles, y compris les objets
   // imbriqués des lignes de vente. Ne jamais les convertir via String().
-  if (typeof valeur === "object") return echapper(JSON.stringify(valeur));
+  if (typeof valeur === "object") {
+    return echapper(JSON.stringify(valeur, (_cle, item: unknown) => {
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        const objet = item as Record<string, unknown>;
+        return Object.fromEntries(Object.keys(objet).sort().map((cle) => [cle, objet[cle]]));
+      }
+      return item;
+    }));
+  }
   if (typeof valeur === "number") {
     if (!Number.isFinite(valeur)) return "";
     // Excel FR : virgule décimale, pas de séparateur de milliers.

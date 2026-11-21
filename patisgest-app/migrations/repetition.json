@@ -336,6 +336,12 @@
       "sha256": "733d8520a41587074e086a7b7aa3116520a780e2aaea3d53cfabe371dc96b963",
       "hors_fixture_pilote": true,
       "note": "Revue B-008 : anti-abus vitrine par source (HMAC serveur, purge 2 h, 10/h par source) ; plafond global 30 -> 300. Non appliquée au pilote."
+    },
+    {
+      "file": "39-limites-tenant-restauration-sites-vitrine.sql",
+      "sha256": "69023679e9c81543a35d17ee03285f17793c24918299d781c3d934c6d9026b09",
+      "hors_fixture_pilote": true,
+      "note": "D2/D4/D7/D9 : projection publique minimale, droits directs des sites/offre et prévalidation des références inter-tenant à la restauration. Non appliquée au pilote; revue obligatoire."
     }
   ],
   "exclus": [

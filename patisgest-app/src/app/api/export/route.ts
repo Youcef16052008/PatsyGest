@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TABLES_EXPORT, interpreterPeriode, nomFichier, tableExportable, versCsv, type ValeurCsv } from "@/lib/csv";
 import { lireModulesDesactives } from "@/lib/modules-access";
 import { messageUtilisateur } from "@/lib/erreurs-db";
+import { lirePages } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -41,18 +42,23 @@ export async function GET(request: Request) {
 
   try {
     const supabase = await createClient();
-    const lignes: Record<string, ValeurCsv>[] = [];
-    let complete = false;
-    for (let offset=0;offset<20000;offset+=500) {
-      let requete = supabase.from(def.table).select("*").eq("client_id", ctx.clientId);
-      if (def.colonneDate && periode.du) requete = requete.gte(def.colonneDate, periode.du);
-      if (def.colonneDate && periode.au) requete = requete.lte(def.colonneDate, periode.au);
-      const {data,error} = await requete.order("id").range(offset,offset+499);
-      if(error||!data) return NextResponse.json({erreur:error ? messageUtilisateur(error,"Export impossible") : "Export impossible"},{status:500});
-      lignes.push(...data as Record<string, ValeurCsv>[]);
-      if(data.length<500) {complete=true;break;}
+    const lecture = await lirePages<Record<string, ValeurCsv>>(
+      async (offset, limite) => {
+        let requete = supabase.from(def.table).select("*").eq("client_id", ctx.clientId);
+        if (def.colonneDate && periode.du) requete = requete.gte(def.colonneDate, periode.du);
+        if (def.colonneDate && periode.au) requete = requete.lte(def.colonneDate, periode.au);
+        const { data, error } = await requete.order("id").range(offset, offset + limite - 1);
+        return { data: data as Record<string, ValeurCsv>[] | null, error };
+      },
+      20000,
+    );
+    if (!lecture.ok) {
+      if (lecture.raison === "limite") {
+        return NextResponse.json({ erreur: "Export refusé : plus de 20 000 lignes. Limitez l’export à une période ou exportez par tranches." }, { status: 413 });
+      }
+      return NextResponse.json({ erreur: lecture.error ? messageUtilisateur(lecture.error, "Export impossible") : "Export impossible" }, { status: 500 });
     }
-    if(!complete) return NextResponse.json({erreur:"Export refusé : plus de 20 000 lignes pour cette table. Limitez l’export à une période ou exportez par tranches (F-15)."},{status:500});
+    const lignes = lecture.lignes;
     // Colonnes = union des clés rencontrées, ordre stable (alphabétique) pour
     // que deux exports successifs soient comparables au diff.
     const entetes = [...new Set(lignes.flatMap((l) => Object.keys(l)))].sort();

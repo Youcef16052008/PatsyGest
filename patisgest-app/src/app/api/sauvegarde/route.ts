@@ -3,6 +3,7 @@ import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { lireModulesDesactives } from "@/lib/modules-access";
 import { messageUtilisateur } from "@/lib/erreurs-db";
+import { lirePages } from "@/lib/pagination";
 import {
   ORDRE_RESTAURATION, colonneTenant, construireSauvegarde, nomFichierSauvegarde, MAX_OCTETS_SAUVEGARDE,
   type TableSauvegardee,
@@ -34,20 +35,23 @@ export async function GET() {
     for (const table of ORDRE_RESTAURATION) {
       // `clients` s'isole par `id`, toutes les autres par `client_id` :
       // filtrer clients sur client_id fait échouer la sauvegarde entière.
-      const lignes: Record<string, unknown>[] = [];
-      let complete = false;
-      for (let offset = 0; offset < 50000; offset += 500) {
-        const {data,error} = await supabase.from(table).select("*")
-          .eq(colonneTenant(table), ctx.clientId).order("id").range(offset, offset + 499);
-        if (error || !data) {
-          echecs.push(`${table} : ${error ? messageUtilisateur(error, "lecture refusée") : "lecture indisponible"}`);
-          break;
+      const lecture = await lirePages<Record<string, unknown>>(
+        async (offset, limite) => {
+          const { data, error } = await supabase.from(table).select("*")
+            .eq(colonneTenant(table), ctx.clientId).order("id").range(offset, offset + limite - 1);
+          return { data: data as Record<string, unknown>[] | null, error };
+        },
+        50000,
+      );
+      if (!lecture.ok) {
+        if (lecture.raison === "lecture") {
+          echecs.push(`${table} : ${lecture.error ? messageUtilisateur(lecture.error, "lecture refusée") : "lecture indisponible"}`);
+        } else {
+          echecs.push(`${table} : limite de 50 000 lignes atteinte; sauvegarde incomplète`);
         }
-        lignes.push(...data as Record<string, unknown>[]);
-        if (data.length < 500) { complete = true; break; }
+        continue;
       }
-      if (!complete) { echecs.push(`${table} : plus de 50 000 lignes, sauvegarde incomplète refusée (F-15)`); continue; }
-      tables.push({ table, lignes });
+      tables.push({ table, lignes: lecture.lignes });
     }
 
     if (echecs.length > 0) {

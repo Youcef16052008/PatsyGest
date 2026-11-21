@@ -49,6 +49,9 @@ test('CSV : injection de formule neutralisée (OWASP)', () => {
   assert.equal(cellule('\tcmd'), "'\tcmd");
   // Une formule contenant un séparateur est aussi échappée.
   assert.equal(cellule('=A1;B1'), '"\'=A1;B1"');
+  assert.equal(cellule('  =1+1'), "'  =1+1");
+  const bom = String.fromCharCode(0xfeff);
+  assert.equal(cellule(`${bom}@SUM(A1)`), `'${bom}@SUM(A1)`);
 });
 
 test('CSV : un montant négatif reste un nombre, pas une formule', () => {
@@ -66,6 +69,9 @@ test('CSV : tableaux et JSON sont reconstruisibles dans une cellule', () => {
   assert.equal(csv.includes('[object Object]'), false);
   const cell = csv.slice(CSV_BOM.length).split('\r\n')[1];
   assert.deepEqual(JSON.parse(cell.slice(1, -1).replace(/""/g, '"')), [{ nom: 'Cake', qte: 3 }]);
+  const canonique = cellule({ z: 1, a: { y: 2, b: 3 } });
+  assert.equal(canonique, '"{""a"":{""b"":3,""y"":2},""z"":1}"');
+  assert.equal(cellule({ a: { b: 3, y: 2 }, z: 1 }), canonique);
 });
 
 test('CSV : dates en ISO, date invalide → vide', () => {
