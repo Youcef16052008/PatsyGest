@@ -61,3 +61,13 @@ Ces assertions sont explicitement **TODO/non bloquantes** tant que les migration
 ## État de sortie
 
 **Phase 1 CI — socle local terminé; deux runs CI distants réussis, dont les deux intégrations isolées après mise à jour des actions.** Des tests PGlite D2/D4/D7 sont maintenant ajoutés localement comme TODO, en attente d’une source de migration complète et d’une remédiation approuvée; ils restent à exécuter dans le workflow distant. Les checks requis/protections de branche ne sont pas établis ici; un administrateur doit les vérifier sur une PR. La suite sécurité SQL réelle reste en attente; le pilote demeure strictement en lecture seule.
+
+## Addendum — fusion `main` et vérification du HEAD livré
+
+Cet addendum supersède les décomptes de TODO et la description de la série source indiqués plus haut, qui étaient exacts avant la réconciliation avec `origin/main`.
+
+- Fusion de `origin/main` effectuée sur la branche active; les migrations source 32–38 sont maintenant présentes. Les migrations 101–128 restent rangées dans `supabase/brouillons/` et **n’ont pas été appliquées**. Le test PGlite de commande anonyme utilise la fixture mise à jour avec le rattrapage 32 et est devenu bloquant; il a réussi seul puis dans toute la suite.
+- HEAD livré : `a27fd2b` (`Merge origin/main and complete phase 1 hardening`), poussé sur `arena/d51c48b6-patsygest`; arbre de travail propre après push.
+- Validation locale sur ce HEAD : `npm test` — 438 pass, 0 échec, 2 skipped, 6 TODO; typecheck, lint, build Next.js, `npm audit --omit=dev` (0 vulnérabilité runtime), et `git diff --check` réussis. Les TODO restants concernent des scénarios non approuvés/non exécutés, pas le test de commande vitrine.
+- GitHub Actions manuel `44895653276` sur le SHA `a27fd2bbee501f0ef8ea47ca1badde3685a9ca9e` : **SUCCESS**, trois jobs verts (qualité incluant PostgreSQL jetable et tests du studio, intégration Auth/PostgREST historique, intégration Auth/PostgREST vitrine). Ces piles sont jetables et synthétiques; aucun job ne cible le pilote.
+- Cet achèvement ne lève pas le NO-GO établi en phase 0 : aucune migration 32–38 n’a été appliquée à Supabase, aucune écriture ou lecture de données métier n’a été faite sur le pilote, et les risques D2/D4/D7, la restauration, l’isolation des previews et les décisions de gouvernance restent à traiter avec approbation et preuves propres. Le plan global n’est donc **pas terminé à 100 %**.
