@@ -115,3 +115,9 @@ Limite : PGlite est mono-connexion. Le verrou et l'unicité sont vérifiés par 
 - Sans secret, ou avant la migration 38 : seul le plafond global s'applique (repli explicite, pas de panne).
 - **Limites :** un botnet qui change d'adresse n'est pas arrêté par ce mécanisme ; cela relève d'une limitation au bord (hébergeur). Le hachage reste une donnée pseudonyme pendant 2 heures : à faire valider au regard de la loi 18-07 avant mise en production.
 - Ouvert : la fonction de vérification est exécutable par `anon` (voulu, elle ne lit rien et n'écrit que des hachages).
+
+## Vérification réelle sur PostgreSQL 17 (B-007)
+
+- `tests/concurrence-transfert-reel.test.mjs` : deux appels **simultanés** sur deux connexions réelles. Résultats observés sur PostgreSQL 17.12 : même référence → un transfert réel et un rejeu, stock déplacé une seule fois ; sans référence → un seul des deux transferts réussit, stock jamais négatif. La chaîne 01→38 s'applique intégralement sur Postgres réel (y compris les patchs des migrations 34 et 38).
+- Le test est ignoré sans `PATSYGEST_PG_URL`. La CI (`.github/workflows/ci.yml`) lance un service `postgres:17` et définit cette variable. Dépendance ajoutée : `pg` (devDependency), uniquement pour ce test.
+- Exécution locale : `PATSYGEST_PG_URL=postgres://postgres@127.0.0.1:5432/postgres npm test`.

@@ -31,6 +31,7 @@
     "eslint": "9.39.4",
     "eslint-config-next": "16.4.6",
     "parse5": "^8.1.1",
+    "pg": "^8.23.1",
     "postcss": "8.5.23",
     "smtp-server": "^3.21.6",
     "tailwindcss": "4.1.17",
