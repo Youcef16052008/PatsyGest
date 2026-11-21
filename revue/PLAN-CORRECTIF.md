@@ -74,17 +74,17 @@ Ce tableau fait foi. Il remplace les statuts ci-dessus lorsqu'ils diffèrent.
 | F-06 | **Fait** | `tenterFicheCoutScaled` : perte 100 % = erreur de champ ; ≥ 99 % = avertissement (`RC-02-cuisson`). |
 | F-10 | **Fait** | Tickets à 0 DA comptés (`ticketsZero`) et signalés par une alerte `role="alert"` dans `recon-panel.tsx`. |
 | F-13 | **Vérifié, déjà correct** | `{}` → pas de bilan ; `'0'` → zéro explicite ; fond sans espèces → refus. Test permanent. |
-| F-15 | **Partiel** | Messages des exports explicites (limite nommée). Filtre de période sur l'export des mouvements : non fait. |
+| F-15 | **Fait** | Messages des exports explicites (limite nommée) ; filtre `du`/`au` (AAAA-MM-JJ, bornes incluses) sur les 5 tables datées (`interpreterPeriode`, `colonneDate`) ; 400 explicite sur les tables sans date. |
 | F-16 | **Fait** | `insuffisantStock` et `sansPrixConnu` séparés de `insuffisant` (coût). Test permanent. |
 | F-19 | **Partiel** | Drapeau labo/vendeur (1.7) ; table `app_schema_version` (migration `35`, version requise `36`) et refus au chargement de l'espace (mode `supabase`). **Non fait** : matrice app × schéma en test. |
 | B-011 | **Fait** (workflow) | `sauvegarde-free.yml` chiffre avec le coffre AES-256-GCM du dépôt, relecture authentifiée, dump clair en `/dev/shm` seulement. Les anciennes copies `.enc` (AES-CBC) restent lisibles avec openssl (procédure dans le résumé). Non exécuté : à vérifier au premier run. |
 | Phase 4 `error.tsx` | **Fait** | `src/app/error.tsx` et `src/app/(app)/error.tsx`. |
 | Phase 4 CI | **Fait** | `.github/workflows/ci.yml`. |
-| F-12 | **Non fait** | Brouillons et chemins référencés par tests et manifeste : passage dédié. |
+| F-12 | **Fait** | 28 brouillons déplacés dans `supabase/brouillons/` (`git mv`, SHA-256 inchangés). Lecteurs corrigés via `cheminMigration`/`tousLesSql`. `securite.test.mjs` et `vitrine.test.mjs` scannent aussi les brouillons (sinon les contrôles de grants sortaient silencieusement). |
 | F-08 | **Ouvert** | Pas de migration sûre vérifiable ici (voir ci-dessus). |
 | B-002 | **Non fait** | Clés composites : une quarantaine de relations, migration à données existantes. Pilote : 1 client, 0 incohérence sur `lots→articles` et `mouvements→lots`. Risque latent multi-client. |
 | B-007 / B-008 | **Non fait** | `client_ref` idempotent, RPC transactionnelle de transfert, anti-abus vitrine par source. Chantier distinct. |
-| N+1 fiche de coût | **Non fait** | Un `in()` unique risque de tronquer silencieusement (limite de 300 lignes par article, plafond PostgREST). À concevoir avec pagination. |
+| N+1 fiche de coût | **Fait** | `lib/lots-batch.ts` : un `in()` par bloc de 100 articles, pagination jusqu'à page courte, erreur remontée (plus de `[]` silencieux). Fiche de coût et simulation. Tests : `tests/lots-batch.test.mjs`. |
 | Phase 4 Playwright | **Non fait** | Navigateurs non téléchargeables depuis cet environnement (hôtes autorisés : npm, PyPI, GitHub). |
 | Phase 4 lint textuel `securite.test.mjs` | **Non fait** | Remplacement par des tests d'exécution : chantier distinct. |
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { canReadCosts, getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { TABLES_EXPORT, nomFichier, tableExportable, versCsv, type ValeurCsv } from "@/lib/csv";
+import { TABLES_EXPORT, interpreterPeriode, nomFichier, tableExportable, versCsv, type ValeurCsv } from "@/lib/csv";
 import { lireModulesDesactives } from "@/lib/modules-access";
 import { messageUtilisateur } from "@/lib/erreurs-db";
 
@@ -31,12 +31,23 @@ export async function GET(request: Request) {
   const disabled = await lireModulesDesactives(ctx);
   if (disabled === null || disabled.has(moduleParTable[cle])) return NextResponse.json({ erreur: "Export non autorisé." }, {status:403});
 
+  // F-15 : filtre de période optionnel (?du=AAAA-MM-JJ&au=AAAA-MM-JJ) sur les tables datées.
+  const params = new URL(request.url).searchParams;
+  const periode = interpreterPeriode(params.get("du"), params.get("au"));
+  if (!periode.ok) return NextResponse.json({ erreur: periode.message }, { status: 400 });
+  if ((periode.du || periode.au) && !def.colonneDate) {
+    return NextResponse.json({ erreur: "Filtre de période non applicable à cette table." }, { status: 400 });
+  }
+
   try {
     const supabase = await createClient();
     const lignes: Record<string, ValeurCsv>[] = [];
     let complete = false;
     for (let offset=0;offset<20000;offset+=500) {
-      const {data,error} = await supabase.from(def.table).select("*").eq("client_id",ctx.clientId).order("id").range(offset,offset+499);
+      let requete = supabase.from(def.table).select("*").eq("client_id", ctx.clientId);
+      if (def.colonneDate && periode.du) requete = requete.gte(def.colonneDate, periode.du);
+      if (def.colonneDate && periode.au) requete = requete.lte(def.colonneDate, periode.au);
+      const {data,error} = await requete.order("id").range(offset,offset+499);
       if(error||!data) return NextResponse.json({erreur:error ? messageUtilisateur(error,"Export impossible") : "Export impossible"},{status:500});
       lignes.push(...data as Record<string, ValeurCsv>[]);
       if(data.length<500) {complete=true;break;}

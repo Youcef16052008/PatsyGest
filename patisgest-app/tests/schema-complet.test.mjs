@@ -1,4 +1,4 @@
-import { migrationsRepetition } from './migrations-historique.mjs';
+import { migrationsRepetition, cheminMigration } from './migrations-historique.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -19,7 +19,7 @@ test('migrations locales sur schéma métier complet et policies authentifiées'
    grant execute on function auth.uid() to authenticated,anon,service_role;`);
   const migrations=migrationsRepetition();
   for (const file of migrations) {
-   let sql=await readFile(new URL(`../supabase/${file}`,import.meta.url),'utf8');
+   let sql=await readFile(new URL(`../supabase/${cheminMigration(file)}`,import.meta.url),'utf8');
    sql=sql.replace('create extension if not exists pgcrypto;', ''); // gen_random_uuid est natif dans PGlite
    // La 07 actuelle a été rééditée après la 16 : sa fin référence l'ancienne
    // signature historique, supprimée par la 17 sur la base existante.
@@ -219,7 +219,7 @@ test('transition isolée : comptes existants, droits inchangés et sites choisis
     await db.query("insert into sites(id,client_id,nom,type) values ($1,$3,'Labo','laboratoire'),($2,$3,'Boutique','boutique')",[labSite,shop,A]);
     await db.query("insert into acces_modules(utilisateur_id,module,actif) values ($1,'simulation',false),($2,'achats',false)",[lab,seller]);
    }
-   const migration=(await readFile(new URL(`../supabase/${file}`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;','');
+   const migration=(await readFile(new URL(`../supabase/${cheminMigration(file)}`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;','');
    try {await db.exec(migration);} catch(e) {throw new Error(`${file}: ${e.message}`,{cause:e});}
   }
   await db.exec(`select set_config('test.uid','${labAuth}',false); set role authenticated`);

@@ -118,7 +118,8 @@ test('vitrine : une demande de visiteur ne peut pas fixer son prix', () => {
 });
 
 test('vitrine : une seule fonction du schéma est exécutable par anon', () => {
-  const migrations = readdirSync(path.join(ROOT, 'supabase')).filter((f) => f.endsWith('.sql'));
+  // F-12 : brouillons inclus (supabase/brouillons/), comme dans securite.test.mjs.
+  const migrations = [...readdirSync(path.join(ROOT, 'supabase')).filter((f) => f.endsWith('.sql')), ...readdirSync(path.join(ROOT, 'supabase', 'brouillons')).filter((f) => f.endsWith('.sql')).map((f) => path.join('brouillons', f))];
   const ouvertes = [];
   for (const m of migrations) {
     const sql = read(path.join('supabase', m)).toLowerCase();

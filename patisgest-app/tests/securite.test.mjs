@@ -66,7 +66,8 @@ const FONCTIONS_ANON_AUTORISEES = ['patisgest_demander_commande'];
 
 test('sécu : seule la RPC vitrine nominative est accordée à anon, jamais à PUBLIC', () => {
   const dir = 'supabase';
-  const migrations = readdirSync(path.join(ROOT, dir)).filter((f) => f.endsWith('.sql'));
+  // F-12 : les brouillons vivent dans supabase/brouillons/ ; ils restent scannés.
+  const migrations = [...readdirSync(path.join(ROOT, dir)).filter((f) => f.endsWith('.sql')), ...readdirSync(path.join(ROOT, dir, 'brouillons')).filter((f) => f.endsWith('.sql')).map((f) => path.join('brouillons', f))];
   assert.ok(migrations.length >= 17, `migrations manquantes (${migrations.length})`);
   for (const m of migrations) {
     const sql = lire(path.join(dir, m)).toLowerCase();

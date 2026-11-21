@@ -15,6 +15,7 @@ import {
   type GardeFou,
 } from "./cost-sheet";
 import { computeFefoCost, type FefoLot } from "./fefo-cost";
+import { lireLotsPourArticles, type ClientLots } from "./lots-batch";
 import {
   buildPriceMercuriale,
   computeIngredientImpact,
@@ -191,17 +192,17 @@ export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Prom
     const pvHt = Number(artRow.pv_ht ?? 0);
     const articleCode = String(artRow.code ?? "");
 
+    // N+1 : une lecture groupée pour tous les ingrédients (revue, fiche de coût).
+    const besoins = sim.besoins ?? [];
+    const { lots: lotsParArticle, erreur: erreurLots } = await lireLotsPourArticles(
+      supabase as unknown as ClientLots,
+      ctx.clientId,
+      besoins.map((b) => b.articleId),
+    );
+    if (erreurLots) return { erreur: `Lecture des lots impossible : ${erreurLots}` };
     const lignes = await Promise.all(
-      (sim.besoins ?? []).map(async (b) => {
-        const lotsRes = await supabase
-          .from("lots")
-          .select("id, qte_rest, pu, dlc, date_reception, congele, bloque")
-          .eq("client_id", ctx.clientId)
-          .eq("article_id", b.articleId)
-          .eq("bloque", false)
-          .gt("qte_rest", 0)
-          .limit(300);
-        const lots = (lotsRes.data ?? []) as FefoLot[];
+      besoins.map(async (b) => {
+        const lots = lotsParArticle.get(b.articleId) ?? [];
         const fefo = computeFefoCost(lots, b.qty, today);
         return {
           code: b.code,

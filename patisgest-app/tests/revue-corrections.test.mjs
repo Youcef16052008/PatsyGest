@@ -132,3 +132,16 @@ test('B-011 : la sauvegarde CI chiffre avec le coffre GCM, pas avec openssl AES-
   assert.ok(!etape.includes('aes-256-cbc'), 'plus d’AES-CBC dans la sauvegarde');
   assert.ok(etape.includes('/dev/shm'), 'dump clair hors disque');
 });
+
+test('F-15 : période d’export validée (AAAA-MM-JJ, bornes incluses, du ≤ au)', async () => {
+  const { interpreterPeriode, TABLES_EXPORT } = await import('../src/lib/csv.ts');
+  assert.deepEqual(interpreterPeriode(null, null), { ok: true });
+  assert.deepEqual(interpreterPeriode('2026-11-01', '2026-11-30'), { ok: true, du: '2026-11-01', au: '2026-11-30' });
+  assert.equal(interpreterPeriode('2026-02-30', null).ok, false, 'date inexistante refusée');
+  assert.equal(interpreterPeriode('01/11/2026', null).ok, false, 'format refusé');
+  assert.equal(interpreterPeriode('2026-11-30', '2026-11-01').ok, false, 'du après au refusé');
+  assert.equal(interpreterPeriode("2026-11-01' or 1=1 --", null).ok, false, 'pas d’injection par la période');
+  const mouvements = TABLES_EXPORT.find((t) => t.cle === 'mouvements');
+  assert.equal(mouvements.colonneDate, 'date_mvt');
+  assert.equal(TABLES_EXPORT.find((t) => t.cle === 'articles').colonneDate, undefined, 'table sans date : pas de filtre');
+});

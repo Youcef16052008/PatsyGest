@@ -3,6 +3,7 @@ import { migrationsRepetition } from '../migrations-historique.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
+import { cheminMigration } from '../migrations-historique.mjs';
 import postgres from 'postgres';
 import { createClient } from '@supabase/supabase-js';
 import { spawn } from 'node:child_process';
@@ -82,7 +83,7 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
         catch(e) {throw new Error(`Vitrine ${name}: ${e.message}`,{cause:e});}
       }
     }
-    try { await sql.unsafe(await readFile(new URL(`../../supabase/${file}`, import.meta.url), 'utf8')); }
+    try { await sql.unsafe(await readFile(new URL(`../../supabase/${cheminMigration(file)}`, import.meta.url), 'utf8')); }
     catch (e) { throw new Error(`Migration ${file}: ${e.message}`, { cause: e }); }
   }
   const emails = ['owner@example.test', 'labo@example.test', 'vendeur@example.test', 'autre@example.test'];

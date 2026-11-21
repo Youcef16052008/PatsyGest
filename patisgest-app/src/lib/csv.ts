@@ -79,15 +79,17 @@ export type TableExport = {
   table: string;
   titre: string;
   cout?: boolean;
+  /** F-15 : colonne de date pour le filtre de période (absente = pas de filtre). */
+  colonneDate?: string;
 };
 
 export const TABLES_EXPORT: readonly TableExport[] = [
-  { cle: "ventes", table: "ventes", titre: "Ventes" },
-  { cle: "mouvements", table: "mouvements", titre: "Mouvements de stock" },
-  { cle: "lots", table: "lots", titre: "Lots" },
+  { cle: "ventes", table: "ventes", titre: "Ventes", colonneDate: "date_vente" },
+  { cle: "mouvements", table: "mouvements", titre: "Mouvements de stock", colonneDate: "date_mvt" },
+  { cle: "lots", table: "lots", titre: "Lots", colonneDate: "date_reception" },
   { cle: "articles", table: "articles", titre: "Articles" },
-  { cle: "clotures", table: "clotures", titre: "Clôtures" },
-  { cle: "transferts", table: "transferts", titre: "Transferts" },
+  { cle: "clotures", table: "clotures", titre: "Clôtures", colonneDate: "date_cloture" },
+  { cle: "transferts", table: "transferts", titre: "Transferts", colonneDate: "date_transfert" },
   { cle: "ordres", table: "ordres_fabrication", titre: "Ordres de fabrication" },
   { cle: "z-imports", table: "z_imports", titre: "Imports Z" },
   { cle: "cakes", table: "cakes", titre: "Cake design" },
@@ -100,4 +102,21 @@ export function tableExportable(cle: string, peutLireCouts: boolean): boolean {
   const t = TABLES_EXPORT.find((x) => x.cle === cle);
   if (!t) return false;
   return t.cout ? peutLireCouts : true;
+}
+
+const DATE_ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * F-15 : période d'export `du` / `au` (AAAA-MM-JJ, bornes incluses).
+ * Renvoie les bornes valides, ou un message pour la réponse 400.
+ */
+export function interpreterPeriode(
+  du: string | null,
+  au: string | null,
+): { ok: true; du?: string; au?: string } | { ok: false; message: string } {
+  const valide = (v: string) => DATE_ISO.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
+  if (du !== null && !valide(du)) return { ok: false, message: "Période : « du » doit être une date AAAA-MM-JJ valide." };
+  if (au !== null && !valide(au)) return { ok: false, message: "Période : « au » doit être une date AAAA-MM-JJ valide." };
+  if (du !== null && au !== null && du > au) return { ok: false, message: "Période : « du » est postérieur à « au »." };
+  return { ok: true, ...(du !== null ? { du } : {}), ...(au !== null ? { au } : {}) };
 }
