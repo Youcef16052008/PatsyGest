@@ -86,6 +86,13 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
     try { await sql.unsafe(await readFile(new URL(`../../supabase/${cheminMigration(file)}`, import.meta.url), 'utf8')); }
     catch (e) { throw new Error(`Migration ${file}: ${e.message}`, { cause: e }); }
   }
+  // F-19 : le layout (app) refuse de servir les pages si app_schema_version < 36.
+  // La chaîne ci-dessus n'applique pas la série main 24–36 ; on applique donc
+  // explicitement le marqueur de version (35) puis son relèvement (36).
+  for (const file of ['35-version-schema-app.sql', '36-dates-algiers.sql']) {
+    try { await sql.unsafe(await readFile(new URL(`../../supabase/${file}`, import.meta.url), 'utf8')); }
+    catch (e) { throw new Error(`Migration ${file}: ${e.message}`, { cause: e }); }
+  }
   const emails = ['owner@example.test', 'labo@example.test', 'vendeur@example.test', 'autre@example.test'];
   const roles = ['proprietaire', 'labo', 'vendeur', 'proprietaire'];
   const password = 'Test-only-password-12345!';
