@@ -3,11 +3,13 @@
 Application Next.js 16 pour pâtisseries artisanales : connexion Supabase à trois rôles
 (propriétaire / labo / vendeur), isolement client par RLS, et modules Sprint 2.
 
-> **État de cette branche : non prête pour déploiement.** Les SQL de main et
-> les brouillons sécurité ont des numéros 24–31 en double ; ne jamais les
-> appliquer par tri lexical. Voir [PLAN-CLOTURE.md](PLAN-CLOTURE.md) et
-> [CERTIFICATION-PHASES-2-3.md](CERTIFICATION-PHASES-2-3.md). Les instructions
-> historiques ci-dessous ne constituent pas un ordre de migration validé.
+> **État : non prête pour un déploiement commercial général.** Les migrations
+> historiques 01–31 et les brouillons 101–128 sont des séries distinctes ; ne
+> jamais appliquer le dossier par tri lexical. Le pilote présente aussi des
+> écarts avec ce dépôt. Voir [l'état des phases 0 et 1](ETAT-PHASES-0-1.md),
+> [PLAN-CLOTURE.md](PLAN-CLOTURE.md) et [CERTIFICATION-PHASES-2-3.md](CERTIFICATION-PHASES-2-3.md).
+> Les instructions historiques ci-dessous ne constituent pas un ordre de
+> migration validé et ne doivent pas être exécutées sur le pilote.
 
 > **Démo et pilote connecté** : la démonstration manipule uniquement des données
 > fictives dans le navigateur. En mode Supabase, la caisse, les stocks et la
@@ -35,7 +37,10 @@ ce bouton simule la vente et le ticket est sans valeur fiscale.
 
 ### 1. Base de données (Supabase)
 
-Exécuter **une fois** dans Supabase → SQL Editor, dans l'ordre :
+**Historique uniquement — ne pas exécuter ces étapes sur le pilote.** La
+reconstruction des tests utilise des adaptations et ne constitue pas un plan
+validé d'installation ou de mise à niveau. À titre de contexte, les premières
+migrations décrivaient :
 
 1. `supabase/01-socle.sql` — tables `clients`, `utilisateurs`, `sites` + RLS
    *(ne pas relancer sur une base déjà initialisée)*.
@@ -54,12 +59,11 @@ Exécuter **une fois** dans Supabase → SQL Editor, dans l'ordre :
 Le jeu de données métier du projet pilote distant n'est pas intégralement reproduit par
 le seed local.
 
-**Pilote déjà en migration 18** : avant de déployer les correctifs et le guide B,
-appliquer `supabase/19-confidentialite-familles-recettes.sql` puis
-`supabase/20-creation-fournisseur.sql`. Le guide est proposé uniquement au
-propriétaire et au labo en mode Supabase. Il suit les six enregistrements
-existants dans l'établissement, pas les brouillons ni la file hors ligne.
-Pour le retest sur un établissement de test, voir [le guide pilote, étape 6](../GUIDE-PILOTE.md#étape-6--vérifier-et-chronométrer-le-guide-b).
+**Note historique :** les instructions antérieures proposaient les migrations
+19 et 20 après la migration 18. Ne pas les rejouer sur le pilote : consulter
+l'historique et comparer les définitions effectives avant toute intervention.
+Le guide B était proposé au propriétaire et au labo ; ses conditions de retest
+figurent dans [le guide pilote, étape 6](../GUIDE-PILOTE.md#étape-6--vérifier-et-chronométrer-le-guide-b).
 
 **Index d’exploitation (non validés pour ce déploiement)** : examiner
 `supabase/24-index-exploitation.sql`. Il crée 18 index composites par
@@ -253,7 +257,7 @@ src/components/stock-write-forms.tsx    → formulaires article / réception (pa
 src/components/sale-form.tsx            → formulaire de vente (page Caisse)
 src/components/of-forms.tsx             → formulaires OF (page Production)
 src/components/transfer-form.tsx        → formulaire de transfert (page Transferts)
-src/db/schema.ts                        → tables Drizzle (miroir du SQL)
+src/db/schema.ts                        → représentation Drizzle historique, potentiellement incomplète
 supabase/01..08-*.sql                   → socle, seed, modules, lecture, écritures RLS
 middleware.ts                           → rafraîchit la session Supabase
 tests/store.test.mjs                    → tests unitaires du moteur local
@@ -263,6 +267,12 @@ tests/smoke-http.mjs                    → tests HTTP de bout en bout
 
 ## Règles d'or
 
+- **Schéma** : `src/db/schema.ts` est une représentation historique, pas une source
+  fiable pour synchroniser la base. `npm run db:push` échoue volontairement sans
+  connexion. N'utilisez pas non plus `drizzle-kit push` directement : les migrations
+  SQL du dépôt doivent être revues et comparées au catalogue effectivement déployé,
+  qui peut diverger. `db:generate` ne valide ni n'autorise un déploiement. Le client
+  et les outils Drizzle sont conservés pour examen de leurs usages éventuels.
 - **Isolement** : les lectures passent par le client Supabase serveur → la RLS
   (`client_id`) s'applique automatiquement. Ne JAMAIS filtrer côté navigateur seul.
 - **Écritures** : le client Drizzle direct contourne la RLS — ne pas l'utiliser dans le

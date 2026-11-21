@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Application · tests, types, lint et build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: patisgest-app
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: patisgest-app/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      # Comprend les tests PGlite de répétition. Ils ne certifient pas le pilote.
+      - run: npm test
+      - name: Build sans accès ni secrets de production
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:65531
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: test
+      - name: Tests du design studio
+        working-directory: .
+        run: node --test design-studio/tests/*.test.mjs
+
+  isolated-integration:
+    name: Auth et PostgREST isolés · ${{ matrix.schema }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        schema: [historique, vitrine]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: patisgest-app/package-lock.json
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.75.0
+      - run: npm ci
+        working-directory: patisgest-app
+      - name: Démarrer une pile locale jetable
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/patsygest-ci"
+          cd "$RUNNER_TEMP/patsygest-ci"
+          supabase init
+          supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta,inbucket
+          umask 077
+          supabase status -o env > "$RUNNER_TEMP/supabase-test.env"
+      - name: Tests de rôles avec Auth et PostgREST locaux
+        shell: bash
+        working-directory: patisgest-app
+        env:
+          PATSYGEST_TEST_VITRINE: ${{ matrix.schema == 'vitrine' && 'yes' || 'no' }}
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNNER_TEMP/supabase-test.env"
+          set +a
+          export PATSYGEST_DISPOSABLE=yes
+          node --test tests/integration/auth-postgrest.mjs
+      - name: Détruire la pile locale
+        if: always()
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/patsygest-ci" 2>/dev/null || exit 0
+          supabase stop --no-backup

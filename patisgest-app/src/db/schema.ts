@@ -12,9 +12,10 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * PâtisGest — Schéma complet (Sprint 1 Socle + Sprint 2+ Modules Métier).
- * Miroir exact de supabase/01-socle.sql et supabase/03-sprint2-modules.sql.
- * Règle d'or : client_id partout, isolement strict via RLS Supabase.
+ * PâtisGest — représentation Drizzle historique et potentiellement incomplète.
+ * Elle n'est pas la source de vérité du schéma déployé : ne pas l'utiliser
+ * pour synchroniser une base. Les migrations SQL et le catalogue effectif
+ * doivent être examinés séparément. L'isolement dépend des politiques RLS.
  */
 
 export const roleEnum = pgEnum("role_utilisateur", [

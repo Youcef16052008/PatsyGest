@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  normaliserHote, estHoteLocal, resoudreHote, cleCacheHote,
+  normaliserHote, estHoteLocal, resoudreHote, cleCacheHote, deciderRoutage,
 } from '../src/lib/domaines.ts';
 
 /**
@@ -63,4 +63,14 @@ test('hôte : domaine de service configurable (recette, autre pays)', () => {
   assert.deepEqual(resoudreHote('elyasmine.patisgest.recette.dz', 'patisgest.recette.dz'), {
     type: 'boutique', sousDomaine: 'elyasmine',
   });
+});
+
+test('hôte : seul un label DNS valide devient un chemin de vitrine', () => {
+  for (const prefix of ['a/b', 'nom avec espace', 'éclair', '-debut', 'fin-', 'a'.repeat(64), 'x%2Fy', 'a_b']) {
+    assert.equal(resoudreHote(`${prefix}.patisgest.dz`).type, 'inconnu', prefix);
+    assert.equal(deciderRoutage(`${prefix}.patisgest.dz`, '/', '').type, 'laisser', prefix);
+  }
+  assert.equal(resoudreHote(`${'a'.repeat(63)}.patisgest.dz`).type, 'boutique');
+  assert.deepEqual(deciderRoutage('gateau.patisgest.dz', '/appearance/fraunces.woff2', ''), {type:'laisser'});
+  assert.deepEqual(deciderRoutage('gateau.patisgest.dz', '/appearance/croissant.webp', ''), {type:'laisser'});
 });

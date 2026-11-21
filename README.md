@@ -2,6 +2,14 @@
 
 Solution de gestion tout-en-un pour ateliers et laboratoires de pâtisserie.
 
+> **Attention : pas de mise en production commerciale générale en l'état.**
+> `PâtisGest-Final.html` et l'application Electron qui l'encapsule sont des
+> **démonstrations avec données fictives uniquement**, pas des registres de vente,
+> de stock ou de production. Ne pas leur confier de données réelles. La
+> restauration et les migrations du pilote doivent être vérifiées avant toute
+> intervention ; voir [l'état des phases 0 et 1](patisgest-app/ETAT-PHASES-0-1.md)
+> et le [rapport consolidé](RAPPORT-CONSOLIDE-ET-PLAN.md).
+
 ## 📁 Structure du projet
 
 | Dossier / fichier | Description |

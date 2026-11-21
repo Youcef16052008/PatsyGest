@@ -1,5 +1,5 @@
 /**
- * Coût FEFO pur : consomme les lots dans l'ordre FEFO (congelé d'abord,
+ * Coût FEFO pur : consomme les lots dans l'ordre FEFO (frais avant congelé,
  * DLC croissante, réception en secours) pour couvrir une quantité demandée.
  * Même ordre que les RPC SQL ; lorsque `asOf` (AAAA-MM-JJ) est fourni,
  * les lots bloqués ou dont la DLC est strictement antérieure à `asOf`
@@ -47,10 +47,10 @@ export function isFefoLotEligible(
   return true;
 }
 
-/** Ordre FEFO identique au SQL : congelé d'abord, DLC asc (nulls last), réception asc, id asc. */
+/** Ordre identique au SQL : frais avant congelé, DLC asc (nulls last), réception asc, id asc. */
 export function sortFefo<T extends FefoLot>(lots: T[]): T[] {
   return [...lots].sort((a, b) => {
-    if (a.congele !== b.congele) return a.congele ? -1 : 1;
+    if (a.congele !== b.congele) return a.congele ? 1 : -1;
     const da = a.dlc ? Date.parse(a.dlc) : Number.POSITIVE_INFINITY;
     const db = b.dlc ? Date.parse(b.dlc) : Number.POSITIVE_INFINITY;
     if (da !== db) return da - db;
