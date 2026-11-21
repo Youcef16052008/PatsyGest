@@ -32,7 +32,7 @@ Branche : `arena/27fe0740-patsygest` (base `2fba72c`).
 
 | # | Constat | Action |
 |---|---|---|
-| 2.1 | F-08 | **Ouvert, sans migration.** La forme `alter default privileges … in schema public` ne retire pas EXECUTE de PUBLIC (vérifié PGlite) ; la forme globale a un effet de bord non testable ici. |
+| 2.1 | F-08 | **Traité par garde, pas par droits par défaut.** Mesuré sur PostgreSQL 17.12 réel : `ALTER DEFAULT PRIVILEGES … REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC` ne retire pas PUBLIC des nouvelles fonctions (la fonction reçoit `=X`, même avec un défaut explicite pour `authenticated`). Le filet réel est le test `droits-execution-db.test.mjs`, qui échoue si une fonction de `public` est exécutable par PUBLIC ou anon. |
 | 2.2 | F-05 | **Fait** par la migration `33` (contrôle `version = 1` dans l'interne ; compteurs par table). |
 | 2.3 | F-06 | **Fait** : borne 99,99 testée. Erreurs de fiche typées : non faites. |
 | 2.4 | F-12 | **Non fait.** Les tests et le manifeste d'empreintes référencent les chemins `supabase/NN-*.sql` ; déplacer les brouillons casse ces références. À faire dans un passage dédié, avec la liste ordonnée unique. |
@@ -81,7 +81,7 @@ Ce tableau fait foi. Il remplace les statuts ci-dessus lorsqu'ils diffèrent.
 | Phase 4 `error.tsx` | **Fait** | `src/app/error.tsx` et `src/app/(app)/error.tsx`. |
 | Phase 4 CI | **Fait** | `.github/workflows/ci.yml`. |
 | F-12 | **Fait** | 28 brouillons déplacés dans `supabase/brouillons/` (`git mv`, SHA-256 inchangés). Lecteurs corrigés via `cheminMigration`/`tousLesSql`. `securite.test.mjs` et `vitrine.test.mjs` scannent aussi les brouillons (sinon les contrôles de grants sortaient silencieusement). |
-| F-08 | **Ouvert** | Pas de migration sûre vérifiable ici (voir ci-dessus). |
+| F-08 | **Fermé par garde de test** | Les droits par défaut ne suffisent pas (mesuré sur PostgreSQL 17.12). La protection est le test d'exécution `droits-execution-db.test.mjs` : toute nouvelle fonction exposée à PUBLIC ou anon le fait échouer. |
 | B-002 | **Non fait** | Clés composites : une quarantaine de relations, migration à données existantes. Pilote : 1 client, 0 incohérence sur `lots→articles` et `mouvements→lots`. Risque latent multi-client. |
 | B-007 / B-008 | **Partiel (migrations 37 et 38 écrites et testées, non appliquées au pilote)** | RPC transactionnelle de transfert : **déjà en place** (`transferer_article`, plpgsql, migrations 08 et 21). **Reste** : `client_ref` idempotent sur les transferts (double soumission / rejeu hors ligne, comme les OF en 16), et anti-abus vitrine par source plutôt que compteur global. Ces deux points exigent une migration 37 : à valider avant écriture. |
 | N+1 fiche de coût | **Fait** | `lib/lots-batch.ts` : un `in()` par bloc de 100 articles, pagination jusqu'à page courte, erreur remontée (plus de `[]` silencieux). Fiche de coût et simulation. Tests : `tests/lots-batch.test.mjs`. |
