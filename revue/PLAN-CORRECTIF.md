@@ -83,10 +83,30 @@ Ce tableau fait foi. Il remplace les statuts ci-dessus lorsqu'ils diffèrent.
 | F-12 | **Fait** | 28 brouillons déplacés dans `supabase/brouillons/` (`git mv`, SHA-256 inchangés). Lecteurs corrigés via `cheminMigration`/`tousLesSql`. `securite.test.mjs` et `vitrine.test.mjs` scannent aussi les brouillons (sinon les contrôles de grants sortaient silencieusement). |
 | F-08 | **Ouvert** | Pas de migration sûre vérifiable ici (voir ci-dessus). |
 | B-002 | **Non fait** | Clés composites : une quarantaine de relations, migration à données existantes. Pilote : 1 client, 0 incohérence sur `lots→articles` et `mouvements→lots`. Risque latent multi-client. |
-| B-007 / B-008 | **Partiel** | RPC transactionnelle de transfert : **déjà en place** (`transferer_article`, plpgsql, migrations 08 et 21). **Reste** : `client_ref` idempotent sur les transferts (double soumission / rejeu hors ligne, comme les OF en 16), et anti-abus vitrine par source plutôt que compteur global. Ces deux points exigent une migration 37 : à valider avant écriture. |
+| B-007 / B-008 | **Partiel (migration 37 écrite, non appliquée, non branchée)** | RPC transactionnelle de transfert : **déjà en place** (`transferer_article`, plpgsql, migrations 08 et 21). **Reste** : `client_ref` idempotent sur les transferts (double soumission / rejeu hors ligne, comme les OF en 16), et anti-abus vitrine par source plutôt que compteur global. Ces deux points exigent une migration 37 : à valider avant écriture. |
 | N+1 fiche de coût | **Fait** | `lib/lots-batch.ts` : un `in()` par bloc de 100 articles, pagination jusqu'à page courte, erreur remontée (plus de `[]` silencieux). Fiche de coût et simulation. Tests : `tests/lots-batch.test.mjs`. |
 | Phase 4 Playwright | **Non fait** | Navigateurs non téléchargeables depuis cet environnement (hôtes autorisés : npm, PyPI, GitHub). |
 | Phase 4 lint textuel `securite.test.mjs` | **Partiel** | Les contrôles de droits (grants PUBLIC/anon, révocation avant grant) sont remplacés par `tests/droits-execution-db.test.mjs` : migrations appliquées sur PGlite (chaîne 01–23 + 24–36), droits lus dans `pg_proc`. Restent des contrôles textuels sur le code source TypeScript (routes, actions, rôles). |
 
 **Migrations à relire avant tout passage sur le pilote :** `33`, `34`, `35`, `36`. Aucune n'a été appliquée au pilote par ce travail.
 **Conséquence de F-19 au déploiement :** une base sans `app_schema_version` (ou en version 35) bloque l'espace tant que `36` n'est pas appliquée.
+
+## Revue de vigilance avant pilote : migrations 33 à 37
+
+Aucune de ces migrations n'est appliquée au pilote par ce travail. Ordre requis : 33 → 34 → 35 → 36 → 37 (chacune vérifie son prérequis). Déployer l'application seulement après 35 (`VERSION_SCHEMA_REQUISE = 36`).
+
+| Migration | Ce qu'elle change | Points de vigilance | Garde-fou dans le fichier |
+|---|---|---|---|
+| **33** restauration sans perte | Réécrit l'interne de restauration. | Insertion `on conflict do nothing` : additive, jamais d'écrasement ; les doublons sont comptés en `ignore`. Liste des tables `v_ordre` constante (pas d'entrée utilisateur dans `format`). Le contrôle de tenant ne porte que sur la clé `client_id` : une table fille sans `client_id` n'est pas vérifiée (à relire). | Vérifie client, version de dump, « sans tables ». |
+| **34** coût OF partiel | Corrige la formule de `terminer_of` par remplacement de texte sur sa définition. | Patch textuel à l'exécution : garde stricte (une seule occurrence attendue). Les coûts déjà enregistrés ne sont **pas** recalculés (décision F-20). Pas de retour arrière automatique. | Échec si la formule diffère ; rejouable. |
+| **35** version de schéma | Table `app_schema_version` (version 35), lecture seule côté authentifié. | Sans elle, l'application refuse de démarrer en mode `supabase`. Ne jamais abaisser la version. | Rejouable, version jamais abaissée. |
+| **36** dates Algiers | Remplace `current_date` par la date locale dans les fonctions publiques et les défauts de colonnes. | Remplacement par expression régulière `\mcurrent_date\M` : touche aussi un `current_date` écrit dans un commentaire ou une chaîne d'une fonction (sans effet fonctionnel, à connaître). Modifie les défauts de toutes les tables concernées (métadonnées seulement). | Échec si `current_date` subsiste, si une vue publique en contient, ou si un défaut est inattendu. |
+| **37** transfert idempotent (B-007) | `transferts.client_ref` (unique par client) et `transferer_article_ref`. Ne modifie pas `transferer_article`. | Non branchée côté application : aucun effet tant que l'app n'appelle pas la nouvelle RPC. Une même référence rejouée renvoie le transfert existant ; une référence réutilisée pour une autre demande est refusée. Verrou consultatif par (client, référence). | Prérequis 08, 21, 35 ; droits fermés à anon et PUBLIC. |
+
+Tests : `tests/phase1-f02-f20-db.test.mjs`, `tests/dates-algiers-db.test.mjs`, `tests/schema-version-db.test.mjs`, `tests/transfert-client-ref-db.test.mjs` (6), `tests/droits-execution-db.test.mjs`.
+
+Limite : PGlite est mono-connexion. Le verrou et l'unicité sont vérifiés par la logique et la contrainte, pas par une vraie concurrence à deux sessions. Une vérification en concurrence réelle reste à faire sur un environnement Postgres jetable avant branchement.
+
+**Statut B-007 (mis à jour) :** `client_ref` des transferts = migration 37 écrite et testée, non appliquée, non branchée. Anti-abus vitrine : en attente d'une décision (voir ci-dessous).
+
+**Décision à prendre (anti-abus vitrine, B-008).** Aujourd'hui `27-commandes-vitrine.sql` limite à 30 demandes par heure pour **tout l'établissement** : un robot bloque toutes les demandes légitimes. La version « par source » exige d'identifier la source sans stocker d'IP (par exemple un hachage salé à rotation quotidienne). Ce choix touche à la vie privée et n'a pas été tranché. Options : (a) garder le compteur global et le signaler au client ; (b) hachage quotidien de l'IP côté serveur, sans conservation ; (c) limitation au niveau de l'hébergeur (CDN) hors base.

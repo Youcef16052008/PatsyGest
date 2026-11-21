@@ -324,6 +324,12 @@
       "sha256": "17cd056efccaf72ab87b1a10962f982c8eec17989e04e84a15477e0ad2a508ad",
       "hors_fixture_pilote": true,
       "note": "Revue F-04 (SQL) : current_date -> date Africa/Algiers dans les fonctions publiques et défauts de colonnes ; version de schéma 36."
+    },
+    {
+      "file": "37-transfert-client-ref.sql",
+      "sha256": "b48870130aa92100dcaae62fae2ffc6e6131c8bf10a4931f46718d695d79be6d",
+      "hors_fixture_pilote": true,
+      "note": "Revue B-007 : transferts.client_ref + transferer_article_ref (rejeu idempotent). Non appliquée au pilote ; app non branchée (version requise inchangée à 36 jusqu’au branchement)."
     }
   ],
   "exclus": [
