@@ -17,6 +17,7 @@
 5. **Durcissement export CSV local** : les cellules textuelles qui commencent par des espaces ou un BOM avant un opérateur de formule sont désormais neutralisées; les tableaux et objets JSON issus de `select *` sont rendus en JSON lisible avec clés triées, au lieu de produire `[object Object]`. Les valeurs numériques typées restent numériques, notamment les montants négatifs. Tests de régression ajoutés. Cela n’altère ni l’autorisation d’export ni la sélection des données, et ne résout pas les risques SQL tenant ouverts.
 6. **Pagination export/sauvegarde aux plafonds** : le lecteur partagé sonde une ligne après une dernière page pleine, accepte exactement 20 000 lignes pour CSV et 50 000 lignes par table pour JSON, mais refuse explicitement toute ligne au-delà sans produire un fichier partiel. L’export répond 413 au dépassement; la sauvegarde reste fail-closed. Tests synthétiques vérifient cap−1/cap/cap+1 et une erreur de sonde. La cohérence face à des mutations concurrentes entre pages (snapshot transactionnel/keyset) n’est pas garantie par ce correctif et reste à traiter avant de qualifier une sauvegarde de snapshot cohérent.
 7. **R6 — compte de démo** : l’autorisation de connexion rapide et la résolution d’un cookie signé recherchent maintenant une clé propre dans la liste blanche; les clés héritées (`constructor`, `__proto__`, etc.) sont refusées. Le mode démo reste désactivé en production. Tests couvrent la vraie liste de comptes.
+8. **R2/D1 — arrondis caisse** : le navigateur calcule désormais les centimes à partir de fractions décimales exactes (`BigInt`) et applique l’arrondi demi-haut de PostgreSQL numeric, plutôt que de multiplier en virgule flottante binaire. Un test compare le cas 2,50 × 1,19 à PGlite et une matrice déterministe de 200 000 cas valide HT/TVA/TTC. Cette preuve est locale et synthétique; elle ne remplace pas une comparaison des tickets de production, qui reste interdite sur le pilote.
 
 ## Vérifications exécutées
 
@@ -28,7 +29,7 @@ Les commandes suivantes ont été lancées dans `patisgest-app` sous Node `v22.2
 | `npm audit --omit=dev` | Réussi : 0 vulnérabilité dans les dépendances de production. |
 | `npm run typecheck` | Réussi. |
 | `npm run lint` | Réussi. |
-| `npm test` | Réussi après changements CSV, pagination et compte démo : 375 pass, 0 fail, 4 TODO / 379 tests. Les 4 TODO restent les trois assertions D2/D4/D7 et le test de commande D3. |
+| `npm test` | Réussi après changements CSV, pagination et compte démo : 377 pass, 0 fail, 4 TODO / 381 tests. Les 4 TODO restent les trois assertions D2/D4/D7 et le test de commande D3. |
 | Build avec `NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:65531` et clé fictive `test` | Réussi. Ces valeurs sont destinées à la compilation locale seulement. |
 | `node --test design-studio/tests/*.test.mjs` | Réussi : 6/6 tests. |
 | Validation du YAML du workflow (`js-yaml`) et assertions de présence des étapes | Réussies. |
@@ -48,7 +49,7 @@ La suite ajoutée construit chaque cas dans une base PGlite éphémère avec deu
 - **D4 :** sous un JWT simulé de rôle `labo`, un `UPDATE` direct de `sites` peut réserver `support` et changer le champ `publication`; cela contourne les validations de la RPC de réservation.
 - **D7 :** la restauration `SECURITY DEFINER` accepte un dump dont la famille appartient au tenant A mais dont `produit_id` pointe vers un article du tenant B; la FK simple `produit_id → articles.id` n’impose pas l’égalité de tenant.
 
-Ces assertions sont explicitement **TODO/non bloquantes** tant que les migrations réelles ne sont pas réconciliées. Le run CI distant `44882762909` précède ces trois nouveaux tests et ne les valide pas; les validations locales actuelles sont : suite entière (375 pass / 4 TODO), typecheck, lint et build réussis. La migration 32 reste absente des sources suivies; en complément, `list_snippets` Supabase a renvoyé une liste vide. Aucun SQL n’a été créé ou exécuté sur le pilote pour combler cette lacune.
+Ces assertions sont explicitement **TODO/non bloquantes** tant que les migrations réelles ne sont pas réconciliées. Le run CI distant `44882762909` précède ces trois nouveaux tests et ne les valide pas; les validations locales actuelles sont : suite entière (377 pass / 4 TODO), typecheck, lint et build réussis. La migration 32 reste absente des sources suivies; en complément, `list_snippets` Supabase a renvoyé une liste vide. Aucun SQL n’a été créé ou exécuté sur le pilote pour combler cette lacune.
 
 ## Revue de sécurité et limites
 

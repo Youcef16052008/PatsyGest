@@ -68,7 +68,55 @@ export type CartStockAlert = {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const round4 = (n: number) => Math.round((n + Number.EPSILON) * 10_000) / 10_000;
-const toCents = (n: number) => Math.round((n + Number.EPSILON) * 100);
+
+type DecimalExact = { coefficient: bigint; scale: number };
+
+/** Convertit la représentation décimale canonique d'un nombre en entier exact. */
+const BIGINT_TWO = BigInt(2);
+const BIGINT_TEN = BigInt(10);
+const BIGINT_HUNDRED = BigInt(100);
+
+function decimalExact(value: number): DecimalExact {
+  const [mantissa, exponentText] = value.toString().toLowerCase().split("e");
+  const exponent = exponentText ? Number(exponentText) : 0;
+  const [entier, fraction = ""] = mantissa.split(".");
+  let coefficient = BigInt(entier + fraction);
+  let scale = fraction.length - exponent;
+  if (scale < 0) {
+    coefficient *= BIGINT_TEN ** BigInt(-scale);
+    scale = 0;
+  }
+  return { coefficient, scale };
+}
+
+const puissance10 = (scale: number) => BIGINT_TEN ** BigInt(scale);
+
+/** PostgreSQL numeric round(x, 2) : les demi-centimes positifs s'arrondissent vers le haut. */
+function arrondirRatioPositif(numerateur: bigint, denominateur: bigint): bigint {
+  return (BIGINT_TWO * numerateur + denominateur) / (BIGINT_TWO * denominateur);
+}
+
+function centimesLigne(qte: number, prixHT: number, tva: number) {
+  const q = decimalExact(qte);
+  const prix = decimalExact(prixHT);
+  const taxe = decimalExact(tva);
+  const denominateurQuantitePrix = puissance10(q.scale + prix.scale);
+  const denominateurComplet = denominateurQuantitePrix * puissance10(taxe.scale);
+  const centimesHT = arrondirRatioPositif(
+    q.coefficient * prix.coefficient * BIGINT_HUNDRED,
+    denominateurQuantitePrix,
+  );
+  const facteurTTC = BIGINT_HUNDRED * puissance10(taxe.scale) + taxe.coefficient;
+  const centimesTTC = arrondirRatioPositif(
+    q.coefficient * prix.coefficient * facteurTTC,
+    denominateurComplet,
+  );
+  const centimesUnitaireTTC = arrondirRatioPositif(
+    prix.coefficient * facteurTTC,
+    puissance10(prix.scale + taxe.scale),
+  );
+  return { centimesHT, centimesTTC, centimesUnitaireTTC };
+}
 
 export function isValidCartQty(qte: number): boolean {
   return Number.isFinite(qte) && qte >= 0.0001 && qte <= MAX_CART_QTE && Math.abs(round4(qte) - qte) < 1e-9;
@@ -164,13 +212,15 @@ export function computeCartTotals(cart: readonly CartItem[]): CartTotals {
       return { ...item, qteValide, unitTTC: null, totalHT: null, totalTVA: null, totalTTC: null };
     }
 
-    const unitTTC = toCents(item.prixHT! * (1 + item.tva! / 100)) / 100;
     if (!qteValide) {
+      const unitTTC = Number(centimesLigne(1, item.prixHT!, item.tva!).centimesUnitaireTTC) / 100;
       return { ...item, qteValide, unitTTC, totalHT: null, totalTVA: null, totalTTC: null };
     }
 
-    const lHT = toCents(item.qte * item.prixHT!);
-    const lTTC = toCents(item.qte * item.prixHT! * (1 + item.tva! / 100));
+    const montants = centimesLigne(item.qte, item.prixHT!, item.tva!);
+    const unitTTC = Number(montants.centimesUnitaireTTC) / 100;
+    const lHT = Number(montants.centimesHT);
+    const lTTC = Number(montants.centimesTTC);
     const lTVA = lTTC - lHT;
     centsHT += lHT;
     centsTTC += lTTC;
