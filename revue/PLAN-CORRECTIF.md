@@ -76,7 +76,7 @@ Ce tableau fait foi. Il remplace les statuts ci-dessus lorsqu'ils diffèrent.
 | F-13 | **Vérifié, déjà correct** | `{}` → pas de bilan ; `'0'` → zéro explicite ; fond sans espèces → refus. Test permanent. |
 | F-15 | **Fait** | Messages des exports explicites (limite nommée) ; filtre `du`/`au` (AAAA-MM-JJ, bornes incluses) sur les 5 tables datées (`interpreterPeriode`, `colonneDate`) ; 400 explicite sur les tables sans date. |
 | F-16 | **Fait** | `insuffisantStock` et `sansPrixConnu` séparés de `insuffisant` (coût). Test permanent. |
-| F-19 | **Partiel** | Drapeau labo/vendeur (1.7) ; table `app_schema_version` (migration `35`, version requise `36`) et refus au chargement de l'espace (mode `supabase`). **Non fait** : matrice app × schéma en test. |
+| F-19 | **Fait** | Drapeau labo/vendeur (1.7) ; table `app_schema_version` (migration `35`, version requise `36`) et refus au chargement de l'espace (mode `supabase`). Matrice app × schéma : `tests/matrice-app-schema.test.mjs` — toute table, vue ou RPC lue par l'application doit exister dans la chaîne déployée `01`→`39` ; les exceptions (vues `labo_*`/`vendeur_*`, RPC `equipe_*`, `patisgest_tous_sites_autorises`) ne sont admises que si leur garde-fou est active. |
 | B-011 | **Fait** (workflow) | `sauvegarde-free.yml` chiffre avec le coffre AES-256-GCM du dépôt, relecture authentifiée, dump clair en `/dev/shm` seulement. Les anciennes copies `.enc` (AES-CBC) restent lisibles avec openssl (procédure dans le résumé). Non exécuté : à vérifier au premier run. |
 | Phase 4 `error.tsx` | **Fait** | `src/app/error.tsx` et `src/app/(app)/error.tsx`. |
 | Phase 4 CI | **Fait** | `.github/workflows/ci.yml`. |

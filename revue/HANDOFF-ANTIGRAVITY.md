@@ -48,9 +48,10 @@ Source de vérité : `revue/PLAN-CORRECTIF.md` (section « État après la suite
 - La migration `38` et le code serveur (`src/lib/vitrine-anti-abus.ts`, `src/app/(vitrine)/vitrine/[slug]/commander/actions.ts`) sont écrits et testés.
 - Aucune action si le secret n'est pas configuré : le code se replie sur le plafond global.
 
-**c. Matrice app × schéma (F-19, partiellement fait).**
+**c. Matrice app × schéma (F-19).**
 - Fait : le contrôle de version (`verifierVersionSchema`, `app_schema_version`) bloque les pages si le schéma est inférieur à `36`, et le masquage des rôles labo et vendeur est en place (voir §3.1).
-- Reste : écrire un test qui vérifie, pour chaque vue et chaque fonction lues par l'application, qu'elle existe dans le schéma déployé à la version requise.
+- Fait : `tests/matrice-app-schema.test.mjs` vérifie que chaque table, vue et RPC lue par l'application existe dans la chaîne déployée `01`→`39`. Les exceptions (vues `labo_*`/`vendeur_*`, RPC `equipe_*`, `patisgest_tous_sites_autorises`) ne sont admises que si leur garde-fou est active ; le test vérifie `ROLES_LABO_VENDEUR_ACTIFS = false` et `equipeExperimentaleActive() = false`.
+- Reste : confronter cette matrice au schéma **réel du pilote** (la chaîne reconstruite prouve la cohérence du dépôt, pas l'état de la base en production).
 
 **d. Tests d'intégration Auth/PostgREST : à relire quand le masquage sera levé.**
 - `tests/integration/auth-postgrest.mjs` démarre le vrai `next dev` et utilise une stack Supabase (Docker). Il ne tourne **que en CI** (jobs « Auth et PostgREST isolés »). Il n'est pas exécutable dans le sandbox.
@@ -112,6 +113,8 @@ PATSYGEST_PG_URL=postgres://postgres@127.0.0.1:54329/postgres npm test
 ```
 
 Les tests `auth-postgrest.mjs` ne tournent pas ici : ils demandent Docker et la CLI Supabase. Ne les considérer comme vérifiés qu'après un job CI vert.
+
+Sur Windows, deux tests étaient liés à POSIX (mode `0600` du coffre, `spawnSync('npm')`) : ils utilisent maintenant une garde de plateforme, sans affaiblir les assertions sur Linux/CI. Le dépôt de travail doit rester en `core.autocrlf=false` : un checkout CRLF fait échouer six tests (cinq fois le brouillon `128` et l'empreinte SHA de `01-socle.sql`).
 
 ## 5. Outils à utiliser
 

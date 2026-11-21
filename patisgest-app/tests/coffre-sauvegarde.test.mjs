@@ -16,7 +16,10 @@ test('coffre authentifié : roundtrip, mot de passe, altération, pas de sortie 
  try {
   const data=randomBytes(200_000), src=join(dir,'src'), enc=join(dir,'enc'), out=join(dir,'out');
   await writeFile(src,data); assert.equal(run('chiffrer',src,enc).status,0);
-  assert.equal((await stat(enc)).mode & 0o777,0o600);
+  // Windows ne sait pas exprimer 0600 par chmod (seul le bit lecture seule existe) :
+  // le mode réel y est 0666. Sur POSIX, on exige toujours 0600.
+  const mode=(await stat(enc)).mode & 0o777;
+  assert.equal(mode, process.platform==='win32' ? 0o666 : 0o600);
   assert.equal(run('dechiffrer',enc,out).status,0); assert.deepEqual(await readFile(out),data);
   assert.notEqual(run('chiffrer',src,enc).status,0); assert.notEqual(run('dechiffrer',enc,out).status,0);
   assert.deepEqual(await readFile(out),data);
