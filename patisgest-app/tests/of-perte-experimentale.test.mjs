@@ -100,12 +100,12 @@ test('proposition locale : rejette données incohérentes sans enregistrer de pe
       const order=(await db.query('select statut,qte_realisee,cout_reel from ordres_fabrication where id=$1',[ofId])).rows[0];
       assert.deepEqual([order.statut,Number(order.qte_realisee),Number(order.cout_reel)],['partiel',78,780]);
     }
-    // Deux matières connues : (10 × 5 + 20 × 3,33) × (2 / 80) = 2,915 → 2,92 DA.
+    // Deux matières connues : (10 × 5 + 20 × 3,50) × (2 / 80) = 3 DA.
     await db.query('update ordres_fabrication set consommations=$1::jsonb,manquants=\'[]\'::jsonb where id=$2',
-      [JSON.stringify([{qty:10,pu:5},{qty:20,pu:3.33}]),ofId]);
+      [JSON.stringify([{qty:10,pu:5},{qty:20,pu:3.5}]),ofId]);
     await db.exec('set role authenticated');
     const result=(await close(db)).rows[0].r;
-    assert.equal(Number(result.montant_matiere),2.92);
+    assert.equal(Number(result.montant_matiere),3);
     assert.equal(Number(result.quantite_perdue),2);
   } finally { await db.close(); }
 });
@@ -142,11 +142,12 @@ test('proposition locale : allocation matière et arrondi fractionnaire à réco
     await db.query("update ordres_fabrication set qte_prevue=3,consommations='[{\"qty\":1,\"pu\":1}]' where id=$1",[ofId]);
     await db.exec('set role authenticated');
     await db.query("select public.terminer_of($1,2,'LOT-ARRONDI',current_date+1)",[ofId]);
-    const loss=(await close(db)).rows[0].r;
-    const order=(await db.query('select cout_reel from ordres_fabrication where id=$1',[ofId])).rows[0];
+    await assert.rejects(close(db), /Arrondi matiere non resolu/);
+    assert.equal((await db.query('select count(*)::int n from of_pertes_matiere_experimentales')).rows[0].n,0);
     await t.test('matière affectée aux pièces et perte doivent totaliser la matière consommée',
-      { todo: 'écart de centime : règle de compensation et coûts historiques à définir' }, () => {
-        // Pas de frais dans la fixture : coût du lot + perte = 1 DA de matière.
+      { todo: 'compenser le résidu, puis retirer le refus conservateur' }, async () => {
+        const loss=(await close(db)).rows[0].r;
+        const order=(await db.query('select cout_reel from ordres_fabrication where id=$1',[ofId])).rows[0];
         assert.equal(Math.round((Number(order.cout_reel)+Number(loss.montant_matiere))*100),100);
       });
   } finally { await db.close(); }

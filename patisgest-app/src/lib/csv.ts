@@ -23,7 +23,7 @@ const A_ESCAPER = /["\n\r;]/;
 /** Préfixes interprétés comme formules par Excel / LibreOffice. */
 const FORMULE = /^[=+\-@\t\r]/;
 
-export type ValeurCsv = string | number | boolean | null | undefined | Date | string[];
+export type ValeurCsv = string | number | boolean | null | undefined | Date | readonly ValeurCsv[] | { readonly [cle: string]: ValeurCsv };
 
 function echapper(valeur: string): string {
   let s = valeur;
@@ -35,8 +35,10 @@ function echapper(valeur: string): string {
 /** Une valeur → une cellule CSV. Les dates sont rendues en ISO (tri lexicographique). */
 export function cellule(valeur: ValeurCsv): string {
   if (valeur === null || valeur === undefined) return "";
-  if (Array.isArray(valeur)) return echapper(valeur.join(", "));
   if (valeur instanceof Date) return Number.isNaN(valeur.getTime()) ? "" : valeur.toISOString();
+  // JSON et tableaux doivent rester reconstructibles, y compris les objets
+  // imbriqués des lignes de vente. Ne jamais les convertir via String().
+  if (typeof valeur === "object") return echapper(JSON.stringify(valeur));
   if (typeof valeur === "number") {
     if (!Number.isFinite(valeur)) return "";
     // Excel FR : virgule décimale, pas de séparateur de milliers.

@@ -58,9 +58,14 @@ test('CSV : un montant négatif reste un nombre, pas une formule', () => {
   assert.equal(cellule('-42'), "'-42");
 });
 
-test('CSV : tableaux (allergènes) joints en une cellule', () => {
-  assert.equal(cellule(['gluten', 'lait']), 'gluten, lait');
-  assert.equal(cellule([]), '');
+test('CSV : tableaux et JSON sont reconstruisibles dans une cellule', () => {
+  assert.equal(cellule(['gluten', 'lait']), '"[""gluten"",""lait""]"');
+  assert.equal(cellule([]), '[]');
+  assert.equal(cellule({ lignes: [{ nom: 'Tarte; citron', qte: 2 }] }), '"{""lignes"":[{""nom"":""Tarte; citron"",""qte"":2}]}"');
+  const csv = versCsv(['lignes'], [[[{ nom: 'Cake', qte: 3 }]]]);
+  assert.equal(csv.includes('[object Object]'), false);
+  const cell = csv.slice(CSV_BOM.length).split('\r\n')[1];
+  assert.deepEqual(JSON.parse(cell.slice(1, -1).replace(/""/g, '"')), [{ nom: 'Cake', qte: 3 }]);
 });
 
 test('CSV : dates en ISO, date invalide → vide', () => {

@@ -64,6 +64,12 @@ begin
  end if;
  select sum((t.val->>'qty')::numeric * (t.val->>'pu')::numeric) into v_matiere
   from jsonb_array_elements(v_of.consommations) t(val);
+ -- Le brouillon 102 arrondit le coût unitaire des lots au centime. Sans
+ -- réconciliation explicite des résidus, une fraction (1 DA / 3) fausserait
+ -- silencieusement le total matière. Refuser plutôt qu'inventer une perte.
+ if round(v_matiere / v_of.qte_prevue,2) * v_of.qte_prevue <> v_matiere then
+  raise exception 'Arrondi matiere non resolu : cloture refusee.';
+ end if;
  v_quantite := v_of.qte_prevue-v_of.qte_realisee;
  v_montant := round(v_matiere*v_quantite/v_of.qte_prevue,2);
  insert into public.of_pertes_matiere_experimentales(client_id,of_id,quantite_perdue,montant_matiere,motif,auteur_auth_id)
