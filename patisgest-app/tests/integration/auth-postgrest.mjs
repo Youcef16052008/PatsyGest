@@ -771,8 +771,11 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    const labSession=ok(await client().auth.signInWithPassword({email:emails[1],password}),'Session HTTP labo').session;
    const labCookie=`${cookieName}=base64-${Buffer.from(JSON.stringify(labSession)).toString('base64url')}`;
    const labSettings=await fetch('http://127.0.0.1:3414/parametres',{headers:{cookie:labCookie},redirect:'manual'});
+   // F-19 : ROLES_LABO_VENDEUR_ACTIFS = false ; le layout (app) masque les pages du rôle labo.
    assert.equal(labSettings.status,200);
-   assert.ok(!(await labSettings.text()).includes('Équipe · expérimental'),'Interface propriétaire cachée au labo');
+   const labSettingsHtml=await labSettings.text();
+   assert.match(labSettingsHtml,/n’est pas disponible/,'Rôle labo masqué sur cette version');
+   assert.ok(!labSettingsHtml.includes('Équipe · expérimental'),'Interface propriétaire cachée au labo');
    const applicantEmail='ui-candidat@example.test';
    ok(await admin.auth.admin.createUser({email:applicantEmail,password,email_confirm:true}),'Compte fictif sans adhésion pour interface');
    const applicantSession=ok(await client().auth.signInWithPassword({email:applicantEmail,password}),'Session HTTP candidat').session;
@@ -790,8 +793,11 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    const demandeUi=demandesUi.find(d=>d.email===applicantEmail); assert.ok(demandeUi);
    let ownerHtml=await (await fetch('http://127.0.0.1:3414/parametres',{headers:{cookie:renewed}})).text();
    const approveForm=trouverFormulaire(ownerHtml,f=>f.some(x=>x.name==='id' && x.value===demandeUi.id) && f.some(x=>x.name==='decision' && x.value==='approuver'));
+   // Le labo ne peut pas approuver : page masquée, aucune approbation enregistrée.
    const forbiddenApproval=await soumettreFormulaire('/parametres',labCookie,approveForm,{sites:newSite.id});
-   assert.equal(forbiddenApproval.status,200); assert.match(await forbiddenApproval.text(),/réservée au propriétaire/);
+   assert.equal(forbiddenApproval.status,200); const forbiddenApprovalHtml=await forbiddenApproval.text();
+   assert.ok(!forbiddenApprovalHtml.includes('Demande approuvée'),'Approbation labo refusée');
+   assert.ok(!ok(await owner.rpc('equipe_lister_approbations'),'Approbation labo absente').some(d=>d.id===demandeUi.id),'Aucune approbation par le labo');
    const invalidApproval=await soumettreFormulaire('/parametres',renewed,approveForm,{});
    assert.equal(invalidApproval.status,200); assert.match(await invalidApproval.text(),/Choisissez au moins un site valide/);
    const approvedUi=await soumettreFormulaire('/parametres',renewed,approveForm,{sites:newSite.id});
@@ -818,8 +824,10 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    assert.ok(!ok(await owner.rpc('equipe_lister_invitations'),'Invitation refusée via formulaire').some(i=>i.id===applicantInvite));
 
    const inviteForm=trouverFormulaire(settingsHtml,f=>f.some(x=>x.name==='email') && f.some(x=>x.name==='role'));
+   // Le labo ne peut pas inviter : page masquée, aucune invitation ni courriel.
    const forbiddenInvite=await soumettreFormulaire('/parametres',labCookie,inviteForm,{nom:'Interdit',email:'interdit@example.test',role:'vendeur',sites:newSite.id});
-   assert.equal(forbiddenInvite.status,200); assert.match(await forbiddenInvite.text(),/réservée au propriétaire/);
+   assert.equal(forbiddenInvite.status,200); assert.ok(!(await forbiddenInvite.text()).includes('Invitation enregistrée'),'Invitation labo refusée');
+   assert.ok(!ok(await owner.rpc('equipe_lister_invitations'),'Invitation labo absente').some(i=>i.email==='interdit@example.test'),'Aucune invitation par le labo');
    assert.equal(courriels.length,0);
    const inviteResponse=await soumettreFormulaire('/parametres',renewed,inviteForm,{nom:'Invitation formulaire',email:'formulaire@example.test',role:'vendeur',sites:newSite.id});
    assert.equal(inviteResponse.status,200); assert.match(await inviteResponse.text(),/Invitation enregistrée/);
