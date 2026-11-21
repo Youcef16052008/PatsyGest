@@ -15,3 +15,12 @@ export function cheminMigration(file) { return (brouillonsSet.has(file) ? 'broui
 export function tousLesSql(readdirSync) {
   return [...readdirSync('supabase').filter(f => f.endsWith('.sql')), ...readdirSync('supabase/brouillons').filter(f => f.endsWith('.sql')).map(f => 'brouillons/' + f)];
 }
+
+/**
+ * Chaîne de déploiement principale : historique 01–23 puis série main 24–36 (hors seed).
+ * Les brouillons 101–128 n'en font pas partie (statut « pas un ordre de déploiement »).
+ */
+export function chaineDeploiement() {
+  const mains = plan.main_hors_serie.map(x => x.file).sort();
+  return [...plan.historique.map(x => x.file), ...mains];
+}

@@ -117,24 +117,6 @@ test('vitrine : une demande de visiteur ne peut pas fixer son prix', () => {
   assert.match(corps, /length\(v_cle\) < 8/);
 });
 
-test('vitrine : une seule fonction du schéma est exécutable par anon', () => {
-  // F-12 : brouillons inclus (supabase/brouillons/), comme dans securite.test.mjs.
-  const migrations = [...readdirSync(path.join(ROOT, 'supabase')).filter((f) => f.endsWith('.sql')), ...readdirSync(path.join(ROOT, 'supabase', 'brouillons')).filter((f) => f.endsWith('.sql')).map((f) => path.join('brouillons', f))];
-  const ouvertes = [];
-  for (const m of migrations) {
-    const sql = read(path.join('supabase', m)).toLowerCase();
-    const regex = /grant\s+execute\s+on\s+function\s+([\w.]+)\s*\([^)]*\)\s*to\s+([^;]+);/g;
-    for (const [, nom, cibles] of sql.matchAll(regex)) {
-      if (/\banon\b/.test(cibles)) ouvertes.push(`${nom.trim()} (${m})`);
-    }
-  }
-  assert.deepEqual(
-    ouvertes,
-    ['public.patisgest_demander_commande (27-commandes-vitrine.sql)'],
-    `fonctions inattendues ouvertes à anon : ${ouvertes.join(', ')}`,
-  );
-});
-
 test('vitrine : la migration 28 retire les droits anon sur les tables internes', () => {
   const p = 'supabase/28-fermeture-anon.sql';
   assert.ok(existsSync(path.join(ROOT, p)), 'migration 28 absente');

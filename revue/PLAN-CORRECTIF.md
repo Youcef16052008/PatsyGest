@@ -86,7 +86,7 @@ Ce tableau fait foi. Il remplace les statuts ci-dessus lorsqu'ils diffèrent.
 | B-007 / B-008 | **Non fait** | `client_ref` idempotent, RPC transactionnelle de transfert, anti-abus vitrine par source. Chantier distinct. |
 | N+1 fiche de coût | **Fait** | `lib/lots-batch.ts` : un `in()` par bloc de 100 articles, pagination jusqu'à page courte, erreur remontée (plus de `[]` silencieux). Fiche de coût et simulation. Tests : `tests/lots-batch.test.mjs`. |
 | Phase 4 Playwright | **Non fait** | Navigateurs non téléchargeables depuis cet environnement (hôtes autorisés : npm, PyPI, GitHub). |
-| Phase 4 lint textuel `securite.test.mjs` | **Non fait** | Remplacement par des tests d'exécution : chantier distinct. |
+| Phase 4 lint textuel `securite.test.mjs` | **Partiel** | Les contrôles de droits (grants PUBLIC/anon, révocation avant grant) sont remplacés par `tests/droits-execution-db.test.mjs` : migrations appliquées sur PGlite (chaîne 01–23 + 24–36), droits lus dans `pg_proc`. Restent des contrôles textuels sur le code source TypeScript (routes, actions, rôles). |
 
 **Migrations à relire avant tout passage sur le pilote :** `33`, `34`, `35`, `36`. Aucune n'a été appliquée au pilote par ce travail.
 **Conséquence de F-19 au déploiement :** une base sans `app_schema_version` (ou en version 35) bloque l'espace tant que `36` n'est pas appliquée.
