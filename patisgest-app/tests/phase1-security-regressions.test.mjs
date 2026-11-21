@@ -2,14 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { baseMain } from './support/serie-main.mjs';
 
-// Répétition locale des fichiers SQL source 01–31 uniquement : aucune base
-// Supabase distante, aucun brouillon sécurité 101–128, aucune donnée client.
-// Chaque assertion TODO exprime le comportement correct attendu après remédiation;
-// elle reste non bloquante tant que la séquence SQL du pilote n'est pas réconciliée.
+// Chaîne source 01–39 dans PGlite éphémère, avec identités et données fictives.
+// Ces tests valident les gardes locales; ils ne remplacent pas une revue de
+// migration et ne lisent/écrivent jamais le projet Supabase du pilote.
 
-test('D2 — une lecture anon du catalogue ne doit pas révéler client_id', {
-  todo: 'Retirer l’identifiant interne de la projection publique après réconciliation de la migration 32',
-}, async () => {
+test('D2 — la vue publique anon ne projette plus client_id', async () => {
   const db = await baseMain();
   try {
     const clientId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -28,9 +25,7 @@ test('D2 — une lecture anon du catalogue ne doit pas révéler client_id', {
   }
 });
 
-test('D4 — le laboratoire ne doit pas modifier directement les champs de publication/domaine', {
-  todo: 'Fermer l’UPDATE direct sur sites et conserver la mutation derrière une RPC validée',
-}, async () => {
+test('D4 — le laboratoire ne modifie pas les colonnes sensibles de sites en direct', async () => {
   const db = await baseMain();
   try {
     const clientId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -45,26 +40,25 @@ test('D4 — le laboratoire ne doit pas modifier directement les champs de publi
       select set_config('test.uid','${authId}',false);
       set role authenticated;`);
 
-    // `support` est réservé par la RPC de réservation, mais est un label DNS
-    // valide au niveau du CHECK. La policy source 01 laisse le labo le changer.
     await assert.rejects(
       db.query(`update public.sites set subdomain='support',publication='brouillon' where id='${siteId}'`),
-      'Une écriture directe du laboratoire ne doit pas pouvoir réserver un domaine ni publier',
+      'Une écriture directe du laboratoire ne doit pas réserver un domaine ou publier',
     );
+    const { rows } = await db.query("select has_column_privilege('authenticated','public.sites','publication','UPDATE') as peut_publier");
+    assert.equal(rows[0].peut_publier, false);
   } finally {
     await db.close();
   }
 });
 
-test('D7 — la restauration propriétaire doit refuser une FK vers l’article d’un autre tenant', {
-  todo: 'Ajouter les gardes de toutes les références inter-tenant et valider le manifeste réel avant SQL approuvé',
-}, async () => {
+test('D7 — la restauration refuse toute FK restaurée vers un autre tenant avant insertion', async () => {
   const db = await baseMain();
   try {
     const clientA = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
     const clientB = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
     const authA = '10000000-0000-0000-0000-000000000002';
     const articleB = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+    const familleA = 'cccccccc-0000-0000-0000-000000000001';
     await db.exec(`insert into public.clients(id,nom)
         values ('${clientA}','Tenant A fictif'),('${clientB}','Tenant B fictif');
       insert into public.articles(id,client_id,code,nom,niveau,unite)
@@ -76,11 +70,12 @@ test('D7 — la restauration propriétaire doit refuser une FK vers l’article 
       set role authenticated;`);
 
     const dump = {
+      version: 1,
       client_id: clientA,
       tables: [{
         table: 'recette_familles',
         lignes: [{
-          id: 'cccccccc-0000-0000-0000-000000000001',
+          id: familleA,
           client_id: clientA,
           code: 'CROSS-TENANT',
           nom: 'Famille A fictive',
@@ -93,8 +88,33 @@ test('D7 — la restauration propriétaire doit refuser une FK vers l’article 
     };
     await assert.rejects(
       db.query('select public.restaurer_sauvegarde($1::jsonb)', [JSON.stringify(dump)]),
-      'La restauration SECURITY DEFINER doit refuser un produit appartenant à B',
+      /Référence étrangère inter-tenant détectée/,
     );
+    await db.exec('reset role');
+    const after = await db.query(`select count(*)::integer as n from public.recette_familles where id='${familleA}'`);
+    assert.equal(after.rows[0].n, 0, 'Le prévol doit rejeter avant toute insertion');
+  } finally {
+    await db.close();
+  }
+});
+
+test('D9 — un propriétaire ne peut pas modifier son offre via UPDATE direct', async () => {
+  const db = await baseMain();
+  try {
+    const clientId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    const authId = '10000000-0000-0000-0000-000000000003';
+    await db.exec(`insert into public.clients(id,nom,offre) values ('${clientId}','Tenant fictif','starter');
+      insert into auth.users(id,email) values ('${authId}','owner@example.test');
+      insert into public.utilisateurs(id,client_id,auth_user_id,email,nom,role)
+        values ('33333333-3333-3333-3333-333333333333','${clientId}','${authId}','owner@example.test','Propriétaire','proprietaire');
+      select set_config('test.uid','${authId}',false);
+      set role authenticated;`);
+    await assert.rejects(
+      db.query(`update public.clients set offre='enterprise' where id='${clientId}'`),
+      'La facturation ne doit pas être modifiable par un propriétaire tenant',
+    );
+    const { rows } = await db.query("select has_column_privilege('authenticated','public.clients','offre','UPDATE') as peut_modifier_offre");
+    assert.equal(rows[0].peut_modifier_offre, false);
   } finally {
     await db.close();
   }
