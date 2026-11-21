@@ -257,7 +257,7 @@ src/components/stock-write-forms.tsx    → formulaires article / réception (pa
 src/components/sale-form.tsx            → formulaire de vente (page Caisse)
 src/components/of-forms.tsx             → formulaires OF (page Production)
 src/components/transfer-form.tsx        → formulaire de transfert (page Transferts)
-src/db/schema.ts                        → tables Drizzle (miroir du SQL)
+src/db/schema.ts                        → représentation Drizzle historique, potentiellement incomplète
 supabase/01..08-*.sql                   → socle, seed, modules, lecture, écritures RLS
 middleware.ts                           → rafraîchit la session Supabase
 tests/store.test.mjs                    → tests unitaires du moteur local
@@ -267,6 +267,12 @@ tests/smoke-http.mjs                    → tests HTTP de bout en bout
 
 ## Règles d'or
 
+- **Schéma** : `src/db/schema.ts` est une représentation historique, pas une source
+  fiable pour synchroniser la base. `npm run db:push` échoue volontairement sans
+  connexion. N'utilisez pas non plus `drizzle-kit push` directement : les migrations
+  SQL du dépôt doivent être revues et comparées au catalogue effectivement déployé,
+  qui peut diverger. `db:generate` ne valide ni n'autorise un déploiement. Le client
+  et les outils Drizzle sont conservés pour examen de leurs usages éventuels.
 - **Isolement** : les lectures passent par le client Supabase serveur → la RLS
   (`client_id`) s'applique automatiquement. Ne JAMAIS filtrer côté navigateur seul.
 - **Écritures** : le client Drizzle direct contourne la RLS — ne pas l'utiliser dans le

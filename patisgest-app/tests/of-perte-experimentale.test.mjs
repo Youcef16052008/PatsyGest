@@ -152,3 +152,25 @@ test('proposition locale : allocation matière et arrondi fractionnaire à réco
       });
   } finally { await db.close(); }
 });
+
+test('proposition locale : refuse une perte fractionnaire au demi-centime', async (t) => {
+  const db = await baseMain();
+  try {
+    for (const file of ['101-confidentialite-labo.sql','102-cout-of-partiel.sql'])
+      await db.exec(await readFile(new URL(`../supabase/${file}`, import.meta.url), 'utf8'));
+    await db.exec(await readFile(new URL('../migrations/propositions/cloture-of-perte-experimentale.sql', import.meta.url), 'utf8'));
+    await creerFixtureOfCout(db);
+    await db.query("update ordres_fabrication set qte_prevue=3,consommations='[{\"qty\":3,\"pu\":0.01}]' where id=$1",[ofId]);
+    await db.exec('set role authenticated');
+    await db.query("select public.terminer_of($1,1.5,'LOT-FRACTION',current_date+1)",[ofId]);
+    await assert.rejects(close(db), /Arrondi matiere non resolu/);
+    assert.equal((await db.query('select count(*)::int n from of_pertes_matiere_experimentales')).rows[0].n,0);
+    const order=(await db.query('select statut,cout_reel from ordres_fabrication where id=$1',[ofId])).rows[0];
+    assert.equal(order.statut,'partiel');
+    assert.equal(Number(order.cout_reel),0.02);
+    await t.test('les deux affectations doivent totaliser 0,03 DA', { todo: 'quantité fractionnaire et compensation à définir' }, async () => {
+      const loss=(await close(db)).rows[0].r;
+      assert.equal(Math.round((Number(order.cout_reel)+Number(loss.montant_matiere))*100),3);
+    });
+  } finally { await db.close(); }
+});

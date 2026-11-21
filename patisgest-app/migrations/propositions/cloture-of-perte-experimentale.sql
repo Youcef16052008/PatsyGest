@@ -71,6 +71,11 @@ begin
   raise exception 'Arrondi matiere non resolu : cloture refusee.';
  end if;
  v_quantite := v_of.qte_prevue-v_of.qte_realisee;
+ -- Une quantité fractionnaire peut créer un demi-centime même si le coût
+ -- unitaire est exact. Ce refus ne réconcilie pas les arrondis multi-lots.
+ if round(v_matiere*v_quantite/v_of.qte_prevue,2) <> v_matiere*v_quantite/v_of.qte_prevue then
+  raise exception 'Arrondi matiere non resolu : cloture refusee.';
+ end if;
  v_montant := round(v_matiere*v_quantite/v_of.qte_prevue,2);
  insert into public.of_pertes_matiere_experimentales(client_id,of_id,quantite_perdue,montant_matiere,motif,auteur_auth_id)
  values(v_client,p_of_id,v_quantite,v_montant,v_motif,v_auth) returning * into v_perte;
