@@ -23,19 +23,29 @@ const A_ESCAPER = /["\n\r;]/;
 /** Préfixes interprétés comme formules par Excel / LibreOffice. */
 const FORMULE = /^[=+\-@\t\r]/;
 
-export type ValeurCsv = string | number | boolean | null | undefined | Date | string[];
+export type ValeurCsv =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | Date
+  | readonly ValeurCsv[]
+  | { readonly [cle: string]: ValeurCsv };
 
 function echapper(valeur: string): string {
   let s = valeur;
-  if (FORMULE.test(s)) s = "'" + s;
+  // Excel/LibreOffice peuvent ignorer les espaces de tête avant une formule.
+  if (/^[\s\uFEFF]*[=+\-@]/.test(s) || FORMULE.test(s)) s = "'" + s;
   if (A_ESCAPER.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
   return s;
 }
 
-/** Une valeur → une cellule CSV. Les dates sont rendues en ISO (tri lexicographique). */
-export function cellule(valeur: ValeurCsv): string {
-  if (valeur === null || valeur === undefined) return "";
-  if (Array.isArray(valeur)) return echapper(valeur.join(", "));
+/** Rendu déterministe des valeurs complexes sans perdre leurs propriétés JSON. */
+function valeurTexte(valeur: Exclude<ValeurCsv, null | undefined>): string {
+  if (Array.isArray(valeur)) {
+    return valeur.map((item) => item == null ? "" : valeurTexte(item)).join(", ");
+  }
   if (valeur instanceof Date) return Number.isNaN(valeur.getTime()) ? "" : valeur.toISOString();
   if (typeof valeur === "number") {
     if (!Number.isFinite(valeur)) return "";
@@ -43,7 +53,31 @@ export function cellule(valeur: ValeurCsv): string {
     return String(valeur).replace(".", ",");
   }
   if (typeof valeur === "boolean") return valeur ? "oui" : "non";
-  return echapper(String(valeur));
+  if (typeof valeur === "object") {
+    // Une cellule JSON explicite est plus utile que [object Object]. Trier les
+    // clés à chaque niveau rend les exports comparables d'une exécution à l'autre.
+    return JSON.stringify(valeur, (_cle, item: unknown) => {
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        const objet = item as Record<string, unknown>;
+        return Object.fromEntries(Object.keys(objet).sort().map((cle) => [cle, objet[cle]]));
+      }
+      return item;
+    });
+  }
+  return String(valeur);
+}
+
+/** Une valeur → une cellule CSV. Les dates sont rendues en ISO (tri lexicographique). */
+export function cellule(valeur: ValeurCsv): string {
+  if (valeur === null || valeur === undefined) return "";
+  // Les nombres typés restent de vraies valeurs numériques (notamment les
+  // montants négatifs) ; c'est le texte utilisateur qui doit être neutralisé.
+  if (typeof valeur === "number") {
+    if (!Number.isFinite(valeur)) return "";
+    return String(valeur).replace(".", ",");
+  }
+  if (typeof valeur === "boolean") return valeur ? "oui" : "non";
+  return echapper(valeurTexte(valeur));
 }
 
 /** Assemble un CSV complet (entête + lignes) avec BOM et CRLF. */

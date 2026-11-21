@@ -2,7 +2,7 @@
 
 **Date : 21 novembre 2026 (UTC)** · **Branche :** `arena/d51c48b6-patsygest` · **HEAD de départ :** `2fba72c78e643ac4cb1b484cb26b0efaa38cdeff`.
 
-> Dans le plan de référence `ETAT-PHASES-0-1.md`, la phase 1 est le socle CI/reproductibilité. Elle ne doit pas être confondue avec le « Phase 1 » d’`ANALYSE-REVUES-AGENTS.md`, dont la première étape de remédiation porte sur les frontières tenant. Ici, seuls le socle de tests et un garde-fou local contre les pushes Drizzle sont traités.
+> Ce rapport consigne les travaux de CI/reproductibilité et les correctifs applicatifs limités livrés pendant cette reprise. Il ne clôt pas le plan d’`ANALYSE-REVUES-AGENTS.md`, dont la phase de remédiation commence par les frontières tenant. Les tests isolés D2/D4/D7 exposent les risques actuels et ne constituent pas des remédiations SQL.
 
 ## Travail effectué
 
@@ -13,6 +13,10 @@
    - Après le premier run distant, les actions ont été mises à jour vers les versions vérifiées et épinglées par SHA : checkout v7.0.1, setup-node v7.1.0, Supabase setup-cli v3.2.0. Le second run sur la nouvelle révision est aussi vert; l’interface `gh run watch` n’y a pas affiché les avertissements runtime vus au premier run. L’API de téléchargement des logs a répondu EOF lors de la vérification, donc l’absence d’avertissement n’est pas certifiée au niveau de chaque log brut.
 2. **`db:push` désactivé par défaut** : le script npm appelle maintenant un garde-fou qui échoue avant `drizzle-kit`; un test de régression lance réellement cette commande avec une URL DB invalide et vérifie qu’aucune commande Drizzle n’est exécutée. Le schéma Drizzle n’est pas la source de vérité Supabase. Ce verrou n’empêche pas une personne de lancer des commandes SQL manuelles; il évite le push accidentel par le chemin npm.
 3. **Audit de dépendances** : le workflow vérifie `npm audit --omit=dev`, soit les dépendances livrées en production. Scan observé : 0 vulnérabilité production. L’audit complet signale 4 vulnérabilités modérées uniquement dans la chaîne de dépendances de développement autour de `drizzle-kit` / `esbuild`; la recommandation automatique de npm implique une rétrogradation majeure de Drizzle Kit, non appliquée sans analyse de compatibilité.
+4. **Régression de référence pour frontières tenant (tests seulement)** : ajout des reconstructions PGlite `serie-main-vitrine-db.test.mjs` / `serie-main-vitrine-commande.test.mjs` sur les migrations SQL 01–31, sans les brouillons de sécurité 101–128. Un nouveau fichier `phase1-security-regressions.test.mjs` porte trois assertions TODO : la vue `anon` doit cesser de projeter `client_id` (D2), le labo doit être empêché de modifier directement domaine/publication (D4), et la restauration doit refuser une famille du tenant A liée à l’article B (D7). Ces tests sont isolés et fictifs; ils enregistrent des protections attendues, pas un déploiement ni un correctif. Le test de commande valide reste aussi TODO car le SQL 27 du dépôt échoue sur `v_site.subdomain`.
+5. **Durcissement export CSV local** : les cellules textuelles qui commencent par des espaces ou un BOM avant un opérateur de formule sont désormais neutralisées; les tableaux et objets JSON issus de `select *` sont rendus en JSON lisible avec clés triées, au lieu de produire `[object Object]`. Les valeurs numériques typées restent numériques, notamment les montants négatifs. Tests de régression ajoutés. Cela n’altère ni l’autorisation d’export ni la sélection des données, et ne résout pas les risques SQL tenant ouverts.
+6. **Pagination export/sauvegarde aux plafonds** : le lecteur partagé sonde une ligne après une dernière page pleine, accepte exactement 20 000 lignes pour CSV et 50 000 lignes par table pour JSON, mais refuse explicitement toute ligne au-delà sans produire un fichier partiel. L’export répond 413 au dépassement; la sauvegarde reste fail-closed. Tests synthétiques vérifient cap−1/cap/cap+1 et une erreur de sonde. La cohérence face à des mutations concurrentes entre pages (snapshot transactionnel/keyset) n’est pas garantie par ce correctif et reste à traiter avant de qualifier une sauvegarde de snapshot cohérent.
+7. **R6 — compte de démo** : l’autorisation de connexion rapide et la résolution d’un cookie signé recherchent maintenant une clé propre dans la liste blanche; les clés héritées (`constructor`, `__proto__`, etc.) sont refusées. Le mode démo reste désactivé en production. Tests couvrent la vraie liste de comptes.
 
 ## Vérifications exécutées
 
@@ -24,7 +28,7 @@ Les commandes suivantes ont été lancées dans `patisgest-app` sous Node `v22.2
 | `npm audit --omit=dev` | Réussi : 0 vulnérabilité dans les dépendances de production. |
 | `npm run typecheck` | Réussi. |
 | `npm run lint` | Réussi. |
-| `npm test` | Réussi : 367/367 tests (dont le nouveau test `db:push`). |
+| `npm test` | Réussi après changements CSV, pagination et compte démo : 375 pass, 0 fail, 4 TODO / 379 tests. Les 4 TODO restent les trois assertions D2/D4/D7 et le test de commande D3. |
 | Build avec `NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:65531` et clé fictive `test` | Réussi. Ces valeurs sont destinées à la compilation locale seulement. |
 | `node --test design-studio/tests/*.test.mjs` | Réussi : 6/6 tests. |
 | Validation du YAML du workflow (`js-yaml`) et assertions de présence des étapes | Réussies. |
@@ -36,6 +40,16 @@ Le premier run GitHub Actions [`44882477492`](https://github.com/Youcef16052008/
 
 Les protections de `main` et la configuration des checks obligatoires ne sont pas modifiées et restent à faire confirmer par un administrateur.
 
+## Régressions tenant reproduites sur la série source 01–31
+
+La suite ajoutée construit chaque cas dans une base PGlite éphémère avec deux identifiants de tenant fictifs. Elle n’exécute aucune requête sur Supabase. Les trois résultats observés concordent avec l’inventaire read-only du pilote :
+
+- **D2 :** sous le rôle `anon`, la vue `vitrine_catalogue` renvoie le `client_id` du tenant fictif alors que la table `clients` n’est pas directement lisible par `anon`.
+- **D4 :** sous un JWT simulé de rôle `labo`, un `UPDATE` direct de `sites` peut réserver `support` et changer le champ `publication`; cela contourne les validations de la RPC de réservation.
+- **D7 :** la restauration `SECURITY DEFINER` accepte un dump dont la famille appartient au tenant A mais dont `produit_id` pointe vers un article du tenant B; la FK simple `produit_id → articles.id` n’impose pas l’égalité de tenant.
+
+Ces assertions sont explicitement **TODO/non bloquantes** tant que les migrations réelles ne sont pas réconciliées. Le run CI distant `44882762909` précède ces trois nouveaux tests et ne les valide pas; les validations locales actuelles sont : suite entière (375 pass / 4 TODO), typecheck, lint et build réussis. La migration 32 reste absente des sources suivies; en complément, `list_snippets` Supabase a renvoyé une liste vide. Aucun SQL n’a été créé ou exécuté sur le pilote pour combler cette lacune.
+
 ## Revue de sécurité et limites
 
 - Le job d’intégration utilise l’environnement local dérivé des migrations de répétition et des brouillons de sécurité référencés dans `migrations/repetition.json`. Il les teste sur une pile jetable; ce n’est ni un ordre de déploiement, ni une approbation de ces brouillons, ni une preuve de parité avec les 18 migrations du pilote.
@@ -45,4 +59,4 @@ Les protections de `main` et la configuration des checks obligatoires ne sont pa
 
 ## État de sortie
 
-**Phase 1 CI — socle local terminé; deux runs CI distants réussis, dont les deux intégrations isolées après mise à jour des actions.** Les checks requis/protections de branche ne sont pas établis ici; un administrateur doit les vérifier sur une PR. Poursuivre séparément les tests régressifs D2/D3/D4/D7 avant toute correction de sécurité SQL. Le pilote reste en lecture seule.
+**Phase 1 CI — socle local terminé; deux runs CI distants réussis, dont les deux intégrations isolées après mise à jour des actions.** Des tests PGlite D2/D4/D7 sont maintenant ajoutés localement comme TODO, en attente d’une source de migration complète et d’une remédiation approuvée; ils restent à exécuter dans le workflow distant. Les checks requis/protections de branche ne sont pas établis ici; un administrateur doit les vérifier sur une PR. La suite sécurité SQL réelle reste en attente; le pilote demeure strictement en lecture seule.

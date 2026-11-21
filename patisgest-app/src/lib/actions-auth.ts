@@ -4,6 +4,7 @@ import { createHmac } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { demoEnabled, getSessionContext, PILOT_ACCOUNTS, PILOT_COOKIE_NAME } from "./auth";
+import { comptePilotePropre } from "./pilot-account";
 import { equipeExperimentaleActive } from "./equipe-experimental";
 import { createClient } from "./supabase/server";
 
@@ -28,8 +29,8 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 /** Ouvre uniquement une démo locale, jamais une session Supabase. */
 export async function quickDemoLogin(formData: FormData): Promise<void> {
   if (!demoEnabled()) redirect("/connexion");
-  const email = String(formData.get("email") ?? "").toLowerCase();
-  if (!PILOT_ACCOUNTS[email]) redirect("/connexion");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!comptePilotePropre(PILOT_ACCOUNTS, email)) redirect("/connexion");
   const payload = Buffer.from(JSON.stringify({ email, expires: Date.now() + 8 * 3600_000 })).toString("base64url");
   const signature = createHmac("sha256", process.env.PATISGEST_DEMO_SECRET!).update(payload).digest("hex");
   (await cookies()).set(PILOT_COOKIE_NAME, `${payload}.${signature}`, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 8 * 3600, secure: process.env.NODE_ENV === "production" });

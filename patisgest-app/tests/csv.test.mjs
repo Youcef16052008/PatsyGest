@@ -49,6 +49,8 @@ test('CSV : injection de formule neutralisée (OWASP)', () => {
   assert.equal(cellule('\tcmd'), "'\tcmd");
   // Une formule contenant un séparateur est aussi échappée.
   assert.equal(cellule('=A1;B1'), '"\'=A1;B1"');
+  assert.equal(cellule('  =1+1'), "'  =1+1");
+  assert.equal(cellule('\uFEFF@SUM(A1)'), "'\uFEFF@SUM(A1)");
 });
 
 test('CSV : un montant négatif reste un nombre, pas une formule', () => {
@@ -61,6 +63,15 @@ test('CSV : un montant négatif reste un nombre, pas une formule', () => {
 test('CSV : tableaux (allergènes) joints en une cellule', () => {
   assert.equal(cellule(['gluten', 'lait']), 'gluten, lait');
   assert.equal(cellule([]), '');
+  assert.equal(cellule(['allergène', null, 2]), 'allergène, , 2');
+});
+
+test('CSV : objets JSON exportés lisiblement et neutralisés', () => {
+  assert.equal(cellule({ allergenes: ['lait'], details: { trace: true } }),
+    '"{""allergenes"":[""lait""],""details"":{""trace"":true}}"');
+  assert.equal(cellule({ formule: '=1+1' }), '"{""formule"":""=1+1""}"');
+  assert.equal(cellule({ z: 1, a: { y: 2, b: 3 } }), '"{""a"":{""b"":3,""y"":2},""z"":1}"');
+  assert.equal(cellule({ a: { b: 3, y: 2 }, z: 1 }), cellule({ z: 1, a: { y: 2, b: 3 } }));
 });
 
 test('CSV : dates en ISO, date invalide → vide', () => {
