@@ -145,6 +145,8 @@ Les numéros ci-dessous sont **préfixés** : par exemple G-001, F-001 et C-001 
 
 ## 4. Plan détaillé, dépendances et critères d'acceptation
 
+**Décision du propriétaire : la restauration et sa répétition sont reportées à la dernière étape du projet, sans changement de plan Supabase pour le moment.** Les numéros ci-dessous sont conservés pour retrouver les références du rapport, mais ne représentent plus l'ordre d'exécution : avancer d'abord sur les phases 3 à 6 et les travaux d'isolation indépendants de la restauration ; terminer par la phase 2. Son niveau de risque ne disparaît pas : aucune restauration n'est certifiée et elle reste une condition avant le GO commercial. Aucun changement de base pilote ni migration en production ne doit être déduit de ce report.
+
 Les priorités ci-dessous sont des **portes de décision**, pas des estimations de date. Plusieurs chantiers peuvent avancer en parallèle après l'inventaire du pilote. Affecter un responsable réel à chaque lot ; les rôles indiqués sont proposés, pas des personnes désignées.
 
 ### Phase 0 — Stabiliser et connaître l'état réel (avant toute modification DB)
@@ -156,7 +158,7 @@ Les priorités ci-dessous sont des **portes de décision**, pas des estimations 
 3. Identifier les sauvegardes disponibles, leurs propriétaires, rétention, chiffrement, couverture et dates ; contrôler accès aux artefacts GitHub **sans publier les dumps**. Confirmer s'il y a eu des exécutions et une exposition effective. Définir procédure d'incident conditionnelle, sans annoncer une fuite non prouvée.
 4. Créer une base jetable suffisamment proche du pilote : rôles `anon`/`authenticated`, RLS, fonctions, extensions et seed non sensible. Ne jamais exécuter les tests destructifs sur production.
 
-**Sortie :** inventaire validé, fonctionnalités à risque listées, sauvegarde disponible, accès et personne décisionnaire confirmés, jeu de test isolé reproductible. En cas d'écart inconnu, pas de migration en production.
+**Sortie partielle pour continuer les travaux hors production :** inventaire et fonctionnalités à risque documentés, accès et personne décisionnaire confirmés et tests fictifs reproductibles. La disponibilité d'une sauvegarde restaurable et la répétition représentative sont reportées à la dernière étape ; la phase 0 n'est donc pas entièrement validée. En cas d'écart inconnu ou sans sauvegarde et retour arrière démontrés, pas de migration en production.
 
 ### Phase 1 — CI et reproductibilité (P0)
 
@@ -168,9 +170,9 @@ Les priorités ci-dessous sont des **portes de décision**, pas des estimations 
 
 **Acceptation :** une PR avec test volontairement cassé est bloquée ; tout est vert sur la configuration cible ; rollback et environnement isolé documentés.
 
-### Phase 2 — Restaurer et isoler les données (P0)
+### Phase 2 — Restauration et récupération (P0, reportée à la dernière étape)
 
-**Responsables : ingénieur base + sécurité + responsable exploitation. Dépend de la phase 0.**
+**Responsables : ingénieur base + sécurité + responsable exploitation.** Le volet restauration est reporté à la fin à la demande du propriétaire, y compris sa répétition sur une sauvegarde réelle. Les contrôles d'isolation inter-tenant indépendants de la restauration restent prioritaires et peuvent être développés et testés sur données fictives pendant les autres phases. La validation d'une restauration réelle et d'un retour arrière demeure une condition préalable au déploiement commercial.
 
 1. Définir la sémantique : un dump incompatible, une collision ou une référence étrangère provoque une erreur **et zéro écriture**, sauf si un mode de fusion explicite et vérifié est conçu séparément. Supprimer tout succès avec `ignore` non vide ; l'UI doit montrer une erreur et les tables concernées.
 2. Vérifier toutes les FK tenant, y compris les tables non restaurées, références optionnelles, composites et liens imbriqués en JSON. Ajouter des clés composites et des jointures tenant là où applicable après audit des données existantes ; tester les politiques/grants effectifs. Le brouillon 124 est un matériau de revue, non une migration prête à appliquer.

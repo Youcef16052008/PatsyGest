@@ -2,6 +2,10 @@
 
 Référence du dépôt avant changements : `2fba72c78e643ac4cb1b484cb26b0efaa38cdeff`. Observations en lecture seule effectuées le 20 novembre 2026 ; elles peuvent devenir périmées. Ce document ne constitue ni une autorisation de déploiement ni une certification de récupération.
 
+## Décision de planification
+
+À la demande du propriétaire, la restauration et sa répétition représentative sont reportées à la **dernière étape du projet**, sans changement de plan Supabase pour le moment. Les autres travaux peuvent continuer sur le dépôt et des données fictives. Ce report ne valide pas la récupération : aucune restauration réelle ni retour arrière ne sont démontrés, et ils restent requis avant le GO commercial et toute migration du pilote nécessitant un retour arrière fiable.
+
 ## Phase 0 — stabilisation et inventaire
 
 ### Fait
