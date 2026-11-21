@@ -330,6 +330,12 @@
       "sha256": "b48870130aa92100dcaae62fae2ffc6e6131c8bf10a4931f46718d695d79be6d",
       "hors_fixture_pilote": true,
       "note": "Revue B-007 : transferts.client_ref + transferer_article_ref (rejeu idempotent). Non appliquée au pilote ; app non branchée (version requise inchangée à 36 jusqu’au branchement)."
+    },
+    {
+      "file": "38-anti-abus-vitrine-source.sql",
+      "sha256": "733d8520a41587074e086a7b7aa3116520a780e2aaea3d53cfabe371dc96b963",
+      "hors_fixture_pilote": true,
+      "note": "Revue B-008 : anti-abus vitrine par source (HMAC serveur, purge 2 h, 10/h par source) ; plafond global 30 -> 300. Non appliquée au pilote."
     }
   ],
   "exclus": [

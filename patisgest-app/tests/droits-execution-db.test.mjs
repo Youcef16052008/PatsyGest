@@ -6,7 +6,8 @@ import { PGlite } from '@electric-sql/pglite';
 
 // Remplace les tests textuels de `grant` (securite.test.mjs, vitrine.test.mjs) :
 // on applique les migrations et on lit les droits réellement obtenus dans la base.
-const FONCTIONS_ANON_AUTORISEES = ['patisgest_demander_commande'];
+// 38 : la vérification par source est appelée par le serveur avant la demande.
+const FONCTIONS_ANON_AUTORISEES = ['patisgest_demander_commande', 'patisgest_verifier_source_vitrine'];
 
 test('droits : après toutes les migrations, aucune fonction publique n’est exécutable par PUBLIC', async () => {
   const db = await migrer();

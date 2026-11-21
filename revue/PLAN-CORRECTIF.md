@@ -83,7 +83,7 @@ Ce tableau fait foi. Il remplace les statuts ci-dessus lorsqu'ils diffèrent.
 | F-12 | **Fait** | 28 brouillons déplacés dans `supabase/brouillons/` (`git mv`, SHA-256 inchangés). Lecteurs corrigés via `cheminMigration`/`tousLesSql`. `securite.test.mjs` et `vitrine.test.mjs` scannent aussi les brouillons (sinon les contrôles de grants sortaient silencieusement). |
 | F-08 | **Ouvert** | Pas de migration sûre vérifiable ici (voir ci-dessus). |
 | B-002 | **Non fait** | Clés composites : une quarantaine de relations, migration à données existantes. Pilote : 1 client, 0 incohérence sur `lots→articles` et `mouvements→lots`. Risque latent multi-client. |
-| B-007 / B-008 | **Partiel (migration 37 écrite, non appliquée, non branchée)** | RPC transactionnelle de transfert : **déjà en place** (`transferer_article`, plpgsql, migrations 08 et 21). **Reste** : `client_ref` idempotent sur les transferts (double soumission / rejeu hors ligne, comme les OF en 16), et anti-abus vitrine par source plutôt que compteur global. Ces deux points exigent une migration 37 : à valider avant écriture. |
+| B-007 / B-008 | **Partiel (migrations 37 et 38 écrites et testées, non appliquées au pilote)** | RPC transactionnelle de transfert : **déjà en place** (`transferer_article`, plpgsql, migrations 08 et 21). **Reste** : `client_ref` idempotent sur les transferts (double soumission / rejeu hors ligne, comme les OF en 16), et anti-abus vitrine par source plutôt que compteur global. Ces deux points exigent une migration 37 : à valider avant écriture. |
 | N+1 fiche de coût | **Fait** | `lib/lots-batch.ts` : un `in()` par bloc de 100 articles, pagination jusqu'à page courte, erreur remontée (plus de `[]` silencieux). Fiche de coût et simulation. Tests : `tests/lots-batch.test.mjs`. |
 | Phase 4 Playwright | **Non fait** | Navigateurs non téléchargeables depuis cet environnement (hôtes autorisés : npm, PyPI, GitHub). |
 | Phase 4 lint textuel `securite.test.mjs` | **Partiel** | Les contrôles de droits (grants PUBLIC/anon, révocation avant grant) sont remplacés par `tests/droits-execution-db.test.mjs` : migrations appliquées sur PGlite (chaîne 01–23 + 24–36), droits lus dans `pg_proc`. Restent des contrôles textuels sur le code source TypeScript (routes, actions, rôles). |
@@ -93,7 +93,7 @@ Ce tableau fait foi. Il remplace les statuts ci-dessus lorsqu'ils diffèrent.
 
 ## Revue de vigilance avant pilote : migrations 33 à 37
 
-Aucune de ces migrations n'est appliquée au pilote par ce travail. Ordre requis : 33 → 34 → 35 → 36 → 37 (chacune vérifie son prérequis). Déployer l'application seulement après 35 (`VERSION_SCHEMA_REQUISE = 36`).
+Aucune de ces migrations n'est appliquée au pilote par ce travail. Ordre requis : 33 → 34 → 35 → 36 → 37 → 38 (chacune vérifie son prérequis). Déployer l'application seulement après 35 (`VERSION_SCHEMA_REQUISE = 36`).
 
 | Migration | Ce qu'elle change | Points de vigilance | Garde-fou dans le fichier |
 |---|---|---|---|
@@ -107,6 +107,11 @@ Tests : `tests/phase1-f02-f20-db.test.mjs`, `tests/dates-algiers-db.test.mjs`, `
 
 Limite : PGlite est mono-connexion. Le verrou et l'unicité sont vérifiés par la logique et la contrainte, pas par une vraie concurrence à deux sessions. Une vérification en concurrence réelle reste à faire sur un environnement Postgres jetable avant branchement.
 
-**Statut B-007 (mis à jour) :** `client_ref` des transferts = migration 37 écrite et testée, non appliquée, non branchée. Anti-abus vitrine : en attente d'une décision (voir ci-dessous).
+**Statut B-007 :** `client_ref` des transferts = migration 37 écrite et testée, non appliquée, non branchée. **Statut B-008 :** migration 38 et code serveur écrits et testés, non appliqués au pilote.
 
-**Décision à prendre (anti-abus vitrine, B-008).** Aujourd'hui `27-commandes-vitrine.sql` limite à 30 demandes par heure pour **tout l'établissement** : un robot bloque toutes les demandes légitimes. La version « par source » exige d'identifier la source sans stocker d'IP (par exemple un hachage salé à rotation quotidienne). Ce choix touche à la vie privée et n'a pas été tranché. Options : (a) garder le compteur global et le signaler au client ; (b) hachage quotidien de l'IP côté serveur, sans conservation ; (c) limitation au niveau de l'hébergeur (CDN) hors base.
+**Décision anti-abus vitrine (B-008) — tranchée sur recommandation, à valider avec le pilote.** Option retenue : plafond **par source** sans conserver d'IP.
+- Le serveur calcule `HMAC-SHA256(secret, IP)` (`src/lib/vitrine-anti-abus.ts`, secret `VITRINE_SECRET_ANTI_ABUS` ≥ 32 caractères). La base ne reçoit jamais l'IP.
+- Migration 38 : `patisgest_verifier_source_vitrine` plafonne à 10 demandes/heure par source et par établissement ; lignes purgées après 2 heures ; plafond global relevé de 30 à 300.
+- Sans secret, ou avant la migration 38 : seul le plafond global s'applique (repli explicite, pas de panne).
+- **Limites :** un botnet qui change d'adresse n'est pas arrêté par ce mécanisme ; cela relève d'une limitation au bord (hébergeur). Le hachage reste une donnée pseudonyme pendant 2 heures : à faire valider au regard de la loi 18-07 avant mise en production.
+- Ouvert : la fonction de vérification est exécutable par `anon` (voulu, elle ne lit rien et n'écrit que des hachages).

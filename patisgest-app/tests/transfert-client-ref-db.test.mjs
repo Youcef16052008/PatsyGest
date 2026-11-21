@@ -124,12 +124,12 @@ test('B-007 : référence unique par client, longueur bornée, droits fermés', 
   } finally { await db.close(); }
 });
 
-test('B-007 : version de schéma enregistrée à 37 sans abaisser', async () => {
+test('B-007 : version de schéma enregistrée à 37 au moins, sans abaisser', async () => {
   const db = await chargerTout();
   try {
     const v = (await db.query('select version from app_schema_version where id=1')).rows[0].version;
-    assert.equal(v, 37);
+    assert.ok(v >= 37, `version ${v} : la 37 doit enregistrer au moins 37`);
     await db.exec(await readFile(new URL(`../supabase/${cheminMigration('37-transfert-client-ref.sql')}`, import.meta.url), 'utf8'));
-    assert.equal((await db.query('select version from app_schema_version where id=1')).rows[0].version, 37, 'rejouable');
+    assert.equal((await db.query('select version from app_schema_version where id=1')).rows[0].version, v, 'rejouable sans abaisser');
   } finally { await db.close(); }
 });
