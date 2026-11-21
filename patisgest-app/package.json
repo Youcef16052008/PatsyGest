@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:push": "drizzle-kit push",
+    "db:push": "node scripts/db-push-disabled.mjs",
     "db:studio": "drizzle-kit studio",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "test:smoke": "node --test tests/smoke-http.mjs",
