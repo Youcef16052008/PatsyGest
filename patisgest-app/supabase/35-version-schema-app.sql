@@ -32,8 +32,18 @@ alter table public.app_schema_version enable row level security;
 revoke all on public.app_schema_version from public, anon, authenticated;
 grant select on public.app_schema_version to authenticated;
 
-drop policy if exists app_schema_version_lecture on public.app_schema_version;
-create policy app_schema_version_lecture on public.app_schema_version
-  for select to authenticated using (true);
+-- Création conditionnelle de la politique de lecture (sans DROP : rejouable).
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+     where schemaname = 'public'
+       and tablename = 'app_schema_version'
+       and policyname = 'app_schema_version_lecture'
+  ) then
+    create policy app_schema_version_lecture on public.app_schema_version
+      for select to authenticated using (true);
+  end if;
+end $$;
 
 commit;
