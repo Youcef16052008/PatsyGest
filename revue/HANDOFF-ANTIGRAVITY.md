@@ -68,9 +68,10 @@ Source de vérité : `revue/PLAN-CORRECTIF.md` (section « État après la suite
 - Une quarantaine de relations. Migration à données existantes, à faire avec relecture humaine. Le pilote compte 1 client et 0 incohérence, mais le risque est multi-client.
 - Ne pas démarrer sans décision de l'humain sur l'ordre et les données.
 
-**g. Phase 4 Playwright (« non fait »).**
-- Quatre parcours à couvrir : caisse, stock, transfert, vitrine (commande).
-- Impossible dans le sandbox actuel (navigateurs non téléchargeables). À faire sur une machine qui a Chromium : `npx playwright install chromium`.
+**g. Phase 4 Playwright.**
+- Fait : `tests/e2e/` — quatre parcours Chromium headless (`caisse`, `stock`, `transfert`, `vitrine`), seed idempotent, `npm run test:e2e`. Nécessite une stack Supabase locale et l'application **en production** (`npm run build && npm run start`) ; voir `tests/e2e/README.md`.
+- Constat : le mode `next dev` ne répond pas aux clics synthétiques sur la grille de produits (hydratation Turbopack) ; les specs exigent un build de production.
+- Constat : une stack Supabase locale n'a pas les *default privileges* d'un projet réel ; le script d'amorçage les rétablit.
 
 **h. Vérification CI.**
 - Le workflow `.github/workflows/ci.yml` lance un service `postgres:17` et `PATSYGEST_PG_URL` dans le job `quality`. Les jobs « Auth et PostgREST isolés » lancent une stack Supabase locale.
