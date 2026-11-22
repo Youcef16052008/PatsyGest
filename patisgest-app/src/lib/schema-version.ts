@@ -3,8 +3,8 @@
  * que celui qu'elle attend. Pur (sans Supabase) pour être testable.
  */
 
-/** Version de schéma attendue par ce build (migrations 35 et 36 et suivantes). */
-export const VERSION_SCHEMA_REQUISE = 36;
+/** Version de schéma attendue par ce build (migrations 35, 36, 37 et suivantes). */
+export const VERSION_SCHEMA_REQUISE = 37;
 
 export type VerificationSchema =
   | { ok: true; version: number }

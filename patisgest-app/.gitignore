@@ -8,3 +8,5 @@ dist
 *.pem
 .vercel
 .DS_Store
+# CLI Supabase (fichier temporaire)
+supabase/.temp/

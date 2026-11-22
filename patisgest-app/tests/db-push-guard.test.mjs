@@ -9,7 +9,9 @@ test('db:push refuse même avec DATABASE_URL, sans lancer drizzle-kit', () => {
     cwd: app,
     env: { ...process.env, DATABASE_URL: 'postgres://invalid:invalid@127.0.0.1:1/invalid' },
     encoding: 'utf8',
-    timeout: 10000,
+    timeout: 60000,
+    // Windows ne résout pas `npm` sans passer par le shell (npm.cmd).
+    shell: process.platform === 'win32',
   });
   assert.equal(result.error, undefined);
   assert.equal(result.status, 1);

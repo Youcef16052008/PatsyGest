@@ -86,10 +86,11 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
     try { await sql.unsafe(await readFile(new URL(`../../supabase/${cheminMigration(file)}`, import.meta.url), 'utf8')); }
     catch (e) { throw new Error(`Migration ${file}: ${e.message}`, { cause: e }); }
   }
-  // F-19 : le layout (app) refuse de servir les pages si app_schema_version < 36.
-  // La chaîne ci-dessus n'applique pas la série main 24–36 ; on applique donc
-  // explicitement le marqueur de version (35) puis son relèvement (36).
-  for (const file of ['35-version-schema-app.sql', '36-dates-algiers.sql']) {
+  // F-19 : le layout (app) refuse de servir les pages si app_schema_version < 37.
+  // La chaîne ci-dessus n'applique pas la série main 24–39 ; on applique donc
+  // explicitement le marqueur de version (35), son relèvement (36) puis la RPC
+  // de transfert idempotent (37).
+  for (const file of ['35-version-schema-app.sql', '36-dates-algiers.sql', '37-transfert-client-ref.sql']) {
     try { await sql.unsafe(await readFile(new URL(`../../supabase/${file}`, import.meta.url), 'utf8')); }
     catch (e) { throw new Error(`Migration ${file}: ${e.message}`, { cause: e }); }
   }
