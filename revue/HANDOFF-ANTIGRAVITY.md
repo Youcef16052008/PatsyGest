@@ -39,10 +39,11 @@ Source de vérité : `revue/PLAN-CORRECTIF.md` (section « État après la suite
 ### 3.2 Travail d'implémentation restant
 
 **a. Branchement du transfert idempotent (B-007).**
-- La migration `37` est écrite et testée, mais pas branchée.
-- Une fois `37` appliquée au pilote : modifier l'action de transfert (`src/lib/actions-stock.ts`, fonction `transferReal`) pour appeler `transferer_article_ref` avec une `client_ref` générée côté formulaire (une par ouverture de formulaire). Garder le repli actuel sur la signature à 6 paramètres.
-- Puis passer `VERSION_SCHEMA_REQUISE` (`src/lib/schema-version.ts`) de `36` à `37`, et mettre à jour `tests/schema-version-db.test.mjs`. La valeur actuelle est `36`.
-- Tests à étendre : vérifier qu'un formulaire envoyé deux fois ne déplace le stock qu'une fois (le test réel existe déjà côté base : `tests/concurrence-transfert-reel.test.mjs`).
+- Fait : `transferReal` (`src/lib/actions-stock.ts`) appelle `transferer_article_ref` quand le formulaire fournit une `clientRef` ; repli sur `transferer_article` (6 paramètres) si la RPC est absente, puis repli sans `responsable` pour les schémas anciens.
+- Fait : clé générée côté formulaire (`src/lib/client-ref.ts`, `src/components/client-ref-field.tsx`), une par ouverture, renouvelée après un envoi réussi (changement de `key`). Un double envoi capture la même `FormData` → même clé → rejeu idempotent.
+- Fait : `VERSION_SCHEMA_REQUISE = 37` (`src/lib/schema-version.ts`) et `tests/schema-version-db.test.mjs` mis à jour.
+- Test côté base : `tests/transfert-client-ref-db.test.mjs` (rejeu, référence croisée refusée, échec sans consommation de la clé).
+- Reste : un test d'exécution de l'action elle-même (mocks session + Supabase), à faire avec §3.2.e.
 
 **b. Bascule vitrine (B-008).**
 - La migration `38` et le code serveur (`src/lib/vitrine-anti-abus.ts`, `src/app/(vitrine)/vitrine/[slug]/commander/actions.ts`) sont écrits et testés.

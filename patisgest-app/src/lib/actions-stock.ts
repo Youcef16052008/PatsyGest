@@ -90,6 +90,11 @@ export type TransferState = { erreur?: string; succes?: string };
  * Transfert de stock réel : FEFO au départ, lots miroirs à l'arrivée
  * (meme numero, DLC, PU), deux mouvements — tout dans une transaction
  * SQL (RPC transferer_article). Le stock insuffisant est refusé.
+ *
+ * B-007 : le formulaire fournit une `clientRef`. Si elle est présente, on
+ * appelle `transferer_article_ref` (migration 37), qui rejoue le transfert en
+ * cas de double envoi. Repli sur `transferer_article` (6 paramètres) si la RPC
+ * n'est pas encore installée sur la base.
  */
 export async function transferReal(_prev: TransferState, formData: FormData): Promise<TransferState> {
   const ctx = await getSessionContext();
@@ -111,17 +116,29 @@ export async function transferReal(_prev: TransferState, formData: FormData): Pr
   const demandesIds = demandesRaw
     ? demandesRaw.split(",").map((s) => s.trim()).filter((s) => /^[0-9a-f-]{36}$/i.test(s))
     : [];
+  const clientRef = String(formData.get("clientRef") ?? "").trim();
+  if (clientRef.length > 64) {
+    return { erreur: "Référence de transfert trop longue (64 caractères maximum)." };
+  }
 
   try {
     const supabase = await createClient();
-    let rpcRes = await supabase.rpc("transferer_article", {
+    const params = {
       p_article_id: input.articleId,
       p_from_site_id: input.fromSiteId,
       p_to_site_id: input.toSiteId,
       p_qte: input.qte,
       p_motif: input.motif,
       ...(responsableRaw ? { p_responsable: responsableRaw } : {}),
-    });
+    };
+    let rpcRes = clientRef
+      ? await supabase.rpc("transferer_article_ref", { ...params, p_client_ref: clientRef })
+      : await supabase.rpc("transferer_article", params);
+    // Repli : la RPC idempotente (migration 37) pas encore installée sur cette base.
+    if (rpcRes.error && (rpcRes.error.code === "PGRST202" || rpcRes.error.code === "42883")) {
+      rpcRes = await supabase.rpc("transferer_article", params);
+    }
+    // Repli historique : schéma ancien sans paramètre `responsable`.
     if (rpcRes.error && (rpcRes.error.code === "PGRST202" || rpcRes.error.code === "42883") && responsableRaw) {
       rpcRes = await supabase.rpc("transferer_article", {
         p_article_id: input.articleId,

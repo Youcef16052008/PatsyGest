@@ -83,7 +83,7 @@ Ce tableau fait foi. Il remplace les statuts ci-dessus lorsqu'ils diffèrent.
 | F-12 | **Fait** | 28 brouillons déplacés dans `supabase/brouillons/` (`git mv`, SHA-256 inchangés). Lecteurs corrigés via `cheminMigration`/`tousLesSql`. `securite.test.mjs` et `vitrine.test.mjs` scannent aussi les brouillons (sinon les contrôles de grants sortaient silencieusement). |
 | F-08 | **Fermé par garde de test** | Les droits par défaut ne suffisent pas (mesuré sur PostgreSQL 17.12). La protection est le test d'exécution `droits-execution-db.test.mjs` : toute nouvelle fonction exposée à PUBLIC ou anon le fait échouer. |
 | B-002 | **Non fait** | Clés composites : une quarantaine de relations, migration à données existantes. Pilote : 1 client, 0 incohérence sur `lots→articles` et `mouvements→lots`. Risque latent multi-client. |
-| B-007 / B-008 | **Partiel (migrations 37 et 38 écrites et testées, non appliquées au pilote)** | RPC transactionnelle de transfert : **déjà en place** (`transferer_article`, plpgsql, migrations 08 et 21). **Reste** : `client_ref` idempotent sur les transferts (double soumission / rejeu hors ligne, comme les OF en 16), et anti-abus vitrine par source plutôt que compteur global. Ces deux points exigent une migration 37 : à valider avant écriture. |
+| B-007 / B-008 | **Fait côté code** | RPC transactionnelle de transfert : **déjà en place** (`transferer_article`, plpgsql, migrations 08 et 21). `client_ref` idempotent **branché** sur les transferts (`transferer_article_ref`, `VERSION_SCHEMA_REQUISE = 37`) ; anti-abus vitrine par source **branché** (B-008, repli sur le plafond global si le secret est absent). Migrations 37 et 38 testées côté base. |
 | N+1 fiche de coût | **Fait** | `lib/lots-batch.ts` : un `in()` par bloc de 100 articles, pagination jusqu'à page courte, erreur remontée (plus de `[]` silencieux). Fiche de coût et simulation. Tests : `tests/lots-batch.test.mjs`. |
 | Phase 4 Playwright | **Non fait** | Navigateurs non téléchargeables depuis cet environnement (hôtes autorisés : npm, PyPI, GitHub). |
 | Phase 4 lint textuel `securite.test.mjs` | **Partiel** | Les contrôles de droits (grants PUBLIC/anon, révocation avant grant) sont remplacés par `tests/droits-execution-db.test.mjs` : migrations appliquées sur PGlite et sur PostgreSQL 17 réel (chaîne 01–38), droits lus dans `pg_proc`. Restent des contrôles textuels sur le code source TypeScript (routes, actions, rôles). |
@@ -93,7 +93,7 @@ Ce tableau fait foi. Il remplace les statuts ci-dessus lorsqu'ils diffèrent.
 
 ## Revue de vigilance avant pilote : migrations 33 à 37
 
-Aucune de ces migrations n'est appliquée au pilote par ce travail. Ordre requis : 33 → 34 → 35 → 36 → 37 → 38 (chacune vérifie son prérequis). Déployer l'application seulement après 35 (`VERSION_SCHEMA_REQUISE = 36`).
+Aucune de ces migrations n'est appliquée au pilote par ce travail. Ordre requis : 32 → 33 → 34 → 35 → 36 → 37 → 38 → 39 (chacune vérifie son prérequis ; **32 est requise par 38 et 39**). Déployer l'application seulement après 36 (`VERSION_SCHEMA_REQUISE = 37`).
 
 | Migration | Ce qu'elle change | Points de vigilance | Garde-fou dans le fichier |
 |---|---|---|---|
@@ -101,13 +101,13 @@ Aucune de ces migrations n'est appliquée au pilote par ce travail. Ordre requis
 | **34** coût OF partiel | Corrige la formule de `terminer_of` par remplacement de texte sur sa définition. | Patch textuel à l'exécution : garde stricte (une seule occurrence attendue). Les coûts déjà enregistrés ne sont **pas** recalculés (décision F-20). Pas de retour arrière automatique. | Échec si la formule diffère ; rejouable. |
 | **35** version de schéma | Table `app_schema_version` (version 35), lecture seule côté authentifié. | Sans elle, l'application refuse de démarrer en mode `supabase`. Ne jamais abaisser la version. | Rejouable, version jamais abaissée. |
 | **36** dates Algiers | Remplace `current_date` par la date locale dans les fonctions publiques et les défauts de colonnes. | Remplacement par expression régulière `\mcurrent_date\M` : touche aussi un `current_date` écrit dans un commentaire ou une chaîne d'une fonction (sans effet fonctionnel, à connaître). Modifie les défauts de toutes les tables concernées (métadonnées seulement). | Échec si `current_date` subsiste, si une vue publique en contient, ou si un défaut est inattendu. |
-| **37** transfert idempotent (B-007) | `transferts.client_ref` (unique par client) et `transferer_article_ref`. Ne modifie pas `transferer_article`. | Non branchée côté application : aucun effet tant que l'app n'appelle pas la nouvelle RPC. Une même référence rejouée renvoie le transfert existant ; une référence réutilisée pour une autre demande est refusée. Verrou consultatif par (client, référence). | Prérequis 08, 21, 35 ; droits fermés à anon et PUBLIC. |
+| **37** transfert idempotent (B-007) | `transferts.client_ref` (unique par client) et `transferer_article_ref`. Ne modifie pas `transferer_article`. | **Branchée côté application** (`transferReal` + `ClientRefField`) : la clé est générée par le formulaire, une par ouverture, renouvelée après un envoi réussi. Une même référence rejouée renvoie le transfert existant ; une référence réutilisée pour une autre demande est refusée. Verrou consultatif par (client, référence). | Prérequis 08, 21, 35 ; droits fermés à anon et PUBLIC. |
 
 Tests : `tests/phase1-f02-f20-db.test.mjs`, `tests/dates-algiers-db.test.mjs`, `tests/schema-version-db.test.mjs`, `tests/transfert-client-ref-db.test.mjs` (6), `tests/droits-execution-db.test.mjs`.
 
 Limite : PGlite est mono-connexion. Le verrou et l'unicité sont vérifiés par la logique et la contrainte, pas par une vraie concurrence à deux sessions. Une vérification en concurrence réelle reste à faire sur un environnement Postgres jetable avant branchement.
 
-**Statut B-007 :** `client_ref` des transferts = migration 37 écrite et testée, non appliquée, non branchée. **Statut B-008 :** migration 38 et code serveur écrits et testés, non appliqués au pilote.
+**Statut B-007 :** migration 37 testée côté base (`tests/transfert-client-ref-db.test.mjs`) et **branchée** dans l'application (`transferReal`, `ClientRefField`). **Statut B-008 :** migration 38 et code serveur écrits, testés et branchés (repli sans secret).
 
 **Décision anti-abus vitrine (B-008) — tranchée sur recommandation, à valider avec le pilote.** Option retenue : plafond **par source** sans conserver d'IP.
 - Le serveur calcule `HMAC-SHA256(secret, IP)` (`src/lib/vitrine-anti-abus.ts`, secret `VITRINE_SECRET_ANTI_ABUS` ≥ 32 caractères). La base ne reçoit jamais l'IP.

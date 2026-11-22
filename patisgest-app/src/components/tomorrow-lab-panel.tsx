@@ -8,6 +8,7 @@ import {
   type JournalState,
 } from "@/lib/actions-journaux";
 import { transferReal, type TransferState } from "@/lib/actions-stock";
+import ClientRefField from "./client-ref-field";
 import { demoTomorrowPlan } from "@/lib/demo-workspace";
 import {
   addRestockRequest,
@@ -75,6 +76,7 @@ function ValidateLineRowConnected({
       <td className="pg-num">
         {line.aTransfererDuLabo > 0 && boutiqueSiteId && boutiqueSiteId !== labSiteId ? (
           <form action={trAction} className="pg-inline-action">
+            <ClientRefField key={trState.succes ?? ""} />
             <input type="hidden" name="articleId" value={line.articleId} />
             <input type="hidden" name="fromSiteId" value={labSiteId} />
             <input type="hidden" name="toSiteId" value={boutiqueSiteId} />

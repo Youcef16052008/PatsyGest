@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { transferReal, type TransferState } from "@/lib/actions-stock";
+import ClientRefField from "./client-ref-field";
 
 type Option = { id: string; label: string };
 
@@ -19,6 +20,7 @@ export default function TransferForm({ articles, sites }: { articles: Option[]; 
         des lots miroirs (même n°, DLC, prix) à l’arrivée. Un transfert supérieur au stock éligible est refusé.
       </p>
       <form action={action} className="flex flex-wrap items-end gap-3">
+        <ClientRefField key={state.succes ?? ""} />
         <label className={`${label} min-w-52 flex-1`}>Article
           <select name="articleId" required className={field} disabled={articles.length === 0}>
             {articles.length === 0 && <option value="">— aucun article —</option>}
