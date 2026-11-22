@@ -33,7 +33,9 @@ let etat = { session: null, client: null };
 
 // Enregistrés une fois : les actions lisent l'état courant au moment de l'appel.
 mock.module(authUrl, {
-  exports: {
+  // `namedExports` : supporté par Node 22 (CI) comme par Node 26 (local) ;
+  // `exports` est plus récent mais absent de Node 22.
+  namedExports: {
     canWrite,
     canReadCosts,
     roleDisponible,
@@ -41,7 +43,7 @@ mock.module(authUrl, {
   },
 });
 mock.module(serverUrl, {
-  exports: { createClient: async () => etat.client },
+  namedExports: { createClient: async () => etat.client },
 });
 
 /** Positionne la session et le client du prochain appel. */
