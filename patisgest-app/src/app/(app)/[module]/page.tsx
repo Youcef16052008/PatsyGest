@@ -35,6 +35,7 @@ import CashWorkspace from "@/components/cash-workspace";
 import ProductionWorkspace from "@/components/production-workspace";
 import { PageIntro } from "@/components/workspace-ui";
 import ListeCoursesPanel from "@/components/liste-courses-panel";
+import ChargeCapacitePanel from "@/components/charge-capacite-panel";
 import { lireListeCourses } from "@/lib/courses-server";
 
 const modules = {
@@ -337,12 +338,18 @@ export default async function ModulePage({ params, searchParams }: {
     };
     if (canWrite(ctx.role)) {
       const [tasksRes,ofsRes]=await Promise.all([
-        supabase.from('taches_planning').select('id, date_tache, tache, of_numero, fait').eq('client_id',ctx.clientId).order('date_tache').limit(100),
+        supabase.from('taches_planning').select('id, date_tache, tache, of_numero, fait, duree_min, responsable').eq('client_id',ctx.clientId).order('date_tache').limit(100),
         supabase.from('ordres_fabrication').select('numero').eq('client_id',ctx.clientId).order('numero',{ascending:false}).limit(50),
       ]);
       writeForms=<>
         {(demainData.erreur || planningSourcesDesactivees) && <p role="alert">{demainData.erreur ?? "Plan indisponible : un module source est désactivé."}</p>}
         <TomorrowLabConnected {...tomorrowProps} canValidate={canReadCosts(ctx.role)} canCreateOf={!modulesDesactives.has("production")} canTransfer={!modulesDesactives.has("transferts")} />
+        <ChargeCapacitePanel
+          jour={jourLocal()}
+          taches={((tasksRes.data ?? []) as {id:string;date_tache:string;tache:string;fait:boolean;duree_min:number|null;responsable:string|null}[])
+            .filter(t => t.date_tache === jourLocal())
+            .map(t => ({ id: t.id, libelle: t.tache, dureeMin: Number(t.duree_min ?? 60), fait: t.fait, responsable: t.responsable }))}
+        />
         {tousSitesAutorises && <PlanningForms
           tasks={((tasksRes.data??[]) as {id:string;date_tache:string;tache:string;of_numero:string;fait:boolean}[]).map(t=>({id:t.id,date:t.date_tache,tache:t.tache,ofNumero:t.of_numero,fait:t.fait}))}
           ofNumeros={((ofsRes.data??[]) as {numero:string}[]).map(o=>o.numero)}

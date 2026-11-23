@@ -94,6 +94,14 @@
 .pg-card-pad { padding: clamp(13px, 2vw, 22px); }
 .pg-stack { display: grid; align-content: start; gap: 16px; min-width: 0; }
 .pg-muted { color: var(--pg-muted); }
+
+/* MOD-12 / US-12.1 — barre de charge vs capacité. Le remplissage porte un
+   indicateur de niveau en plus de la couleur : en photocopie noir et blanc,
+   la surcharge doit rester lisible (texte et motif, pas seulement teinte). */
+.pg-load-bar { height: 12px; border-radius: 999px; background: var(--pg-line); overflow: hidden; margin: 12px 0; }
+.pg-load-bar > span { display: block; height: 100%; border-radius: 999px; background: var(--pg-ok-ink); transition: width .2s ease; }
+.pg-load-bar > span[data-niveau='plein'] { background: var(--pg-warn-ink); }
+.pg-load-bar > span[data-niveau='surcharge'] { background: var(--pg-bad-ink); background-image: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255,255,255,.45) 4px, rgba(255,255,255,.45) 8px); }
 .pg-kicker { color: var(--pg-link); font-size: .72rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .pg-page-intro { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 18px; margin-bottom: 18px; }
 .pg-page-intro h1, .pg-dashboard-lead h1 { font-size: clamp(1.9rem, 3.4vw, 2.85rem); font-weight: 800; line-height: 1.09; letter-spacing: -.055em; overflow-wrap: anywhere; }
