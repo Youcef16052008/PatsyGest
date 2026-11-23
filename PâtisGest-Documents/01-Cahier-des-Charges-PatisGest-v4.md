@@ -387,7 +387,7 @@ uptime « 99,99 % » non contractuel en V1.
 
 | # | Question de l'audit | Décision v4.0 |
 |---|---|---|
-| D1 | Pricing et équilibre financier | Solo 2 900 DA/mois · Pro 5 900 · Groupe 9 900 (−20 % annuel). Seuil rentabilité : ~35 clients (cf. Roadmap §6) |
+| D1 | Pricing et équilibre financier | Abonnement annuel prépayé : Solo 35 000 DA/an (hypothèse à valider sur pilotes), Réseau 89 000–129 000 DA/an, installation 15 000–25 000 DA. Aucun abonnement mensuel. Seuil rentabilité : ~9 clients Solo (cf. Roadmap §6) |
 | D2 | Sous-recette : version active ou figée ? | **Version figée** (traçabilité + coût juste). Changement = nouvelle version de la recette parente |
 | D3 | Périmètre « produit fini » | Lot + DLC + stock **par site** + invendus reportés tracés (flux, pas stock caché) |
 | D4 | Régularisation du stock négatif | Mouvement d'écart tracé ; à l'achat suivant, le lot couvre le négatif (coût = PU du nouveau lot, mention « régularisé ») |

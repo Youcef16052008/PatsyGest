@@ -12,6 +12,26 @@ L'utilisateur souhaite revenir à l'option Supabase isolée lorsque PâtisGest a
 - Aucune sauvegarde complète du pilote et restauration représentative n'ont été démontrées. Le test isolé du dump brut échoue sur `realtime.list_changes` / `log_min_messages` ; la restauration CLI de données fictives est partielle. Voir `patisgest-app/migrations/ETAT-RESTAURATION.md`.
 - L'accès GitHub aux réglages des secrets a répondu HTTP 403 lors du dernier contrôle ; cela ne prouve pas que les secrets sont absents. Ne pas partager de mot de passe ni de clé dans la conversation.
 
+## Risque réglementaire — loi de finances 2026 (à valider par un conseiller)
+
+Sources : loi n° 25-17 (JO n° 88), articles 74, 81, 82 et 115 bis, tels que publiés et commentés
+par la presse spécialisée (consultés le 20/11/2026). Ce texte n'est pas une analyse juridique.
+
+- **Art. 74 (CPF art. 20 ter)** : en cas de vérification, le contribuable doit présenter un
+  engagement de l'éditeur attestant que le logiciel satisfait aux conditions d'inaltérabilité,
+  de sécurisation, de conservation et d'archivage des données.
+- **Art. 81 (CPF art. 51 sexies)** : l'éditeur doit présenter, sur demande de l'administration,
+  codes, données, traitements et documentation liés au logiciel.
+- **Art. 115 bis** : à défaut de présentation de l'engagement de l'éditeur (ou d'un certificat
+  d'organisme accrédité), amende fiscale de **500 000 DA par logiciel ou système de caisse**.
+- **Entrée en vigueur** : 1er janvier 2027.
+
+Conséquences pour PâtisGest : les boutiques clientes auront besoin de l'engagement écrit de
+l'éditeur. C'est une demande réelle et un argument commercial possible, mais aussi une
+responsabilité engagée. **Règle** : aucune attestation ne doit être signée tant que la
+restauration (D5/D6) et l'isolation entre clients (D7) ne sont pas démontrées par un test réel.
+Le texte exact de l'engagement doit être validé par un conseiller fiscal avant toute signature.
+
 ## Reprise et retour arrière
 
 1. Vérifier à nouveau l'état réel de GitHub, de la production Vercel et du pilote ; ne pas supposer qu'un merge ou un déploiement a eu lieu à partir de cette note.

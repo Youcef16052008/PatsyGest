@@ -91,27 +91,39 @@ Ton temps n'est pas chiffré (investissement fondateur). Aucun salarié avant 40
 
 ## 6. Business model — Algérie
 
-### Offres (HT, DZD)
+### Offres (HT, DZD) — hypothèse de départ, à valider sur 3 boutiques pilotes
 
-| Offre | Prix | Contenu |
+Modèle retenu : **abonnement annuel prépayé + frais d'installation**. Aucun abonnement mensuel,
+aucune licence à vie par poste, aucun projet sur mesure par boutique. Ces montants ne sont pas
+affichés publiquement tant que les pilotes n'ont pas confirmé le prix accepté.
+
+| Offre | Prix (par an, prépayé) | Contenu |
 |---|---|---|
-| **Solo** | 2 900 /mois (−20 % annuel) | 1 site, 2 utilisateurs, tous modules V1–V2 |
-| **Pro** | 5 900 /mois | 2 sites, 5 utilisateurs, cake studio, support prioritaire |
-| **Groupe** | 9 900 /mois | Sites illimités, utilisateurs illimités, formation incluse |
-| Installation | 15 000 (une fois) | Paramétrage + reprise données + formation 2 h |
-| Pilotes (6 mois) | −50 % | En échange : retours + témoignage + logo |
+| **Solo** | 35 000 (fourchette 35 000–39 000) | 1 site, 2 utilisateurs, tous modules V1–V2 |
+| **Réseau** | 89 000–129 000 (selon sites) | 2 à 5 sites ; palier intermédiaire à définir après pilotes |
+| Installation | 15 000–25 000 (une fois) | Paramétrage + reprise données + formation 2 h |
+| Pilotes (6 mois) | −50 % | En échange : retours + témoignage + logo. Durée limitée, puis tarif plein |
+
+Ancrage marché vérifié (pages publiques consultées le 20/11/2026) : Almawarid publie un plan Standard à 20 000 DA/an,
+soit 10 000 DA/an en promotion −50 %, et un plan gratuit sans carte CIB. Notre Solo à 35 000
+DA/an est donc au-dessus de l'entrée promotionnelle concurrente : la valeur doit être démontrée
+par les pilotes, pas supposée.
 
 ### Encaissement
 
 - Année 1 : virement, chèque, espèces contre reçu (pilotes et early adopters).
-- V4 : abonnement en ligne **CIB / EDAHABIA via SATIM** + rappels auto d'impayés
-  (grâce : 15 j, puis lecture seule — jamais de perte de données).
+- Année 1 : facturation annuelle prépayée ; virement, chèque ou espèces contre reçu.
+- V4 : renouvellement annuel en ligne **CIB / EDAHABIA via SATIM** + rappels auto d'impayés
+  (grâce : 15 j, puis lecture seule — jamais de perte de données). Le paiement par carte sans
+  registre de commerce n'est pas acquis : à vérifier avant d'annoncer ce canal.
 
 ### Seuil de rentabilité
 
-Charges fixes ~25 000 DA/mois (infra + compta) → **~9 clients Solo** pour l'équilibre
-de trésorerie, **~35 clients** pour un revenu fondateur de 100 000 DA/mois.
-Objectif S40 : 50 clients ≈ 200 000 DA MRR.
+Charges fixes ~25 000 DA/mois (infra + compta), soit ~300 000 DA/an. Un Solo à 35 000 DA/an
+équivaut à ~2 917 DA/mois de revenu lissé → **~9 clients Solo** pour l'équilibre de trésorerie
+(25 000 ÷ 2 917 ≈ 8,6). Ce calcul n'inclut ni le coût d'acquisition (déplacements, temps
+commercial), ni l'IFU, ni la CASNOS : à compléter avant toute décision de budget.
+Les seuils de 35 et 50 clients sont à recalculer avec le prix retenu après les pilotes.
 
 ### Go-to-market (Oran d'abord)
 
@@ -131,6 +143,7 @@ Objectif S40 : 50 clients ≈ 200 000 DA MRR.
 | R5 | Changement fiscal (TVA, e-facture) | Moyenne | Moyen | TVA paramétrable par nature ; veille comptable trimestrielle |
 | R6 | Épuisement solo | Moyenne | Fort | Sprints courts, arrêt J1 documenté, freelance ponctuel possible |
 | R7 | Concurrent copiant le créneau | Faible | Moyen | Vitesse + terrain + données (recettes clients = ancrage) |
+| R8 | Obligation fiscale LF 2026 (art. 74, 81 ; CPF 20 ter et 51 sexies) exigible au 01/01/2027 : engagement éditeur demandé par les boutiques, amende de 500 000 DA par logiciel si absent (art. 115 bis) | Forte | Critique | Ne signer aucune attestation tant que restauration (D5/D6) et isolation (D7) ne sont pas prouvées ; faire valider le texte par un conseiller fiscal. Voir NOTE-IMPORTANTE-PATISGEST.md |
 
 ## 8. KPI pilotés (revue mensuelle, 30 min)
 
