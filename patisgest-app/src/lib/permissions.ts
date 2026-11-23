@@ -39,3 +39,16 @@ export const ROLES_LABO_VENDEUR_ACTIFS = false;
 export function roleDisponible(role: Role): boolean {
   return role === "proprietaire" || ROLES_LABO_VENDEUR_ACTIFS;
 }
+
+/**
+ * NF-10 : qui peut lire le journal d'audit du tenant.
+ *
+ * Le propriétaire uniquement, et c'est cohérent à trois niveaux : la RLS
+ * (migration 40, `patisgest_mon_role() = 'proprietaire'`), l'écran, et
+ * l'action serveur. Le labo et le vendeur n'ont pas à lire l'historique
+ * global des actions du compte — le journal contient des changements de
+ * rôle et d'identité légale qui ne les concernent pas.
+ */
+export function canReadAudit(role: Role): boolean {
+  return role === "proprietaire";
+}

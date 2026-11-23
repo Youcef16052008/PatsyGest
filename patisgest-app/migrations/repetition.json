@@ -342,6 +342,12 @@
       "sha256": "69023679e9c81543a35d17ee03285f17793c24918299d781c3d934c6d9026b09",
       "hors_fixture_pilote": true,
       "note": "D2/D4/D7/D9 : projection publique minimale, droits directs des sites/offre et prévalidation des références inter-tenant à la restauration. Non appliquée au pilote; revue obligatoire."
+    },
+    {
+      "file": "40-journal-audit.sql",
+      "sha256": "2617bee74042d134a795369fffa4c12facfd1623ffd5235005d499c237d7196c",
+      "hors_fixture_pilote": true,
+      "note": "NF-10/RI-06 : journal d'audit immuable, isolation par tenant, conservation 10 ans. Non appliquée au pilote."
     }
   ],
   "exclus": [

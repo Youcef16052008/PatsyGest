@@ -8,6 +8,9 @@ import SauvegardePanel from "@/components/sauvegarde-panel";
 import AppearancePicker from "@/components/appearance";
 import { PageIntro } from "@/components/workspace-ui";
 import VitrineForm, { type RecetteVitrine, type SiteVitrine } from "@/components/vitrine-form";
+import JournalAuditPanel from "@/components/journal-audit-panel";
+import { canReadAudit } from "@/lib/permissions";
+import type { LigneAudit } from "@/lib/journal-audit";
 import type { Etablissement } from "@/lib/etablissement";
 import { equipeExperimentaleActive } from "@/lib/equipe-experimental";
 import { DOMAINE_SERVICE_PAR_DEFAUT } from "@/lib/domaines";
@@ -85,6 +88,33 @@ export default async function Parametres() {
         if (!equipeError) equipe = { demandes: demandes.data, approbations: approbations.data, invitations: invitations.data, membres: membres.data } as EquipeDonnees;
       }
     } catch { modulesError=true; sitesError=true; equipeError=true; }
+  }
+
+  // NF-10 — journal d'audit : lecture réservée au propriétaire (RLS migration 40).
+  // `migrationAbsente` distingue une base pas encore migrée (message d'action,
+  // pas d'alarme) d'une vraie erreur de lecture.
+  let lignesAudit: LigneAudit[] = [];
+  let auditError = false;
+  let auditMigrationAbsente = false;
+  if (canReadAudit(ctx.role) && ctx.mode === "supabase") {
+    try {
+      const db = await createClient();
+      const { data, error } = await db
+        .from("journal_audit")
+        .select("id, cree_le, acteur_email, acteur_id, action, table_cible, ligne_id, details")
+        .eq("client_id", ctx.clientId)
+        .order("cree_le", { ascending: false })
+        .limit(200);
+      if (error) {
+        // 42P01 = relation absente ; PGRST205 = table inconnue du cache PostgREST.
+        auditMigrationAbsente = error.code === "42P01" || error.code === "PGRST205";
+        auditError = !auditMigrationAbsente;
+      } else {
+        lignesAudit = (data ?? []) as LigneAudit[];
+      }
+    } catch {
+      auditError = true;
+    }
   }
 
   // Vitrine : sites + recettes du catalogue. Lecture réservée au personnel
@@ -198,6 +228,11 @@ export default async function Parametres() {
                 </p>
               </section>
             )}
+            <JournalAuditPanel
+              lignes={lignesAudit}
+              erreur={auditError}
+              migrationAbsente={auditMigrationAbsente}
+            />
           </>
         ) : (
           <section className="rounded-2xl border bg-white p-5 text-sm">
