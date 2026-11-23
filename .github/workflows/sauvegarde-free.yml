@@ -97,8 +97,11 @@ jobs:
           horodatage=$(date -u +%Y-%m-%dT%H%M%SZ)
           fichier="patisgest-$horodatage.dump.gz.gcm"
           # -Fc : format personnalisé, restaurable table par table.
+          # L'URL de connexion se passe à `--dbname` : `PGDATABASE` n'est pour
+          # pg_dump qu'un nom de base, pas une URI (sinon il retombe sur le
+          # socket local /run/postgresql).
           docker run --rm -e PGDATABASE -e PGSSLMODE=require postgres:17-alpine \
-            pg_dump -Fc --compress=0 | gzip -9 > "$clair"
+            pg_dump --dbname="$PGDATABASE" -Fc --compress=0 | gzip -9 > "$clair"
           PATSYGEST_BACKUP_PASSPHRASE="$PASSPHRASE" \
             node patisgest-app/scripts/coffre-sauvegarde.mjs chiffrer "$clair" "$fichier"
           rm -f "$clair"
