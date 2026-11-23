@@ -7,6 +7,7 @@
     "src/app/(auth)/connexion/page.tsx",
     "src/app/(auth)/rejoindre/page.tsx",
     "src/app/(vitrine)/vitrine/[slug]/page.tsx",
+    "src/app/api/export/comptable/route.ts",
     "src/app/api/export/route.ts",
     "src/app/api/sauvegarde/route.ts",
     "src/app/estimation/page.tsx",

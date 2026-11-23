@@ -232,3 +232,39 @@ test('US-06.4 : la fonction n’est pas exécutable par anon', async () => {
   assert.equal(r.rows[0].v, false);
   await db.close();
 });
+
+test('US-06.4 : l’avoir fige les montants de la vente d’origine', async () => {
+  const db = await base();
+  await tenant(db);
+  const vente = await vendre(db, 3);
+  const res = await commeVendeur(db, async () => {
+    const r = await db.query(
+      `select public.enregistrer_avoir($1,'remise_en_stock','Client',$2) as res`,
+      [vente.sale_id, 2],
+    );
+    return r.rows[0].res;
+  });
+  // 2 pièces à 1000 HT, TVA 19 % : l'avoir doit rendre 2 000 HT / 2 380 TTC.
+  assert.equal(Number(res.total_ht), 2000);
+  assert.equal(Number(res.total_ttc), 2380);
+  const a = await db.query(`select pu_ht, tva_pct, total_ht, total_ttc from public.avoirs`);
+  assert.equal(Number(a.rows[0].pu_ht), 1000);
+  assert.equal(Number(a.rows[0].tva_pct), 19);
+  assert.equal(Number(a.rows[0].total_ttc), 2380);
+  await db.close();
+});
+
+test('US-06.4 : le prix du jour ne réécrit pas un avoir déjà émis', async () => {
+  const db = await base();
+  await tenant(db);
+  const vente = await vendre(db, 3);
+  await commeVendeur(db, async () => {
+    await db.query(`select public.enregistrer_avoir($1,'remise_en_stock','Retour A',$2)`, [vente.sale_id, 1]);
+  });
+  // Le propriétaire change le prix de vente après coup.
+  await db.exec(`update public.articles set pv_ht = 5000 where id = '${ARTICLE}'`);
+  const a = await db.query(`select pu_ht, total_ht from public.avoirs`);
+  assert.equal(Number(a.rows[0].pu_ht), 1000, 'l’avoir garde le prix facturé au client');
+  assert.equal(Number(a.rows[0].total_ht), 1000);
+  await db.close();
+});

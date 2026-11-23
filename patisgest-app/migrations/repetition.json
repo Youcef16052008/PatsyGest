@@ -351,7 +351,7 @@
     },
     {
       "file": "41-avoirs-retours.sql",
-      "sha256": "ff4dd2e755d1a821bfb4550091e34ee65bd10ad6385141aa26cea5e1241598fa",
+      "sha256": "d8b7e0941bbd3ba5e08c9a2c11f1ecbd706002f191c6123a4d8854642c8a7b77",
       "hors_fixture_pilote": true,
       "note": "US-06.4 : retours/avoirs avec motif obligatoire, plafond de quantité rendue, remise en stock tracée ou destruction mesurée. Non appliquée au pilote."
     }

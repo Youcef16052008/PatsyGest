@@ -34,6 +34,12 @@ create table if not exists public.avoirs (
   article_id uuid not null references public.articles (id) on delete restrict,
   numero text not null,
   qte numeric(12,4) not null check (qte > 0),
+  -- Montants figés au moment de l'avoir : le prix de vente peut changer
+  -- demain, l'avoir déjà émis ne doit pas changer avec lui.
+  pu_ht numeric(12,2) not null default 0,
+  tva_pct numeric(5,2) not null default 0,
+  total_ht numeric(12,2) not null default 0,
+  total_ttc numeric(12,2) not null default 0,
   mode text not null check (mode in ('remise_en_stock', 'destruction')),
   motif text not null check (length(btrim(motif)) between 3 and 500),
   lot_id uuid references public.lots (id) on delete set null,
@@ -88,6 +94,10 @@ declare
   v_qte numeric := round(coalesce(p_qte, 0), 4);
   v_motif text := btrim(coalesce(p_motif, ''));
   v_lot_id uuid;
+  v_pu numeric := 0;
+  v_tva numeric := 0;
+  v_ht numeric := 0;
+  v_ttc numeric := 0;
   v_lot_cree boolean := false;
   v_numero text;
   v_avoir uuid;
@@ -209,12 +219,28 @@ begin
             p_vente_id::text, 'Destruction : ' || v_motif);
   end if;
 
+  -- ---- montants ----
+  -- Prix unitaire et TVA issus de la ligne de vente d'origine, pas des prix
+  -- du jour : un avoir rembourse ce qui a ete encaisse, pas ce que coute
+  -- aujourd'hui le meme produit.
+  select coalesce((l->>'pu')::numeric, 0), coalesce((l->>'tva')::numeric, 0)
+    into v_pu, v_tva
+    from jsonb_array_elements(v_vente.lignes) l
+   where (l->>'articleId')::uuid = v_article.id
+   limit 1;
+  v_pu := coalesce(v_pu, 0);
+  v_tva := coalesce(v_tva, 0);
+  v_ht := round(v_qte * v_pu, 2);
+  v_ttc := round(v_ht * (1 + v_tva / 100), 2);
+
   -- ---- enregistrement de l'avoir ----
   v_numero := 'AV-' || to_char(current_timestamp, 'YYMMDDHH24MISS') || '-' ||
               substr(md5(v_auth::text || clock_timestamp()::text), 1, 6);
   insert into public.avoirs (client_id, vente_id, site_id, article_id, numero, qte, mode, motif,
+                             pu_ht, tva_pct, total_ht, total_ttc,
                              lot_id, lot_retour_cree, acteur_id, acteur_email)
   values (v_client, v_vente.id, v_vente.site_id, v_article.id, v_numero, v_qte, p_mode, v_motif,
+          v_pu, v_tva, v_ht, v_ttc,
           v_lot_id, v_lot_cree, v_auth, v_email)
   returning id into v_avoir;
 
@@ -223,6 +249,8 @@ begin
     'numero', v_numero,
     'mode', p_mode,
     'qte', v_qte,
+    'total_ht', v_ht,
+    'total_ttc', v_ttc,
     'article', v_article.nom,
     'lot_id', v_lot_id,
     'lot_retour_cree', v_lot_cree
