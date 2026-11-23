@@ -348,6 +348,12 @@
       "sha256": "2617bee74042d134a795369fffa4c12facfd1623ffd5235005d499c237d7196c",
       "hors_fixture_pilote": true,
       "note": "NF-10/RI-06 : journal d'audit immuable, isolation par tenant, conservation 10 ans. Non appliquée au pilote."
+    },
+    {
+      "file": "41-avoirs-retours.sql",
+      "sha256": "ff4dd2e755d1a821bfb4550091e34ee65bd10ad6385141aa26cea5e1241598fa",
+      "hors_fixture_pilote": true,
+      "note": "US-06.4 : retours/avoirs avec motif obligatoire, plafond de quantité rendue, remise en stock tracée ou destruction mesurée. Non appliquée au pilote."
     }
   ],
   "exclus": [

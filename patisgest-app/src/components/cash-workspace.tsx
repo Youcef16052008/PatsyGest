@@ -7,6 +7,7 @@ import type { Etablissement } from "@/lib/etablissement";
 import SaleForm from "./sale-form";
 import SaleHistory from "./sale-history";
 import ZImportForm from "./z-import-form";
+import AvoirForm from "./avoir-form";
 import { Icon } from "./workspace-icons";
 import { Disclosure, Notice, PageIntro } from "./workspace-ui";
 
@@ -37,6 +38,7 @@ export default async function CashWorkspace({ ctx, db }: { ctx: SessionContext; 
     <div className="pg-stack">
       <CashPanel queueIdentity={{clientId:ctx.clientId,authUserId:ctx.authUserId}} articles={articles} sites={sites} lots={lots} identite={identite}/>
       <SaleHistory sales={sales}/>
+      {canWrite(ctx.role) && <Disclosure title="Retour ou avoir" description="Reprendre un produit vendu : remise en stock ou destruction tracée." icon="receipt"><AvoirForm ventes={sales ?? []}/></Disclosure>}
       {canWrite(ctx.role) && <Disclosure title="Importer un Z de caisse" description="Ajouter les ventes d’une caisse externe." icon="list"><ZImportForm sites={sites ?? []}/></Disclosure>}
     </div>
   </>;

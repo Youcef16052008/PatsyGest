@@ -34,6 +34,8 @@ import StockWorkspace from "@/components/stock-workspace";
 import CashWorkspace from "@/components/cash-workspace";
 import ProductionWorkspace from "@/components/production-workspace";
 import { PageIntro } from "@/components/workspace-ui";
+import ListeCoursesPanel from "@/components/liste-courses-panel";
+import { lireListeCourses } from "@/lib/courses-server";
 
 const modules = {
   stocks: { title:'Articles & stocks', tables:[['articles','Articles'],['lots','Lots']] },
@@ -370,9 +372,12 @@ export default async function ModulePage({ params, searchParams }: {
       .map(h=>({articleId:h.article_id,fournisseurId:h.fournisseur_id,datePrix:h.date_prix,pu:Number(h.pu)})));
     const fourRows=((results.find(r=>r.label==='Fournisseurs')?.data??[]) as {id:string;nom:string}[]);
     const fourById=new Map(fourRows.map(f=>[f.id,f.nom]));
-    const bcRes=await supabase.from('bons_commande').select('id, numero, statut, lignes, fournisseur_id').eq('client_id',ctx.clientId).order('numero',{ascending:false}).limit(100);
+    const [bcRes, courses] = await Promise.all([
+      supabase.from('bons_commande').select('id, numero, statut, lignes, fournisseur_id').eq('client_id',ctx.clientId).order('numero',{ascending:false}).limit(100),
+      lireListeCourses(ctx.clientId),
+    ]);
     const cmdRows=((bcRes.data??[]) as {id:string;numero:string;statut:string;lignes:{articleId:string;qte:number;pu:number;recu:number}[]|null;fournisseur_id:string}[]);
-    writeForms=<><FournisseurForm /><CommandeForms
+    writeForms=<><ListeCoursesPanel donnees={courses} peutVoir={canReadCosts(ctx.role)} /><FournisseurForm /><CommandeForms
       alerts={priceAlerts}
       fournisseurs={fourRows.map(f=>({id:f.id,label:f.nom}))}
       articles={((artRes.data??[]) as {id:string;code:string;nom:string;pv_ht:number|null}[]).map(a=>({id:a.id,label:a.pv_ht&&Number(a.pv_ht)>0?`${a.code} — ${a.nom} (PV ${Number(a.pv_ht).toLocaleString('fr-FR')} DA HT)`:`${a.code} — ${a.nom}`}))}

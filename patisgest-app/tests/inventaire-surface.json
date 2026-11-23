@@ -27,6 +27,7 @@
       "quickDemoLogin"
     ],
     "src/lib/actions-caisse.ts": [
+      "createAvoir",
       "importZReal",
       "sellCart",
       "sellProduct"
@@ -109,6 +110,9 @@
       "reserverSousDomaine",
       "supprimerRecetteVitrine",
       "traiterDemandeVitrine"
+    ],
+    "src/lib/courses-server.ts": [
+      "lireListeCourses"
     ]
   }
 }
