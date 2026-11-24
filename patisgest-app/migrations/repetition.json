@@ -360,6 +360,12 @@
       "sha256": "ba84ed07f420ca3ef35853b2051379134451941bc46e1348db5dc1590d69e0ed",
       "hors_fixture_pilote": true,
       "note": "Loi 18-07 : export et anonymisation des données personnelles. Anonymise, ne supprime pas les écritures comptables. APPLIQUÉE au pilote le 23/11/2026. Constat d'application : référence d'export basée sur now() (figé par transaction) → collision 23505 au 2e export ; corrigée par suffixe aléatoire + on conflict, et test de non-régression ajouté."
+    },
+    {
+      "file": "43-unicite-lot.sql",
+      "sha256": "9a455807af95cd69762e75ef586439cdbcd21b725bd9ce85f25c03bca0bc6126",
+      "hors_fixture_pilote": true,
+      "note": "RI-04 : identité du lot = (client, article, site, numéro), en clé PARTIELLE. Une contrainte pleine (client, numéro) casserait les miroirs de transfert (migration 08, MOD-11). N'interdit que la double réception directe."
     }
   ],
   "exclus": [
