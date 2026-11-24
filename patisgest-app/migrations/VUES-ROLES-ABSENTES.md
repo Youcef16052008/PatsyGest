@@ -107,9 +107,40 @@ Le labo, lui, est correctement protégé sur ce point : la RLS de la migration 1
 ne lui ouvre pas `parametres_couts` (0 ligne lue), et `articles.pv_ht` reste
 accessible comme prévu (le labo a le droit aux coûts selon RG-15.2).
 
+## Pourquoi les brouillons ne sont pas applicables tels quels
+
+Vérification faite après coup, en base : les brouillons ne sont pas seulement
+« non validés », ils sont **inapplicables en l'état**.
+
+`101` révoque trois fonctions internes qui n'existent pas :
+
+```
+patisgest_terminer_of_interne   → absente
+patisgest_rappel_lot_interne    → absente
+patisgest_evoluer_cake_interne  → absente
+```
+
+Sa ligne 65 : `revoke all on function public.patisgest_terminer_of_interne(...)`
+échouerait. Ces trois fonctions devaient être créées par un brouillon antérieur
+(`103`/`109` renomment `terminer_of` et `creer_cake`), qui n'est pas appliqué non
+plus.
+
+`115` et `116` appellent `patisgest_site_autorise()` — définie dans le brouillon
+`105`, elle aussi absente de la base. Et `105` interroge la table `equipe_sites`,
+qui n'existe pas (le module Équipe est inactif par conception).
+
+C'est donc une **architecture de permissions en poupées russes** : les vues
+dépendent des policies de sites, qui dépendent d'une fonction de sites, qui
+dépend de la table `equipe_sites`, qui dépend des brouillons Équipe. Vingt-huit
+brouillons, environ 1 557 lignes, jamais appliqués, dont la moitié pour le seul
+module Équipe qui n'est pas censé être actif.
+
+Ce n'est pas un oubli de déploiement. C'est un chantier de refonte des
+permissions qui a été écrit, testé en PGlite, et jamais validé sur base réelle.
+
 ## Ce que je n'ai pas fait, et pourquoi
 
-**Je n'ai pas appliqué les brouillons 101 et 115.** Trois raisons :
+**Je n'ai pas appliqué les brouillons 101 et 115.** Quatre raisons :
 
 1. Ils portent leur propre avertissement — « couverture, compatibilité et parcours
    labo non validés » — et je ne peux pas le lever seul : cela demande de tester
@@ -119,6 +150,10 @@ accessible comme prévu (le labo a le droit aux coûts selon RG-15.2).
    l'inverse) casse l'application différemment, et de façon plus grave.
 3. Ce sont des migrations de contrôle d'accès. Une erreur ici est une fuite, pas
    un bug d'affichage.
+4. **Elles ne s'appliqueraient pas de toute façon** : elles référencent trois
+   fonctions internes et une fonction de site qui n'existent pas encore. Il
+   faudrait promouvoir au moins `104`, `105` et `109` d'abord — c'est-à-dire
+   activer de fait le module Équipe, qui n'a jamais été validé.
 
 **Je n'ai rien modifié en base.** Toutes les requêtes de ce diagnostic étaient en
 lecture seule, sous `begin … rollback`.
