@@ -11,6 +11,7 @@
     "src/app/api/export/route.ts",
     "src/app/api/sauvegarde/route.ts",
     "src/app/estimation/page.tsx",
+    "src/app/hors-ligne/page.tsx",
     "src/app/page.tsx"
   ],
   "actions": {
