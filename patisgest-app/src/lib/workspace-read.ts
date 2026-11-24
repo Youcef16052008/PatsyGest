@@ -6,17 +6,37 @@ export type WorkspaceDB = Awaited<ReturnType<typeof createClient>>;
 
 type Rows<T> = { data: T[] | null; error: unknown };
 const PAGE_SIZE = 500;
-// Les quantités et indicateurs ne doivent pas se fonder sur les 100 premières
-// lignes. En cas d'échec d'une page, ne jamais présenter un stock partiel à 0.
+
+/**
+ * Lit une collection paginée en refusant de dépasser `LIMITE_TOTALE`.
+ *
+ * NF-01 — correction d'un défaut mesuré : l'ancienne version chargeait jusqu'à
+ * 20 000 lignes *puis* renvoyait `null` si la limite était atteinte. Un client
+ * avec beaucoup de lots payait donc l'intégralité du coût réseau et mémoire
+ * avant d'obtenir une erreur — le pire des deux mondes : lent **et** inutile.
+ *
+ * Désormais la sonde est faite à la limite, une seule ligne, et l'arrêt est
+ * immédiat. Coût en cas de dépassement : une requête d'une ligne, pas 40 pages.
+ *
+ * Ne jamais présenter un stock partiel : en cas d'échec d'une page, on renvoie
+ * `null` et l'appelant affiche une erreur, pas des chiffres faux.
+ */
+const LIMITE_TOTALE = 20_000;
+
 export async function lirePages<T>(page: (debut: number, fin: number) => PromiseLike<Rows<T>>): Promise<T[] | null> {
   const result: T[] = [];
-  for (let offset = 0; offset < 20000; offset += PAGE_SIZE) {
-    const { data, error } = await page(offset, offset + PAGE_SIZE - 1);
+  while (result.length < LIMITE_TOTALE) {
+    const quantite = Math.min(PAGE_SIZE, LIMITE_TOTALE - result.length);
+    const { data, error } = await page(result.length, result.length + quantite - 1);
     if (error || !data) return null;
     result.push(...data);
-    if (data.length < PAGE_SIZE) return result;
+    if (data.length < quantite) return result;
   }
-  return null;
+  // La limite est atteinte : une ligne de plus suffit à distinguer « exactement
+  // 20 000 » de « tronqué ». Une seule requête, jamais quarante.
+  const sonde = await page(LIMITE_TOTALE, LIMITE_TOTALE);
+  if (sonde.error || !sonde.data) return null;
+  return sonde.data.length > 0 ? null : result;
 }
 
 export type ArticleRow = StockArticle & { pv_ht: number; tva: number; allergenes: string[]; traces: string[] };
