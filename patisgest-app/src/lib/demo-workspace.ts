@@ -455,7 +455,7 @@ export function createDemoWorkspace(today = jourLocal()): State {
     for (let j = 0; j < 2 + (i % 3); j++) {
       const taille = 2 + ((i + j * 3) % 5);
       const avant = state.movements.length;
-      const mode = (i + j) % 3 === 0 ? "carte" : "especes";
+      const mode = (i + j) % 3 === 0 ? "cheque_virement" : "especes";
       if (i === 0 && j === 0) {
         state = sellCart(
           state,

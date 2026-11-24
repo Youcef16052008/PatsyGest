@@ -744,7 +744,7 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    assert.equal(results[0].sale_id,results[1].sale_id);
    assert.equal((await sql`select count(*)::int n from ventes where ticket=${concurrentTicket}`)[0].n,1);
    denied(await owner.rpc('vendre_panier',{...args,p_lignes:[{articleId:product,qte:2}]}),'Ticket deja utilise pour une autre vente');
-   denied(await owner.rpc('vendre_panier',{...args,p_mode_paiement:'carte'}),'Ticket deja utilise pour une autre vente');
+   denied(await owner.rpc('vendre_panier',{...args,p_mode_paiement:'especes'}),'Ticket deja utilise pour une autre vente');
    const interSite=await owner.rpc('vendre_panier',{...args,p_site_id:newSite.id});
    denied(interSite,'Ticket deja utilise pour une autre vente');
    assert.ok(!JSON.stringify(interSite).includes(results[0].sale_id),'Pas de fuite de la vente d’un autre site');

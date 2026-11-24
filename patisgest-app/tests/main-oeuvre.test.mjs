@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tauxHoraireDepuisJournee, salaireJournalierDepuisTaux } from '../src/lib/main-oeuvre.ts';
 import { rc04MoChargee } from '../src/lib/cost-sheet.ts';
-import { PAYMENT_MODES_SAISIE, isPaymentMode } from '../src/lib/pos-cart.ts';
+import { PAYMENT_MODES_SAISIE, isPaymentMode, libelleModePaiement } from '../src/lib/pos-cart.ts';
 
 test('journée de 8 h : taux horaire = salaire ÷ 8', () => {
   assert.equal(tauxHoraireDepuisJournee(3200), 400);
@@ -23,7 +23,9 @@ test('entrées invalides refusées', () => {
   assert.throws(() => tauxHoraireDepuisJournee(3200, 0), RangeError);
 });
 
-test('saisie caisse : espèces et chèque/virement seulement, carte historique reconnue', () => {
+test('modes de paiement : espèces et chèque/virement seulement ; carte non reconnue', () => {
   assert.deepEqual([...PAYMENT_MODES_SAISIE], ['especes', 'cheque_virement']);
-  assert.equal(isPaymentMode('carte'), true);
+  assert.equal(isPaymentMode('carte'), false);
+  assert.equal(libelleModePaiement('carte'), 'Non précisé');
+  assert.equal(libelleModePaiement('especes'), 'Espèces');
 });
