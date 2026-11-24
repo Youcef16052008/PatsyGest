@@ -48,8 +48,8 @@ Et une divergence de fond que personne n'a relevée : **le CDC dit littéralemen
 
 ## 0 bis — Ce qui a été traité depuis l'audit
 
-**État au `242bdef` : 565 tests réussis / 0 échec**, `tsc` et `lint` propres,
-43 migrations SQL, 87 fichiers de tests. **Base pilote en version 43.**
+**État au `889a94b` : 567 tests réussis / 0 échec / 2 todo (écarts mesurés)**, `tsc` et
+`lint` propres, 43 migrations SQL, 88 fichiers de tests. **Base pilote en version 43.**
 
 | Écart | Statut | Preuve |
 |---|---|---|
@@ -70,6 +70,8 @@ Et une divergence de fond que personne n'a relevée : **le CDC dit littéralemen
 | C — 2 150 lignes de vitrine hors CDC | ⚠️ **inchangé** | Toujours hors périmètre. Décision produit, pas dette technique |
 | F — contradiction de prix | ⚠️ **inchangé** | Décision commerciale, hors code |
 | G — pilote ≠ dépôt | ⚠️ **inchangé** | Nécessite un accès au projet réel |
+| **H — les 9 vues par rôle n'existent pas** | 🔴 **mesuré en base, non corrigé** | `labo_articles`, `labo_lots`, `labo_recette_versions`, `labo_ordres_fabrication`, `labo_cakes`, `labo_bons_commande`, `labo_ventes_quantites`, `vendeur_lots`, `vendeur_ordres_fabrication` sont lues par l'app et **absentes de la base** (42P01 vérifié). Elles n'existent que dans les brouillons 101/115/116, jamais appliqués. Mesuré compte par compte : les **8 modules du labo** affichent une erreur ou un écran vide ; la **caisse du vendeur fonctionne** (FEFO côté serveur) mais sans aucune indication de stock ni alerte DLC ; le **vendeur lit `lots.pu`** (prix d'achat, 13/13 lots = 8 056 DZD) — exactement ce que les vues devaient masquer. Détail et recommandations : `patisgest-app/migrations/VUES-ROLES-ABSENTES.md` |
+| **H bis — pourquoi la suite ne l'a pas vu** | ⚠️ **angle mort nommé** | `tests/labo-confidentialite-db.test.mjs` **applique le brouillon 101 lui-même** avant de tester : il prouve que le brouillon est correct, jamais qu'il est déployé. Deux tests ajoutés (`tests/vues-roles-recette.test.mjs`) comparent le code aux migrations applicables ; ils sont marqués `todo` tant que le défaut est ouvert, pour garder la suite verte **sans effacer le signal** |
 
 ### Ce qui a changé en base, pas seulement dans le dépôt (23/11/2026)
 
