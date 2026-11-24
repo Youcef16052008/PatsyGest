@@ -104,6 +104,24 @@ test('18-07 : l’export ne déborde pas sur un autre établissement', async () 
   await db.close();
 });
 
+test('18-07 : deux exports de suite n’entrent pas en collision de référence', async () => {
+  // Trouvé sur le projet réel, pas dans PGlite : `now()` est figé par
+  // transaction, donc deux exports dans la même transaction produisaient la
+  // même référence `EXP-…` et le second violait la contrainte unique. Un droit
+  // d'accès refusé pour une collision de clé est un bug, pas une sécurité.
+  const db = await base();
+  await fixture(db);
+  const deux = await commeProprio(db, async () => {
+    const a = await db.query(`select public.exporter_donnees_personnelles() as d`);
+    const b = await db.query(`select public.exporter_donnees_personnelles() as d`);
+    return [a.rows[0].d, b.rows[0].d];
+  });
+  assert.ok(deux[0] && deux[1], 'les deux exports doivent aboutir');
+  const refs = await db.query(`select count(*)::int as n from public.demandes_donnees where type = 'export'`);
+  assert.equal(refs.rows[0].n, 2, 'chaque export doit laisser une trace distincte');
+  await db.close();
+});
+
 test('18-07 : l’anonymisation efface les données personnelles', async () => {
   const db = await base();
   await fixture(db);

@@ -102,10 +102,20 @@ begin
     ), '[]'::jsonb)
   ) into v_out;
 
+  -- La référence doit être unique par tenant. `now()` est figé pour toute la
+  -- transaction : deux exports dans la même transaction (ou la même seconde)
+  -- produisaient la même référence et le second échouait sur la contrainte
+  -- unique — un export refusé pour une raison qui n'a rien à voir avec le droit
+  -- d'accès demandé. On ajoute un suffixe tiré au hasard, et un `on conflict`
+  -- en filet de sécurité : perdre une ligne de registre n'est pas grave,
+  -- refuser un export à une personne qui exerce son droit l'est.
   insert into public.demandes_donnees (client_id, reference, type, motif, cible, lignes_affectees, acteur_id)
-  values (v_client, 'EXP-' || to_char(now(), 'YYMMDDHH24MISS'), 'export',
+  values (v_client,
+          'EXP-' || to_char(now(), 'YYMMDDHH24MISS') || '-' || substr(md5(gen_random_uuid()::text), 1, 6),
+          'export',
           'Export des donnees personnelles de l etablissement', 'etablissement',
-          jsonb_array_length(coalesce(v_out->'commandes', '[]'::jsonb)), v_auth);
+          jsonb_array_length(coalesce(v_out->'commandes', '[]'::jsonb)), v_auth)
+  on conflict (client_id, reference) do nothing;
 
   return v_out;
 end;

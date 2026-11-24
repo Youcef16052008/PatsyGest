@@ -339,27 +339,27 @@
     },
     {
       "file": "39-limites-tenant-restauration-sites-vitrine.sql",
-      "sha256": "69023679e9c81543a35d17ee03285f17793c24918299d781c3d934c6d9026b09",
+      "sha256": "a3529a8dc58c639e7fb2dbf219fe2da5bb30a1e444912f14ae67f71f1f7ff448",
       "hors_fixture_pilote": true,
-      "note": "D2/D4/D7/D9 : projection publique minimale, droits directs des sites/offre et prévalidation des références inter-tenant à la restauration. Non appliquée au pilote; revue obligatoire."
+      "note": "D2/D4/D7/D9 : projection publique minimale, droits directs des sites/offre et prévalidation des références inter-tenant à la restauration. APPLIQUÉE au pilote le 23/11/2026 (version 39). Constat d'application : la révocation UPDATE sur clients était trop large — elle bloquait l'enregistrement des mentions légales (NIF/NIS/RC) donc les tickets NF-06. Corrigée en grant par colonne ; `offre` reste non modifiable."
     },
     {
       "file": "40-journal-audit.sql",
       "sha256": "2617bee74042d134a795369fffa4c12facfd1623ffd5235005d499c237d7196c",
       "hors_fixture_pilote": true,
-      "note": "NF-10/RI-06 : journal d'audit immuable, isolation par tenant, conservation 10 ans. Non appliquée au pilote."
+      "note": "NF-10/RI-06 : journal d'audit immuable, isolation par tenant, conservation 10 ans. APPLIQUÉE au pilote le 23/11/2026 (version 40). Immuabilité vérifiée en base : un UPDATE sur journal_audit est refusé (SQLSTATE 42501)."
     },
     {
       "file": "41-avoirs-retours.sql",
       "sha256": "d8b7e0941bbd3ba5e08c9a2c11f1ecbd706002f191c6123a4d8854642c8a7b77",
       "hors_fixture_pilote": true,
-      "note": "US-06.4 : retours/avoirs avec motif obligatoire, plafond de quantité rendue, remise en stock tracée ou destruction mesurée. Non appliquée au pilote."
+      "note": "US-06.4 : retours/avoirs avec motif obligatoire, plafond de quantité rendue, remise en stock tracée ou destruction mesurée. APPLIQUÉE au pilote le 23/11/2026 (version 41). Avoir réel et refus de dépassement vérifiés en base."
     },
     {
       "file": "42-donnees-personnelles.sql",
-      "sha256": "a987531cbfd803574650c2b55b9733adcfbb0c2e86083b63cbaecf81c292ebb8",
+      "sha256": "ba84ed07f420ca3ef35853b2051379134451941bc46e1348db5dc1590d69e0ed",
       "hors_fixture_pilote": true,
-      "note": "Loi 18-07 : export et anonymisation des données personnelles. Anonymise, ne supprime pas les écritures comptables. Non appliquée au pilote."
+      "note": "Loi 18-07 : export et anonymisation des données personnelles. Anonymise, ne supprime pas les écritures comptables. APPLIQUÉE au pilote le 23/11/2026. Constat d'application : référence d'export basée sur now() (figé par transaction) → collision 23505 au 2e export ; corrigée par suffixe aléatoire + on conflict, et test de non-régression ajouté."
     }
   ],
   "exclus": [
