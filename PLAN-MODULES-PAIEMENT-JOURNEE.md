@@ -7,7 +7,7 @@ Suivi du plan en 5 étapes : voir `PLAN-SUIVI-COMMERCIAL.md`.
 
 | # | Demande | Statut | Preuve |
 |---|---|---|---|
-| D1 | Retirer Edahabia et CIB des modes de paiement saisis en caisse | **Fait** | `src/lib/pos-cart.ts` : `PAYMENT_MODES_SAISIE = ["especes", "cheque_virement"]` ; `sale-composer.tsx` n'affiche plus que ces deux modes. `carte` reste reconnu pour les anciens tickets (aucune migration, aucune donnée modifiée). |
+| D1 | Retirer Edahabia et CIB des modes de paiement | **Fait** | Le mode `carte` est retiré du code (type, libellés, rapprochement, démo, tests). Les anciens tickets `carte` s'affichent « Non précisé ». **La contrainte SQL (`21-prix-demain-panier.sql`) et la RPC `vendre_panier` acceptent encore `carte` : les retirer exige une migration, soumise à validation.** |
 | D2 | Payer la main-d'œuvre à la journée de travail, pas à l'heure | **Fait** | `src/lib/main-oeuvre.ts` : taux horaire RC-04 = salaire journalier ÷ heures payées par jour (défaut 8). Formule RC-04 inchangée. Saisie dans `cost-sheet-form.tsx` (« Salaire par jour », « Heures payées / jour ») et `portion-estimator.tsx`. La colonne `parametres_couts.taux_horaire` est conservée : pas de migration. |
 | D3 | Cinq modules visibles d'emblée, le reste derrière un bouton menu | **Fait** | `src/lib/workspace-nav.ts` : 5 modules `primary` (Accueil, Stocks, Recettes, Production, Caisse). `src/app/workspace.css` : en designs pilotage/fabrication, la liste complète n'est plus affichée en permanence ; les autres modules s'ouvrent via « Plus ». |
 | D4 | Commencer la Phase 0 | **Partiel** | Voir section 3. |
@@ -24,9 +24,9 @@ Vérifications exécutées :
 | Étape | Contenu | Qui | Porte de validation |
 |---|---|---|---|
 | A | Revue du code de ce tour (diff, cas des tickets `carte` existants) | Développeur | Relecture humaine avant merge |
-| B | Vérifier en navigateur les deux designs (pilotage et fabrication), sur ordinateur et mobile | Développeur | Captures d'écran |
-| C | Décider si l'utilisateur doit voir le libellé « Carte » dans l'historique des anciennes ventes | Produit | Décision écrite |
-| D | Étape 4 du plan : restauration représentative et test d'isolation inter-clients | Technique | Restauration réelle démontrée (`migrations/ETAT-RESTAURATION.md`) |
+| B | Vérifier le menu « Plus » en navigateur (pilotage et fabrication, ordinateur et mobile) | Développeur | **Partiel** : `next build` OK ; rendu visuel non vérifié (pages protégées par connexion) |
+| C | Libellé « Carte » dans l'historique | Produit | **Décidé : ne pas le conserver** (anciens tickets affichés « Non précisé ») |
+| D | Étape 4 du plan : restauration représentative et test d'isolation inter-clients | Technique + humain | **Bloqué** : exige une sauvegarde fraîche du pilote (accès et validation humains), un environnement isolé représentatif et un retour arrière démontré (`migrations/ETAT-RESTAURATION.md`). Aucune action sur le pilote sans validation. |
 | E | Étape 5 : trois pilotes, dix visites, témoignage, logo | Commercial | Clients signés |
 | F | Étape 6 : page de prix publique | Commercial | Interdite avant E |
 
@@ -41,6 +41,7 @@ Migrations : aucune migration n'est proposée dans ce tour. Toute migration au p
 
 ## 4. Hypothèses à ne pas traiter comme acquises
 
-- Salaire journalier par défaut : 3 200 DA (8 heures). Hypothèse de saisie, pas une grille salariale. Le SNMG 2026 de 24 000 DA par mois (cité dans `ETUDE-MARCHE-PATISSERIES-DZ-2026.md`) n'est pas recalculé ici.
+- Salaire journalier par défaut : 3 200 DA (8 heures). **Validé par l'utilisateur** comme valeur par défaut ; reste une hypothèse de saisie, pas une grille salariale. Le SNMG 2026 de 24 000 DA par mois (cité dans `ETUDE-MARCHE-PATISSERIES-DZ-2026.md`) n'est pas recalculé ici.
 - Abandon de CIB/Edahabia : décision produit fondée sur l'étude de marché (paiement surtout espèces et à la livraison). Source secondaire, à confirmer en Phase 0.
+- Retrait du mode carte : décidé par l'utilisateur. Le retrait côté base reste à faire par migration validée.
 - Prix 35 000 DA/an : hypothèse à tester, pas un prix validé.
