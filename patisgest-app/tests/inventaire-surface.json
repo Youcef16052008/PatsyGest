@@ -7,9 +7,11 @@
     "src/app/(auth)/connexion/page.tsx",
     "src/app/(auth)/rejoindre/page.tsx",
     "src/app/(vitrine)/vitrine/[slug]/page.tsx",
+    "src/app/api/export/comptable/route.ts",
     "src/app/api/export/route.ts",
     "src/app/api/sauvegarde/route.ts",
     "src/app/estimation/page.tsx",
+    "src/app/hors-ligne/page.tsx",
     "src/app/page.tsx"
   ],
   "actions": {
@@ -27,6 +29,7 @@
       "quickDemoLogin"
     ],
     "src/lib/actions-caisse.ts": [
+      "createAvoir",
       "importZReal",
       "sellCart",
       "sellProduct"
@@ -35,6 +38,10 @@
       "analyserHausseMatiereReal",
       "ficheCoutReal",
       "sauverParamsCoutsReal"
+    ],
+    "src/lib/actions-donnees.ts": [
+      "anonymiserCommande",
+      "exporterDonnees"
     ],
     "src/lib/actions-equipe.ts": [
       "afficherCodeEquipe",
@@ -109,6 +116,9 @@
       "reserverSousDomaine",
       "supprimerRecetteVitrine",
       "traiterDemandeVitrine"
+    ],
+    "src/lib/courses-server.ts": [
+      "lireListeCourses"
     ]
   }
 }

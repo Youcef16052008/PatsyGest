@@ -34,6 +34,9 @@ import StockWorkspace from "@/components/stock-workspace";
 import CashWorkspace from "@/components/cash-workspace";
 import ProductionWorkspace from "@/components/production-workspace";
 import { PageIntro } from "@/components/workspace-ui";
+import ListeCoursesPanel from "@/components/liste-courses-panel";
+import ChargeCapacitePanel from "@/components/charge-capacite-panel";
+import { lireListeCourses } from "@/lib/courses-server";
 
 const modules = {
   stocks: { title:'Articles & stocks', tables:[['articles','Articles'],['lots','Lots']] },
@@ -335,12 +338,18 @@ export default async function ModulePage({ params, searchParams }: {
     };
     if (canWrite(ctx.role)) {
       const [tasksRes,ofsRes]=await Promise.all([
-        supabase.from('taches_planning').select('id, date_tache, tache, of_numero, fait').eq('client_id',ctx.clientId).order('date_tache').limit(100),
+        supabase.from('taches_planning').select('id, date_tache, tache, of_numero, fait, duree_min, responsable').eq('client_id',ctx.clientId).order('date_tache').limit(100),
         supabase.from('ordres_fabrication').select('numero').eq('client_id',ctx.clientId).order('numero',{ascending:false}).limit(50),
       ]);
       writeForms=<>
         {(demainData.erreur || planningSourcesDesactivees) && <p role="alert">{demainData.erreur ?? "Plan indisponible : un module source est désactivé."}</p>}
         <TomorrowLabConnected {...tomorrowProps} canValidate={canReadCosts(ctx.role)} canCreateOf={!modulesDesactives.has("production")} canTransfer={!modulesDesactives.has("transferts")} />
+        <ChargeCapacitePanel
+          jour={jourLocal()}
+          taches={((tasksRes.data ?? []) as {id:string;date_tache:string;tache:string;fait:boolean;duree_min:number|null;responsable:string|null}[])
+            .filter(t => t.date_tache === jourLocal())
+            .map(t => ({ id: t.id, libelle: t.tache, dureeMin: Number(t.duree_min ?? 60), fait: t.fait, responsable: t.responsable }))}
+        />
         {tousSitesAutorises && <PlanningForms
           tasks={((tasksRes.data??[]) as {id:string;date_tache:string;tache:string;of_numero:string;fait:boolean}[]).map(t=>({id:t.id,date:t.date_tache,tache:t.tache,ofNumero:t.of_numero,fait:t.fait}))}
           ofNumeros={((ofsRes.data??[]) as {numero:string}[]).map(o=>o.numero)}
@@ -370,9 +379,12 @@ export default async function ModulePage({ params, searchParams }: {
       .map(h=>({articleId:h.article_id,fournisseurId:h.fournisseur_id,datePrix:h.date_prix,pu:Number(h.pu)})));
     const fourRows=((results.find(r=>r.label==='Fournisseurs')?.data??[]) as {id:string;nom:string}[]);
     const fourById=new Map(fourRows.map(f=>[f.id,f.nom]));
-    const bcRes=await supabase.from('bons_commande').select('id, numero, statut, lignes, fournisseur_id').eq('client_id',ctx.clientId).order('numero',{ascending:false}).limit(100);
+    const [bcRes, courses] = await Promise.all([
+      supabase.from('bons_commande').select('id, numero, statut, lignes, fournisseur_id').eq('client_id',ctx.clientId).order('numero',{ascending:false}).limit(100),
+      lireListeCourses(ctx.clientId),
+    ]);
     const cmdRows=((bcRes.data??[]) as {id:string;numero:string;statut:string;lignes:{articleId:string;qte:number;pu:number;recu:number}[]|null;fournisseur_id:string}[]);
-    writeForms=<><FournisseurForm /><CommandeForms
+    writeForms=<><ListeCoursesPanel donnees={courses} peutVoir={canReadCosts(ctx.role)} /><FournisseurForm /><CommandeForms
       alerts={priceAlerts}
       fournisseurs={fourRows.map(f=>({id:f.id,label:f.nom}))}
       articles={((artRes.data??[]) as {id:string;code:string;nom:string;pv_ht:number|null}[]).map(a=>({id:a.id,label:a.pv_ht&&Number(a.pv_ht)>0?`${a.code} — ${a.nom} (PV ${Number(a.pv_ht).toLocaleString('fr-FR')} DA HT)`:`${a.code} — ${a.nom}`}))}

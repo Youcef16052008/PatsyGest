@@ -36,6 +36,12 @@ export function estErreurMetier(e: ErreurBase): boolean {
 export function messageUtilisateur(e: ErreurBase, contexte: string): string {
   if (estErreurMetier(e)) return `${contexte} : ${(e!.message as string).trim()}`;
   const code = e?.code ?? "";
+  // Cas nommé avant le générique : l'utilisateur doit savoir QUOI corriger.
+  // « Vérifiez la saisie » ne dit pas qu'il vient de saisir deux fois le même
+  // numéro de lot, et c'est pourtant la seule chose à faire.
+  if (code === "23505" && (e?.message ?? "").includes("lots_reception_unique")) {
+    return `${contexte} : ce numéro de lot existe déjà pour cet article sur ce site. Corrigez la quantité du lot existant plutôt que d'en créer un second.`;
+  }
   if (code === "23505" || code === "23514" || code === "23503") {
     // Violation d'unicité / de contrainte / de clé étrangère : déjà gérée en
     // amont par nos RPC, donc ici c'est un cas limite de concurrence.

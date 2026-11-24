@@ -411,7 +411,7 @@ export async function accepterCgvReal(_prev: JournalState, formData: FormData): 
   }
 }
 
-/** Devis Cake Design (RPC creer_cake) — tous les rôles. */
+/** Devis Cake Design (RPC creer_cake_production) — tous les rôles. */
 export async function createCakeReal(_prev: JournalState, formData: FormData): Promise<JournalState> {
   const denied = await requireAnyRole();
   if (denied) return denied;

@@ -296,3 +296,84 @@ export async function importZReal(_prev: SaleState, formData: FormData): Promise
     return { erreur: "Supabase est inaccessible depuis ce serveur." };
   }
 }
+
+// ---------------------------------------------------------------- avoirs
+
+export type AvoirState = {
+  erreur?: string;
+  succes?: string;
+  numero?: string;
+  mode?: string;
+  qte?: number;
+};
+
+export type AvoirResult = {
+  avoir_id: string;
+  numero: string;
+  mode: string;
+  qte: number;
+  article: string;
+  lot_retour_cree: boolean;
+};
+
+/**
+ * US-06.4 — enregistrer un retour/avoir.
+ *
+ * Deux modes seulement, choisis explicitement par le vendeur :
+ * `remise_en_stock` (la marchandise redevient vendable) ou `destruction`
+ * (perte tracée). Le serveur refuse le reste, et refuse de rendre plus que ce
+ * qui a été vendu, avoirs précédents inclus.
+ */
+export async function createAvoir(_prev: AvoirState, formData: FormData): Promise<AvoirState> {
+  const ctx = await getSessionContext();
+  if (!ctx) return { erreur: "Session expirée. Reconnectez-vous." };
+  if (!canWrite(ctx.role)) return { erreur: "Votre rôle n'autorise pas les avoirs." };
+
+  const venteId = String(formData.get("venteId") ?? "").trim();
+  const mode = String(formData.get("mode") ?? "").trim();
+  const motif = String(formData.get("motif") ?? "").trim();
+  const qte = Number(String(formData.get("qte") ?? "").replace(",", "."));
+
+  if (!venteId) return { erreur: "Choisissez la vente concernée." };
+  if (!Number.isFinite(qte) || qte <= 0) return { erreur: "Quantité rendue invalide." };
+  if (motif.length < 3) return { erreur: "Indiquez le motif du retour (au moins 3 caractères)." };
+  if (mode !== "remise_en_stock" && mode !== "destruction") {
+    return { erreur: "Précisez ce que devient la marchandise : remise en stock ou destruction." };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("enregistrer_avoir", {
+      p_vente_id: venteId,
+      p_mode: mode,
+      p_motif: motif,
+      p_qte: qte,
+    });
+    if (error) {
+      if (error.code === "P0001") return { erreur: error.message };
+      if (error.code === "42501") return { erreur: "Votre rôle n'autorise pas cette opération." };
+      return { erreur: messageUtilisateur(error, "Avoir refusé") };
+    }
+    const r = data as AvoirResult | null;
+    if (!r?.avoir_id) return { erreur: "Avoir non confirmé. Vérifiez avant de recommencer." };
+
+    revalidatePath("/caisse");
+    revalidatePath("/stocks");
+    revalidatePath("/cloture");
+    revalidatePath("/tracabilite");
+    return {
+      succes:
+        `Avoir ${r.numero} enregistré — ${r.qte} × ${r.article}. ` +
+        (r.mode === "remise_en_stock"
+          ? r.lot_retour_cree
+            ? "Remis en stock dans un lot de retour dédié."
+            : "Remis en stock dans son lot d’origine."
+          : "Destruction consignée ; la perte reste comptée."),
+      numero: r.numero,
+      mode: r.mode,
+      qte: r.qte,
+    };
+  } catch {
+    return { erreur: "Supabase est inaccessible depuis ce serveur. L’avoir n’a pas été enregistré." };
+  }
+}

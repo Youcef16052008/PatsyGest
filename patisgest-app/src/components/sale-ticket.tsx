@@ -119,12 +119,12 @@ export default function SaleTicket({ data }: { data: SaleTicketData }) {
           </div>
         )}
         {data.lots.length > 0 && (
-          <div className="mt-1 text-[10px]">Lots : {data.lots.join(", ")}</div>
+          <div className="mt-1 text-[11px]">Lots : {data.lots.join(", ")}</div>
         )}
         <div className="my-1 border-t border-dashed border-slate-400" />
         <div className="text-center">Merci de votre visite !</div>
         {!data.demo && manques.length > 0 && (
-          <div className="no-print mt-1 text-center text-[8px]">
+          <div className="no-print mt-1 text-center text-[10px]">
             ⚠ Mentions légales incomplètes (Paramètres)
           </div>
         )}

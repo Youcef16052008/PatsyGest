@@ -93,9 +93,21 @@ grant insert (client_id, nom, type, adresse) on public.sites to authenticated;
 grant update (nom, type, adresse) on public.sites to authenticated;
 
 -- D9: l'offre est un état de facturation, pas une préférence du tenant.
--- Aucun chemin applicatif n'utilise d'UPDATE direct sur clients; les écritures
--- de provisionnement restent côté serveur / rôle de confiance.
+--
+-- Correction du 23/11/2026, après application réelle au pilote : la première
+-- version révoquait UPDATE sur TOUTE la table `clients`. C'était trop large —
+-- `actions-etablissement.ts` met à jour nom/adresse/téléphone/NIF/NIS/RC depuis
+-- l'écran Paramètres, et c'est ce qui alimente les mentions légales des tickets
+-- (NF-06). Révoquer en bloc cassait une fonctionnalité vendue pour protéger un
+-- champ qui n'y tenait pas.
+--
+-- On révoque donc la table entière puis on re-accorde, **colonne par colonne**,
+-- les seules colonnes que l'écran d'administration écrit réellement. `offre`
+-- n'y est pas : c'est un état de facturation, il ne se change pas depuis
+-- l'interface. Toute autre colonne future sera, par défaut, non modifiable —
+-- le défaut sûr est de refuser, pas d'ouvrir.
 revoke update on public.clients from public, anon, authenticated;
+grant update (nom, adresse, telephone, nif, nis, rc) on public.clients to authenticated;
 
 -- D7: valider toutes les FK mono-colonne entre tables restaurées qui portent
 -- client_id, avant la première insertion. Les références peuvent cibler une

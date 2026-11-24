@@ -42,7 +42,9 @@ export default async function StockWorkspace({ ctx, db, filtre }: { ctx: Session
     <PageIntro title="Articles & stocks" label="Inventaire" description="Retrouvez vos produits, vos ingrédients et les quantités par site."
       actions={peutEcrire && <a className="pg-button pg-button-secondary" href="#gerer-stocks">Gérer le stock</a>}/>
     <div className="pg-stack">
-      <StockList key={filtre ?? "tous"} articles={articles?.map(articleAffiche) ?? null} lots={lots} sites={sites} today={jourLocal()} filtre={filtre}/>
+      {ctx.role === "labo" && !articles
+        ? <Notice kind="error">Le stock n&apos;est pas disponible sur cette installation : le module de confidentialité par rôle n&apos;a pas été appliqué en base. Le propriétaire peut lire les articles et les lots normalement.</Notice>
+        : <StockList key={filtre ?? "tous"} articles={articles?.map(articleAffiche) ?? null} lots={lots} sites={sites} today={jourLocal()} filtre={filtre}/>}
       {peutEcrire && <div id="gerer-stocks" className="pg-stack">
         <StockWriteForms articles={(articles ?? []).map(a => ({ id: a.id, label: `${a.nom} · ${a.code}` }))}
           sites={sites ?? []} fournisseurs={(fournisseurs?.data ?? []).map(f => ({ id: f.id, label: f.nom }))}/>
