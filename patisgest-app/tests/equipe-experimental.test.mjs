@@ -35,8 +35,13 @@ test('équipe : la production Vercel est exclue par VERCEL_ENV, même tout le re
     'VERCEL_ENV seule doit suffire à désactiver',
   );
   assert.equal(equipeExperimentaleActive({ ...toutActive, VERCEL_ENV: 'preview' }), false);
-  assert.equal(equipeExperimentaleActive({ ...toutActive, VERCEL_ENV: '' }), false,
-    'chaîne vide aussi : Vercel définit la variable, pas sa valeur');
+  // Une chaîne vide n'est pas une valeur Vercel : c'est « neutralisé », ce que fait
+  // le harnais d'intégration. On doit donc laisser le module ouvert (sous réserve
+  // de toutes les autres conditions, qui restent vérifiées).
+  assert.equal(equipeExperimentaleActive({ ...toutActive, VERCEL_ENV: '' }), true,
+    'chaîne vide = neutralisé explicitement, pas une valeur Vercel');
+  assert.equal(equipeExperimentaleActive({ ...toutActive, VERCEL_ENV: '   ' }), true,
+    'blancs seuls : même raison');
 });
 
 test('équipe : chaque action passe par un helper gardé, pas par un garde recopié', async () => {
