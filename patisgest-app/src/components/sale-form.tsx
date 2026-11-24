@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { sellCart, type SaleState } from "@/lib/actions-caisse";
 import type { Etablissement } from "@/lib/etablissement";
-import { isPaymentMode, isValidCartQty, PAYMENT_MODE_LABELS, type PaymentMode } from "@/lib/pos-cart";
+import { isPaymentMode, isValidCartQty, libelleModePaiement, PAYMENT_MODE_LABELS, type PaymentMode } from "@/lib/pos-cart";
 import {
   createQueuedCartSale,
   enqueueSale,
@@ -427,7 +427,7 @@ export default function SaleForm({
               <li key={s.ticket} className="pg-list-between">
                 <span>
                   <strong>{queuedSaleSummary(s)}</strong> · {s.siteLabel} · réf. {s.ticket}
-                  {s.modePaiement && ` · ${PAYMENT_MODE_LABELS[s.modePaiement]}`}
+                  {s.modePaiement && ` · ${libelleModePaiement(s.modePaiement)}`}
                 </span>
                 <span className="pg-muted">
                   {new Date(s.queuedAt).toLocaleTimeString("fr-FR", {

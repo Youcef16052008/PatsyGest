@@ -25,14 +25,17 @@ import {
   type IngredientImpactReport,
   type UnitConversion,
 } from "./ingredient-impact";
+import { HEURES_PAYEES_PAR_JOUR_DEFAUT, tauxHoraireDepuisJournee } from "./main-oeuvre";
 import { createClient } from "./supabase/server";
 
 export type CoutsState = {
   erreur?: string;
   succes?: string;
-  // Paramètres RC-04
+  // Paramètres RC-04 (saisie à la journée ; tauxHoraire = salaire ÷ heures)
   tauxHoraire?: number;
   chargesPct?: number;
+  salaireJournalier?: number;
+  heuresParJour?: number;
   // Fiche
   produit?: string;
   famille?: string;
@@ -75,9 +78,17 @@ export async function sauverParamsCoutsReal(_prev: CoutsState, formData: FormDat
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
   if (!canWrite(ctx.role)) return { erreur: "Réservé aux rôles propriétaire et labo." };
-  const taux = Number(formData.get("tauxHoraire"));
+  // Saisie à la journée : le taux horaire RC-04 est dérivé (salaire ÷ heures payées).
+  const salaire = Number(formData.get("salaireJournalier"));
+  const heures = Number(formData.get("heuresParJour") ?? HEURES_PAYEES_PAR_JOUR_DEFAUT);
+  let taux: number;
+  try {
+    taux = tauxHoraireDepuisJournee(salaire, heures);
+  } catch (e) {
+    return { erreur: e instanceof RangeError ? e.message : "Salaire journalier invalide." };
+  }
+  if (taux > 1_000_000) return { erreur: "Salaire journalier trop élevé." };
   const charges = Number(formData.get("chargesPct"));
-  if (!Number.isFinite(taux) || taux < 0 || taux > 1_000_000) return { erreur: "Taux horaire invalide." };
   if (!Number.isFinite(charges) || charges < 0 || charges > 1000) return { erreur: "Charges invalides (0-1000 %)." };
   try {
     const supabase = await createClient();
@@ -89,7 +100,13 @@ export async function sauverParamsCoutsReal(_prev: CoutsState, formData: FormDat
       );
     if (error) return { erreur: messageUtilisateur(error, "Sauvegarde refusée") };
     revalidatePath("/simulation");
-    return { succes: "Paramètres de coûts enregistrés.", tauxHoraire: taux, chargesPct: charges };
+    return {
+      succes: "Paramètres de coûts enregistrés.",
+      tauxHoraire: taux,
+      chargesPct: charges,
+      salaireJournalier: salaire,
+      heuresParJour: heures,
+    };
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur." };
   }

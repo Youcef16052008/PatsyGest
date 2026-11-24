@@ -164,3 +164,10 @@ test('store caisse : observation stable, notification, fichier historique et abs
   if (priorNavigator) Object.defineProperty(globalThis,'navigator',priorNavigator); else delete globalThis.navigator;
  }
 });
+
+test('file : une vente « carte » déjà en file ne rend pas la file illisible', () => {
+  const storage = { getItem: () => JSON.stringify([sale('t-carte', { modePaiement: 'carte' }), sale('t-esp', { modePaiement: 'especes' })]), setItem() {}, removeItem() {} };
+  const queue = readQueueStrict(storage, 'k');
+  assert.equal(queue.length, 2);
+  assert.equal(queue[0].modePaiement, 'carte');
+});

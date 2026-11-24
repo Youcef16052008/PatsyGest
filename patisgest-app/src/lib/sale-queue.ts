@@ -163,7 +163,9 @@ function isValidStoredSale(q: unknown): q is QueuedSale {
     if (!Array.isArray(s.lignes) || s.lignes.length < 1 || s.lignes.length > MAX_CART_LINES) return false;
     if (!s.lignes.every(isValidStoredLine)) return false;
   }
-  if (s.modePaiement !== undefined && !isPaymentMode(s.modePaiement)) return false;
+  // « carte » : ancien mode retiré. Une vente déjà en file ne doit pas rendre la file illisible ;
+  // elle reste en file et le serveur la refusera explicitement (aucune réécriture silencieuse du mode).
+  if (s.modePaiement !== undefined && !isPaymentMode(s.modePaiement) && (s.modePaiement as string) !== "carte") return false;
   return true;
 }
 
