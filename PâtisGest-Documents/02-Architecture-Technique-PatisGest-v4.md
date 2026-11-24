@@ -160,10 +160,32 @@ Principes : pagination partout, horodatage serveur faisant foi, erreurs en fran�
 la file est stockée en `localStorage` (voir §7, ligne « Base locale » : le chiffrement
 n'est pas fait). Le service worker (`public/sw.js`) **ne met en cache aucune page
 authentifiée** : garder du HTML d'un compte sur un appareil partagé le rendrait lisible
-après changement de compte. Conséquence assumée aujourd'hui : on peut encaisser hors-ligne
-depuis une page déjà ouverte, mais **on ne peut pas rouvrir l'application hors-ligne**.
-C'est le principal écart restant par rapport à H2/NF-02 et il demande une conception isolée
-(cache par compte), pas un simple réglage du service worker.
+après changement de compte.
+
+**Ouverture hors-ligne — fait (NF-02, D5).** La conception isolée que réclamait le
+service worker est en place : une **coquille publique** `/hors-ligne`, dont le HTML ne
+contient aucune donnée client, est la seule page mise en cache. Tout ce qu'elle
+personnalise est lu côté navigateur après vérification que le catalogue appartient bien
+au compte connecté sur cet appareil :
+
+| Contrôle (dans cet ordre) | Refus servi |
+|---|---|
+| identité locale présente | « Aucun compte connu sur cet appareil » |
+| cache étiqueté par le **même** `clientId` | « Les données appartiennent à un autre compte » |
+| cache lisible et non corrompu | « Données illisibles, ne les effacez pas » |
+| cache de moins de 14 jours | « Prix trop anciens » + âge exact |
+
+L'ordre est délibéré : un cache périmé d'un autre compte est signalé comme *autre
+compte*, jamais comme *périmé* — sinon le message suggère de rafraîchir un cache qui
+n'appartient pas à l'utilisateur. Le catalogue est alimenté par la caisse elle-même, au
+moment où les prix affichés sont ceux réellement utilisés ; il n'était jusqu'ici **lu par
+personne** (`enregistrerCatalogue` n'avait aucun appelant, et son test passait quand
+même — leçon retenue : un module testé mais non branché n'existe pas).
+
+Limite assumée : cette coquille permet de rouvrir l'app, consulter les produits et
+encaisser (la file fonctionne) ; ce n'est pas une caisse complète hors-ligne. Les écrans
+authentifiés, eux, restent inaccessibles hors réseau — c'est la contrepartie de ne
+jamais écrire de HTML de compte sur le disque.
 
 ### 6.2 Périmètre (rappel décision D5)
 
