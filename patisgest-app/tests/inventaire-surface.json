@@ -39,6 +39,10 @@
       "ficheCoutReal",
       "sauverParamsCoutsReal"
     ],
+    "src/lib/actions-donnees.ts": [
+      "anonymiserCommande",
+      "exporterDonnees"
+    ],
     "src/lib/actions-equipe.ts": [
       "afficherCodeEquipe",
       "annulerInvitationEquipe",

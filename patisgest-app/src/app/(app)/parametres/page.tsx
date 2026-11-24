@@ -9,6 +9,7 @@ import AppearancePicker from "@/components/appearance";
 import { PageIntro } from "@/components/workspace-ui";
 import VitrineForm, { type RecetteVitrine, type SiteVitrine } from "@/components/vitrine-form";
 import JournalAuditPanel from "@/components/journal-audit-panel";
+import DonneesPersonnellesPanel from "@/components/donnees-personnelles-panel";
 import { canReadAudit } from "@/lib/permissions";
 import type { LigneAudit } from "@/lib/journal-audit";
 import type { Etablissement } from "@/lib/etablissement";
@@ -114,6 +115,33 @@ export default async function Parametres() {
       }
     } catch {
       auditError = true;
+    }
+  }
+
+  // Loi 18-07 — commandes portant des données personnelles (nom, téléphone).
+  // `cakes` sert le comptoir comme la vitrine : c'est la seule table à nettoyer.
+  let commandesPerso: { numero: string; nom: string; date: string }[] = [];
+  let migrationPersoActive = true;
+  if (canReadAudit(ctx.role) && ctx.mode === "supabase") {
+    try {
+      const db = await createClient();
+      const { data, error } = await db
+        .from("cakes")
+        .select("numero, client_nom, date_event")
+        .eq("client_id", ctx.clientId)
+        .not("client_nom", "ilike", "Client anonymise%")
+        .order("date_event", { ascending: false })
+        .limit(200);
+      if (!error) {
+        commandesPerso = ((data ?? []) as { numero: string; client_nom: string; date_event: string }[])
+          .map((c) => ({ numero: c.numero, nom: c.client_nom, date: c.date_event }));
+      }
+      // La sonde porte sur la table apportée par la migration 42 : interroger
+      // `cakes` (migration 03) ne dirait rien de l'état de la 42.
+      const sonde = await db.from("demandes_donnees").select("id", { head: true, count: "exact" }).limit(1);
+      migrationPersoActive = !sonde.error;
+    } catch {
+      migrationPersoActive = false;
     }
   }
 
@@ -232,6 +260,10 @@ export default async function Parametres() {
               lignes={lignesAudit}
               erreur={auditError}
               migrationAbsente={auditMigrationAbsente}
+            />
+            <DonneesPersonnellesPanel
+              commandes={commandesPerso}
+              migrationActive={migrationPersoActive}
             />
           </>
         ) : (

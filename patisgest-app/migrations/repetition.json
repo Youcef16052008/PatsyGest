@@ -354,6 +354,12 @@
       "sha256": "d8b7e0941bbd3ba5e08c9a2c11f1ecbd706002f191c6123a4d8854642c8a7b77",
       "hors_fixture_pilote": true,
       "note": "US-06.4 : retours/avoirs avec motif obligatoire, plafond de quantité rendue, remise en stock tracée ou destruction mesurée. Non appliquée au pilote."
+    },
+    {
+      "file": "42-donnees-personnelles.sql",
+      "sha256": "a987531cbfd803574650c2b55b9733adcfbb0c2e86083b63cbaecf81c292ebb8",
+      "hors_fixture_pilote": true,
+      "note": "Loi 18-07 : export et anonymisation des données personnelles. Anonymise, ne supprime pas les écritures comptables. Non appliquée au pilote."
     }
   ],
   "exclus": [
