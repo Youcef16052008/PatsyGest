@@ -209,7 +209,7 @@ Bouton « état de synchro » permanent (à jour / X en attente / erreur) ; file
 
 | Couche | Mesures V1 |
 |---|---|
-| Comptes | E-mail + mot de passe. **Politique de mot de passe non implémentée dans le code** : elle repose sur le réglage `minimum_password_length` du projet Supabase, qui doit être fixé à 12 côté console. Verrouillage après 5 essais : non fait. Sessions 12 h : non fait (durée par défaut de Supabase). À traiter avant l'ouverture commerciale — voir l'audit, écart §7 |
+| Comptes | E-mail + mot de passe. La politique n'est **pas dans le code** : elle est dans le projet Supabase (console), donc elle ne peut pas être vérifiée en lisant le dépôt. Elle est désormais **écrite et versionnée** dans `patisgest-app/SECURITE-COMPTES.md` : 12 caractères minimum, majuscules/minuscules/chiffres, JWT 12 h, rotation des jetons, inscriptions publiques fermées — avec la procédure d'application et le relevé de vérification. **Statut : à appliquer sur la console, relevé encore vide.** Verrouillage après 5 essais : non fait. Ne pas lire cette ligne comme « configuré » |
 | Rôles | Propriétaire / labo / vendeur (matrice MOD-15) ; vendeur = caisse + lecture |
 | Isolement | `client_id` injecté côté serveur depuis la session (jamais depuis le client) + tests auto |
 | Transport | HTTPS partout (TLS managé Vercel/Supabase) |
@@ -217,7 +217,7 @@ Bouton « état de synchro » permanent (à jour / X en attente / erreur) ; file
 | Base locale | **Aujourd'hui : `localStorage` non chiffré** (file de tickets). Cible v4.0 : chiffrement par appareil + effacement à distance (V2). Écart connu, à ne pas présenter comme fait au pilote |
 | Sauvegarde | Quotidienne auto cloud (30 j) + export client ; restauration testée mensuellement |
 | Journal | Audit 10 ans **fait** (migration 40) : ventes, mouvements, clôtures, ordres de fabrication, articles, lots, comptes/rôles. Lignes immuables, lecture propriétaire seule, écriture non bloquante (une panne du journal n'annule pas une vente, elle produit un avertissement PostgreSQL) |
-| Conformité | Minimisation (loi 18-07), export/suppression sur demande, registre des traitements (V2) |
+| Conformité | Minimisation (loi 18-07). **Export et anonymisation sur demande : faits** (migration 42 : `exporter_donnees_personnelles`, `anonymiser_client`, registre `demandes_donnees`, panneau Paramètres). On anonymise, on ne supprime pas : les écritures comptables sont conservées 10 ans, seule l'identité disparaît. Registre des traitements : V2 |
 
 **Avant la V1 commerciale :** revue de sécurité (check-list 25 points fournie en Roadmap),
 test d'intrusion léger externe si budget, mentions légales + CGU rédigées.
