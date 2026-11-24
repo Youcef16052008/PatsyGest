@@ -342,6 +342,12 @@
       "sha256": "69023679e9c81543a35d17ee03285f17793c24918299d781c3d934c6d9026b09",
       "hors_fixture_pilote": true,
       "note": "D2/D4/D7/D9 : projection publique minimale, droits directs des sites/offre et prévalidation des références inter-tenant à la restauration. Non appliquée au pilote; revue obligatoire."
+    },
+    {
+      "file": "40-retrait-mode-carte.sql",
+      "sha256": "d4b2c3f145be035fd3f20270df46c55069ab21c4b121fc3b2d20598bd1e6889e",
+      "hors_fixture_pilote": true,
+      "note": "Retrait du mode carte (décision utilisateur 20/11/2026). Non appliquée au pilote; validation humaine requise."
     }
   ],
   "exclus": [
