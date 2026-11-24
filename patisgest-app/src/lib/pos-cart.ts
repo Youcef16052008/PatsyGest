@@ -23,6 +23,12 @@ export const PAYMENT_MODE_LABELS: Record<PaymentMode, string> = {
   cheque_virement: "Chèque / virement",
 };
 
+/**
+ * Modes proposés à la saisie en caisse. La carte CIB/Edahabia n'est pas proposée :
+ * le client ne la gère pas en comptoir. `carte` reste reconnu pour les anciens tickets.
+ */
+export const PAYMENT_MODES_SAISIE: readonly PaymentMode[] = ["especes", "cheque_virement"];
+
 export function isPaymentMode(value: unknown): value is PaymentMode {
   return value === "especes" || value === "carte" || value === "cheque_virement";
 }
