@@ -24,10 +24,20 @@ chemin d'exécution.** Neuf `equipe_*` manquaient ; `equipeExperimentaleActive()
 toutes les portes. « Réparer » aurait été le vrai dégât.
 
 **R3 — Le sandbox re-clone et réinitialise l'historique local.** Au début de cette
-session, `git status` montrait HEAD à `dfd8235` alors que le distant était à `20ffd0f`.
-Avant de commiter : `git fetch origin arena/84a9c7a5-patsygest` puis
+session, `git status` montrait HEAD à `dfd8235` alors que le distant était à `20ffd0f`,
+et `.git/shallow` marquait les deux commits comme frontières — `git merge` échouait avec
+« unrelated histories ». Avant de commiter : `git fetch --unshallow origin` puis
 `git reset --hard origin/arena/84a9c7a5-patsygest`. `node_modules` disparaît aussi :
 `cd patisgest-app && npm install` avant tout test.
+
+**R4 — Quand le CI contredit votre raisonnement, c'est lui qui a raison.** Le premier
+CI de cette branche a échoué sur `Auth et PostgREST isolés`, les deux variantes. J'ai
+éliminé longuement les mauvaises pistes (collisions de noms, ordre des migrations,
+dépendances) avant de trouver : ma propre garde testait la *présence* de `VERCEL_ENV`,
+et le harnais lance `next dev` avec `VERCEL_ENV: ''` pour dire « pas sur Vercel ».
+Une valeur vide n'est pas une valeur Vercel — corrigé. **Les logs CI sont
+inaccessibles depuis ce sandbox** ; la durée de l'étape qui échoue (12 s contre 16 s
+en succès) est le seul indice fiable, avec la comparaison à un run vert sur `main`.
 
 ---
 
