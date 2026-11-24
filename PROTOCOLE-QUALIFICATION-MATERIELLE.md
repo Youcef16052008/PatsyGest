@@ -188,22 +188,34 @@ catégories de données, destinataires, durée de conservation, mesures de sécu
 L'architecture le place en V2. **Ce n'est pas optionnel pour autant** : c'est le
 document qu'un contrôle demande en premier. Un tableau de 2 pages suffit pour démarrer.
 
-### Relevé à remplir
+### Relevé
 
 ```
-Région Supabase (prod)     : ..............
-Région Vercel (prod)       : ..............
-Mentions légales cohérentes : oui / non
+Région Supabase (prod)     : eu-west-1 (Irlande)   ✅ relevé le 23/11/2026
+Région Vercel (prod)       : eu-west-1 (Irlande)   ✅ relevé le 23/11/2026
+Mentions légales cohérentes : à vérifier (les mentions ne citent pas encore la région)
 DPA Supabase signé le      : ..............  archivé : oui / non
 DPA Vercel signé le        : ..............  archivé : oui / non
 Clause de résiliation lue  : oui / non
 Registre des traitements   : rédigé / absent
-Verdict                    : CONFORME / OUVERT
+Verdict                    : OUVERT
 ```
 
-**Statut actuel : ouvert.** Aucun DPA n'a été signé. Ce n'est pas un manque de code :
-c'est un acte juridique qui engage l'entreprise, et il doit être fait avant la première
-vente, pas avant la première ligne de code.
+**Ce qui est fait :** les deux projets sont en **`eu-west-1`**, c'est-à-dire dans
+l'Union européenne. C'est la voie la plus simple au regard de la loi 18-07 : les données
+ne quittent pas l'UE, il n'y a pas de transfert hors UE à justifier par des clauses
+contractuelles types. C'est une bonne nouvelle, et elle était inconnue avant d'être
+lue dans la console.
+
+**Ce qui reste :**
+- **Aucun DPA n'est signé.** C'est un acte juridique qui engage l'entreprise : une IA ne
+  peut pas signer à ta place, et une signature sans lecture ne vaut pas mieux que rien.
+- Les mentions légales ne citent pas encore la région d'hébergement alors qu'elle est
+  désormais connue — c'est une ligne à ajouter, facile, mais à faire dans les formes.
+- Le registre des traitements n'existe pas.
+
+**Verdict : ouvert.** La moitié vérifiable est faite et conforme ; la moitié signée ne
+l'est pas.
 
 ---
 
@@ -229,7 +241,7 @@ Le taire serait la seule faute réelle.
 |---|---|---|---|
 | NF-01 performance | ✅ mesuré (18 000 ventes) | — | ✅ conforme |
 | NF-02 hors-ligne | ✅ coquille cloisonnée + files | non testé sans réseau en boutique | 🟡 partiel (périmètre D5 assumé) |
-| NF-05 DPA + région | ✅ code (migration 42) | ❌ | 🟡 code fait, juridique ouvert |
+| NF-05 DPA + région | ✅ code (migration 42, appliquée) · ✅ région `eu-west-1` | ❌ DPA | 🟡 juridique ouvert |
 | NF-06 ticket 80 mm | ✅ 7/7 | ❌ jamais imprimé | 🟡 à qualifier |
 | NF-07 parcours | ✅ 6/6 | ❌ aucun novice testé | 🟡 à qualifier |
 | NF-09 restauration | code oui | reporté (15 clients) | ⏸ reporté, daté |

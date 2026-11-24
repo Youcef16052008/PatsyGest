@@ -48,13 +48,13 @@ Et une divergence de fond que personne n'a relevée : **le CDC dit littéralemen
 
 ## 0 bis — Ce qui a été traité depuis l'audit
 
-**État au `50509b7` : 557 tests réussis / 0 échec**, `tsc` et `lint` propres,
-42 migrations SQL, 85 fichiers de tests.
+**État au `242bdef` : 565 tests réussis / 0 échec**, `tsc` et `lint` propres,
+43 migrations SQL, 87 fichiers de tests. **Base pilote en version 43.**
 
 | Écart | Statut | Preuve |
 |---|---|---|
 | A — hors-ligne non livré | 🟡 **traité sur le périmètre D5** | Coquille `/hors-ligne` cloisonnée par compte, catalogue alimenté par la caisse, 4 contrôles d'accès ordonnés. Les écrans authentifiés restent hors-ligne-inaccessibles : c'est la conception retenue, pas un oubli. Périmètre D5 validé par le propriétaire |
-| B1 — `journal_audit` absent (NF-10) | ✅ **fermé** | Migration 40 : table, déclencheurs, RLS propriétaire, lignes immuables. Panneau de lecture dans Paramètres. **Non appliqué sur une base réelle à ce jour** |
+| B1 — `journal_audit` absent (NF-10) | ✅ **fermé et appliqué** | Migration 40 **appliquée au pilote le 23/11/2026**. 8 déclencheurs vérifiés en base ; un `update` réel produit une ligne ; un `update` sur le journal est refusé (`42501`). Panneau de lecture dans Paramètres |
 | B2 — liste de courses (US-03.3) | ✅ **fermé** | `liste-courses.ts` + `courses-server.ts` + panneau branché dans le module |
 | B3 — avoirs/retours (US-06.4) | ✅ **fermé** | Migration 41 `enregistrer_avoir` + `AvoirForm` branché dans la caisse, remise en stock ou destruction tracée |
 | B4 — export comptable (§8.3) | ✅ **fermé** | `export-comptable.ts` (date, pièce, compte auxiliaire, HT, TVA, TTC) + route `/api/export/comptable` + bouton dans le panneau d'export |
@@ -62,8 +62,8 @@ Et une divergence de fond que personne n'a relevée : **le CDC dit littéralemen
 | D — documentation fausse | ✅ **fermé** | Architecture v4 réécrite : plus de Drizzle, état réel du hors-ligne, de l'audit, de la politique de mot de passe, RI-05 corrigé |
 | NF-01 — dashboard < 2 s | ✅ **mesuré** | 400 lots lus en 13 ms, 700 ventes en 9 ms sur 18 000 ventes ; `lirePages` borné à 20 000 lignes + sonde |
 | NF-02 — 0 perte hors-ligne | 🟡 **conçu et cloisonné**, pas éprouvé en boutique sans réseau | Voir écart A |
-| NF-05 — 18-07 (code) | ✅ **fermé** | Migration 42 : export, anonymisation, registre des demandes, panneau Paramètres. 7 tests. **On anonymise, on ne supprime pas** : les écritures comptables sont conservées 10 ans |
-| NF-05 — DPA signé + région | ❌ **ouvert** | Acte juridique. Protocole exécutable : `PROTOCOLE-QUALIFICATION-MATERIELLE.md` §3 |
+| NF-05 — 18-07 (code) | ✅ **fermé et appliqué** | Migration 42 **appliquée le 23/11/2026**. Anonymisation réelle testée en base : nom effacé, 8 ventes conservées, trace écrite. 8 tests. **On anonymise, on ne supprime pas** |
+| NF-05 — DPA signé + région | 🟡 **moitié faite** | **Région relevée : `eu-west-1` (Irlande), Supabase et Vercel** — c'est la partie vérifiable, et elle est conforme (UE). **DPA : toujours non signé** → `PROTOCOLE-QUALIFICATION-MATERIELLE.md` §3 |
 | NF-06 — ticket 80 mm | 🟡 **code prouvé, papier non** | 7 tests (80 mm, 4 mm, plancher 10 px, NIF/NIS/RC, HT/TVA/TTC). **Aucun ticket n'a jamais été imprimé.** Protocole §1 |
 | NF-07 — ≤ 3 clics, 3 novices | 🟡 **code prouvé, humain non** | 6 tests (2 clics, 44 px, 11 px, 10 champs). **Aucune personne extérieure n'a utilisé le logiciel.** Protocole §2 |
 | 5.5 — politique de mot de passe | 🟡 **écrite et versionnée, non appliquée** | `patisgest-app/SECURITE-COMPTES.md` : 12 caractères, JWT 12 h, rotation, inscriptions fermées, procédure et relevé. **Le relevé est vide : personne ne l'a encore exécutée** |
@@ -71,9 +71,40 @@ Et une divergence de fond que personne n'a relevée : **le CDC dit littéralemen
 | F — contradiction de prix | ⚠️ **inchangé** | Décision commerciale, hors code |
 | G — pilote ≠ dépôt | ⚠️ **inchangé** | Nécessite un accès au projet réel |
 
-**Ce qui a réellement changé : les écarts qui étaient du code ont été fermés, et
-prouvés par des tests. Les écarts qui demandent une imprimante, trois personnes et une
-signature sont maintenant décrits par un protocole exécutable — et restent ouverts.**
+### Ce qui a changé en base, pas seulement dans le dépôt (23/11/2026)
+
+Les migrations 39 à 43 étaient écrites, testées en PGlite, et **appliquées nulle part**.
+C'est le défaut le plus grave que cet audit pouvait laisser passer : une migration
+jamais appliquée n'est pas une fonctionnalité, c'est un fichier.
+
+Elles sont maintenant appliquées au projet pilote (`app_schema_version` 38 → **43**),
+une par une, avec point de retour écrit avant de commencer
+(`migrations/APPLICATION-39-42.md`), et un contrôle de non-régression : les 20
+comptages de données d'avant sont identiques après.
+
+**Trois défauts ont été trouvés en appliquant, et aucun n'était visible dans les tests :**
+
+1. La migration 39 révoquait `UPDATE` sur toute la table `clients` pour protéger `offre`.
+   Effet : l'écran Paramètres ne pouvait plus enregistrer NIF/NIS/RC, donc **les tickets
+   perdaient leurs mentions légales** — l'exigence NF-06, cassée par une migration qui
+   visait la facturation. Corrigé en grant par colonne.
+2. L'export de la 42 construisait sa référence avec `now()`, figé par transaction : deux
+   exports dans la même transaction violaient la contrainte unique. Un droit d'accès
+   refusé pour une collision de clé. Corrigé + test qui appelle deux fois.
+3. RI-04 n'était pas « faut-il une unicité sur le numéro de lot ». Une contrainte
+   `(client, numéro)` aurait cassé **tous les transferts**, puisque le transfert crée un
+   miroir portant le même numéro (MOD-11). La bonne clé est
+   `(client, article, site, numéro)`, partielle, pour n'interdire que la double réception.
+
+**Ce que ça enseigne, et qui doit rester écrit :** ces trois défauts ne se voient pas
+dans un test unitaire. Ils se voient en confrontant les GRANT aux appels réels, et les
+contraintes aux RPC qui écrivent. C'est la différence entre « le code est juste » et
+« le système fonctionne ».
+
+**Ce qui a réellement changé : les écarts qui étaient du code ont été fermés, prouvés
+par des tests, et désormais appliqués en base. Les écarts qui demandent une imprimante,
+trois personnes et une signature sont maintenant décrits par un protocole exécutable —
+et restent ouverts.**
 La différence entre les deux catégories est exactement ce que cet audit doit rendre
 visible : un test vert ne remplace pas un ticket imprimé.
 
@@ -313,7 +344,7 @@ Trois problèmes, dans l'ordre de gravité :
 | NF-01 performance | mesuré 13 ms / 9 ms | ✅ |
 | NF-02 hors-ligne (H2) | coquille D5 | 🟡 conçu, pas éprouvé en boutique |
 | NF-05 18-07 (code) | migration 42 | ✅ |
-| NF-05 DPA + région | — | ❌ ouvert (juridique) |
+| NF-05 DPA + région | région `eu-west-1` ✅ / DPA ❌ | 🟡 région conforme, DPA à signer |
 | NF-06 ticket 80 mm | 7 tests | 🟡 papier non éprouvé |
 | NF-07 parcours | 6 tests | 🟡 novices non testés |
 | NF-08 tests RC | ✅ | ✅ |
