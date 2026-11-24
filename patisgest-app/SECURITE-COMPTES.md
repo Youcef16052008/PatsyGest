@@ -104,7 +104,7 @@ où le code est responsable, il doit l'être :
 | 23/11/2026 | **Production** (`evepzygucfxarpdnflzv`) | `jwt_exp` : **3600 → 43200** (12 h) ✅ | agent (connecteur Supabase) |
 | 23/11/2026 | **Production** | `disable_signup` : **false → true** ✅ | agent (connecteur Supabase) |
 | 23/11/2026 | **Production** | `refresh_token_rotation_enabled` : déjà `true` ✅ (rien à faire) | agent |
-| 23/11/2026 | **Production** | `password_min_length` : **6** ❌ — non exposé par le connecteur, à passer à 12 en console | **non fait** |
+| 23/11/2026 | **Production** | `password_min_length` : **6** ❌ — relevé à nouveau via `get_auth_config`. Passer à 12 en console | **non fait, hors de portée de l'agent** |
 | 23/11/2026 | **Production** | `password_required_characters` : vide ❌ — idem | **non fait** |
 | — | **Préproduction** | Aucun projet de préproduction n'existe à ce jour. La vérification empirique (mot de passe de 10 refusé / 12 accepté) **n'a donc pas été faite**. | — |
 
@@ -118,6 +118,18 @@ base de production, avec la valeur d'avant connue.
 `amina@patisserie.dz` peut avoir `123456`. C'est le réglage le plus important des trois,
 et c'est le seul qui reste à faire. Il demande soit la console, soit un appel
 d'administration que le connecteur utilisé ici n'expose pas.
+
+**Pourquoi ce n'est pas fait, et pourquoi ça le restera ici** : le réglage vit dans le
+service GoTrue, pas dans Postgres. Vérifié le 23/11/2026 : `auth.instances` existe mais
+ne porte plus la politique de mot de passe, et `update_auth_config` (seul outil
+d'écriture du connecteur Supabase) n'expose que `jwt_exp`, `disable_signup`, les
+fournisseurs, la rotation des jetons et `site_url`/`uri_allow_list`. Aucun chemin
+programmatique n'existe depuis cet environnement.
+
+**Donc l'action est manuelle, et unique** : console Supabase → Authentication → Policies
+→ *Minimum password length* = **12**, *Password requirements* =
+`lower_upper_letters_digits`. Deux minutes. Tant que ce n'est pas fait, la ligne
+ci-dessus reste ❌ — et un document qui la déclarerait verte serait faux.
 
 **Point à décider avant le premier client** : appliquer `password_min_length = 12` sur
 le projet existant **n'invalide pas les mots de passe déjà définis** (Supabase ne
