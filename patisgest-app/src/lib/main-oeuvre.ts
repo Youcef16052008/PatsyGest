@@ -4,7 +4,7 @@
  * Le salarié est payé pour une journée de travail. Pour le calcul RC-04
  * (temps × taux × (1 + charges %)), la journée est convertie en taux horaire
  * équivalent : salaire journalier ÷ heures payées par jour.
- * Conséquence : une recette qui prend 90 min coûte 90 ÷ (heures × 60) de la journée.
+ * Exemple : 3 200 DA/jour sur 8 h → 400 DA/h ; une recette de 90 min, charges 25 %, coûte 750 DA de MO.
  */
 
 export const HEURES_PAYEES_PAR_JOUR_DEFAUT = 8;
