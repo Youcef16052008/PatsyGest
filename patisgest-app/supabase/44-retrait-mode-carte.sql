@@ -1,5 +1,5 @@
 -- =====================================================================
--- 40 — Retrait du mode de règlement « carte » (CIB / Edahabia).
+-- 44 — Retrait du mode de règlement « carte » (CIB / Edahabia).
 --
 -- Décision produit : la caisse ne propose plus que espèces et chèque/virement.
 -- Effets :

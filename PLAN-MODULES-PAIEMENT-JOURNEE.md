@@ -7,7 +7,7 @@ Suivi du plan en 5 étapes : voir `PLAN-SUIVI-COMMERCIAL.md`.
 
 | # | Demande | Statut | Preuve |
 |---|---|---|---|
-| D1 | Retirer Edahabia et CIB des modes de paiement | **Fait** | Le mode `carte` est retiré du code (type, libellés, rapprochement, démo, tests). Les anciens tickets `carte` s'affichent « Non précisé ». **Migration `supabase/40-retrait-mode-carte.sql` écrite et testée (PGlite, chaîne 01–40) : ventes `carte` en NULL, contrainte resserrée, `vendre_panier` refuse `carte`. Non appliquée au pilote (validation humaine requise). Le projet de test `gmmjrzyhvihxvaqvuoxy` n'a pas de table `ventes` : pas de vérification sur Supabase réel.** |
+| D1 | Retirer Edahabia et CIB des modes de paiement | **Fait** | Le mode `carte` est retiré du code (type, libellés, rapprochement, démo, tests). Les anciens tickets `carte` s'affichent « Non précisé ». **Migration `supabase/44-retrait-mode-carte.sql` écrite et testée (PGlite, chaîne 01–43, puis 44) : ventes `carte` en NULL, contrainte resserrée, `vendre_panier` refuse `carte`. Non appliquée au pilote (validation humaine requise). Le projet de test `gmmjrzyhvihxvaqvuoxy` n'a pas de table `ventes` : pas de vérification sur Supabase réel.** |
 | D2 | Payer la main-d'œuvre à la journée de travail, pas à l'heure | **Fait** | `src/lib/main-oeuvre.ts` : taux horaire RC-04 = salaire journalier ÷ heures payées par jour (défaut 8). Formule RC-04 inchangée. Saisie dans `cost-sheet-form.tsx` (« Salaire par jour », « Heures payées / jour ») et `portion-estimator.tsx`. La colonne `parametres_couts.taux_horaire` est conservée : pas de migration. |
 | D3 | Cinq modules visibles d'emblée, le reste derrière un bouton menu | **Fait** | `src/lib/workspace-nav.ts` : 5 modules `primary` (Accueil, Stocks, Recettes, Production, Caisse). `src/app/workspace.css` : en designs pilotage/fabrication, la liste complète n'est plus affichée en permanence ; les autres modules s'ouvrent via « Plus ». |
 | D4 | Commencer la Phase 0 | **Partiel** | Voir section 3. |
@@ -43,5 +43,5 @@ Migrations : aucune migration n'est proposée dans ce tour. Toute migration au p
 
 - Salaire journalier par défaut : 3 200 DA (8 heures). **Validé par l'utilisateur** comme valeur par défaut ; reste une hypothèse de saisie, pas une grille salariale. Le SNMG 2026 de 24 000 DA par mois (cité dans `ETUDE-MARCHE-PATISSERIES-DZ-2026.md`) n'est pas recalculé ici.
 - Abandon de CIB/Edahabia : décision produit fondée sur l'étude de marché (paiement surtout espèces et à la livraison). Source secondaire, à confirmer en Phase 0.
-- Retrait du mode carte : décidé par l'utilisateur, et migration 40 approuvée pour la base. Application au pilote : à valider explicitement.
+- Retrait du mode carte : décidé par l'utilisateur, et migration 44 (ex-40, renumérotée car main a pris 40–43) approuvée pour la base. Application au pilote : à valider explicitement.
 - Prix 35 000 DA/an : hypothèse à tester, pas un prix validé.

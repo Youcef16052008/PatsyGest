@@ -20,3 +20,13 @@ Même une restauration locale réussie avec `--no-owner` ne prouverait pas la re
 4. Après validation et sauvegarde fraîche vérifiée, exécuter séquentiellement les seules migrations approuvées, vérifier le résultat, compléter le plan et seulement alors fusionner.
 
 Le workflow historique `sauvegarde-free.yml` n'a aucun run observé ; la version modifiée sur main conserve les ACL dans le dump mais ne sauvegarde pas les objets Storage ou les rôles globaux et ne démontre pas une restauration complète. L'export JSON applicatif est partiel et n'est pas un rollback. Voir [SAUVEGARDE-EXPERIMENTALE.md](SAUVEGARDE-EXPERIMENTALE.md) pour les essais Supabase CLI et le coffre chiffré.
+
+## Tentative de sauvegarde du pilote (2026-11-23)
+
+Le workflow `../../.github/workflows/sauvegarde-free.yml` a été exécuté pour la première fois. Trois causes successives, chacune mesurée :
+
+1. `pg_dump` recevait l'URI dans `PGDATABASE`, qui n'est pour lui qu'un nom de base : retombée sur le socket local `/run/postgresql` (corrigé : `--dbname`).
+2. L'URI directe `db.<ref>.supabase.co:5432` ne résout qu'en IPv6 ; les runners GitHub sont IPv4 → `Network unreachable`. Le pooler `aws-1-eu-west-1.pooler.supabase.com:6543` est atteignable en IPv4.
+3. Sur le pooler, le tenant `postgres.evepzygucfxarpdnflzv` est reconnu (un user inexistant donne `ENOTFOUND tenant not found`), mais le mot de passe est refusé — vérifié aussi hors URI (`PGPASSWORD`) et depuis une machine extérieure. Aucune valeur fournie à ce jour n'authentifie.
+
+**Conséquence :** la sauvegarde du pilote n'est toujours pas disponible. Le déblocage attend soit le mot de passe de base du pilote, soit un access token Supabase (API de gestion `api.supabase.com`). La procédure d'exploitation est prête : [PROCEDURE-RESTAURATION-PILOTE.md](../../revue/PROCEDURE-RESTAURATION-PILOTE.md).

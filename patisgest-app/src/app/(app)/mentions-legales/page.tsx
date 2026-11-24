@@ -73,8 +73,37 @@ export default function MentionsLegales() {
         <p>
           Les données des clients (nom, téléphone) servis en pâtisserie sont collectées pour la
           seule exécution de la commande. Elles sont isolées par établissement (RLS) et ne sont
-          accessibles qu&apos;aux comptes autorisés. Un export et une suppression sur demande sont
-          possibles. Aucune donnée n&apos;est revendue.
+          accessibles qu&apos;aux comptes autorisés. Aucune donnée n&apos;est revendue.
+        </p>
+        <p className="mt-2">
+          <b>Droit d&apos;accès :</b> le propriétaire peut produire un export des données détenues,
+          et cet export est lui-même enregistré dans le journal d&apos;audit.
+        </p>
+        <p className="mt-2">
+          <b>Droit d&apos;effacement :</b> les données identifiantes d&apos;une commande peuvent être
+          anonymisées sur demande — le nom et le téléphone sont remplacés par une référence.
+          La commande et la vente correspondantes sont <b>conservées</b> : la loi impose de garder
+          les pièces comptables dix ans, et elle demande de ne plus identifier la personne, non de
+          détruire les écritures. Nous ne dirons donc pas « suppression » là où nous faisons une
+          anonymisation : ce serait promettre autre chose que ce qui est fait.
+        </p>
+        <p className="mt-2">
+          <b>Hébergement :</b> les données sont hébergées dans l&apos;Union européenne
+          (région <code>eu-west-1</code>, Irlande) chez Supabase et Vercel. Aucun transfert hors
+          UE n&apos;est réalisé.
+        </p>
+        <p className="mt-2">
+          <b>Durées de conservation :</b> les pièces comptables et les commandes sont conservées
+          dix ans (obligation commerciale). Les données identifiantes d&apos;une commande
+          anonymisée disparaissent immédiatement, la référence d&apos;anonymisation restant la
+          seule trace. Le journal d&apos;audit est conservé dix ans et ne peut pas être modifié.
+        </p>
+        <p className="mt-2">
+          <b>Responsable de traitement :</b> l&apos;exploitant de l&apos;établissement, qui décide
+          des données collectées dans son commerce. Subordonné aux obligations de la loi 18-07,
+          il tient le registre des traitements et répond aux demandes de ses clients ; l&apos;export
+          et l&apos;anonymisation sont les outils prévus pour cela. PâtisGest fournit le logiciel et
+          n&apos;exploite pas les données de ses utilisateurs.
         </p>
 
         <h2 className="pt-4 text-xl font-bold">7. Rôles et accès</h2>

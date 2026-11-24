@@ -14,6 +14,13 @@ registerHooks({
     if (specifier === 'next/cache' || specifier === 'next/headers' || specifier === 'next/navigation') {
       return { url: stubs, shortCircuit: true };
     }
+    // `server-only` est une garde de bundler (elle n'existe que pour faire
+    // échouer un import côté client). Dans un test Node, elle n'a pas de paquet
+    // installé : on la neutralise explicitement plutôt que d'installer une
+    // dépendance factice qui masquerait un vrai import client par erreur.
+    if (specifier === 'server-only') {
+      return { url: 'data:text/javascript,export default undefined;', shortCircuit: true };
+    }
     try {
       return nextResolve(specifier, context);
     } catch (erreur) {

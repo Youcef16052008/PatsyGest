@@ -20,6 +20,8 @@ import SaleTicket, { type SaleTicketLine } from "./sale-ticket";
 import FormulaireGuide, { champGuide } from "./guide-form";
 import SaleComposer from "./sale-composer";
 import { Notice } from "./workspace-ui";
+import { useEffect } from "react";
+import { enregistrerCatalogue, enregistrerIdentite, type CatalogueHorsLigne } from "@/lib/catalogue-cache";
 import { quantite, siteCaisse, type CatalogProduct, type SiteStock, type WorkspaceSite } from "@/lib/workspace-data";
 
 const label = "block text-xs font-semibold text-slate-600";
@@ -51,6 +53,7 @@ export default function SaleForm({
   etablissement,
   guide = false,
   guideTermine = false,
+  catalogueHorsLigne,
 }: {
   articles: CatalogProduct[];
   sites: WorkspaceSite[];
@@ -60,6 +63,13 @@ export default function SaleForm({
   etablissement?: Etablissement | null;
   guide?: boolean;
   guideTermine?: boolean;
+  /** NF-02/D5 : de quoi alimenter l'ouverture hors-ligne, étiqueté par compte. */
+  catalogueHorsLigne?: {
+    clientId: string;
+    produits: CatalogProduct[];
+    sites: WorkspaceSite[];
+    identite: CatalogueHorsLigne["identite"];
+  };
 }) {
   const [msg, setMsg] = useState<Msg | null>(null);
   const [lastSale, setLastSale] = useState<VenteAffichee | null>(null);
@@ -78,6 +88,32 @@ export default function SaleForm({
     () => navigator.onLine,
     () => true,
   );
+
+  // NF-02/D5 — réserve l'identité et le catalogue pour /hors-ligne. Placé ici
+  // et non dans un écran séparé : c'est au moment où la caisse est réellement
+  // utilisée que les prix affichés sont les bons. Une réserve alimentée depuis
+  // un autre écran figerait un catalogue que personne n'a validé.
+  useEffect(() => {
+    if (!catalogueHorsLigne) return;
+    enregistrerIdentite({
+      clientId: catalogueHorsLigne.clientId,
+      authUserId: queueIdentity.authUserId,
+    });
+    enregistrerCatalogue({
+      clientId: catalogueHorsLigne.clientId,
+      clientNom: etablissement?.nom ?? "",
+      articles: catalogueHorsLigne.produits.map((p) => ({
+        id: p.id,
+        label: p.label,
+        code: p.code,
+        unit: p.unit,
+        prixHT: p.prixHT,
+        tva: p.tva,
+      })),
+      sites: catalogueHorsLigne.sites.map((s) => ({ id: s.id, label: s.label, type: s.type })),
+      identite: catalogueHorsLigne.identite,
+    });
+  }, [catalogueHorsLigne, queueIdentity.authUserId, etablissement?.nom]);
 
   const { clientId, authUserId } = queueIdentity;
   const store = useMemo(() => createSaleQueueStore({ clientId, authUserId }), [clientId, authUserId]);

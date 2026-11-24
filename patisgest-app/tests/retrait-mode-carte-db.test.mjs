@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { chaineDeploiement, cheminMigration } from './migrations-historique.mjs';
 
-// Base jetable : vérifie la migration 40 (retrait du mode « carte ») sur la chaîne 01–39 puis 40.
+// Base jetable : vérifie la migration 44 (retrait du mode « carte ») sur la chaîne 01–43 puis 44.
 test('retrait carte : ventes existantes en NULL, contrainte et vendre_panier refusent carte', async () => {
   const db = new PGlite();
   try {
@@ -16,7 +16,7 @@ test('retrait carte : ventes existantes en NULL, contrainte et vendre_panier ref
      alter default privileges in schema public grant all on tables to authenticated,service_role;
      alter default privileges in schema public grant execute on functions to authenticated,service_role;
      grant execute on function auth.uid() to authenticated,anon,service_role;`);
-    const sansQuarante = chaineDeploiement().filter((f) => !f.startsWith('40-'));
+    const sansQuarante = chaineDeploiement().filter((f) => !f.startsWith('44-'));
     for (const file of sansQuarante) {
       if (file.startsWith('07-')) await db.exec("create function public.creer_of(uuid,uuid,numeric,date) returns jsonb language sql as $$select '{}'::jsonb$$");
       if (file.startsWith('09-')) await db.exec('alter table public.clotures add column if not exists revision integer default 1');
@@ -31,11 +31,11 @@ test('retrait carte : ventes existantes en NULL, contrainte et vendre_panier ref
      insert into articles(id,client_id,code,nom,niveau,unite,pv_ht,tva) values ('${article}','${client}','A1','Produit','produit','piece',10,20);
      insert into ventes(client_id,site_id,numero,ticket,date_vente,source,mode_paiement,total_ht,total_ttc) values ('${client}','${site}','C1','ancien-carte',current_date,'caisse','carte',10,12);`);
 
-    // Avant 40 : la vente carte existe.
+    // Avant 44 : la vente carte existe.
     const avant = await db.query("select count(*)::int as n from public.ventes where mode_paiement='carte'");
     assert.equal(avant.rows[0].n, 1);
 
-    const sql40 = await readFile(new URL('../supabase/40-retrait-mode-carte.sql', import.meta.url), 'utf8');
+    const sql40 = await readFile(new URL('../supabase/44-retrait-mode-carte.sql', import.meta.url), 'utf8');
     await db.exec(sql40);
 
     const apres = await db.query("select count(*)::int as n, count(*) filter (where mode_paiement is null)::int as nulls from public.ventes where ticket='ancien-carte'");
@@ -54,7 +54,7 @@ test('retrait carte : ventes existantes en NULL, contrainte et vendre_panier ref
     const ok = await db.query('select public.vendre_panier($1,$2::jsonb,$3,$4) as r', [site, JSON.stringify([{ articleId: article, qte: 1 }]), 'ticket-cheque', 'cheque_virement']);
     assert.ok(ok.rows[0].r.sale_id);
 
-    // Rejeu de la migration 40 : idempotent (corps déjà corrigé, aucune erreur).
+    // Rejeu de la migration 44 : idempotent (corps déjà corrigé, aucune erreur).
     await db.exec('reset role');
     await db.exec(sql40);
   } finally {

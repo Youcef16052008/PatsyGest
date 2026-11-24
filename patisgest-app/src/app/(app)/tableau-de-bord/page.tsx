@@ -54,5 +54,5 @@ export default async function Dashboard() {
   return <DashboardWorkspace nom={nom} shop={ctx.clientNom} today={today} canReadRecipes={coutsAutorises} seller={seller}
     articles={articles?.map(articleAffiche) ?? null} lots={lots} orders={orders} series={ventes ? serieVentes(ventes, today) : null}
     guide={progression ? <OnboardingPanel progression={progression}/> : afficheOnboarding ? <Notice kind="warning">Guide indisponible. Vérifiez votre connexion et rechargez la page.</Notice> : null}
-    caisse={<CashPanel queueIdentity={{clientId:ctx.clientId,authUserId:ctx.authUserId}} articles={articles} sites={sites} lots={lots} identite={identite}/>}/>;
+    caisse={<CashPanel queueIdentity={{clientId:ctx.clientId,authUserId:ctx.authUserId}} articles={articles} sites={sites} lots={lots} identite={identite} clientId={ctx.clientId}/>}/>;
 }
