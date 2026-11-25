@@ -42,7 +42,7 @@ export default async function EstimationPage() {
         <div className="pg-intro">
           <h1>Estimateur parts, moule &amp; prix en dinars</h1>
           <p className="pg-muted">
-            Passez d’un moule à un nombre de parts (ou l’inverse), séparez les ingrédients proportionnels des frais fixes (boîte, support, main-d’œuvre, cuisson) et vérifiez votre marge HT avant d’annoncer un prix.
+            Passez d’un moule à un nombre de parts (ou l’inverse), séparez les ingrédients proportionnels des frais fixes (boîte, support, main-d’œuvre, cuisson) et vérifiez votre marge en DA avant d’annoncer un prix.
           </p>
         </div>
         <PortionEstimator

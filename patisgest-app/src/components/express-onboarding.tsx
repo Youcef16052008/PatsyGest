@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { importerPackPatisserieDz, sauverBoutiqueExpress } from "@/lib/actions-onboarding";
-import { PACK_PATISSERIE_DZ } from "@/lib/pack-patisserie-dz";
+import {
+  filterPackByActivityAndVat,
+  type StarterDzActivity,
+  type StarterVatRegime,
+} from "@/lib/pack-patisserie-dz";
 
 export default function ExpressOnboarding({
   initialShopName,
@@ -12,18 +16,20 @@ export default function ExpressOnboarding({
 }: {
   initialShopName: string;
   mode: "supabase" | "demo";
-  onDemoImportPack?: () => void;
+  onDemoImportPack?: (activity: StarterDzActivity, tvaRegime: StarterVatRegime) => void;
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [shopName, setShopName] = useState(initialShopName);
   const [phone, setPhone] = useState("");
+  const [activity, setActivity] = useState<StarterDzActivity>("mixte");
+  const [tvaRegime, setTvaRegime] = useState<StarterVatRegime>("ifu_0");
   const [feedback, setFeedback] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
   function saveStep1() {
     setFeedback(null);
     if (shopName.trim().length < 2) {
-      setFeedback({ kind: "error", text: "Entrez le nom de votre pâtisserie." });
+      setFeedback({ kind: "error", text: "Entrez le nom de votre boutique." });
       return;
     }
     if (mode === "demo") {
@@ -46,16 +52,16 @@ export default function ExpressOnboarding({
   function importPack() {
     setFeedback(null);
     if (mode === "demo") {
-      onDemoImportPack?.();
+      onDemoImportPack?.(activity, tvaRegime);
       setFeedback({
         kind: "success",
-        text: `${PACK_PATISSERIE_DZ.length} produits et ingrédients algériens ajoutés !`,
+        text: `${selectedPack.length} produits et ingrédients ajoutés !`,
       });
       setStep(3);
       return;
     }
     startTransition(async () => {
-      const res = await importerPackPatisserieDz();
+      const res = await importerPackPatisserieDz(activity, tvaRegime);
       if (res.erreur) {
         setFeedback({ kind: "error", text: res.erreur });
       } else {
@@ -65,15 +71,16 @@ export default function ExpressOnboarding({
     });
   }
 
-  const produitsPack = PACK_PATISSERIE_DZ.filter((p) => p.niveau === "produit");
+  const selectedPack = filterPackByActivityAndVat(activity, tvaRegime);
+  const produitsPack = selectedPack.filter((p) => p.niveau === "produit");
 
   return (
     <section className="pg-card pg-card-pad pg-stack" aria-label="Démarrage rapide en 2 minutes">
       <div className="pg-card-head">
         <div>
           <span className="pg-kicker">DÉMARRAGE EXPRESS · 2 MINUTES</span>
-          <h2>Préparez votre pâtisserie en 3 étapes simples</h2>
-          <p>Pas de configuration compliquée : votre caisse peut tourner tout de suite.</p>
+          <h2>Préparez votre boutique en 3 étapes simples</h2>
+          <p>Adapté aux boulangeries, viennoiseries, pâtisseries et cake shops algériens.</p>
         </div>
         <span className="pg-badge" data-tone="planned">
           Étape {step} / 3
@@ -89,13 +96,13 @@ export default function ExpressOnboarding({
       {step === 1 && (
         <div className="grid gap-3 sm:grid-cols-2 items-end">
           <label className="pg-field">
-            Nom de votre pâtisserie
+            Nom de votre boutique
             <input
               type="text"
               className="pg-input"
               value={shopName}
               onChange={(e) => setShopName(e.target.value)}
-              placeholder="Ex : Pâtisserie El Bahdja"
+              placeholder="Ex : Boulangerie-Pâtisserie El Bahdja"
             />
           </label>
           <label className="pg-field">
@@ -121,20 +128,42 @@ export default function ExpressOnboarding({
 
       {step === 2 && (
         <div className="pg-stack">
-          <p className="text-sm">
-            Voulez-vous démarrer avec le <strong>Pack Pâtisserie Algérienne</strong> prêt à encaisser
-            (vous pourrez modifier chaque prix à tout moment) ?
-          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="pg-field">
+              Votre activité
+              <select
+                className="pg-input"
+                value={activity}
+                onChange={(e) => setActivity(e.target.value as StarterDzActivity)}
+              >
+                <option value="mixte">Tout : Boulangerie + Viennoiserie + Pâtisserie + Cake</option>
+                <option value="boulangerie">Boulangerie &amp; Viennoiserie</option>
+                <option value="patisserie">Pâtisserie &amp; Orientale</option>
+                <option value="cake_shop">Cake Shop &amp; Gâteaux sur mesure</option>
+              </select>
+            </label>
+            <label className="pg-field">
+              Régime TVA (Algérie · LF 2026)
+              <select
+                className="pg-input"
+                value={tvaRegime}
+                onChange={(e) => setTvaRegime(e.target.value as StarterVatRegime)}
+              >
+                <option value="ifu_0">Artisan IFU — 0 % TVA (prix direct en DA)</option>
+                <option value="reel_dz">Régime Réel — TVA Algérie (0 % pain / 9 % / 19 %)</option>
+              </select>
+            </label>
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {produitsPack.map((p) => (
               <span key={p.code} className="pg-badge" data-tone="neutral">
-                {p.nom} · {p.prixDa} DA
+                {p.nom} · {p.prixDa} DA{tvaRegime === "reel_dz" ? ` (TVA ${p.tva}%)` : ""}
               </span>
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={pending} onClick={importPack} className="pg-button">
-              {pending ? "Import en cours…" : "Importer le Pack Pâtisserie DZ en 1 clic"}
+              {pending ? "Import en cours…" : "Importer ce pack en 1 clic"}
             </button>
             <Link href="/stocks" className="pg-button pg-button-secondary">
               Ou créer mes produits à la main

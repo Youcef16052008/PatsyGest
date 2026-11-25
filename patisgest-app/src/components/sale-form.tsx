@@ -75,6 +75,7 @@ export default function SaleForm({
 }) {
   const [msg, setMsg] = useState<Msg | null>(null);
   const [lastSale, setLastSale] = useState<VenteAffichee | null>(null);
+  const [cartResetKey, setCartResetKey] = useState(0);
   const [pending, startTransition] = useTransition();
   const lock = useRef(false);
 
@@ -285,7 +286,10 @@ export default function SaleForm({
       } finally {
         // Dès qu'un ticket est durable, ne pas conserver le panier prérempli :
         // une nouvelle soumission générerait un autre UUID pour la même vente.
-        if (stored) formulaire.reset();
+        if (stored) {
+          formulaire.reset();
+          setCartResetKey((k) => k + 1);
+        }
         lock.current = false;
       }
     });
@@ -408,6 +412,7 @@ export default function SaleForm({
           />
         ) : (
           <SaleComposer
+            key={`${queueIdentity.clientId}:${queueIdentity.authUserId}:${cartResetKey}`}
             articles={articles}
             sites={sites}
             stock={stock}

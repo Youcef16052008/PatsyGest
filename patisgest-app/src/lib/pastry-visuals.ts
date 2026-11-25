@@ -18,11 +18,12 @@ const PRESETS: VisualPreset[] = [
   { keywords: ["makrout", "makroudh"], bg: "#ffedd5", accent: "#c2410c", badge: "Tradition DZ", glyph: "makrout" },
   { keywords: ["kalb", "qalb", "louz", "cham"], bg: "#fde68a", accent: "#92400e", badge: "Sirop fleur", glyph: "kalb" },
   { keywords: ["griwech", "tcharek", "zlabia", "samsa", "mchewek"], bg: "#fef9c3", accent: "#a16207", badge: "Orientale", glyph: "baklawa" },
+  { keywords: ["baguette", "pain complet", "pain maison", "pain", "khobz"], bg: "#fef3c7", accent: "#b45309", badge: "Boulangerie", glyph: "croissant" },
   { keywords: ["croissant", "pain au chocolat", "brioche"], bg: "#ffedd5", accent: "#9a3412", badge: "Viennoiserie", glyph: "croissant" },
   { keywords: ["mille-feuille", "millefeuille"], bg: "#fae8ff", accent: "#7e22ce", badge: "Feuilletage", glyph: "millefeuille" },
   { keywords: ["éclair", "eclair", "paris-brest"], bg: "#ede9fe", accent: "#5b21b6", badge: "Choux", glyph: "eclair" },
   { keywords: ["tarte", "tartelette", "citron", "fraise"], bg: "#ffe4e6", accent: "#be123c", badge: "Tarterie", glyph: "tarte" },
-  { keywords: ["gâteau", "gateau", "layer", "anniversaire", "entremets", "cake", "mariage"], bg: "#f3e8ff", accent: "#6d28d9", badge: "Sur mesure", glyph: "cake" },
+  { keywords: ["gâteau", "gateau", "layer", "anniversaire", "entremets", "cake", "mariage", "bento", "cupcake"], bg: "#f3e8ff", accent: "#6d28d9", badge: "Cake Shop", glyph: "cake" },
 ];
 
 function buildSvgDataUri(preset: VisualPreset, label: string): string {

@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { getSessionContext } from "./auth";
 import { messageUtilisateur } from "./erreurs-db";
-import { PACK_PATISSERIE_DZ } from "./pack-patisserie-dz";
+import {
+  filterPackByActivityAndVat,
+  type StarterDzActivity,
+  type StarterVatRegime,
+} from "./pack-patisserie-dz";
 import { createClient } from "./supabase/server";
 
 export type OnboardingActionState = {
@@ -44,12 +48,16 @@ export async function sauverBoutiqueExpress(
   }
 }
 
-export async function importerPackPatisserieDz(): Promise<OnboardingActionState> {
+export async function importerPackPatisserieDz(
+  activity: StarterDzActivity = "mixte",
+  tvaRegime: StarterVatRegime = "ifu_0",
+): Promise<OnboardingActionState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
   if (ctx.role !== "proprietaire") return { erreur: "Réservé au propriétaire." };
+  const selectedPack = filterPackByActivityAndVat(activity, tvaRegime);
   if (ctx.mode !== "supabase") {
-    return { ok: true, imported: PACK_PATISSERIE_DZ.length, succes: "Pack pâtisserie algérienne importé." };
+    return { ok: true, imported: selectedPack.length, succes: "Pack métier algérien importé." };
   }
   try {
     const db = await createClient();
@@ -64,15 +72,15 @@ export async function importerPackPatisserieDz(): Promise<OnboardingActionState>
     const existingCodes = new Set(
       (existing.data ?? []).map((a) => String((a as { code?: string }).code ?? "").toLowerCase()),
     );
-    const toInsert = PACK_PATISSERIE_DZ.filter((item) => !existingCodes.has(item.code.toLowerCase())).map((item) => ({
+    const toInsert = selectedPack.filter((item) => !existingCodes.has(item.code.toLowerCase())).map((item) => ({
       client_id: ctx.clientId,
       code: item.code,
       nom: item.nom,
       niveau: item.niveau,
       unite: item.unite,
       seuil: item.seuil,
-      pv_ht: item.prixDa,
-      tva: 0,
+      pv_ht: item.pvHt,
+      tva: item.tva,
       allergenes: [],
       traces: [],
     }));

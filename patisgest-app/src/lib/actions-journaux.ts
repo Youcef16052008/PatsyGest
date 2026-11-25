@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { canWrite, getSessionContext } from "./auth";
+import { canCreateOrEditCakeQuotes, canWrite, getSessionContext } from "./auth";
 import { messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
 import {
@@ -37,10 +37,11 @@ function mapError(error: { code?: string; message: string }): string {
   return messageUtilisateur(error, "Opération refusée");
 }
 
-/** Clôture six flux produits + bilan espèces facultatif séparé (RPC saisir_cloture). */
+/** Clôture six flux produits + bilan espèces facultatif séparé (RPC saisir_cloture) — propriétaire uniquement. */
 export async function saisirCloture(_prev: JournalState, formData: FormData): Promise<JournalState> {
-  const denied = await requireWriter();
-  if (denied) return denied;
+  const ctx = await getSessionContext();
+  if (!ctx) return { erreur: "Session requise." };
+  if (ctx.role !== "proprietaire") return { erreur: "La clôture complète est réservée au propriétaire." };
   let input;
   try {
     input = parseClosingInput(formData);
@@ -77,17 +78,18 @@ export async function saisirCloture(_prev: JournalState, formData: FormData): Pr
   }
 }
 
-/** Validation directe du comptage tiroir depuis le Dashboard Patron (A.4). */
+/** Validation directe du comptage tiroir (propriétaire ou vendeur en mode aveugle). */
 export async function validerComptageTiroir(input: {
   date: string;
   siteId: string;
   fondInitial: number;
   especesComptees: number;
-  attendu: number;
+  attendu?: number;
   note?: string;
 }): Promise<{ ok: boolean; erreur?: string; succes?: string }> {
   const ctx = await getSessionContext();
   if (!ctx) return { ok: false, erreur: "Session requise." };
+  if (ctx.role === "labo") return { ok: false, erreur: "Comptage de caisse réservé au comptoir." };
   if (ctx.mode !== "supabase") {
     return { ok: true, succes: "Comptage enregistré localement." };
   }
@@ -102,7 +104,7 @@ export async function validerComptageTiroir(input: {
       p_site_id: input.siteId,
       p_fond_initial: input.fondInitial,
       p_especes_comptees: input.especesComptees,
-      p_attendu: input.attendu,
+      p_attendu: ctx.role === "proprietaire" ? (input.attendu ?? 0) : 0,
       p_note: (input.note ?? "").trim().slice(0, 250),
     });
     if (error) {
@@ -116,7 +118,13 @@ export async function validerComptageTiroir(input: {
     }
     revalidatePath("/tableau-de-bord");
     revalidatePath("/cloture");
-    return { ok: true, succes: "Clôture du tiroir enregistrée sur le serveur ✓" };
+    return {
+      ok: true,
+      succes:
+        ctx.role === "vendeur"
+          ? "Comptage de fin de journée enregistré et transmis au propriétaire ✓"
+          : "Clôture du tiroir enregistrée sur le serveur ✓",
+    };
   } catch {
     return { ok: false, erreur: "Supabase est inaccessible depuis ce serveur." };
   }
@@ -404,10 +412,13 @@ export async function toggleTask(_prev: JournalState, formData: FormData): Promi
   }
 }
 
-/** Édition d'un devis (RPC editer_cake, statut devis uniquement) — tous les rôles. */
+/** Édition d'un devis (RPC editer_cake, statut devis uniquement) — propriétaire uniquement. */
 export async function editerCakeReal(_prev: JournalState, formData: FormData): Promise<JournalState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
+  if (!canCreateOrEditCakeQuotes(ctx.role)) {
+    return { erreur: "Seul le propriétaire peut modifier le prix ou les conditions d’un devis." };
+  }
   const id = String(formData.get("id") ?? "").trim();
   if (!/^[0-9a-f-]{36}$/i.test(id)) return { erreur: "Devis invalide." };
   const clientNom = String(formData.get("clientNom") ?? "").trim();
@@ -420,7 +431,7 @@ export async function editerCakeReal(_prev: JournalState, formData: FormData): P
   if (clientNom.length < 1 || clientNom.length > 100) return { erreur: "Nom du client requis (100 max)." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateEvent)) return { erreur: "Date d'événement invalide." };
   if (!Number.isInteger(nbParts) || nbParts < 1 || nbParts > 10000) return { erreur: "Parts :1 à10000." };
-  if (!Number.isFinite(prixHt) || prixHt <= 0) return { erreur: "Prix HT invalide." };
+  if (!Number.isFinite(prixHt) || prixHt <= 0) return { erreur: "Prix invalide." };
   if (!Number.isFinite(tvaPct) || tvaPct < 0 || tvaPct > 100) return { erreur: "TVA :0 à100." };
   try {
     const supabase = await createClient();
@@ -456,10 +467,13 @@ export async function accepterCgvReal(_prev: JournalState, formData: FormData): 
   }
 }
 
-/** Devis Cake Design (RPC creer_cake_production) — tous les rôles. */
+/** Devis Cake Design (RPC creer_cake_production) — propriétaire uniquement. */
 export async function createCakeReal(_prev: JournalState, formData: FormData): Promise<JournalState> {
-  const denied = await requireAnyRole();
-  if (denied) return denied;
+  const ctx = await getSessionContext();
+  if (!ctx) return { erreur: "Session requise." };
+  if (!canCreateOrEditCakeQuotes(ctx.role)) {
+    return { erreur: "Seul le propriétaire peut créer un nouveau devis chiffré." };
+  }
   let input;
   let production;
   try {
@@ -492,15 +506,21 @@ export async function createCakeReal(_prev: JournalState, formData: FormData): P
   }
 }
 
-/** Évolution d'un devis : paiement ou transition (RPC evoluer_cake) — tous les rôles. */
+/** Évolution d'un devis : paiement ou transition selon rôle (RPC evoluer_cake). */
 export async function evolveCakeReal(_prev: JournalState, formData: FormData): Promise<JournalState> {
-  const denied = await requireAnyRole();
-  if (denied) return denied;
+  const ctx = await getSessionContext();
+  if (!ctx) return { erreur: "Session requise." };
   let input;
   try {
     input = parseCakeActionInput(formData);
   } catch (e) {
     return { erreur: e instanceof Error ? e.message : "Saisie invalide." };
+  }
+  if (ctx.role === "labo" && input.transition !== "produit") {
+    return { erreur: "Le laboratoire peut uniquement marquer la commande produite." };
+  }
+  if (ctx.role === "vendeur" && !["payer", "confirme", "livre"].includes(input.transition)) {
+    return { erreur: "Action réservée au propriétaire ou au laboratoire." };
   }
   try {
     const supabase = await createClient();
@@ -513,8 +533,7 @@ export async function evolveCakeReal(_prev: JournalState, formData: FormData): P
     const r = data as { statut?: string; balance?: number } | null;
     revalidatePath("/cake-design");
     revalidatePath("/production");
-    const ctx = await getSessionContext();
-    return { succes: `OK — statut ${r?.statut}${ctx?.role !== "labo" && r?.balance !== undefined ? `, solde ${r.balance}` : ""}.` };
+    return { succes: `OK — statut ${r?.statut}${ctx.role !== "labo" && r?.balance !== undefined ? `, solde ${r.balance}` : ""}.` };
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur." };
   }

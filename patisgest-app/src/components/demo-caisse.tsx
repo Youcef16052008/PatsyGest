@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
 import { DEMO_CREDITS_KEY_PREFIX, starterDemoCredits, type CreditAccountType, type CreditEntry } from "@/lib/credits";
 import { DEMO_SITES, demoLots, demoProducts, demoSales } from "@/lib/demo-workspace";
 import { sellCart } from "@/lib/patisgest-store";
@@ -13,21 +13,62 @@ import SaleHistory from "./sale-history";
 import SaleTicket, { type SaleTicketData } from "./sale-ticket";
 import { ZImportOperations } from "./z-import-operations";
 import { Disclosure, Notice } from "./workspace-ui";
+import type { Etablissement } from "@/lib/etablissement";
+
+const DEMO_ETABLISSEMENT_KEY = "patisgest.demo_etablissement.v1";
 
 const boutique = DEMO_SITES.filter((s) => s.id === "Boutique");
 
 export default function DemoCaisse({
   dashboard = false,
   canEdit = false,
+  canManageCreditsAdmin = true,
   shop = "Maison Amande",
 }: {
   dashboard?: boolean;
   canEdit?: boolean;
+  canManageCreditsAdmin?: boolean;
   shop?: string;
 }) {
   const { data, save } = useDemoWorkspace();
   const [feedback, setFeedback] = useState<{ message: string; kind: "error" | "success" | "warning" } | null>(null);
   const [ticket, setTicket] = useState<SaleTicketData | null>(null);
+  const [cartResetKey, setCartResetKey] = useState(0);
+  const etabRaw = useSyncExternalStore(
+    (cb) => {
+      window.addEventListener("storage", cb);
+      window.addEventListener("patisgest-demo-etablissement", cb);
+      return () => {
+        window.removeEventListener("storage", cb);
+        window.removeEventListener("patisgest-demo-etablissement", cb);
+      };
+    },
+    () => {
+      try {
+        return window.localStorage.getItem(DEMO_ETABLISSEMENT_KEY) ?? "";
+      } catch {
+        return "";
+      }
+    },
+    () => "",
+  );
+  const demoEtab: Etablissement = (() => {
+    const fallback: Etablissement = { nom: shop, adresse: null, telephone: null, nif: null, nis: null, rc: null };
+    if (!etabRaw) return fallback;
+    try {
+      const parsed = JSON.parse(etabRaw) as Partial<Etablissement>;
+      return {
+        nom: parsed.nom?.trim() || shop,
+        adresse: parsed.adresse ?? null,
+        telephone: parsed.telephone ?? null,
+        nif: parsed.nif ?? null,
+        nis: parsed.nis ?? null,
+        rc: parsed.rc ?? null,
+      };
+    } catch {
+      return fallback;
+    }
+  })();
   if (!data) return <p role="status" className="pg-muted">Chargement des produits…</p>;
 
   const articles = demoProducts(data);
@@ -82,7 +123,7 @@ export default function DemoCaisse({
         lots: sale.lots,
         at: new Date().toISOString(),
         demo: true,
-        etablissement: { nom: shop, adresse: null, telephone: null, nif: null, nis: null, rc: null },
+        etablissement: demoEtab,
       });
       if (creditMode) {
         try {
@@ -103,6 +144,7 @@ export default function DemoCaisse({
             createdAt: new Date().toISOString(),
           };
           window.localStorage.setItem(key, JSON.stringify([entry, ...(Array.isArray(list) ? list : [])]));
+          window.dispatchEvent(new Event("patisgest-credits-updated"));
         } catch {
           /* ignore localStorage error */
         }
@@ -124,6 +166,7 @@ export default function DemoCaisse({
               },
       );
       form.reset();
+      setCartResetKey((k) => k + 1);
     } catch (err) {
       setFeedback({ kind: "error", message: err instanceof Error ? err.message : "Vente non enregistrée." });
     }
@@ -132,6 +175,7 @@ export default function DemoCaisse({
   return (
     <div className="pg-stack">
       <SaleComposer
+        key={cartResetKey}
         articles={articles}
         sites={boutique}
         stock={stockParSite(lots, today)}
@@ -141,7 +185,7 @@ export default function DemoCaisse({
       />
       {feedback && <Notice kind={feedback.kind}>{feedback.message}</Notice>}
       {ticket && <SaleTicket data={ticket} />}
-      {!dashboard && <CreditsWorkspace mode="demo" scopeKey="demo" shop={shop} today={today} />}
+      {!dashboard && <CreditsWorkspace mode="demo" scopeKey="demo" shop={shop} today={today} canManageAdmin={canManageCreditsAdmin} />}
       {!dashboard && <SaleHistory sales={demoSales(data)} demo />}
       {!dashboard && canEdit && (
         <Disclosure title="Importer un Z de caisse" icon="list">

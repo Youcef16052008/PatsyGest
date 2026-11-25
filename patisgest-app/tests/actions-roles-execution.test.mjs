@@ -66,13 +66,15 @@ test('action coûts : le labo et le vendeur sont refusés sans appel base', asyn
   }
 });
 
-test('action coûts : les paramètres RC-04 sont refusés au vendeur sans appel base', async () => {
-  const client = fauxClient();
-  installer({ session: VENDEUR, client });
+test('action coûts : les paramètres RC-04 sont refusés au vendeur et au labo sans appel base', async () => {
   const { sauverParamsCoutsReal } = await import('../src/lib/actions-couts.ts');
-  const r = await sauverParamsCoutsReal({}, new FormData());
-  assert.equal(r.erreur, 'Réservé aux rôles propriétaire et labo.');
-  assert.deepEqual(client.appels, []);
+  for (const ctx of [VENDEUR, LABO]) {
+    const client = fauxClient();
+    installer({ session: ctx, client });
+    const r = await sauverParamsCoutsReal({}, new FormData());
+    assert.equal(r.erreur, 'Réservé au propriétaire.');
+    assert.deepEqual(client.appels, []);
+  }
 });
 
 test('action coûts : l’analyse de hausse est refusée au labo sans appel base', async () => {

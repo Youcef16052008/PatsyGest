@@ -1,6 +1,6 @@
 import "server-only";
 import Link from "next/link";
-import { canWrite, type SessionContext } from "@/lib/auth";
+import { type SessionContext } from "@/lib/auth";
 import { articleAffiche, lireArticles, lireHistoriqueCaisse, lireLots, lireSites, produitCaisse, type ArticleRow, type WorkspaceDB } from "@/lib/workspace-read";
 import { jourLocal, stockParSite, stockPerimeParSite, type StockLot, type WorkspaceSite } from "@/lib/workspace-data";
 import type { Etablissement } from "@/lib/etablissement";
@@ -47,11 +47,11 @@ export default async function CashWorkspace({ ctx, db }: { ctx: SessionContext; 
     <div className="pg-stack">
       <CashPanel queueIdentity={{clientId:ctx.clientId,authUserId:ctx.authUserId}} articles={articles} sites={sites} lots={lots} identite={identite} clientId={ctx.clientId}/>
       {creditsRes.tableAvailable && (
-        <CreditsWorkspace mode="supabase" scopeKey={ctx.clientId} shop={identite.nom} today={today} initialCredits={creditsRes.credits} />
+        <CreditsWorkspace mode="supabase" scopeKey={ctx.clientId} shop={identite.nom} today={today} initialCredits={creditsRes.credits} canManageAdmin={ctx.role === "proprietaire"} />
       )}
       <SaleHistory sales={sales}/>
-      {canWrite(ctx.role) && <Disclosure title="Retour ou avoir" description="Reprendre un produit vendu : remise en stock ou destruction tracée." icon="receipt"><AvoirForm ventes={sales ?? []}/></Disclosure>}
-      {canWrite(ctx.role) && <Disclosure title="Importer un Z de caisse" description="Ajouter les ventes d’une caisse externe." icon="list"><ZImportForm sites={sites ?? []}/></Disclosure>}
+      {ctx.role === "proprietaire" && <Disclosure title="Retour ou avoir" description="Reprendre un produit vendu : remise en stock ou destruction tracée." icon="receipt"><AvoirForm ventes={sales ?? []}/></Disclosure>}
+      {ctx.role === "proprietaire" && <Disclosure title="Importer un Z de caisse" description="Ajouter les ventes d’une caisse externe." icon="list"><ZImportForm sites={sites ?? []}/></Disclosure>}
     </div>
   </>;
 }

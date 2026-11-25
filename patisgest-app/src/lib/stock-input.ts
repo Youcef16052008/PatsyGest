@@ -75,14 +75,23 @@ function list(value: unknown, label: string): string[] {
 export function parseArticleInput(formData: FormData): ArticleInput {
   const niveau = String(formData.get("niveau") ?? "").trim();
   if (niveau !== "matiere" && niveau !== "produit") throw new Error("Niveau : choisir matière ou produit.");
+  const tva = number(formData.get("tva"), "TVA", 0, 100);
+  const prixTtcRaw = formData.get("prix_ttc");
+  const pv_ht =
+    prixTtcRaw !== null && String(prixTtcRaw).trim() !== ""
+      ? (() => {
+          const ttc = number(prixTtcRaw, "Prix de vente", 0, 10_000_000);
+          return Math.round((ttc / (1 + tva / 100)) * 100) / 100;
+        })()
+      : number(formData.get("pv_ht"), "Prix de vente", 0, 10_000_000);
   return {
     code: text(formData.get("code"), "Code article", 40),
     nom: text(formData.get("nom"), "Nom", 120),
     niveau,
     unite: text(formData.get("unite"), "Unité", 20),
     seuil: number(formData.get("seuil"), "Seuil", 0, 1_000_000),
-    pv_ht: number(formData.get("pv_ht"), "Prix de vente HT", 0, 10_000_000),
-    tva: number(formData.get("tva"), "TVA", 0, 100),
+    pv_ht,
+    tva,
     allergenes: list(formData.get("allergenes"), "Allergènes"),
     traces: list(formData.get("traces"), "Traces"),
   };

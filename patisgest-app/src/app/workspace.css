@@ -677,3 +677,77 @@
   left: auto;
   right: 0;
 }
+
+/* Pro Dashboard — Robot Conseiller Anti-Fermeture & Seuil de Rentabilité */
+.pg-advisor-panel {
+  border: 1.5px solid var(--pg-line);
+  background: var(--pg-surface);
+}
+.pg-advisor-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.pg-advisor-score-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1 1 320px;
+}
+.pg-advisor-score-ring {
+  width: 68px;
+  height: 68px;
+  flex: none;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  border: 2px solid var(--pg-line);
+  background: var(--pg-subtle);
+}
+.pg-advisor-score-ring strong {
+  font-size: 1.45rem;
+  line-height: 1;
+  font-weight: 800;
+}
+.pg-advisor-score-ring span {
+  font-size: 0.72rem;
+  color: var(--pg-muted);
+  font-weight: 700;
+}
+.pg-advisor-score-ring[data-tone="success"] {
+  background: var(--pg-ok-bg);
+  color: var(--pg-ok-ink);
+  border-color: var(--pg-ok-ink);
+}
+.pg-advisor-score-ring[data-tone="warning"] {
+  background: var(--pg-warn-bg);
+  color: var(--pg-warn-ink);
+  border-color: var(--pg-warn-ink);
+}
+.pg-advisor-score-ring[data-tone="danger"] {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #ef4444;
+}
+.pg-advisor-card {
+  border-radius: 14px;
+  border: 1px solid var(--pg-line);
+  padding: 12px 14px;
+  background: var(--pg-subtle);
+}
+.pg-advisor-card[data-severity="critique"] {
+  border-color: #fca5a5;
+  background: rgba(239, 68, 68, 0.06);
+}
+.pg-advisor-card[data-severity="urgent"] {
+  border-color: #fcd34d;
+  background: rgba(245, 158, 11, 0.06);
+}
+.pg-advisor-card[data-severity="bravo"] {
+  border-color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.07);
+}
+

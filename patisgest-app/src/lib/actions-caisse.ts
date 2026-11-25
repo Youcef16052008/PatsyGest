@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { canWrite, getSessionContext } from "./auth";
+import { canSellAtPos, getSessionContext } from "./auth";
 import { echecHttpReessayable, messageUtilisateur } from "./erreurs-db";
 import { parseCartSaleInput, PAYMENT_MODE_LABELS, type PaymentMode } from "./pos-cart";
 import { createClient } from "./supabase/server";
@@ -83,6 +83,9 @@ function readTicketLines(raw: unknown): SaleReceiptLine[] {
 export async function sellCart(_prev: SaleState, formData: FormData): Promise<SaleState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise.", reessayer: true };
+  if (!canSellAtPos(ctx.role)) {
+    return { erreur: "La caisse est réservée au comptoir (propriétaire et vendeur)." };
+  }
   // Empêche un ancien onglet d'envoyer sa file après changement de session.
   // Ces valeurs ne sont pas une autorisation : la session et la RLS restent
   // contrôlées côté serveur, et les identifiants déclarés doivent correspondre.
@@ -189,7 +192,7 @@ export async function sellCart(_prev: SaleState, formData: FormData): Promise<Sa
     const modeLabel = PAYMENT_MODE_LABELS[input.modePaiement];
     return {
       succes:
-        `Vente enregistrée (${input.lignes.length} produit${input.lignes.length > 1 ? "s" : ""}, ${modeLabel}) — ${result?.totalHT} HT / ${result?.totalTTC} TTC.` +
+        `Vente enregistrée (${input.lignes.length} produit${input.lignes.length > 1 ? "s" : ""}, ${modeLabel}) — ${result?.totalTTC} DA.` +
         (lotsText ? ` Lots : ${lotsText}.` : "") +
         (missing > 0 ? ` Manquant : ${missing} (signalé, stock jamais négatif).` : ""),
       ticket: pTicket,
@@ -245,7 +248,7 @@ export type ZImportResult = {
 export async function importZReal(_prev: SaleState, formData: FormData): Promise<SaleState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
-  if (!canWrite(ctx.role)) return { erreur: "Réservé aux rôles propriétaire et labo." };
+  if (ctx.role !== "proprietaire") return { erreur: "L’import de Z est réservé au propriétaire." };
 
   const date = String(formData.get("date") ?? "").trim();
   const siteId = String(formData.get("siteId") ?? "").trim();
@@ -289,7 +292,7 @@ export async function importZReal(_prev: SaleState, formData: FormData): Promise
     revalidatePath("/stocks");
     return {
       succes:
-        `Z importé — ${r?.lines} ligne(s), ${r?.totalHT} HT / ${r?.totalTTC} TTC.` +
+        `Z importé — ${r?.lines} ligne(s), ${r?.totalTTC} DA.` +
         (Number(r?.missing ?? 0) > 0 ? ` Manquant : ${r?.missing} (signalé, stock jamais négatif).` : ""),
     };
   } catch {
@@ -327,7 +330,7 @@ export type AvoirResult = {
 export async function createAvoir(_prev: AvoirState, formData: FormData): Promise<AvoirState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session expirée. Reconnectez-vous." };
-  if (!canWrite(ctx.role)) return { erreur: "Votre rôle n'autorise pas les avoirs." };
+  if (ctx.role !== "proprietaire") return { erreur: "Seul le propriétaire peut enregistrer un avoir ou retour." };
 
   const venteId = String(formData.get("venteId") ?? "").trim();
   const mode = String(formData.get("mode") ?? "").trim();

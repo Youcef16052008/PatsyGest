@@ -11,6 +11,8 @@ import FournisseurForm from './fournisseur-form';
 import {PageIntro, Notice} from './workspace-ui';
 import { lirePlanLaboPrive } from '@/lib/tomorrow-lab-private-server';
 import { TomorrowLabConnected } from './tomorrow-lab-panel';
+import FreeRecipesWorkspace from './free-recipes-workspace';
+import { loadFreeRecipesCloud } from '@/lib/actions-free-recipes';
 
 export default async function LabWorkspace({module,ctx,disabled,requestedDate,tousSitesAutorises}:{disabled:Set<string>;requestedDate?:string;tousSitesAutorises:boolean;module:'recettes'|'cake-design'|'achats'|'transferts'|'tracabilite'|'planning';ctx:SessionContext}) {
  const db=await createClient();
@@ -41,10 +43,25 @@ export default async function LabWorkspace({module,ctx,disabled,requestedDate,to
   const orders:CommandeRow[]=(commandes.data??[]).map(c=>({id:c.id,numero:c.numero,statut:c.statut,fournisseur:opts.find(f=>f.id===c.fournisseur_id)?.label??'Fournisseur',lignes:c.lignes as CommandeRow['lignes']}));
   return <><PageIntro title="Achats" description="Commandes et réceptions sans consultation des prix enregistrés."/><FournisseurForm/><CommandeForms fournisseurs={opts} articles={articlesOptions} sites={sitesOptions} commandes={orders} voirPrix={false}/></>;
  }
- const [articles,familles,versions]=await Promise.all([db.from('labo_articles').select('id,code,nom,niveau,unite').eq('client_id',ctx.clientId).order('nom').limit(300),db.from('recette_familles').select('id,code,nom,produit_id').eq('client_id',ctx.clientId).order('nom').limit(300),db.from('labo_recette_versions').select('id,famille_id,version,active,rendement_qte,rendement_unite').eq('client_id',ctx.clientId).limit(300)]);
+ const [articles,familles,versions,cloudRes]=await Promise.all([db.from('labo_articles').select('id,code,nom,niveau,unite').eq('client_id',ctx.clientId).order('nom').limit(300),db.from('recette_familles').select('id,code,nom,produit_id').eq('client_id',ctx.clientId).order('nom').limit(300),db.from('labo_recette_versions').select('id,famille_id,version,active,rendement_qte,rendement_unite').eq('client_id',ctx.clientId).limit(300),loadFreeRecipesCloud()]);
  if(articles.error||familles.error||versions.error) return <Notice kind="warning">Les recettes ne sont pas disponibles sur cette installation. Vérifiez la connexion, puis signalez-le au propriétaire.</Notice>;
  const family=familles.data??[], rows=versions.data??[], arts=articles.data??[];
  const options=family.map(f=>({id:f.id,label:`${f.code} — ${f.nom}`}));
  const versionRows:VersionRow[]=rows.flatMap(v=>{const f=family.find(x=>x.id===v.famille_id);return f?[{id:v.id,familleId:v.famille_id,version:v.version,active:v.active,label:`${f.nom} · v${v.version} (${v.rendement_qte} ${v.rendement_unite})`}]:[];});
- return <><PageIntro title="Recettes" description="Ingrédients, quantités et versions de fabrication."/><VersionForm familles={options} articles={arts.map(a=>({id:a.id,label:`${a.code} · ${a.nom} (${a.unite})`}))} produits={arts.map(a=>({id:a.id,label:`${a.code} · ${a.nom}`}))} versions={versionRows} subVersions={versionRows.map(v=>({id:v.id,label:v.label}))}/></>;
+ const stockSuggestions = arts.filter(a=>a.niveau==='matiere').map(a=>({id:a.id,nom:a.nom,unite:a.unite,prixUnitaireDa:null}));
+ return <>
+   <PageIntro title="Recettes &amp; grammages" description="Ingrédients, quantités, moules et suggestions de prix (sans coûts ni marges)." />
+   <FreeRecipesWorkspace
+     scopeKey={ctx.clientId}
+     stockSuggestions={stockSuggestions}
+     canEdit={true}
+     sessionMode="supabase"
+     canReadCosts={false}
+     userRole="labo"
+     userName={ctx.nom.split(" (")[0]}
+     initialCloudRecipes={cloudRes.recipes}
+     cloudTableAvailable={cloudRes.tableAvailable}
+     stockLinkedNode={<VersionForm familles={options} articles={arts.map(a=>({id:a.id,label:`${a.code} · ${a.nom} (${a.unite})`}))} produits={arts.map(a=>({id:a.id,label:`${a.code} · ${a.nom}`}))} versions={versionRows} subVersions={versionRows.map(v=>({id:v.id,label:v.label}))}/>}
+   />
+ </>;
 }

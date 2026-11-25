@@ -27,6 +27,7 @@ import {
 import FetesPlanner from "./fetes-planner";
 import PortionEstimator from "./portion-estimator";
 import { Icon } from "./workspace-icons";
+import { jourLocal } from "@/lib/workspace-data";
 
 type Tab = "libre" | "calculateur" | "fetes" | "stock";
 
@@ -49,7 +50,7 @@ function makeEmptyRecipe(): FreeRecipe {
     cuissonMoDa: 0,
     prixVenteDa: 0,
     notes: "",
-    updatedAt: new Date().toISOString().slice(0, 10),
+    updatedAt: jourLocal(),
     ingredients: [
       { id: crypto.randomUUID(), nom: "", qty: 500, unite: "g", prix: 0, basePrix: "par_kg", stockArticleId: null },
     ],
@@ -155,7 +156,7 @@ export default function FreeRecipesWorkspace({
       portions: Math.max(1, Number(editing.portions) || 1),
       unitePortion: editing.unitePortion.trim() || "parts",
       ingredients: cleanIngredients,
-      updatedAt: new Date().toISOString().slice(0, 10),
+      updatedAt: jourLocal(),
     };
     const summary = computeFreeRecipeSummary(saved);
     const exists = recipes.some((r) => r.id === saved.id);
@@ -283,7 +284,7 @@ export default function FreeRecipesWorkspace({
               nom: art.nom,
               unite: unitNorm,
               basePrix: basis,
-              prix: art.prixUnitaireDa != null ? art.prixUnitaireDa : l.prix,
+              prix: canReadCosts && art.prixUnitaireDa != null ? art.prixUnitaireDa : l.prix,
             }
           : l,
       ),
@@ -475,49 +476,55 @@ export default function FreeRecipesWorkspace({
                               ))}
                             </select>
                           </label>
-                          <label className="pg-field">
-                            Prix (DA)
-                            <input
-                              className="pg-input"
-                              type="number"
-                              min={0}
-                              step="any"
-                              value={line.prix}
-                              onChange={(e) =>
-                                setEditing({
-                                  ...editing,
-                                  ingredients: editing.ingredients.map((l) =>
-                                    l.id === line.id ? { ...l, prix: Number(e.target.value) || 0 } : l,
-                                  ),
-                                })
-                              }
-                            />
-                          </label>
-                          <label className="pg-field">
-                            Base du prix
-                            <select
-                              className="pg-input"
-                              value={line.basePrix}
-                              onChange={(e) =>
-                                setEditing({
-                                  ...editing,
-                                  ingredients: editing.ingredients.map((l) =>
-                                    l.id === line.id ? { ...l, basePrix: e.target.value as FreePriceBasis } : l,
-                                  ),
-                                })
-                              }
-                            >
-                              {(Object.keys(BASIS_LABELS) as FreePriceBasis[]).map((k) => (
-                                <option key={k} value={k}>
-                                  {BASIS_LABELS[k]}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
+                          {canReadCosts && (
+                            <>
+                              <label className="pg-field">
+                                Prix (DA)
+                                <input
+                                  className="pg-input"
+                                  type="number"
+                                  min={0}
+                                  step="any"
+                                  value={line.prix}
+                                  onChange={(e) =>
+                                    setEditing({
+                                      ...editing,
+                                      ingredients: editing.ingredients.map((l) =>
+                                        l.id === line.id ? { ...l, prix: Number(e.target.value) || 0 } : l,
+                                      ),
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="pg-field">
+                                Base du prix
+                                <select
+                                  className="pg-input"
+                                  value={line.basePrix}
+                                  onChange={(e) =>
+                                    setEditing({
+                                      ...editing,
+                                      ingredients: editing.ingredients.map((l) =>
+                                        l.id === line.id ? { ...l, basePrix: e.target.value as FreePriceBasis } : l,
+                                      ),
+                                    })
+                                  }
+                                >
+                                  {(Object.keys(BASIS_LABELS) as FreePriceBasis[]).map((k) => (
+                                    <option key={k} value={k}>
+                                      {BASIS_LABELS[k]}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            </>
+                          )}
                           <div className="flex items-center gap-2">
-                            <span className="pg-badge" title="Coût de cette ligne">
-                              {money(cost)}
-                            </span>
+                            {canReadCosts && (
+                              <span className="pg-badge" title="Coût de cette ligne">
+                                {money(cost)}
+                              </span>
+                            )}
                             {editing.ingredients.length > 1 && (
                               <button
                                 type="button"
@@ -562,30 +569,36 @@ export default function FreeRecipesWorkspace({
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
+                {canReadCosts && (
+                  <>
+                    <label className="pg-field">
+                      Boîte / Emballage (DA, optionnel)
+                      <input
+                        className="pg-input"
+                        type="number"
+                        min={0}
+                        step="any"
+                        value={editing.emballageDa}
+                        onChange={(e) => setEditing({ ...editing, emballageDa: Number(e.target.value) || 0 })}
+                      />
+                    </label>
+                    <label className="pg-field">
+                      Cuisson / Gaz / Main-d’œuvre (DA, optionnel)
+                      <input
+                        className="pg-input"
+                        type="number"
+                        min={0}
+                        step="any"
+                        value={editing.cuissonMoDa}
+                        onChange={(e) => setEditing({ ...editing, cuissonMoDa: Number(e.target.value) || 0 })}
+                      />
+                    </label>
+                  </>
+                )}
                 <label className="pg-field">
-                  Boîte / Emballage (DA, optionnel)
-                  <input
-                    className="pg-input"
-                    type="number"
-                    min={0}
-                    step="any"
-                    value={editing.emballageDa}
-                    onChange={(e) => setEditing({ ...editing, emballageDa: Number(e.target.value) || 0 })}
-                  />
-                </label>
-                <label className="pg-field">
-                  Cuisson / Gaz / Main-d’œuvre (DA, optionnel)
-                  <input
-                    className="pg-input"
-                    type="number"
-                    min={0}
-                    step="any"
-                    value={editing.cuissonMoDa}
-                    onChange={(e) => setEditing({ ...editing, cuissonMoDa: Number(e.target.value) || 0 })}
-                  />
-                </label>
-                <label className="pg-field">
-                  Votre prix de vente (DA / {editing.unitePortion})
+                  {userRole !== "proprietaire"
+                    ? `Prix de vente suggéré pour validation patron (DA / ${editing.unitePortion})`
+                    : `Votre prix de vente (DA / ${editing.unitePortion})`}
                   <input
                     className="pg-input"
                     type="number"
@@ -607,43 +620,45 @@ export default function FreeRecipesWorkspace({
                 />
               </label>
 
-              <div className="grid gap-3 sm:grid-cols-4 rounded-xl border p-4" style={{ background: "var(--pg-tint)" }}>
-                <div>
-                  <span className="text-xs font-bold uppercase pg-muted">Coût total recette</span>
-                  <div className="text-xl font-extrabold">{money(activeSummary.coutTotal)}</div>
-                </div>
-                <div>
-                  <span className="text-xs font-bold uppercase pg-muted">Coût par {editing.unitePortion}</span>
-                  <div className="text-xl font-extrabold">{money(activeSummary.coutParPart)}</div>
-                </div>
-                <div>
-                  <span className="text-xs font-bold uppercase pg-muted">Prix conseillé</span>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {activeSummary.conseils.map((c) => (
-                      <button
-                        key={c.coef}
-                        type="button"
-                        className="pg-filter"
-                        onClick={() => setEditing({ ...editing, prixVenteDa: c.prix })}
-                      >
-                        ×{c.coef} = <b>{money(c.prix)}</b>
-                      </button>
-                    ))}
+              {canReadCosts && (
+                <div className="grid gap-3 sm:grid-cols-4 rounded-xl border p-4" style={{ background: "var(--pg-tint)" }}>
+                  <div>
+                    <span className="text-xs font-bold uppercase pg-muted">Coût total recette</span>
+                    <div className="text-xl font-extrabold">{money(activeSummary.coutTotal)}</div>
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold uppercase pg-muted">Coût par {editing.unitePortion}</span>
+                    <div className="text-xl font-extrabold">{money(activeSummary.coutParPart)}</div>
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold uppercase pg-muted">Prix conseillé</span>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {activeSummary.conseils.map((c) => (
+                        <button
+                          key={c.coef}
+                          type="button"
+                          className="pg-filter"
+                          onClick={() => setEditing({ ...editing, prixVenteDa: c.prix })}
+                        >
+                          ×{c.coef} = <b>{money(c.prix)}</b>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold uppercase pg-muted">Votre marge / part</span>
+                    <div
+                      className={`text-xl font-extrabold ${
+                        activeSummary.beneficeParPart >= 0 ? "text-emerald-700" : "text-red-700"
+                      }`}
+                    >
+                      {activeSummary.prixVente > 0
+                        ? `${money(activeSummary.beneficeParPart)} (${activeSummary.margePct ?? 0} %)`
+                        : "Saisir un prix"}
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <span className="text-xs font-bold uppercase pg-muted">Votre marge / part</span>
-                  <div
-                    className={`text-xl font-extrabold ${
-                      activeSummary.beneficeParPart >= 0 ? "text-emerald-700" : "text-red-700"
-                    }`}
-                  >
-                    {activeSummary.prixVente > 0
-                      ? `${money(activeSummary.beneficeParPart)} (${activeSummary.margePct ?? 0} %)`
-                      : "Saisir un prix"}
-                  </div>
-                </div>
-              </div>
+              )}
 
               <div className="flex flex-wrap gap-2">
                 <button type="button" className="pg-button" onClick={saveDraft}>
@@ -674,9 +689,19 @@ export default function FreeRecipesWorkspace({
                         </p>
                       </div>
                       <div className="text-right">
-                        <span className="pg-badge" data-tone="success">
-                          Coût : {money(s.coutParPart)} / {r.unitePortion}
-                        </span>
+                        {canReadCosts ? (
+                          <span className="pg-badge" data-tone="success">
+                            Coût : {money(s.coutParPart)} / {r.unitePortion}
+                          </span>
+                        ) : r.prixVenteDa > 0 ? (
+                          <span className="pg-badge" data-tone="planned">
+                            {r.statutPrix === "valide"
+                              ? `Prix validé : ${money(r.prixVenteDa)}`
+                              : `Suggéré (patron) : ${money(r.prixVenteDa)}`}
+                          </span>
+                        ) : (
+                          <span className="pg-badge">Grammage atelier</span>
+                        )}
                       </div>
                     </div>
 
@@ -687,10 +712,10 @@ export default function FreeRecipesWorkspace({
                             {l.nom} · <span className="pg-muted">{l.qty} {l.unite}</span>
                             {l.stockArticleId && <span className="ml-1.5 pg-badge">Stock</span>}
                           </span>
-                          <b>{money(lineCostDa(l))}</b>
+                          {canReadCosts && <b>{money(lineCostDa(l))}</b>}
                         </li>
                       ))}
-                      {s.fraisFixes > 0 && (
+                      {canReadCosts && s.fraisFixes > 0 && (
                         <li className="flex justify-between py-1.5 pg-muted">
                           <span>Emballage + cuisson / MO</span>
                           <b>{money(s.fraisFixes)}</b>
@@ -698,22 +723,24 @@ export default function FreeRecipesWorkspace({
                       )}
                     </ul>
 
-                    <div className="grid grid-cols-3 gap-2 rounded-xl border p-3 text-xs" style={{ background: "var(--pg-subtle)" }}>
-                      <div>
-                        <span className="pg-muted block">Coût total</span>
-                        <b className="text-sm">{money(s.coutTotal)}</b>
+                    {canReadCosts && (
+                      <div className="grid grid-cols-3 gap-2 rounded-xl border p-3 text-xs" style={{ background: "var(--pg-subtle)" }}>
+                        <div>
+                          <span className="pg-muted block">Coût total</span>
+                          <b className="text-sm">{money(s.coutTotal)}</b>
+                        </div>
+                        <div>
+                          <span className="pg-muted block">Prix conseillé (×2,5)</span>
+                          <b className="text-sm">{money(s.conseils[1].prix)}</b>
+                        </div>
+                        <div>
+                          <span className="pg-muted block">Marge actuelle</span>
+                          <b className={`text-sm ${s.beneficeParPart >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                            {s.prixVente > 0 ? `${money(s.beneficeParPart)} (${s.margePct ?? 0}%)` : "—"}
+                          </b>
+                        </div>
                       </div>
-                      <div>
-                        <span className="pg-muted block">Prix conseillé (×2,5)</span>
-                        <b className="text-sm">{money(s.conseils[1].prix)}</b>
-                      </div>
-                      <div>
-                        <span className="pg-muted block">Marge actuelle</span>
-                        <b className={`text-sm ${s.beneficeParPart >= 0 ? "text-emerald-700" : "text-red-700"}`}>
-                          {s.prixVente > 0 ? `${money(s.beneficeParPart)} (${s.margePct ?? 0}%)` : "—"}
-                        </b>
-                      </div>
-                    </div>
+                    )}
 
                     {r.notes && <p className="text-xs pg-muted italic">{r.notes}</p>}
 
@@ -725,15 +752,17 @@ export default function FreeRecipesWorkspace({
                         <button type="button" className="pg-button pg-button-secondary" onClick={() => duplicateRecipe(r)}>
                           Dupliquer
                         </button>
-                        <button
-                          type="button"
-                          className="pg-button pg-button-secondary text-red-700"
-                          onClick={() => {
-                            if (window.confirm(`Supprimer la recette « ${r.nom} » ?`)) removeRecipe(r.id);
-                          }}
-                        >
-                          Supprimer
-                        </button>
+                        {userRole === "proprietaire" && (
+                          <button
+                            type="button"
+                            className="pg-button pg-button-secondary text-red-700"
+                            onClick={() => {
+                              if (window.confirm(`Supprimer la recette « ${r.nom} » ?`)) removeRecipe(r.id);
+                            }}
+                          >
+                            Supprimer
+                          </button>
+                        )}
                       </div>
                     )}
                   </article>

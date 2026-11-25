@@ -351,6 +351,18 @@ export function createDemoWorkspace(today = jourLocal()): State {
     dlc: plusJours(today, i === 2 ? 3 : 22 - i),
     qte: l.articleId === "eclair" ? 76 : l.qte,
   }));
+  state.lots.push({
+    id: "lot-demo-creme",
+    articleId: "demo-creme",
+    site: "Labo",
+    numero: "CR-DEMO-01",
+    qte: 4,
+    pu: 650,
+    dlc: plusJours(today, 5),
+    date: plusJours(today, -1),
+    bloque: false,
+    congele: false,
+  });
   state = createRecipe(state, "Crème mousseline vanille", "demo-creme", {
     baseYield: 2,
     lossPercent: 4,

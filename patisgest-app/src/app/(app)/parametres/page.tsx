@@ -5,7 +5,9 @@ import ModulesSettings, { type ModulesCompte } from "@/components/modules-settin
 import SitesSettings, { type SiteCompte } from "@/components/sites-settings";
 import EquipeSettings, { type EquipeDonnees } from "@/components/equipe-settings";
 import EtablissementForm from "@/components/etablissement-form";
+import TelephoneAlerteForm from "@/components/telephone-alerte-form";
 import SauvegardePanel from "@/components/sauvegarde-panel";
+import { lireStatutEssaiServeur } from "@/lib/trial-server";
 import { ThemeModeControl } from "@/components/appearance";
 import { LanguageToggle } from "@/components/locale-provider";
 import AdvancedModeToggle from "@/components/advanced-mode-toggle";
@@ -229,10 +231,15 @@ export default async function Parametres() {
   }
 
   const advancedMode = readAdvancedMode((await cookies()).get(ADVANCED_MODE_COOKIE)?.value);
+  const essaiStatut = ctx.mode === "supabase" ? await lireStatutEssaiServeur() : null;
 
   return (
     <div className="pg-stack">
       <PageIntro title="Paramètres" description={`${ctx.clientNom} · ${ROLE_LABELS[ctx.role]}`}/>
+      <TelephoneAlerteForm
+        initialPhone={essaiStatut?.utilisateurTelephone ?? null}
+        roleLabel={ROLE_LABELS[ctx.role]}
+      />
       <section className="pg-card pg-card-pad">
         <div className="pg-card-head">
           <div>
@@ -260,7 +267,10 @@ export default async function Parametres() {
       <div className="pg-stack">
         {ctx.role === "proprietaire" ? (
           <>
-            <EtablissementForm etablissement={etablissement} />
+            <EtablissementForm
+              etablissement={etablissement}
+              mode={ctx.mode === "pilote-local" ? "demo" : "supabase"}
+            />
             {ctx.mode === 'supabase' && <SitesSettings sites={sites} error={sitesError}/>}
             {ctx.mode === 'supabase' && equipeExperimentale && <EquipeSettings data={equipe} sites={sites} error={equipeError}/>}
             {ctx.mode === "supabase" ? (

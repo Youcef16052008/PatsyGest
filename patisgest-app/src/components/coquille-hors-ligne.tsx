@@ -8,6 +8,7 @@ import {
   type CatalogueHorsLigne,
   type LectureCatalogue,
 } from "@/lib/catalogue-cache";
+import TrialGuardClient from "./trial-guard-client";
 
 /**
  * NF-02 / D5 — contenu de la coquille hors-ligne.
@@ -85,8 +86,19 @@ export default function CoquilleHorsLigne() {
     () => null as unknown as boolean,
   );
 
+  const activeScopeId = useMemo(() => {
+    if (!cle) return "hors-ligne-device";
+    try {
+      const v = JSON.parse(cle) as { clientId?: string };
+      return v.clientId || "hors-ligne-device";
+    } catch {
+      return "hors-ligne-device";
+    }
+  }, [cle]);
+
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <TrialGuardClient scopeId={activeScopeId} mode="hors-ligne" showBanner={false} />
       <h1 className="text-lg font-bold text-slate-900">Mode hors-ligne</h1>
 
       {enLigne === true ? (

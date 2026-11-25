@@ -3,7 +3,7 @@
 import { cakeConnectedTotals } from "@/lib/cake-money";
 import { whatsappOrderUrl } from "@/lib/whatsapp";
 
-/** Ticket Cake Design imprimable (format ticket largeur80 mm). */
+/** Ticket commande gâteau simple (format 80 mm, style Algérie). */
 export type TicketData = {
   numero: string;
   clientNom: string;
@@ -14,9 +14,10 @@ export type TicketData = {
   tvaPct: number;
   acompte: number;
   statut: string;
+  shopName?: string;
 };
 
-const eur = (n: number) => `${Number(n).toFixed(2)} DA`;
+const da = (n: number) => `${Math.round(Number(n)).toLocaleString("fr-FR")} DA`;
 
 export default function CakeTicket({ data }: { data: TicketData }) {
   const { ttc, balance: solde } = cakeConnectedTotals(data.prixHt, data.tvaPct, data.acompte);
@@ -51,26 +52,25 @@ export default function CakeTicket({ data }: { data: TicketData }) {
         )}
       </div>
       <div className="cake-ticket mx-auto w-[80mm] border border-dashed border-slate-400 bg-white p-3 font-mono text-[11px] leading-snug text-black">
-        <div className="text-center font-bold uppercase">PâtisGest — Cake Design</div>
-        <div className="text-center font-bold">{data.numero}</div>
-        <div className="my-1 border-t border-dashed border-slate-400" />
+        <div className="text-center text-[13px] font-extrabold uppercase">{data.shopName?.trim() || "Commande Gâteau"}</div>
+        <div className="text-center text-[10px]">{data.numero}</div>
+        <div className="my-1.5 border-t border-dashed border-slate-400" />
         <div>Client : {data.clientNom}</div>
         {data.telephone && <div>Tél : {data.telephone}</div>}
-        <div>Événement : {data.dateEvent} · {data.nbParts} parts</div>
-        <div>Statut : {data.statut}</div>
-        <div className="my-1 border-t border-dashed border-slate-400" />
-        {data.tvaPct > 0 && (
+        <div>Pour le : {data.dateEvent} · {data.nbParts} parts</div>
+        <div className="my-1.5 border-t border-dashed border-slate-400" />
+        <div className="flex justify-between text-[12px] font-extrabold">
+          <span>TOTAL</span>
+          <span>{da(ttc)}</span>
+        </div>
+        {data.acompte > 0 && (
           <>
-            <div className="flex justify-between"><span>Prix de base</span><span>{eur(data.prixHt)}</span></div>
-            <div className="flex justify-between"><span>TVA {data.tvaPct} %</span><span>{eur(ttc - data.prixHt)}</span></div>
+            <div className="flex justify-between"><span>Avance payée</span><span>{da(data.acompte)}</span></div>
+            <div className="flex justify-between font-bold"><span>Reste à payer</span><span>{da(solde)}</span></div>
           </>
         )}
-        <div className="flex justify-between font-bold"><span>Total commande</span><span>{eur(ttc)}</span></div>
-        <div className="flex justify-between"><span>Acompte / payé</span><span>{eur(data.acompte)}</span></div>
-        <div className="flex justify-between font-bold"><span>Reste à payer</span><span>{eur(solde)}</span></div>
-        <div className="my-1 border-t border-dashed border-slate-400" />
-        <div className="text-center">Merci de votre confiance !</div>
-        <div className="text-center text-[9px]">CGV acceptées — conservant ce ticket</div>
+        <div className="my-1.5 border-t border-dashed border-slate-400" />
+        <div className="text-center text-[10px]">Merci de votre confiance !</div>
       </div>
     </div>
   );

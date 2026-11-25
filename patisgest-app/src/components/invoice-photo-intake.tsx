@@ -13,11 +13,13 @@ import { dinars } from "@/lib/workspace-data";
 
 export default function InvoicePhotoIntake({
   mode,
+  canReadCosts = true,
   articles,
   sites,
   onDemoReceiveLines,
 }: {
   mode: "demo" | "supabase";
+  canReadCosts?: boolean;
   articles: CatalogMatchOption[];
   sites: { id: string; label: string }[];
   onDemoReceiveLines?: (lines: { articleId: string; site: string; numero: string; qte: number; pu: number }[]) => void;
@@ -231,12 +233,12 @@ export default function InvoicePhotoIntake({
           {lines.length > 0 && (
             <div className="space-y-3">
               <div className="text-xs font-bold pg-muted">
-                Vérification humaine obligatoire avant mise en stock · Total estimé : {dinars(totalBon, false)}
+                Vérification humaine obligatoire avant mise en stock{canReadCosts ? ` · Total estimé : ${dinars(totalBon, false)}` : ""}
               </div>
               {lines.map((line, idx) => (
                 <div
                   key={line.id}
-                  className="grid gap-2 rounded-xl border p-3 sm:grid-cols-[1.5fr_90px_110px_auto] items-end"
+                  className={`grid gap-2 rounded-xl border p-3 ${canReadCosts ? "sm:grid-cols-[1.5fr_90px_110px_auto]" : "sm:grid-cols-[1.5fr_110px_auto]"} items-end`}
                   style={{ background: "var(--pg-subtle)" }}
                 >
                   <label className="pg-field">
@@ -272,21 +274,23 @@ export default function InvoicePhotoIntake({
                       className="pg-input"
                     />
                   </label>
-                  <label className="pg-field">
-                    Prix unit. (DA)
-                    <input
-                      type="number"
-                      min={0}
-                      step="any"
-                      value={line.puDa}
-                      onChange={(e) =>
-                        setLines((prev) =>
-                          prev.map((x, j) => (j === idx ? { ...x, puDa: Number(e.target.value) || 0 } : x)),
-                        )
-                      }
-                      className="pg-input"
-                    />
-                  </label>
+                  {canReadCosts && (
+                    <label className="pg-field">
+                      Prix unit. (DA)
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        value={line.puDa}
+                        onChange={(e) =>
+                          setLines((prev) =>
+                            prev.map((x, j) => (j === idx ? { ...x, puDa: Number(e.target.value) || 0 } : x)),
+                          )
+                        }
+                        className="pg-input"
+                      />
+                    </label>
+                  )}
                   <button
                     type="button"
                     onClick={() => setLines((prev) => prev.filter((_, j) => j !== idx))}

@@ -3,13 +3,37 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "./supabase/server";
 
-import { canWrite, canReadCosts, roleDisponible, type Role } from "./permissions";
+import {
+  canAccessModule,
+  canCreateOrEditCakeQuotes,
+  canDeleteRecipes,
+  canManageCreditsAdmin,
+  canManagePrices,
+  canReadCosts,
+  canSellAtPos,
+  canUseCredits,
+  canWrite,
+  roleDisponible,
+  type AppModule,
+  type Role,
+} from "./permissions";
 import { comptePilotePropre } from "./pilot-account";
 import { PILOT_ACCOUNTS } from "./pilot-accounts";
 export { PILOT_ACCOUNTS } from "./pilot-accounts";
 
-export { canWrite, canReadCosts, roleDisponible };
-export type { Role };
+export {
+  canAccessModule,
+  canCreateOrEditCakeQuotes,
+  canDeleteRecipes,
+  canManageCreditsAdmin,
+  canManagePrices,
+  canReadCosts,
+  canSellAtPos,
+  canUseCredits,
+  canWrite,
+  roleDisponible,
+};
+export type { AppModule, Role };
 
 export interface SessionContext {
   authUserId: string;

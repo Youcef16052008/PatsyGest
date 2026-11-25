@@ -1,9 +1,16 @@
 "use client";
+import { useSyncExternalStore } from "react";
+import { DEMO_CREDITS_KEY_PREFIX, starterDemoCredits, type CreditEntry } from "@/lib/credits";
+import { DEMO_OWNER_ALERTS_KEY_PREFIX, type OwnerPriceAlert } from "@/lib/owner-price-guard";
 import { demoLots, demoOrders, DEMO_SITES } from "@/lib/demo-workspace";
 import { cakeTotals, recipeCost } from "@/lib/patisgest-store";
-import { plusJours, serieVentes } from "@/lib/workspace-data";
+import { serieVentes } from "@/lib/workspace-data";
 import PilotDashboard, { type DashboardUpcomingCake } from "./pilot-dashboard";
-import { PACK_PATISSERIE_DZ } from "@/lib/pack-patisserie-dz";
+import {
+  filterPackByActivityAndVat,
+  type StarterDzActivity,
+  type StarterVatRegime,
+} from "@/lib/pack-patisserie-dz";
 import type { Role } from "@/lib/permissions";
 import DashboardWorkspace from "./dashboard-workspace";
 import DemoCaisse from "./demo-caisse";
@@ -13,18 +20,77 @@ export default function DemoDashboard({ nom, shop, role }: { nom: string; shop: 
   const { data, save } = useDemoWorkspace();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Algiers", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
-  function importPackIntoDemo() {
+  const demoCreditsSnapshot = useSyncExternalStore(
+    (cb) => {
+      window.addEventListener("storage", cb);
+      window.addEventListener("patisgest-credits-updated", cb);
+      return () => {
+        window.removeEventListener("storage", cb);
+        window.removeEventListener("patisgest-credits-updated", cb);
+      };
+    },
+    () => {
+      try {
+        return window.localStorage.getItem(`${DEMO_CREDITS_KEY_PREFIX}demo`) ?? "__SEED__";
+      } catch {
+        return "__SEED__";
+      }
+    },
+    () => "",
+  );
+
+  const demoAlertsSnapshot = useSyncExternalStore(
+    (cb) => {
+      window.addEventListener("storage", cb);
+      window.addEventListener("patisgest-owner-alerts", cb);
+      return () => {
+        window.removeEventListener("storage", cb);
+        window.removeEventListener("patisgest-owner-alerts", cb);
+      };
+    },
+    () => {
+      try {
+        return window.localStorage.getItem(`${DEMO_OWNER_ALERTS_KEY_PREFIX}demo`) ?? "[]";
+      } catch {
+        return "[]";
+      }
+    },
+    () => "[]",
+  );
+
+  const initialCredits: CreditEntry[] = (() => {
+    if (!demoCreditsSnapshot) return [];
+    if (demoCreditsSnapshot === "__SEED__") return starterDemoCredits(today);
+    try {
+      const parsed = JSON.parse(demoCreditsSnapshot);
+      return Array.isArray(parsed) ? parsed : starterDemoCredits(today);
+    } catch {
+      return starterDemoCredits(today);
+    }
+  })();
+
+  const initialOwnerAlerts: OwnerPriceAlert[] = (() => {
+    try {
+      const parsed = JSON.parse(demoAlertsSnapshot);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  })();
+
+  function importPackIntoDemo(activity: StarterDzActivity = "mixte", tvaRegime: StarterVatRegime = "ifu_0") {
     if (!data) return;
     const existingCodes = new Set(data.articles.map((a) => a.code.toLowerCase()));
-    const added = PACK_PATISSERIE_DZ.filter((item) => !existingCodes.has(item.code.toLowerCase())).map((item) => ({
+    const selected = filterPackByActivityAndVat(activity, tvaRegime);
+    const added = selected.filter((item) => !existingCodes.has(item.code.toLowerCase())).map((item) => ({
       id: crypto.randomUUID(),
       code: item.code,
       nom: item.nom,
       niveau: item.niveau,
       unite: item.unite,
       seuil: item.seuil,
-      prix: item.prixDa,
-      tva: 0,
+      prix: item.pvHt,
+      tva: item.tva,
     }));
     if (added.length > 0) {
       save({ ...data, articles: [...data.articles, ...added] });
@@ -134,7 +200,7 @@ export default function DemoDashboard({ nom, shop, role }: { nom: string; shop: 
             niveau: a.niveau,
             unite: a.unite,
             seuil: a.seuil,
-            prixTTC: Math.round(a.prix * (1 + a.tva / 100) * 100) / 100,
+            prixTTC: owner ? Math.round(a.prix * (1 + a.tva / 100) * 100) / 100 : 0,
           })) ?? null
         }
         lots={data ? demoLots(data) : null}
@@ -148,6 +214,8 @@ export default function DemoDashboard({ nom, shop, role }: { nom: string; shop: 
         upcomingCakes={upcomingCakes}
         mode="demo"
         scopeKey="demo"
+        initialCredits={owner ? initialCredits : []}
+        initialOwnerAlerts={owner ? initialOwnerAlerts : []}
         onDemoImportPack={importPackIntoDemo}
       />
     );
@@ -159,12 +227,12 @@ export default function DemoDashboard({ nom, shop, role }: { nom: string; shop: 
       shop={shop}
       today={today}
       seller={seller}
-      canReadRecipes={!seller}
-      series={data ? serieVentes(data.sales, today) : null}
-      articles={data?.articles ?? null}
+      canReadRecipes={false}
+      series={null}
+      articles={data?.articles.map((a) => ({ ...a, prix: 0, tva: 0 })) ?? null}
       lots={data ? demoLots(data) : null}
-      orders={data ? demoOrders(data) : null}
-      caisse={<DemoCaisse dashboard shop={shop} />}
+      orders={null}
+      caisse={<DemoCaisse dashboard shop={shop} canEdit={false} canManageCreditsAdmin={false} />}
     />
   );
 }

@@ -1,7 +1,7 @@
 import { canReadCosts, canWrite, requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { compterGuide } from "@/lib/onboarding-server";
-import { articleAffiche, lireArticles, lireArticlesQuantites, lireLots, lireProduction, lireSites, lireVentesJours, lireVentesPeriode } from "@/lib/workspace-read";
+import { articleAffiche, lireArticles, lireArticlesQuantites, lireLots, lireProduction, lireSites, lireVentesPeriode } from "@/lib/workspace-read";
 import { plusJours, serieVentes } from "@/lib/workspace-data";
 import DashboardWorkspace from "@/components/dashboard-workspace";
 import DemoDashboard from "@/components/demo-dashboard";
@@ -78,12 +78,15 @@ export default async function Dashboard() {
   const afficheOnboarding = ctx.mode === 'supabase' && coutsAutorises && canWrite(ctx.role);
   const guide = afficheOnboarding ? compterGuide(ctx, db) : null;
   const sitesPromise = lireSites(db, clientId);
-  const [articles, lots, sites, orders, ventes, progression, identite] = await Promise.all([
-    lireArticles(db, clientId), lireLots(db, clientId, ctx.role), sitesPromise,
-    sitesPromise.then(s => lireProduction(db, clientId, s, today, ctx.role)), lireVentesJours(db, clientId, today), guide, lireIdentiteCaisse(db, ctx),
+  const [articles, lots, sites, progression, identite] = await Promise.all([
+    lireArticles(db, clientId, seller),
+    lireLots(db, clientId, ctx.role),
+    sitesPromise,
+    guide,
+    lireIdentiteCaisse(db, ctx),
   ]);
   return <DashboardWorkspace nom={nom} shop={ctx.clientNom} today={today} canReadRecipes={coutsAutorises} seller={seller}
-    articles={articles?.map(articleAffiche) ?? null} lots={lots} orders={orders} series={ventes ? serieVentes(ventes, today) : null}
+    articles={articles?.map(articleAffiche) ?? null} lots={lots} orders={null} series={null}
     guide={progression ? <OnboardingPanel progression={progression}/> : afficheOnboarding ? <Notice kind="warning">Guide indisponible. Vérifiez votre connexion et rechargez la page.</Notice> : null}
     caisse={<CashPanel queueIdentity={{clientId:ctx.clientId,authUserId:ctx.authUserId}} articles={articles} sites={sites} lots={lots} identite={identite} clientId={ctx.clientId}/>}/>;
 }

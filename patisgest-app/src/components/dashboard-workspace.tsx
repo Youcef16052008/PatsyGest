@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { colonneProduction, dateLisible, dinars, indexLots, quantite, stockArticle,
   type ProductionItem, type StockArticle, type StockLot, type VentesJour } from "@/lib/workspace-data";
+import { canAccessModule } from "@/lib/permissions";
 import { WORKSPACE_LINKS } from "@/lib/workspace-nav";
 import { Icon, type IconName } from "./workspace-icons";
 import { EmptyState, Notice, PageIntro } from "./workspace-ui";
@@ -22,7 +23,11 @@ export default function DashboardWorkspace({ nom, shop, today, series, articles,
   const lotsParArticle = indexLots(lots ?? []);
   const alertes = articles && lots ? articles.map(a => ({ a, ...stockArticle(a, lotsParArticle.get(a.id) ?? [], today) })).filter(s => s.signals.length)
     .sort((a,b) => Number(b.signals[0].tone === "danger") - Number(a.signals[0].tone === "danger") || a.a.nom.localeCompare(b.a.nom,"fr")) : null;
-  const liens = WORKSPACE_LINKS.filter(l => (l.primary && l.href !== "/tableau-de-bord" || l.href === "/cake-design") && (canReadRecipes || l.href !== "/recettes"));
+  const liens = WORKSPACE_LINKS.filter(l =>
+    (l.primary && l.href !== "/tableau-de-bord" || l.href === "/cake-design") &&
+    (canReadRecipes || l.href !== "/recettes") &&
+    (!seller || canAccessModule("vendeur", l.href.slice(1)))
+  );
   const premier = seller ? { lien: "/caisse", nom: "Ouvrir la caisse", info: "Choisissez un produit pour enregistrer une vente.", icon: "receipt" as const }
     : alertes?.length ? { lien: "/stocks?filtre=alerte", nom: "Vérifier les stocks", info: `${alertes.length} ${alertes.length === 1 ? "article à surveiller" : "articles à surveiller"}.`, icon: "box" as const }
     : { lien: "/production", nom: "Consulter les fournées", info: prochains?.length ? `${prochains.length} à lancer.` : "Retrouvez le planning de fabrication.", icon: "layers" as const };
@@ -51,14 +56,23 @@ export default function DashboardWorkspace({ nom, shop, today, series, articles,
       <Link className="pg-button" href={premier.lien}><Icon name={premier.icon} size={17}/> {premier.nom}<Icon name="arrow" size={16}/></Link>
     </section>
     <section className="pg-home-kpis" aria-label="Indicateurs du jour">
-      <Metric label="Ventes du jour" value={ventes && dinars(ventes.ttc, false)} hint={ventes ? `${ventes.tickets} ${ventes.tickets === 1 ? "ticket" : "tickets"} · TTC` : "Lecture indisponible"} href="/caisse" icon="trend"/>
-      <Metric label="Tickets du jour" value={ventes?.tickets} hint={ventes && ventes.tickets > 0 ? `${dinars(ventes.ttc / ventes.tickets)} en moyenne` : ventes ? "Aucun ticket enregistré" : "Lecture indisponible"} href="/caisse" icon="receipt" extra="pg-metric-pilotage"/>
-      <Metric label="Fournées en cours" value={enCours} hint={prochains ? `${prochains.length} à lancer` : "Lecture indisponible"} href="/production" icon="layers"/>
+      {!seller ? (
+        <>
+          <Metric label="Ventes du jour" value={ventes && dinars(ventes.ttc, false)} hint={ventes ? `${ventes.tickets} ${ventes.tickets === 1 ? "ticket" : "tickets"} · encaissé` : "Lecture indisponible"} href="/caisse" icon="trend"/>
+          <Metric label="Tickets du jour" value={ventes?.tickets} hint={ventes && ventes.tickets > 0 ? `${dinars(ventes.ttc / ventes.tickets)} en moyenne` : ventes ? "Aucun ticket enregistré" : "Lecture indisponible"} href="/caisse" icon="receipt" extra="pg-metric-pilotage"/>
+          <Metric label="Fournées en cours" value={enCours} hint={prochains ? `${prochains.length} à lancer` : "Lecture indisponible"} href="/production" icon="layers"/>
+        </>
+      ) : (
+        <>
+          <Metric label="Comptage du soir" value="Tiroir caisse" hint="Saisir le comptage en fin de journée" href="/cloture" icon="check"/>
+          <Metric label="Commandes gâteaux" value="Boutique" hint="Encaisser acomptes et livraisons" href="/cake-design" icon="cake"/>
+        </>
+      )}
       <Metric label="Articles à surveiller" value={alertes?.length} hint={alertes ? "Rupture, seuil ou date limite" : "Lecture indisponible"} href="/stocks?filtre=alerte" icon="alert"/>
     </section>
-    <div className="pg-home-board"><ProductionBoard orders={orders} preview/></div>
+    {!seller && <div className="pg-home-board"><ProductionBoard orders={orders} preview/></div>}
     <div className="pg-home-panels">
-      <SalesChart series={series}/>
+      {!seller && <SalesChart series={series}/>}
       <section className="pg-card pg-card-pad pg-home-alerts">
         <div className="pg-card-head"><h2>À surveiller</h2><Link className="pg-text-link" href="/stocks?filtre=alerte">Voir les stocks <Icon name="arrow" size={16}/></Link></div>
         {!alertes ? <Notice kind="warning">L’état du stock n’a pas pu être vérifié.</Notice> : alertes.length ? <ul className="pg-home-rows">{alertes.slice(0,3).map(s => <li key={s.a.id}>
@@ -67,13 +81,15 @@ export default function DashboardWorkspace({ nom, shop, today, series, articles,
           <span className="pg-badge" data-tone={s.signals[0].tone}>{s.signals[0].label}</span>
         </li>)}</ul> : <EmptyState icon="check" title="Aucun article à surveiller" text="Les quantités et dates limite ne signalent pas d’alerte."/>}
       </section>
-      <section className="pg-card pg-card-pad pg-home-agenda">
-        <div className="pg-card-head"><h2>Prochaines fournées</h2><Link className="pg-text-link" href="/production">Production <Icon name="arrow" size={16}/></Link></div>
-        {!prochains ? <Notice kind="warning">Le planning n’a pas pu être chargé.</Notice> : prochains.length ? <ul className="pg-home-rows">{prochains.slice(0,3).map(o => <li key={o.id}>
-          <span className="pg-emblem"><Icon name="calendar" size={18}/></span><span><b>{o.title}</b><small>{quantite(o.planned)} prévues{o.site ? ` · ${o.site}` : ""}</small></span>
-          <span className="pg-badge">{dateLisible(o.date, "short")}</span>
-        </li>)}</ul> : <EmptyState icon="layers" title="Aucune fournée à lancer" text="Planifiez une fabrication depuis Production."/>}
-      </section>
+      {!seller && (
+        <section className="pg-card pg-card-pad pg-home-agenda">
+          <div className="pg-card-head"><h2>Prochaines fournées</h2><Link className="pg-text-link" href="/production">Production <Icon name="arrow" size={16}/></Link></div>
+          {!prochains ? <Notice kind="warning">Le planning n’a pas pu être chargé.</Notice> : prochains.length ? <ul className="pg-home-rows">{prochains.slice(0,3).map(o => <li key={o.id}>
+            <span className="pg-emblem"><Icon name="calendar" size={18}/></span><span><b>{o.title}</b><small>{quantite(o.planned)} prévues{o.site ? ` · ${o.site}` : ""}</small></span>
+            <span className="pg-badge">{dateLisible(o.date, "short")}</span>
+          </li>)}</ul> : <EmptyState icon="layers" title="Aucune fournée à lancer" text="Planifiez une fabrication depuis Production."/>}
+        </section>
+      )}
     </div>
     <section className="pg-home-shortcuts" aria-label="Raccourcis métier">
       <div className="pg-card-head"><h2>Vos raccourcis</h2></div>

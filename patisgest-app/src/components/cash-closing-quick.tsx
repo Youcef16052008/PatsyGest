@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
 import { validerComptageTiroir } from "@/lib/actions-journaux";
 import { whatsappDailyClosingUrl } from "@/lib/whatsapp";
@@ -36,9 +36,30 @@ export default function CashClosingQuickWidget({
   const [fondInitial, setFondInitial] = useState<string>("0");
   const [especesComptees, setEspecesComptees] = useState<string>("");
   const [ownerPhone, setOwnerPhone] = useState<string>(ownerPhoneDefault);
-  const [closedState, setClosedState] = useState(alreadyClosed);
+  const [closedOverride, setClosedOverride] = useState(false);
   const [savedNotice, setSavedNotice] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const localDemoClosed = useSyncExternalStore(
+    (cb) => {
+      window.addEventListener("storage", cb);
+      window.addEventListener("patisgest-caisse-soir", cb);
+      return () => {
+        window.removeEventListener("storage", cb);
+        window.removeEventListener("patisgest-caisse-soir", cb);
+      };
+    },
+    () => {
+      if (mode !== "demo") return false;
+      try {
+        return Boolean(window.localStorage.getItem(`patisgest.caisse_soir.${today}`));
+      } catch {
+        return false;
+      }
+    },
+    () => false,
+  );
+  const closedState = alreadyClosed || closedOverride || localDemoClosed;
 
   const fond = Math.max(0, Number(fondInitial) || 0);
   const totalAttenduTiroir = Math.round((fond + expectedCashDa) * 100) / 100;
@@ -66,12 +87,13 @@ export default function CashClosingQuickWidget({
         `patisgest.caisse_soir.${today}`,
         JSON.stringify({ fond, comptees, expectedCashDa, ecart, savedAt: new Date().toISOString() }),
       );
+      window.dispatchEvent(new Event("patisgest-caisse-soir"));
     } catch {
       /* ignore localStorage quota */
     }
 
     if (mode !== "supabase" || !siteId) {
-      setClosedState(true);
+      setClosedOverride(true);
       setSavedNotice({ kind: "success", text: "Vérification enregistrée pour ce soir." });
       return;
     }
@@ -85,7 +107,7 @@ export default function CashClosingQuickWidget({
         attendu: expectedCashDa,
       });
       if (res.ok) {
-        setClosedState(true);
+        setClosedOverride(true);
         setSavedNotice({ kind: "success", text: res.succes ?? "Clôture du tiroir enregistrée ✓" });
       } else {
         setSavedNotice({ kind: "error", text: res.erreur ?? "Impossible d’enregistrer sur le serveur." });

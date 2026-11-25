@@ -10,7 +10,7 @@ import {
   type CreditAccountType,
   type CreditEntry,
 } from "@/lib/credits";
-import { createCreditCloud, payCreditCloud } from "@/lib/actions-credits";
+import { cancelCreditCloud, createCreditCloud, payCreditCloud, updateCreditTotalCloud } from "@/lib/actions-credits";
 import { whatsappCreditReminderUrl } from "@/lib/whatsapp";
 import { dinars } from "@/lib/workspace-data";
 
@@ -21,6 +21,7 @@ export default function CreditsWorkspace({
   today,
   initialCredits = [],
   compact = false,
+  canManageAdmin = false,
 }: {
   mode: "demo" | "supabase";
   scopeKey: string;
@@ -28,6 +29,7 @@ export default function CreditsWorkspace({
   today: string;
   initialCredits?: CreditEntry[];
   compact?: boolean;
+  canManageAdmin?: boolean;
 }) {
   const storageKey = `${DEMO_CREDITS_KEY_PREFIX}${scopeKey}`;
   const [cloudCredits, setCloudCredits] = useState<CreditEntry[]>(initialCredits);
@@ -69,6 +71,8 @@ export default function CreditsWorkspace({
   const [showAdd, setShowAdd] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTotal, setEditTotal] = useState("");
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -162,13 +166,76 @@ export default function CreditsWorkspace({
     });
   }
 
+  function handleEditTotal(credit: CreditEntry, newTotal: number) {
+    if (!canManageAdmin || !Number.isFinite(newTotal) || newTotal <= 0) return;
+    setFeedback(null);
+    if (mode === "demo") {
+      persistDemo(
+        credits.map((c) =>
+          c.id === credit.id
+            ? {
+                ...c,
+                montantTotalDa: newTotal,
+                statut: newTotal <= c.montantRegleDa ? "solde" : "ouvert",
+              }
+            : c,
+        ),
+      );
+      setEditingId(null);
+      setEditTotal("");
+      setFeedback({ kind: "success", text: `Montant mis à jour pour ${credit.nomDebiteur}.` });
+      return;
+    }
+    startTransition(async () => {
+      const res = await updateCreditTotalCloud(credit.id, newTotal);
+      if (!res.ok) {
+        setFeedback({ kind: "error", text: res.erreur ?? "Modification refusée." });
+      } else {
+        setCloudCredits(
+          cloudCredits.map((c) =>
+            c.id === credit.id
+              ? {
+                  ...c,
+                  montantTotalDa: newTotal,
+                  statut: newTotal <= c.montantRegleDa ? "solde" : "ouvert",
+                }
+              : c,
+          ),
+        );
+        setEditingId(null);
+        setEditTotal("");
+        setFeedback({ kind: "success", text: `Montant mis à jour pour ${credit.nomDebiteur}.` });
+      }
+    });
+  }
+
+  function handleCancelCredit(credit: CreditEntry) {
+    if (!canManageAdmin) return;
+    if (!window.confirm(`Annuler la dette de ${credit.nomDebiteur} ?`)) return;
+    setFeedback(null);
+    if (mode === "demo") {
+      persistDemo(credits.map((c) => (c.id === credit.id ? { ...c, statut: "annule" } : c)));
+      setFeedback({ kind: "success", text: `Dette de ${credit.nomDebiteur} annulée.` });
+      return;
+    }
+    startTransition(async () => {
+      const res = await cancelCreditCloud(credit.id);
+      if (!res.ok) {
+        setFeedback({ kind: "error", text: res.erreur ?? "Annulation refusée." });
+      } else {
+        setCloudCredits(cloudCredits.map((c) => (c.id === credit.id ? { ...c, statut: "annule" } : c)));
+        setFeedback({ kind: "success", text: `Dette de ${credit.nomDebiteur} annulée.` });
+      }
+    });
+  }
+
   const openList = credits
     .filter((c) => c.statut === "ouvert")
     .filter((c) => (filter === "tous" ? true : c.typeCompte === filter));
   const totalOpen = sumOpenCreditsDa(credits);
 
   return (
-    <section className="pg-card pg-card-pad pg-stack">
+    <section id="carnet-credits" className="pg-card pg-card-pad pg-stack">
       <div className="pg-card-head">
         <div>
           <h2>Crédits clients &amp; Cafés (Carnet)</h2>
@@ -303,7 +370,49 @@ export default function CreditsWorkspace({
                       Relancer WhatsApp
                     </a>
                   )}
+                  {canManageAdmin && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingId(editingId === c.id ? null : c.id);
+                          setEditTotal(String(c.montantTotalDa));
+                        }}
+                        className="pg-button pg-button-secondary text-xs"
+                      >
+                        Modifier montant
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => handleCancelCredit(c)}
+                        className="pg-button pg-button-secondary text-xs text-red-700"
+                      >
+                        Annuler dette
+                      </button>
+                    </>
+                  )}
                 </div>
+                {editingId === c.id && canManageAdmin && (
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <input
+                      type="number"
+                      min={1}
+                      step="any"
+                      value={editTotal}
+                      onChange={(e) => setEditTotal(e.target.value)}
+                      className="pg-input w-40"
+                    />
+                    <button
+                      type="button"
+                      disabled={pending || !(Number(editTotal) > 0)}
+                      onClick={() => handleEditTotal(c, Number(editTotal))}
+                      className="pg-button text-xs"
+                    >
+                      Enregistrer
+                    </button>
+                  </div>
+                )}
                 {payingId === c.id && (
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     <input

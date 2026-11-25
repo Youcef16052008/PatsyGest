@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   computeCashSummary,
   dashboardInsights,
+  productVelocity,
   topSellingProducts,
   type DashboardSale,
 } from "@/lib/dashboard-insights";
@@ -26,6 +27,7 @@ import CreditsWorkspace from "./credits-workspace";
 import ExpressOnboarding from "./express-onboarding";
 import OwnerPriceAlerts from "./owner-price-alerts";
 import KitchenLabScreen from "./kitchen-lab-screen";
+import ShopAdvisorPanel from "./shop-advisor-panel";
 import { Tr } from "./locale-provider";
 import { Icon } from "./workspace-icons";
 import { Notice } from "./workspace-ui";
@@ -89,12 +91,18 @@ export default function PilotDashboard({
   initialCredits?: CreditEntry[];
   creditsTableAvailable?: boolean;
   initialOwnerAlerts?: OwnerPriceAlert[];
-  onDemoImportPack?: () => void;
+  onDemoImportPack?: (activity: import("@/lib/pack-patisserie-dz").StarterDzActivity, tvaRegime: import("@/lib/pack-patisserie-dz").StarterVatRegime) => void;
 }) {
   const insight = dashboardInsights(series, articles, lots, today);
   const topProducts = topSellingProducts(sales, articles, today, 7);
+  const velocityList = productVelocity(sales, articles, lots, today, shopIds) ?? [];
+  const velocityById = new Map(velocityList.map((v) => [v.id, v]));
   const cashToday = computeCashSummary(sales, today);
   const todaySales = series?.at(-1);
+  const avgTicketToday =
+    (todaySales?.tickets ?? 0) > 0 && (todaySales?.ttc ?? 0) > 0
+      ? Math.round((todaySales?.ttc ?? 0) / (todaySales?.tickets ?? 1))
+      : null;
   const byArticle = indexLots(lots ?? []);
   const low =
     articles && lots
@@ -135,7 +143,7 @@ export default function PilotDashboard({
           <h1>Bonjour {nom}.</h1>
           <p className="pg-page-description">
             {owner
-              ? "Ventes, bénéfice estimé, commandes à livrer et caisse du jour — tout l’essentiel en un coup d’œil."
+              ? "Pilotage complet Boulangerie, Viennoiserie, Pâtisserie & Cake Shop : seuil de rentabilité, alertes robot anti-perte, caisse et commandes."
               : "Vos fournées à préparer et les quantités disponibles en stock."}
           </p>
           <div className="pg-dash-hero-actions">
@@ -179,6 +187,18 @@ export default function PilotDashboard({
               onDemoImportPack={onDemoImportPack}
             />
           )}
+          <ShopAdvisorPanel
+            scopeKey={scopeKey}
+            today={today}
+            series={series}
+            sales={sales}
+            articles={articles}
+            lots={lots}
+            shopIds={shopIds}
+            openCreditsDa={openCreditsTotal}
+            pendingPriceAlertsCount={initialOwnerAlerts.filter((a) => a.traiteStatut === "en_attente").length}
+            estimatedMarginPct={displayedMarginPct}
+          />
           {/* 4 cartes KPI fortes */}
           <section className="pg-home-kpis" aria-label="Indicateurs clés du jour">
             <Link href="/caisse" className="pg-card pg-metric">
@@ -192,8 +212,10 @@ export default function PilotDashboard({
               <small>
                 {series
                   ? `${todaySales?.tickets ?? 0} ticket${(todaySales?.tickets ?? 0) > 1 ? "s" : ""}${
+                      avgTicketToday ? ` · Moy. ${dinars(avgTicketToday, false)}` : ""
+                    }${
                       insight.variation !== null
-                        ? ` · ${insight.variation >= 0 ? "+" : ""}${insight.variation.toFixed(0)} % vs sem. dern.`
+                        ? ` · ${insight.variation >= 0 ? "+" : ""}${insight.variation.toFixed(0)} % vs sem.`
                         : ""
                     }`
                   : "Lecture indisponible"}
@@ -277,29 +299,40 @@ export default function PilotDashboard({
                 <p className="pg-muted text-sm">Aucune vente enregistrée sur les 7 derniers jours.</p>
               ) : (
                 <ul className="space-y-3">
-                  {topProducts.map((p, idx) => (
-                    <li key={p.id} className="space-y-1">
-                      <div className="flex items-center justify-between gap-2 text-sm">
-                        <span className="font-bold">
-                          <span className="pg-muted mr-1.5">#{idx + 1}</span>
-                          {p.nom}
-                        </span>
-                        <span className="text-right font-bold">
-                          {quantite(p.qty, p.unite)}
-                          {p.revenueDa > 0 ? ` · ${dinars(p.revenueDa, false)}` : ""}
-                        </span>
-                      </div>
-                      <div className="h-2.5 w-full overflow-hidden rounded-full" style={{ background: "var(--pg-subtle)" }}>
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${Math.max(8, p.sharePct)}%`,
-                            background: "var(--pg-accent)",
-                          }}
-                        />
-                      </div>
-                    </li>
-                  ))}
+                  {topProducts.map((p, idx) => {
+                    const vel = velocityById.get(p.id);
+                    return (
+                      <li key={p.id} className="space-y-1">
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                          <span className="font-bold">
+                            <span className="pg-muted mr-1.5">#{idx + 1}</span>
+                            {p.nom}
+                            {vel && (
+                              <span
+                                className="ml-2 pg-badge"
+                                data-tone={vel.days < 1.5 ? "danger" : vel.days < 3 ? "warning" : "neutral"}
+                              >
+                                {vel.days < 0.5 ? "Stock épuisé" : `~${vel.days.toFixed(1)}j stock`}
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-right font-bold">
+                            {quantite(p.qty, p.unite)}
+                            {p.revenueDa > 0 ? ` · ${dinars(p.revenueDa, false)}` : ""}
+                          </span>
+                        </div>
+                        <div className="h-2.5 w-full overflow-hidden rounded-full" style={{ background: "var(--pg-subtle)" }}>
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${Math.max(8, p.sharePct)}%`,
+                              background: "var(--pg-accent)",
+                            }}
+                          />
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </section>
@@ -396,6 +429,7 @@ export default function PilotDashboard({
               today={today}
               initialCredits={initialCredits}
               compact
+              canManageAdmin={owner}
             />
           )}
         </>

@@ -2,7 +2,7 @@ import LabWorkspace from "@/components/lab-workspace";
 import { lireModulesDesactives } from "@/lib/modules-access";
 import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { canReadCosts, canWrite, requireSession } from "@/lib/auth";
+import { canAccessModule, canReadCosts, canWrite, requireSession } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import DemoModule from "@/components/demo-module";
 import ClotureForm from "@/components/cloture-form";
@@ -38,6 +38,7 @@ import ListeCoursesPanel from "@/components/liste-courses-panel";
 import ChargeCapacitePanel from "@/components/charge-capacite-panel";
 import { lireListeCourses } from "@/lib/courses-server";
 import FreeRecipesWorkspace from "@/components/free-recipes-workspace";
+import SellerBlindClosing from "@/components/seller-blind-closing";
 import { loadFreeRecipesCloud } from "@/lib/actions-free-recipes";
 
 const modules = {
@@ -69,7 +70,7 @@ const moduleDescriptions: Partial<Record<Module, string>> = {
 };
 const columnLabels: Record<string, string> = {
   numero: "Référence", nom: "Nom", statut: "État", code: "Code", qte: "Quantité", qte_rest: "Reste en stock", qte_init: "Quantité reçue",
-  dlc: "DLC", date_reception: "Réception", pv_ht: "Prix de vente HT", prix_ht: "Montant HT", pu: "Prix unitaire", fait: "Terminé", bloque: "Bloqué",
+  dlc: "DLC", date_reception: "Réception", pv_ht: "Prix de vente", prix_ht: "Montant", pu: "Prix unitaire", fait: "Terminé", bloque: "Bloqué",
   date_event: "Date de l’événement", client_nom: "Client", nb_parts: "Parts", rendement_qte: "Rendement", rendement_unite: "Unité",
   responsable: "Responsable", motif: "Motif", mode_paiement: "Règlement",
 };
@@ -137,6 +138,7 @@ export default async function ModulePage({ params, searchParams }: {
   if (modulesDesactives.has(key)) return <p role="alert">Ce module est désactivé pour votre compte. Contactez le propriétaire.</p>;
   const coutsAutorises = canReadCosts(ctx.role);
   if (modulesCout.has(key) && !coutsAutorises && !(ctx.role === 'labo' && key === 'recettes')) redirect('/tableau-de-bord');
+  if (!canAccessModule(ctx.role, key)) redirect('/tableau-de-bord');
   const recherche = await searchParams;
   const filtre = recherche.filtre === 'alerte' ? 'alerte' : undefined;
   let limitationSites: ReactNode = null;
@@ -164,6 +166,16 @@ export default async function ModulePage({ params, searchParams }: {
   if (key === 'stocks') return <StockWorkspace ctx={ctx} db={supabase} filtre={filtre}/>;
   if (key === 'caisse') return <CashWorkspace ctx={ctx} db={supabase}/>;
   if (key === 'production') return <ProductionWorkspace ctx={ctx} db={supabase}/>;
+  if (key === 'cloture' && ctx.role === 'vendeur') {
+    const { data: sitesData } = await supabase.from('sites').select('id, nom, type').eq('client_id', ctx.clientId).order('nom');
+    const boutiqueSites = ((sitesData ?? []) as { id: string; nom: string; type?: string | null }[])
+      .filter((s) => !s.type || s.type === 'boutique')
+      .map((s) => ({ id: s.id, label: s.nom }));
+    return <>
+      <PageIntro title="Comptage de caisse" description="Comptez les espèces de votre tiroir en fin de journée." />
+      <SellerBlindClosing sites={boutiqueSites} mode="supabase" today={jourLocal()} />
+    </>;
+  }
   const results=await Promise.all(tables.map(async ([table,label])=> {
     const colonnes = estTableCout(table) ? tablesCout[table] : '*';
     const source=ctx.role==='vendeur' ? (table==='lots' ? 'vendeur_lots' : table==='ordres_fabrication' ? 'vendeur_ordres_fabrication' : table) : table;
@@ -341,7 +353,7 @@ export default async function ModulePage({ params, searchParams }: {
     writeForms=<>
       <ClotureForm
         sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
-        articles={((artRes.data??[]) as {id:string;code:string;nom:string;pv_ht:number|null}[]).map(a=>({id:a.id,label:`${a.code} — ${a.nom} (${Number(a.pv_ht??0).toLocaleString('fr-FR')} DA HT)`}))}
+        articles={((artRes.data??[]) as {id:string;code:string;nom:string;pv_ht:number|null}[]).map(a=>({id:a.id,label:`${a.code} — ${a.nom} (${Number(a.pv_ht??0).toLocaleString('fr-FR')} DA)`}))}
       />
       <ReconPanel entries={recon} cashEntries={cashRecon} siteLabels={siteLabels} ventesTronquees={Boolean(ventesPeriode?.truncated)} ventesChargees={venteRows.length} />
       <ExportPanel tables={TABLES_EXPORT.filter(t=>!t.cout||canReadCosts(ctx.role)).map(t=>({cle:t.cle,titre:t.titre,cout:t.cout}))} />
@@ -422,7 +434,7 @@ export default async function ModulePage({ params, searchParams }: {
     writeForms=<><ListeCoursesPanel donnees={courses} peutVoir={canReadCosts(ctx.role)} /><FournisseurForm /><CommandeForms
       alerts={priceAlerts}
       fournisseurs={fourRows.map(f=>({id:f.id,label:f.nom}))}
-      articles={((artRes.data??[]) as {id:string;code:string;nom:string;pv_ht:number|null}[]).map(a=>({id:a.id,label:a.pv_ht&&Number(a.pv_ht)>0?`${a.code} — ${a.nom} (PV ${Number(a.pv_ht).toLocaleString('fr-FR')} DA HT)`:`${a.code} — ${a.nom}`}))}
+      articles={((artRes.data??[]) as {id:string;code:string;nom:string;pv_ht:number|null}[]).map(a=>({id:a.id,label:a.pv_ht&&Number(a.pv_ht)>0?`${a.code} — ${a.nom} (${Number(a.pv_ht).toLocaleString('fr-FR')} DA)`:`${a.code} — ${a.nom}`}))}
       sites={((sitesRes.data??[]) as {id:string;nom:string}[]).map(s=>({id:s.id,label:s.nom}))}
       commandes={cmdRows.map(c=>({id:c.id,numero:c.numero,statut:c.statut,fournisseur:fourById.get(c.fournisseur_id)??"",lignes:c.lignes??[]}))}
     /></>;

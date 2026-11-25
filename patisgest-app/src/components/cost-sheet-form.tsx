@@ -58,7 +58,7 @@ export default function CostSheetForm({ produits }: { produits: Option[] }) {
         <p className="mb-3 text-xs text-slate-500">
           Version active du produit · matières au coût <b>FEFO</b> avec parage (RC-01) ·
           cuisson déduite du rendement (RC-02) · <b>jamais de TVA dans le coût</b> (RC-05) ·
-          marge toujours sur <b>PV HT</b> (RC-06).
+          marge sur <b>Prix de vente</b> (RC-06).
         </p>
         <form action={action} className="flex flex-wrap items-end gap-3">
           <label className={`${label} min-w-56 flex-1`}>Produit
@@ -138,7 +138,7 @@ export default function CostSheetForm({ produits }: { produits: Option[] }) {
               <ul className="mt-1 space-y-0.5">
                 <li className="flex justify-between"><span>Rendement net (RC-02)</span><b>{state.net} {state.rendement?.split(" ")[1]}</b></li>
                 <li className="flex justify-between"><span>Coût / portion (RC-05)</span><b>{da(state.portion ?? 0)}</b></li>
-                <li className="flex justify-between"><span>PV HT</span><b>{da(state.pvHt ?? 0)}</b></li>
+                <li className="flex justify-between"><span>Prix de vente</span><b>{da(state.pvHt ?? 0)}</b></li>
                 <li className="flex justify-between"><span>Marge (RC-06)</span><b className={ (state.marge ?? 0) >= 0 ? "text-emerald-700" : "text-red-700"}>{da(state.marge ?? 0)}</b></li>
                 <li className="flex justify-between border-t pt-1 text-base font-black"><span>Taux de marge</span>
                   <span>{(((state.taux ?? 0) * 100)).toFixed(2)} %</span></li>
@@ -149,7 +149,7 @@ export default function CostSheetForm({ produits }: { produits: Option[] }) {
               <ul className="mt-1 space-y-0.5">
                 <li className="flex justify-between"><span>Taux de perte (jeté+casse÷fabriqué)</span>
                   <b>{(((state.perte?.taux ?? 0) * 100)).toFixed(2)} %</b></li>
-                <li className="flex justify-between"><span>Manque à gagner (× PV HT)</span><b>{da(state.perte?.manque ?? 0)}</b></li>
+                <li className="flex justify-between"><span>Manque à gagner (× prix vente)</span><b>{da(state.perte?.manque ?? 0)}</b></li>
                 <li className="text-xs text-slate-500">Source : {state.perte?.source ?? "—"}</li>
               </ul>
             </div>
