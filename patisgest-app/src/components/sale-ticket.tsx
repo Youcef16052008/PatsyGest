@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { avertissementsTicket, enteteTicket, type Etablissement } from "@/lib/etablissement";
 import { isPaymentMode, PAYMENT_MODE_LABELS, type PaymentMode } from "@/lib/pos-cart";
+import { whatsappSaleReceiptUrl } from "@/lib/whatsapp";
 import { dinars, quantite } from "@/lib/workspace-data";
 import { Icon } from "./workspace-icons";
 
@@ -40,7 +42,20 @@ export default function SaleTicket({ data }: { data: SaleTicketData }) {
       ? data.lines
       : [{ label: data.articleLabel, qty: data.qte, totalTTC: data.totalTTC }];
   const totalTva = Math.round((data.totalTTC - data.totalHT) * 100) / 100;
-  const modeLabel = isPaymentMode(data.modePaiement) ? PAYMENT_MODE_LABELS[data.modePaiement] : null;
+  const modeLabel = isPaymentMode(data.modePaiement)
+    ? PAYMENT_MODE_LABELS[data.modePaiement]
+    : typeof data.modePaiement === "string" && data.modePaiement.trim()
+      ? data.modePaiement
+      : null;
+  const [clientPhone, setClientPhone] = useState("");
+  const waUrl = whatsappSaleReceiptUrl({
+    phone: clientPhone,
+    shop: data.etablissement?.nom ?? "Pâtisserie",
+    numero: data.numero ?? "Ticket",
+    totalDa: data.totalTTC,
+    lines: lines.map((l) => ({ label: l.label, qty: l.qty, unit: l.unit, totalDa: l.totalTTC })),
+    modePaiement: modeLabel ?? undefined,
+  });
 
   return (
     <div className="pg-card pg-card-pad space-y-3">
@@ -75,9 +90,24 @@ export default function SaleTicket({ data }: { data: SaleTicketData }) {
       `}</style>
       <div className="pg-card-head no-print">
         <h2>Dernier ticket</h2>
-        <button type="button" onClick={() => window.print()} className="pg-button pg-button-secondary">
-          <Icon name="print" size={18} /> Imprimer le ticket
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="tel"
+            value={clientPhone}
+            onChange={(e) => setClientPhone(e.target.value)}
+            placeholder="WhatsApp client (0550...)"
+            className="pg-input w-44 text-xs"
+            aria-label="Numéro WhatsApp du client"
+          />
+          {waUrl && (
+            <a href={waUrl} target="_blank" rel="noopener noreferrer" className="pg-button text-xs">
+              Envoyer reçu WhatsApp
+            </a>
+          )}
+          <button type="button" onClick={() => window.print()} className="pg-button pg-button-secondary">
+            <Icon name="print" size={18} /> Imprimer
+          </button>
+        </div>
       </div>
       <div className="sale-ticket mx-auto w-[80mm] max-w-full wrap-anywhere border border-dashed border-slate-400 bg-white p-3 font-mono text-[11px] leading-snug text-black">
         {entete.map((ligne, i) => (
@@ -100,14 +130,18 @@ export default function SaleTicket({ data }: { data: SaleTicketData }) {
           </div>
         ))}
         <div className="my-1 border-t border-dashed border-slate-400" />
-        <div className="flex justify-between">
-          <span>Total HT</span>
-          <span>{dinars(data.totalHT)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>TVA</span>
-          <span>{dinars(totalTva)}</span>
-        </div>
+        {totalTva > 0.01 && (
+          <>
+            <div className="flex justify-between">
+              <span>Total HT</span>
+              <span>{dinars(data.totalHT)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>TVA</span>
+              <span>{dinars(totalTva)}</span>
+            </div>
+          </>
+        )}
         <div className="flex justify-between text-[12px] font-extrabold">
           <span>Total TTC</span>
           <span>{dinars(data.totalTTC)}</span>

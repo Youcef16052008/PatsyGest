@@ -1,28 +1,39 @@
 export const DESIGNS = [
-  { id: "atelier", name: "Atelier", description: "Un accueil chaleureux pour votre maison.", icon: "logo" },
-  { id: "pilotage", name: "Pilotage", description: "Les chiffres, les alertes et les priorités du jour.", icon: "trend" },
-  { id: "fabrication", name: "Mise en place", description: "Les fournées en colonnes, du planning à la fin.", icon: "layers" },
-  { id: "comptoir", name: "Comptoir", description: "Accès direct à la vente et grandes tuiles produits.", icon: "receipt" },
-  { id: "essentiel", name: "Essentiel", description: "Une interface allégée et les premiers pas en avant.", icon: "guide" },
+  { id: "pilotage", name: "PâtisGest", description: "Interface claire et directe, en mode clair ou sombre.", icon: "logo" },
 ] as const;
 
 export type Design = (typeof DESIGNS)[number]["id"];
 export type ColorMode = "light" | "dark";
 export type Appearance = { design: Design; modes: Record<Design, ColorMode> };
 export const APPEARANCE_COOKIE = "patisgest.apparence";
+export const ADVANCED_MODE_COOKIE = "patisgest.mode_avance";
 
-const defaultModes: Appearance["modes"] = { atelier: "light", pilotage: "light", fabrication: "light", comptoir: "light", essentiel: "light" };
+const LEGACY_INDEX: Record<string, number> = {
+  atelier: 0,
+  pilotage: 1,
+  fabrication: 2,
+  comptoir: 3,
+  essentiel: 4,
+};
 
 export function readAppearance(cookie?: string): Appearance {
   const [chosen, modes, extra] = (cookie ?? "").split(".");
-  const design = DESIGNS.find(({ id }) => id === chosen)?.id ?? "atelier";
-  const result = { ...defaultModes };
-  if (extra === undefined && /^[ld]{5}$/.test(modes ?? "")) {
-    DESIGNS.forEach(({ id }, index) => { result[id] = modes[index] === "d" ? "dark" : "light"; });
+  let mode: ColorMode = "light";
+  if (extra === undefined) {
+    if (modes === "d" || modes === "l") {
+      mode = modes === "d" ? "dark" : "light";
+    } else if (/^[ld]{5}$/.test(modes ?? "")) {
+      const idx = LEGACY_INDEX[chosen ?? "pilotage"] ?? 1;
+      mode = modes![idx] === "d" ? "dark" : "light";
+    }
   }
-  return { design, modes: result };
+  return { design: "pilotage", modes: { pilotage: mode } };
 }
 
 export function writeAppearance(value: Appearance): string {
-  return `${value.design}.${DESIGNS.map(({ id }) => value.modes[id] === "dark" ? "d" : "l").join("")}`;
+  return `pilotage.${value.modes.pilotage === "dark" ? "d" : "l"}`;
+}
+
+export function readAdvancedMode(cookie?: string): boolean {
+  return cookie === "1" || cookie === "true";
 }

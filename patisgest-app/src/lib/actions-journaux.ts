@@ -77,6 +77,51 @@ export async function saisirCloture(_prev: JournalState, formData: FormData): Pr
   }
 }
 
+/** Validation directe du comptage tiroir depuis le Dashboard Patron (A.4). */
+export async function validerComptageTiroir(input: {
+  date: string;
+  siteId: string;
+  fondInitial: number;
+  especesComptees: number;
+  attendu: number;
+  note?: string;
+}): Promise<{ ok: boolean; erreur?: string; succes?: string }> {
+  const ctx = await getSessionContext();
+  if (!ctx) return { ok: false, erreur: "Session requise." };
+  if (ctx.mode !== "supabase") {
+    return { ok: true, succes: "Comptage enregistré localement." };
+  }
+  if (!input.siteId) return { ok: false, erreur: "Boutique introuvable pour la clôture." };
+  if (!Number.isFinite(input.fondInitial) || input.fondInitial < 0 || !Number.isFinite(input.especesComptees) || input.especesComptees < 0) {
+    return { ok: false, erreur: "Montants invalides." };
+  }
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("valider_tiroir_jour", {
+      p_date: input.date,
+      p_site_id: input.siteId,
+      p_fond_initial: input.fondInitial,
+      p_especes_comptees: input.especesComptees,
+      p_attendu: input.attendu,
+      p_note: (input.note ?? "").trim().slice(0, 250),
+    });
+    if (error) {
+      if (error.code === "PGRST202" || error.code === "42883") {
+        return {
+          ok: false,
+          erreur: "Migration SQL 46 requise sur Supabase pour enregistrer le comptage en un clic.",
+        };
+      }
+      return { ok: false, erreur: mapError(error) };
+    }
+    revalidatePath("/tableau-de-bord");
+    revalidatePath("/cloture");
+    return { ok: true, succes: "Clôture du tiroir enregistrée sur le serveur ✓" };
+  } catch {
+    return { ok: false, erreur: "Supabase est inaccessible depuis ce serveur." };
+  }
+}
+
 /** Demande explicite de réassort boutique -> labo (« Demain au labo ») — tous les rôles connectés. */
 export async function createRestockRequestReal(_prev: JournalState, formData: FormData): Promise<JournalState> {
   const denied = await requireAnyRole();

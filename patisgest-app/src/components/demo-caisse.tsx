@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { DEMO_CREDITS_KEY_PREFIX, starterDemoCredits, type CreditAccountType, type CreditEntry } from "@/lib/credits";
 import { DEMO_SITES, demoLots, demoProducts, demoSales } from "@/lib/demo-workspace";
 import { sellCart } from "@/lib/patisgest-store";
 import { isPaymentMode, PAYMENT_MODE_LABELS, type PaymentMode } from "@/lib/pos-cart";
 import { jourLocal, quantite, stockParSite, stockPerimeParSite } from "@/lib/workspace-data";
 import { useDemoWorkspace } from "./demo-workspace";
+import CreditsWorkspace from "./credits-workspace";
 import SaleComposer from "./sale-composer";
 import SaleHistory from "./sale-history";
 import SaleTicket, { type SaleTicketData } from "./sale-ticket";
@@ -39,6 +41,16 @@ export default function DemoCaisse({
     const fields = new FormData(form);
     const modeRaw = String(fields.get("modePaiement") ?? "especes");
     const modePaiement: PaymentMode = isPaymentMode(modeRaw) ? modeRaw : "especes";
+    const creditMode = String(fields.get("creditMode") ?? "0") === "1";
+    const creditNom = String(fields.get("creditNom") ?? "").trim();
+    const creditTelephone = String(fields.get("creditTelephone") ?? "").trim();
+    const creditType = (String(fields.get("creditType") ?? "particulier") === "cafe_entreprise"
+      ? "cafe_entreprise"
+      : "particulier") as CreditAccountType;
+    if (creditMode && !creditNom) {
+      setFeedback({ kind: "error", message: "Entrez le nom du client ou du café pour noter au carnet." });
+      return;
+    }
     try {
       const rawJson = String(fields.get("lignesJson") ?? "").trim();
       const parsed = rawJson
@@ -64,7 +76,7 @@ export default function DemoCaisse({
         siteLabel: "Boutique",
         qte: sale.qty,
         lines,
-        modePaiement,
+        modePaiement: creditMode ? "À crédit (Carnet)" : modePaiement,
         totalHT: sale.totalHT,
         totalTTC: sale.totalTTC,
         lots: sale.lots,
@@ -72,16 +84,44 @@ export default function DemoCaisse({
         demo: true,
         etablissement: { nom: shop, adresse: null, telephone: null, nif: null, nis: null, rc: null },
       });
+      if (creditMode) {
+        try {
+          const key = `${DEMO_CREDITS_KEY_PREFIX}demo`;
+          const raw = window.localStorage.getItem(key);
+          const list: CreditEntry[] = raw ? JSON.parse(raw) : starterDemoCredits(today);
+          const entry: CreditEntry = {
+            id: crypto.randomUUID(),
+            nomDebiteur: creditNom,
+            telephone: creditTelephone,
+            typeCompte: creditType,
+            montantTotalDa: sale.totalTTC,
+            montantRegleDa: 0,
+            dateEcheance: null,
+            note: `Caisse ${sale.numero ?? ""} · ${lines.map((l) => `${l.label} × ${l.qty}`).join(", ")}`.slice(0, 280),
+            statut: "ouvert",
+            reglements: [],
+            createdAt: new Date().toISOString(),
+          };
+          window.localStorage.setItem(key, JSON.stringify([entry, ...(Array.isArray(list) ? list : [])]));
+        } catch {
+          /* ignore localStorage error */
+        }
+      }
       setFeedback(
-        sale.missing > 0
+        creditMode
           ? {
-              kind: "warning",
-              message: `Ticket d’essai enregistré (${lines.length} produit${lines.length > 1 ? "s" : ""}, ${PAYMENT_MODE_LABELS[modePaiement]}) · ${quantite(sale.missing)} manquant(s) sur stock éligible.`,
-            }
-          : {
               kind: "success",
-              message: `Ticket d’essai enregistré (${lines.length} produit${lines.length > 1 ? "s" : ""}, ${PAYMENT_MODE_LABELS[modePaiement]}).`,
-            },
+              message: `Ticket noté au carnet de ${creditNom} (${Math.round(sale.totalTTC)} DA à encaisser).`,
+            }
+          : sale.missing > 0
+            ? {
+                kind: "warning",
+                message: `Ticket d’essai enregistré (${lines.length} produit${lines.length > 1 ? "s" : ""}, ${PAYMENT_MODE_LABELS[modePaiement]}) · ${quantite(sale.missing)} manquant(s) sur stock éligible.`,
+              }
+            : {
+                kind: "success",
+                message: `Ticket d’essai enregistré (${lines.length} produit${lines.length > 1 ? "s" : ""}, ${PAYMENT_MODE_LABELS[modePaiement]}).`,
+              },
       );
       form.reset();
     } catch (err) {
@@ -101,6 +141,7 @@ export default function DemoCaisse({
       />
       {feedback && <Notice kind={feedback.kind}>{feedback.message}</Notice>}
       {ticket && <SaleTicket data={ticket} />}
+      {!dashboard && <CreditsWorkspace mode="demo" scopeKey="demo" shop={shop} today={today} />}
       {!dashboard && <SaleHistory sales={demoSales(data)} demo />}
       {!dashboard && canEdit && (
         <Disclosure title="Importer un Z de caisse" icon="list">

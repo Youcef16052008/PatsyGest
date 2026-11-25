@@ -372,6 +372,36 @@
       "sha256": "a23f01237b1fd93239b812ec44b0e083cc0a36bc69c2e7985f8e8effa378fefb",
       "hors_fixture_pilote": true,
       "note": "Retrait du mode carte (décision utilisateur 20/11/2026) : ventes carte en NULL, contrainte resserrée, vendre_panier refuse carte. Non appliquée au pilote; validation humaine requise."
+    },
+    {
+      "file": "45-recettes-libres.sql",
+      "sha256": "6db12c1229918c3fd0a8a3bfaea1721db582a3ae1bf1d68d0cf2af554706f92d",
+      "hors_fixture_pilote": true,
+      "note": "Wave 1 (A.1) : recettes libres multi-appareils en DA avec RLS par client."
+    },
+    {
+      "file": "46-credits-clients.sql",
+      "sha256": "35aba4d47c529af68463dd40acb285d8f6bb05564196a07627f876402f0975b0",
+      "hors_fixture_pilote": true,
+      "note": "Wave 1 (A.3) : carnet de crédits clients/cafés et RPC enregistrer_reglement_credit."
+    },
+    {
+      "file": "47-onboarding-pack-dz.sql",
+      "sha256": "8aebb6b22231d4817cd1a032c306df96c58a30b2ab39fdcb3eaa3962e226eb0a",
+      "hors_fixture_pilote": true,
+      "note": "Wave 1 (A.4/A.6) : RPC valider_tiroir_jour pour validation rapide de caisse depuis le tableau de bord."
+    },
+    {
+      "file": "48-notifications-patron.sql",
+      "sha256": "251d7fac0c7d43ccad5d1fd9298022ccdd0625b429d27630a6aa835c801e3e85",
+      "hors_fixture_pilote": true,
+      "note": "Wave 2 (B.6) : alertes prix employés vers le propriétaire et RPC traiter_alerte_prix_patron."
+    },
+    {
+      "file": "49-wave3-wave4.sql",
+      "sha256": "527417d7a7a7a98bad7cce16e10e081ca491d54381a04121f0a410f1f5177065",
+      "hors_fixture_pilote": true,
+      "note": "Waves 3 & 4 (B.1/B.4) : photos articles (photo_url), justificatifs bons (facture_photo_url) et RPC sauver_photo_article."
     }
   ],
   "exclus": [

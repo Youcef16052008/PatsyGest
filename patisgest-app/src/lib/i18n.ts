@@ -1,0 +1,81 @@
+export type Locale = "fr" | "ar";
+
+export const LOCALE_COOKIE = "patisgest.lang";
+
+export function readLocale(cookieValue: string | undefined | null): Locale {
+  return cookieValue === "ar" ? "ar" : "fr";
+}
+
+export const NAV_LABELS_AR: Record<string, string> = {
+  "/tableau-de-bord": "لوحة التحكم",
+  "/caisse": "الصندوق",
+  "/cake-design": "الطلبيات والحلويات",
+  "/recettes": "الوصفات والتكاليف",
+  "/stocks": "المخزون والمشتريات",
+  "/parametres": "الإعدادات",
+  "/production": "الإنتاج والمخبز",
+  "/achats": "المشتريات والموردون",
+  "/planning": "تخطيط الغد",
+  "/simulation": "محاكاة الأسعار",
+  "/transferts": "التحويلات",
+  "/cloture": "الإغلاق اليومي",
+  "/qualite": "الجودة والنظافة",
+  "/tracabilite": "التتبع",
+};
+
+export const UI_DICT = {
+  fr: {
+    dir: "ltr" as const,
+    modeSimple: "Mode Simple",
+    modeAvance: "Mode Avancé",
+    logout: "Déconnexion",
+    kitchenTitle: "À préparer aujourd’hui & demain",
+    kitchenSub: "Tablette atelier : uniquement les gâteaux et fournées à sortir — aucun chiffre de caisse affiché.",
+    kitchenBtnNew: "+ Nouveau gâteau / recette & prix",
+    stageTodo: "À préparer",
+    stagePrep: "En préparation",
+    stageBake: "Cuisson / Déco",
+    stageReady: "Prêt boutique ✓",
+    posProducts: "Produits à vendre",
+    posCartTitle: "Ticket en cours",
+    posEmpty: "Panier vide",
+    posPay: "Encaisser",
+    posSimPay: "Simuler la vente",
+    posTotal: "Total à payer",
+    posCreditToggle: "À crédit (Carnet)",
+    dashOwnerKicker: "TABLEAU DE BORD PATRON",
+    dashLaboKicker: "LABORATOIRE",
+    kpiSales: "Ventes du jour",
+    kpiProfit: "Bénéfice estimé (aujourd’hui)",
+    kpiOrders: "Commandes & gâteaux",
+    kpiStock: "Alertes stock",
+    closingTitle: "Fermeture de caisse du jour",
+  },
+  ar: {
+    dir: "rtl" as const,
+    modeSimple: "الوضع البسيط",
+    modeAvance: "الوضع المتقدم",
+    logout: "تسجيل الخروج",
+    kitchenTitle: "للتجهيز اليوم وغداً",
+    kitchenSub: "شاشة المخبز: الحلويات والطلبيات فقط — بدون إظهار أرقام الصندوق.",
+    kitchenBtnNew: "+ حلوى أو وصفة جديدة وسعرها",
+    stageTodo: "قيد الانتظار",
+    stagePrep: "قيد التحضير",
+    stageBake: "الطبخ والتزيين",
+    stageReady: "جاهز للمحل ✓",
+    posProducts: "المنتجات للبيع",
+    posCartTitle: "التذكرة الحالية",
+    posEmpty: "السلة فارغة",
+    posPay: "قبض المبلغ",
+    posSimPay: "تسجيل بيع تجريبي",
+    posTotal: "المجموع للدفع",
+    posCreditToggle: "بالدين (الدفتر)",
+    dashOwnerKicker: "لوحة تحكم صاحب المحل",
+    dashLaboKicker: "المخبز / المختبر",
+    kpiSales: "مبيعات اليوم",
+    kpiProfit: "الربح التقديري اليوم",
+    kpiOrders: "الطلبيات والحلويات",
+    kpiStock: "تنبيهات المخزون",
+    closingTitle: "إغلاق صندوق اليوم",
+  },
+} as const;

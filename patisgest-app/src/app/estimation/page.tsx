@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import PortionEstimator from "@/components/portion-estimator";
-import AppearancePicker, { QuickColorMode } from "@/components/appearance";
+import { QuickColorMode } from "@/components/appearance";
 import { canReadCosts, getSessionContext } from "@/lib/auth";
 
 export const metadata: Metadata = {
@@ -25,7 +25,6 @@ export default async function EstimationPage() {
           </span>
         </div>
         <nav className="pg-public-nav" aria-label="Accès atelier">
-          <AppearancePicker compact />
           <QuickColorMode />
           {ctx ? (
             <Link href="/tableau-de-bord" className="pg-button pg-button-secondary">

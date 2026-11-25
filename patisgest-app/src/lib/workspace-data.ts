@@ -123,8 +123,9 @@ export function colonneProduction(statut: string) {
 }
 
 export type VentesJour = { day: string; ttc: number; tickets: number };
-export function serieVentes(rows: readonly { date: string; totalTTC: number }[], today: string): VentesJour[] {
-  const series = Array.from({ length: 14 }, (_, index) => ({ day: plusJours(today, index - 13), ttc: 0, tickets: 0 }));
+export function serieVentes(rows: readonly { date: string; totalTTC: number }[], today: string, daysCount = 14): VentesJour[] {
+  const n = Math.max(1, Math.floor(daysCount));
+  const series = Array.from({ length: n }, (_, index) => ({ day: plusJours(today, index - (n - 1)), ttc: 0, tickets: 0 }));
   const days = new Map(series.map((day) => [day.day, day]));
   for (const r of rows) {
     const d = days.get(r.date.slice(0, 10));

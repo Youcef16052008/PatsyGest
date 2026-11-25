@@ -10,13 +10,14 @@ export default function ArticleGuide({ niveau }: { niveau: "matiere" | "produit"
   const [code, setCode] = useState("");
   const [unite, setUnite] = useState(matiere ? "kg" : "pcs");
   const [prix, setPrix] = useState("");
-  const [tva, setTva] = useState("19");
+  const [tva, setTva] = useState("0");
   const [allergenes, setAllergenes] = useState("");
   const [traces, setTraces] = useState("");
   const [state, action, pending] = useActionGuide(createArticle);
   const mentions = <details className="rounded-xl border border-slate-200 p-3">
-    <summary className="cursor-pointer text-sm font-semibold text-violet-800">Allergènes et traces (si applicables)</summary>
-    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+    <summary className="cursor-pointer text-sm font-semibold text-violet-800">Options avancées (TVA, allergènes et traces)</summary>
+    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+      <LibelleGuide label="TVA (%) — 0 par défaut"><input name="tva" type="number" required min="0" max="100" step="0.01" value={tva} onChange={(e) => setTva(e.target.value)} className={champGuide} /></LibelleGuide>
       <LibelleGuide label="Allergènes (séparés par des virgules)"><input name="allergenes" maxLength={500} placeholder="gluten, œufs" value={allergenes} onChange={(e) => setAllergenes(e.target.value)} className={champGuide} /></LibelleGuide>
       <LibelleGuide label="Traces possibles"><input name="traces" maxLength={500} placeholder="lait, fruits à coque" value={traces} onChange={(e) => setTraces(e.target.value)} className={champGuide} /></LibelleGuide>
     </div>
@@ -55,11 +56,10 @@ export default function ArticleGuide({ niveau }: { niveau: "matiere" | "produit"
         </div>,
       } : {
         nom: "Prix de vente", titre: "Indiquez le prix de vente",
-        aide: "Hors taxe, en dinars.",
+        aide: "En dinars algériens (prix final client).",
         contenu: <div className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <LibelleGuide label="Prix de vente HT (DA)"><input name="pv_ht" type="number" required min="0" max="10000000" step="0.01" value={prix} onChange={(e) => setPrix(e.target.value)} className={champGuide} /></LibelleGuide>
-            <LibelleGuide label="TVA (%)"><input name="tva" type="number" required min="0" max="100" step="0.01" value={tva} onChange={(e) => setTva(e.target.value)} className={champGuide} /></LibelleGuide>
+          <div className="grid gap-3 sm:grid-cols-1">
+            <LibelleGuide label="Prix de vente (DA)"><input name="pv_ht" type="number" required min="0" max="10000000" step="0.01" value={prix} onChange={(e) => setPrix(e.target.value)} className={champGuide} /></LibelleGuide>
           </div>
           {mentions}
         </div>,
