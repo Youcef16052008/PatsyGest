@@ -57,8 +57,11 @@
   :is([data-design='pilotage'], [data-design='fabrication']) .pg-topbar { grid-area: top; background: var(--pg-surface); color: var(--pg-ink); border-color: var(--pg-line); padding-inline: clamp(24px, 3vw, 40px); --pg-nav-muted: var(--pg-muted); --pg-nav-line: var(--pg-line); --pg-nav-active: var(--pg-tint); --pg-nav-active-ink: var(--pg-link); }
   :is([data-design='pilotage'], [data-design='fabrication']) .pg-nav { grid-area: nav; flex-direction: column; align-items: stretch; justify-content: flex-start; padding: 23px 12px 14px; gap: .4rem; position: sticky; top: 0; align-self: start; min-height: 100dvh; max-height: 100dvh; overflow: auto; border-bottom: 0; border-inline-end: 1px solid var(--pg-nav-line); }
   :is([data-design='pilotage'], [data-design='fabrication']) .pg-nav-primary { flex-direction: column; gap: .16rem; }
-  :is([data-design='pilotage'], [data-design='fabrication']) :is(.pg-nav-caption, .pg-nav-other) { display: block; }
-  :is([data-design='pilotage'], [data-design='fabrication']) .pg-more { display: none; }
+  :is([data-design='pilotage'], [data-design='fabrication']) .pg-nav-caption { display: block; }
+  /* Seuls les modules principaux sont visibles ; les autres s'ouvrent via le bouton « Plus ». */
+  :is([data-design='pilotage'], [data-design='fabrication']) .pg-nav-other { display: none; }
+  :is([data-design='pilotage'], [data-design='fabrication']) .pg-more { display: block; }
+  :is([data-design='pilotage'], [data-design='fabrication']) .pg-more-links { position: static; width: 100%; max-height: none; box-shadow: none; margin-top: 6px; }
   :is([data-design='pilotage'], [data-design='fabrication']) .pg-content { grid-area: main; }
   :is([data-design='pilotage'], [data-design='fabrication']) .pg-footer { grid-area: foot; padding-inline: clamp(24px, 3vw, 40px); }
   :is([data-design='pilotage'], [data-design='fabrication']) .pg-nav-caption { font-size: .69rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin: 6px 8px; }

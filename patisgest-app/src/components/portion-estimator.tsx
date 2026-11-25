@@ -21,6 +21,7 @@ import {
   type PortionSizeKey,
 } from "@/lib/portion-estimator";
 import { dateLisible, dinars, quantite } from "@/lib/workspace-data";
+import { HEURES_PAYEES_PAR_JOUR_DEFAUT, SALAIRE_JOURNALIER_MAX, tauxHoraireDepuisJournee } from "@/lib/main-oeuvre";
 
 type Props = {
   /** Rôle courant si l'utilisateur a déjà une session ouverte (null sans compte). */
@@ -736,14 +737,14 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                 />
               </label>
               <label className="pg-field">
-                <span className="pg-label">Taux horaire (DA/h)</span>
+                <span className="pg-label">Salaire par journée de travail (DA)</span>
                 <input
                   type="number"
                   min={0}
-                  step={10}
+                  step={100}
                   className="pg-input"
-                  value={tauxHoraire}
-                  onChange={(e) => setTauxHoraire(Number(e.target.value))}
+                  value={Math.round(tauxHoraire * HEURES_PAYEES_PAR_JOUR_DEFAUT * 100) / 100}
+                  onChange={(e) => setTauxHoraire(tauxHoraireDepuisJournee(Math.min(SALAIRE_JOURNALIER_MAX, Math.max(0, Number(e.target.value) || 0))))}
                 />
               </label>
               <label className="pg-field">

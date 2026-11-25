@@ -8,6 +8,7 @@ import {
   computeCartTotals,
   MAX_CART_QTE,
   PAYMENT_MODE_LABELS,
+  PAYMENT_MODES_SAISIE,
   removeFromCart,
   setCartLineQty,
   stepCartLine,
@@ -448,7 +449,7 @@ export default function SaleComposer({
             <fieldset className="pg-pay-modes" disabled={busy}>
               <legend className="pg-label">Mode de règlement</legend>
               <div className="pg-pay-grid">
-                {(Object.keys(PAYMENT_MODE_LABELS) as PaymentMode[]).map((mode) => (
+                {PAYMENT_MODES_SAISIE.map((mode) => (
                   <button
                     key={mode}
                     type="button"

@@ -50,7 +50,7 @@ export function sellCart(
   // Idempotence : rejouer un ticket déjà enregistré retourne l'état intact, sans seconde sortie de stock.
   if (state.sales.some(s => s.id === ticketId)) return state;
   if (!items.length || items.length > 50) throw new Error('Le panier doit contenir entre 1 et 50 produits.');
-  const modePaiement: PaymentMode = opts.modePaiement && ['especes','carte','cheque_virement'].includes(opts.modePaiement) ? opts.modePaiement : 'especes';
+  const modePaiement: PaymentMode = opts.modePaiement && ['especes','cheque_virement'].includes(opts.modePaiement) ? opts.modePaiement : 'especes';
   const saleDate = opts.date && isValidDate(opts.date) ? opts.date : today();
   const site = opts.site ?? 'Boutique';
   // Fusionner les doublons éventuels avant validation et déstockage.

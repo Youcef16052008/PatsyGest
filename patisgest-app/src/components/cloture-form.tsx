@@ -143,8 +143,8 @@ export default function ClotureForm({ sites, articles }: { sites: Option[]; arti
             2. Comptage tiroir-caisse (DA TTC · facultatif, séparé des produits)
           </legend>
           <p className="mb-2 text-xs text-slate-500">
-            Espèces attendues = fond initial + ventes espèces − sorties justifiées. Les règlements carte/CIB,
-            chèque/virement et imports Z sont affichés à part dans le rapprochement.
+            Espèces attendues = fond initial + ventes espèces − sorties justifiées. Les règlements chèque/virement,
+            et imports Z sont affichés à part dans le rapprochement.
           </p>
           <div className="grid gap-3 sm:grid-cols-4">
             <label className={label}>

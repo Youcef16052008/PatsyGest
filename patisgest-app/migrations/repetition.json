@@ -366,6 +366,12 @@
       "sha256": "9a455807af95cd69762e75ef586439cdbcd21b725bd9ce85f25c03bca0bc6126",
       "hors_fixture_pilote": true,
       "note": "RI-04 : identité du lot = (client, article, site, numéro), en clé PARTIELLE. Une contrainte pleine (client, numéro) casserait les miroirs de transfert (migration 08, MOD-11). N'interdit que la double réception directe."
+    },
+    {
+      "file": "44-retrait-mode-carte.sql",
+      "sha256": "a23f01237b1fd93239b812ec44b0e083cc0a36bc69c2e7985f8e8effa378fefb",
+      "hors_fixture_pilote": true,
+      "note": "Retrait du mode carte (décision utilisateur 20/11/2026) : ventes carte en NULL, contrainte resserrée, vendre_panier refuse carte. Non appliquée au pilote; validation humaine requise."
     }
   ],
   "exclus": [

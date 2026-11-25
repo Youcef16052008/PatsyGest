@@ -15,16 +15,23 @@ import type { CatalogProduct, SiteStock } from "./workspace-data.ts";
 export const MAX_CART_QTE = 100_000_000;
 export const MAX_CART_LINES = 50;
 
-export type PaymentMode = "especes" | "carte" | "cheque_virement";
+export type PaymentMode = "especes" | "cheque_virement";
 
 export const PAYMENT_MODE_LABELS: Record<PaymentMode, string> = {
   especes: "Espèces",
-  carte: "Carte (TPE / CIB)",
   cheque_virement: "Chèque / virement",
 };
 
+/** Libellé affiché pour un mode enregistré. Une valeur hors liste (ex. ancien mode carte) devient « Non précisé ». */
+export function libelleModePaiement(value: unknown): string {
+  return isPaymentMode(value) ? PAYMENT_MODE_LABELS[value] : "Non précisé";
+}
+
+/** Modes proposés à la saisie en caisse (la carte CIB/Edahabia est retirée). */
+export const PAYMENT_MODES_SAISIE: readonly PaymentMode[] = ["especes", "cheque_virement"];
+
 export function isPaymentMode(value: unknown): value is PaymentMode {
-  return value === "especes" || value === "carte" || value === "cheque_virement";
+  return value === "especes" || value === "cheque_virement";
 }
 
 export type CartItem = {
