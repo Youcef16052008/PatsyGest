@@ -55,10 +55,10 @@ test("Panier caisse : validation serveur stricte et file hors-ligne idempotente"
   const fd = new FormData();
   fd.set("siteId", SITE);
   fd.set("ticket", TICKET);
-  fd.set("modePaiement", "carte");
+  fd.set("modePaiement", "cheque_virement");
   fd.set("lignesJson", JSON.stringify([{ articleId: P1, qte: 2 }, { articleId: P2, qte: 1 }]));
   const parsed = parseCartSaleInput(fd);
-  assert.equal(parsed.modePaiement, "carte");
+  assert.equal(parsed.modePaiement, "cheque_virement");
   assert.equal(parsed.lignes.length, 2);
 
   // Panier vide refusé
@@ -112,7 +112,7 @@ test("Rapprochement fin de journée : séparation stricte produits (qtés) vs ti
   ];
   const ventes = [
     { siteId: SITE, date: "2026-11-18", lignes: [{ articleId: P1, qty: 10 }, { articleId: P2, qty: 2 }], totalTTC: 2000, modePaiement: "especes", source: "caisse" },
-    { siteId: SITE, date: "2026-11-18", lignes: [{ articleId: P1, qty: 2 }, { articleId: P2, qty: 3 }], totalTTC: 1200, modePaiement: "carte", source: "caisse" },
+    { siteId: SITE, date: "2026-11-18", lignes: [{ articleId: P1, qty: 2 }, { articleId: P2, qty: 3 }], totalTTC: 1200, modePaiement: "cheque_virement", source: "caisse" },
     { siteId: SITE, date: "2026-11-18", lignes: [], totalTTC: 800, modePaiement: null, source: "z-import" },
   ];
 
@@ -130,7 +130,7 @@ test("Rapprochement fin de journée : séparation stricte produits (qtés) vs ti
   assert.equal(cash[0].attenduTiroir, 6500);
   assert.equal(cash[0].especesComptees, 6400);
   assert.equal(cash[0].ecartEspeces, -100);
-  assert.equal(cash[0].ventesCarteTTC, 1200);
+  assert.equal(cash[0].ventesAutreTTC, 1200);
   assert.equal(cash[0].ventesImportZTTC, 800);
 });
 
@@ -208,14 +208,14 @@ test("Démo intégrée : panier multiproduit idempotent, transfert responsable, 
   // 1. Vente panier 2 produits avec ticket UUID + idempotence au rejeu
   state = sellCart(state, [{ articleId: prods[0].id, qty: 2 }, { articleId: prods[1].id, qty: 1 }], {
     ticket: "ticket-idem-1",
-    modePaiement: "carte",
+    modePaiement: "cheque_virement",
   });
   assert.equal(state.sales.length, countBefore + 1);
-  assert.equal(state.sales[0].modePaiement, "carte");
+  assert.equal(state.sales[0].modePaiement, "cheque_virement");
   assert.equal(state.sales[0].lines?.length, 2);
   const replayed = sellCart(state, [{ articleId: prods[0].id, qty: 2 }, { articleId: prods[1].id, qty: 1 }], {
     ticket: "ticket-idem-1",
-    modePaiement: "carte",
+    modePaiement: "cheque_virement",
   });
   assert.equal(replayed.sales.length, state.sales.length, "aucun doublon au rejeu");
 

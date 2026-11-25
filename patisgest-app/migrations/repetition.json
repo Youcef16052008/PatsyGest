@@ -368,31 +368,37 @@
       "note": "RI-04 : identité du lot = (client, article, site, numéro), en clé PARTIELLE. Une contrainte pleine (client, numéro) casserait les miroirs de transfert (migration 08, MOD-11). N'interdit que la double réception directe."
     },
     {
-      "file": "44-recettes-libres.sql",
+      "file": "44-retrait-mode-carte.sql",
+      "sha256": "a23f01237b1fd93239b812ec44b0e083cc0a36bc69c2e7985f8e8effa378fefb",
+      "hors_fixture_pilote": true,
+      "note": "Retrait du mode carte (décision utilisateur 20/11/2026) : ventes carte en NULL, contrainte resserrée, vendre_panier refuse carte. Non appliquée au pilote; validation humaine requise."
+    },
+    {
+      "file": "45-recettes-libres.sql",
       "sha256": "97e0bda5cd88e784e4a3eaf1bb26d9ebc9729eff0c7173aaf37375b1fefbf41b",
       "hors_fixture_pilote": true,
       "note": "Wave 1 (A.1) : recettes libres multi-appareils en DA avec RLS par client."
     },
     {
-      "file": "45-credits-clients.sql",
+      "file": "46-credits-clients.sql",
       "sha256": "f328c6bc282d500a9066f160c812db924c7f6442a228c5a088041e762aad87fc",
       "hors_fixture_pilote": true,
       "note": "Wave 1 (A.3) : carnet de crédits clients/cafés et RPC enregistrer_reglement_credit."
     },
     {
-      "file": "46-onboarding-pack-dz.sql",
+      "file": "47-onboarding-pack-dz.sql",
       "sha256": "8aebb6b22231d4817cd1a032c306df96c58a30b2ab39fdcb3eaa3962e226eb0a",
       "hors_fixture_pilote": true,
       "note": "Wave 1 (A.4/A.6) : RPC valider_tiroir_jour pour validation rapide de caisse depuis le tableau de bord."
     },
     {
-      "file": "47-notifications-patron.sql",
+      "file": "48-notifications-patron.sql",
       "sha256": "b5c65769f93234de9a0236f880c5ea4adc17bbc5046a5735a1a1f3cba12feb83",
       "hors_fixture_pilote": true,
       "note": "Wave 2 (B.6) : alertes prix employés vers le propriétaire et RPC traiter_alerte_prix_patron."
     },
     {
-      "file": "48-wave3-wave4.sql",
+      "file": "49-wave3-wave4.sql",
       "sha256": "527417d7a7a7a98bad7cce16e10e081ca491d54381a04121f0a410f1f5177065",
       "hors_fixture_pilote": true,
       "note": "Waves 3 & 4 (B.1/B.4) : photos articles (photo_url), justificatifs bons (facture_photo_url) et RPC sauver_photo_article."

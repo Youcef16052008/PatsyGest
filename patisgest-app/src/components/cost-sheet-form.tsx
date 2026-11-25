@@ -25,12 +25,17 @@ export default function CostSheetForm({ produits }: { produits: Option[] }) {
       <section className="rounded-2xl border bg-white p-5">
         <h2 className="mb-1 font-bold">Paramètres de coûts (RC-04)</h2>
         <p className="mb-3 text-xs text-slate-500">
-          Taux horaire et charges appliqués à la MO chargée : <b>(min ÷60) × taux × (1 + charges %)</b>.
+          Salaire payé <b>par journée de travail</b>, et charges appliqués à la MO chargée :
+          le taux horaire est dérivé (salaire ÷ heures payées par jour), puis <b>(min ÷60) × taux × (1 + charges %)</b>.
         </p>
         <form action={pAction} className="flex flex-wrap items-end gap-3">
-          <label className={`${label} w-44`}>Taux horaire (DA)
-            <input name="tauxHoraire" type="number" step="any" min={0} required
-              defaultValue={state.tauxHoraire ?? 400} className={field} />
+          <label className={`${label} w-44`}>Salaire par jour (DA)
+            <input name="salaireJournalier" type="number" step="any" min={0} required
+              defaultValue={state.salaireJournalier ?? 3200} className={field} />
+          </label>
+          <label className={`${label} w-36`}>Heures payées / jour
+            <input name="heuresParJour" type="number" step="any" min={0.5} max={24} required
+              defaultValue={state.heuresParJour ?? 8} className={field} />
           </label>
           <label className={`${label} w-40`}>Charges (%)
             <input name="chargesPct" type="number" step="any" min={0} max={1000} required

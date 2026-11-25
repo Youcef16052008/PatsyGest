@@ -38,7 +38,7 @@ test('caisse : collision étrangère, rejeu et ticket associé à un autre site'
   const split=await sale(s1,'vente-1',[{articleId:article,qte:0.25},{article_id:article,qte:0.75}]);
   assert.equal(split.sale_id,first.sale_id); assert.equal(split.duplicate,true);
   await assert.rejects(sale(s1,'vente-1',[{articleId:article,qte:2}]),/Ticket deja utilise pour une autre vente/);
-  await assert.rejects(sale(s1,'vente-1',[{articleId:article,qte:1}],'carte'),/Ticket deja utilise pour une autre vente/);
+  await assert.rejects(sale(s1,'vente-1',[{articleId:article,qte:1}],'cheque_virement'),/Ticket deja utilise pour une autre vente/);
   await assert.rejects(sale(s1,'vente-1',[{articleId:'ffffffff-ffff-ffff-ffff-ffffffffffff',qte:1}]),/Ticket deja utilise pour une autre vente/);
   await assert.rejects(sale(s2,'vente-1'),/Ticket deja utilise pour une autre vente/);
   await assert.rejects(sale(s1,'import-z'),/Ticket deja utilise pour une autre vente/);
