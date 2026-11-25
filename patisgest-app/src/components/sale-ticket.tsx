@@ -133,7 +133,7 @@ export default function SaleTicket({ data }: { data: SaleTicketData }) {
         {totalTva > 0.01 && (
           <>
             <div className="flex justify-between">
-              <span>Sous-total HT</span>
+              <span>Total HT</span>
               <span>{dinars(data.totalHT)}</span>
             </div>
             <div className="flex justify-between">
@@ -143,7 +143,7 @@ export default function SaleTicket({ data }: { data: SaleTicketData }) {
           </>
         )}
         <div className="flex justify-between text-[12px] font-extrabold">
-          <span>Total</span>
+          <span>Total TTC</span>
           <span>{dinars(data.totalTTC)}</span>
         </div>
         {modeLabel && (

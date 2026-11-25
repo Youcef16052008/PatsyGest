@@ -39,6 +39,11 @@
       "ficheCoutReal",
       "sauverParamsCoutsReal"
     ],
+    "src/lib/actions-credits.ts": [
+      "createCreditCloud",
+      "loadCreditsCloud",
+      "payCreditCloud"
+    ],
     "src/lib/actions-donnees.ts": [
       "anonymiserCommande",
       "exporterDonnees"
@@ -55,6 +60,12 @@
     "src/lib/actions-etablissement.ts": [
       "sauverEtablissement"
     ],
+    "src/lib/actions-free-recipes.ts": [
+      "deleteFreeRecipeCloud",
+      "loadFreeRecipesCloud",
+      "saveFreeRecipeCloud",
+      "syncLocalRecipesToCloud"
+    ],
     "src/lib/actions-journaux.ts": [
       "accepterCgvReal",
       "addCleaning",
@@ -70,7 +81,8 @@
       "saisirCloture",
       "toggleTask",
       "updateNc",
-      "validateTomorrowLineReal"
+      "validateTomorrowLineReal",
+      "validerComptageTiroir"
     ],
     "src/lib/actions-modules.ts": [
       "modifierModule"
@@ -79,6 +91,18 @@
       "createOf",
       "finishOf",
       "startOf"
+    ],
+    "src/lib/actions-onboarding.ts": [
+      "importerPackPatisserieDz",
+      "sauverBoutiqueExpress"
+    ],
+    "src/lib/actions-photos.ts": [
+      "sauverPhotoArticleCloud"
+    ],
+    "src/lib/actions-price-alerts.ts": [
+      "loadOwnerPriceAlertsCloud",
+      "resolveOwnerPriceAlertCloud",
+      "submitEmployeePriceProposalCloud"
     ],
     "src/lib/actions-rappel.ts": [
       "bloquerLotReal",
