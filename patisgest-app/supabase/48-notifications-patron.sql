@@ -31,6 +31,9 @@ create index if not exists notifications_patron_client_statut_idx
 
 alter table public.notifications_patron enable row level security;
 
+revoke all on public.notifications_patron from public, anon;
+grant select, insert, update, delete on public.notifications_patron to authenticated, service_role;
+
 drop policy if exists notifications_patron_select on public.notifications_patron;
 create policy notifications_patron_select on public.notifications_patron
   for select to authenticated

@@ -27,6 +27,9 @@ create index if not exists credits_clients_client_statut_idx
 
 alter table public.credits_clients enable row level security;
 
+revoke all on public.credits_clients from public, anon;
+grant select, insert, update, delete on public.credits_clients to authenticated, service_role;
+
 drop policy if exists credits_clients_select on public.credits_clients;
 create policy credits_clients_select on public.credits_clients
   for select to authenticated

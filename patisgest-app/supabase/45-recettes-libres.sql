@@ -24,6 +24,9 @@ create index if not exists recettes_libres_client_idx
 
 alter table public.recettes_libres enable row level security;
 
+revoke all on public.recettes_libres from public, anon;
+grant select, insert, update, delete on public.recettes_libres to authenticated, service_role;
+
 drop policy if exists recettes_libres_select on public.recettes_libres;
 create policy recettes_libres_select on public.recettes_libres
   for select to authenticated

@@ -375,13 +375,13 @@
     },
     {
       "file": "45-recettes-libres.sql",
-      "sha256": "97e0bda5cd88e784e4a3eaf1bb26d9ebc9729eff0c7173aaf37375b1fefbf41b",
+      "sha256": "6db12c1229918c3fd0a8a3bfaea1721db582a3ae1bf1d68d0cf2af554706f92d",
       "hors_fixture_pilote": true,
       "note": "Wave 1 (A.1) : recettes libres multi-appareils en DA avec RLS par client."
     },
     {
       "file": "46-credits-clients.sql",
-      "sha256": "f328c6bc282d500a9066f160c812db924c7f6442a228c5a088041e762aad87fc",
+      "sha256": "35aba4d47c529af68463dd40acb285d8f6bb05564196a07627f876402f0975b0",
       "hors_fixture_pilote": true,
       "note": "Wave 1 (A.3) : carnet de crédits clients/cafés et RPC enregistrer_reglement_credit."
     },
@@ -393,7 +393,7 @@
     },
     {
       "file": "48-notifications-patron.sql",
-      "sha256": "b5c65769f93234de9a0236f880c5ea4adc17bbc5046a5735a1a1f3cba12feb83",
+      "sha256": "251d7fac0c7d43ccad5d1fd9298022ccdd0625b429d27630a6aa835c801e3e85",
       "hors_fixture_pilote": true,
       "note": "Wave 2 (B.6) : alertes prix employés vers le propriétaire et RPC traiter_alerte_prix_patron."
     },
