@@ -175,7 +175,7 @@ function Catalogue({ catalogue, ageJours }: { catalogue: CatalogueHorsLigne; age
           <li key={a.id} className="flex justify-between gap-3 py-1.5">
             <span>{a.label}</span>
             <span className="text-slate-500">
-              {typeof a.prixHT === "number" ? `${a.prixHT.toFixed(2)} DA HT` : "—"}
+              {typeof a.prixHT === "number" ? `${Math.round(a.prixHT)} DA` : "—"}
             </span>
           </li>
         ))}

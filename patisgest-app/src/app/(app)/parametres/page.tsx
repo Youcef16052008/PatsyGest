@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { requireSession, ROLE_LABELS } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import ModulesSettings, { type ModulesCompte } from "@/components/modules-settings";
@@ -5,8 +6,11 @@ import SitesSettings, { type SiteCompte } from "@/components/sites-settings";
 import EquipeSettings, { type EquipeDonnees } from "@/components/equipe-settings";
 import EtablissementForm from "@/components/etablissement-form";
 import SauvegardePanel from "@/components/sauvegarde-panel";
-import AppearancePicker from "@/components/appearance";
-import { PageIntro } from "@/components/workspace-ui";
+import { ThemeModeControl } from "@/components/appearance";
+import { LanguageToggle } from "@/components/locale-provider";
+import AdvancedModeToggle from "@/components/advanced-mode-toggle";
+import { ADVANCED_MODE_COOKIE, readAdvancedMode } from "@/lib/appearance";
+import { Disclosure, PageIntro } from "@/components/workspace-ui";
 import VitrineForm, { type RecetteVitrine, type SiteVitrine } from "@/components/vitrine-form";
 import JournalAuditPanel from "@/components/journal-audit-panel";
 import DonneesPersonnellesPanel from "@/components/donnees-personnelles-panel";
@@ -224,53 +228,79 @@ export default async function Parametres() {
     }
   }
 
+  const advancedMode = readAdvancedMode((await cookies()).get(ADVANCED_MODE_COOKIE)?.value);
+
   return (
-    <div>
+    <div className="pg-stack">
       <PageIntro title="Paramètres" description={`${ctx.clientNom} · ${ROLE_LABELS[ctx.role]}`}/>
       <section className="pg-card pg-card-pad">
-        <div className="pg-card-head"><div><h2>Apparence</h2><p>Cinq interfaces, chacune en clair ou en sombre. Ce choix ne change que ce navigateur.</p></div><AppearancePicker/></div>
+        <div className="pg-card-head">
+          <div>
+            <h2>Mode de navigation</h2>
+            <p>Gardez les 6 onglets essentiels au quotidien, ou affichez tous les modules atelier.</p>
+          </div>
+          <AdvancedModeToggle initial={advancedMode} />
+        </div>
+        <div className="pg-card-head border-t pt-4 mt-4 mb-0">
+          <div>
+            <h2>Thème clair / sombre</h2>
+            <p>Un seul style propre, adapté au comptoir et au bureau.</p>
+          </div>
+          <ThemeModeControl />
+        </div>
+        <div className="pg-card-head border-t pt-4 mt-4 mb-0">
+          <div>
+            <h2>Langue de l’interface / اللغة</h2>
+            <p>Basculez entre Français et Arabe (avec mise en page RTL automatique).</p>
+          </div>
+          <LanguageToggle />
+        </div>
       </section>
 
-      <div className="mt-6">
-        {ctx.mode === "supabase" && sitesVitrine.length > 0 && (
-          <VitrineForm
-            role={ctx.role}
-            sites={sitesVitrine}
-            recettes={recettes}
-            domaine={process.env.PATISGEST_DOMAINE ?? DOMAINE_SERVICE_PAR_DEFAUT}
-          />
-        )}
+      <div className="pg-stack">
         {ctx.role === "proprietaire" ? (
           <>
             <EtablissementForm etablissement={etablissement} />
             {ctx.mode === 'supabase' && <SitesSettings sites={sites} error={sitesError}/>}
             {ctx.mode === 'supabase' && equipeExperimentale && <EquipeSettings data={equipe} sites={sites} error={equipeError}/>}
-            {ctx.mode==='supabase' ? <ModulesSettings accounts={accounts} error={modulesError}/> : <section className="pg-card pg-card-pad mt-6"><h2>Accès aux modules</h2><p>Disponible en établissement connecté. La démo locale ne protège pas les données par compte.</p></section>}
             {ctx.mode === "supabase" ? (
               <SauvegardePanel />
             ) : (
-              <section className="rounded-2xl border bg-white p-5 text-sm text-slate-500">
-                <h2 className="font-bold text-slate-800">Sauvegarde &amp; restauration</h2>
-                <p className="mt-1">
-                  Disponible en mode pilote connecté : en démo locale il n’y a pas de base à sauvegarder.
+              <section className="pg-card pg-card-pad text-sm">
+                <h2 className="font-bold">Sauvegarde &amp; restauration</h2>
+                <p className="mt-1 pg-muted">
+                  Disponible avec un compte connecté : en démo locale, vos essais sont enregistrés dans ce navigateur.
                 </p>
               </section>
             )}
-            <JournalAuditPanel
-              lignes={lignesAudit}
-              erreur={auditError}
-              migrationAbsente={auditMigrationAbsente}
-            />
-            <DonneesPersonnellesPanel
-              commandes={commandesPerso}
-              migrationActive={migrationPersoActive}
-            />
+            <Disclosure title="Options avancées & conformité" description="Vitrine publique, droits par employé, journal d’audit et données clients." icon="settings">
+              <div className="pg-stack">
+                {ctx.mode === "supabase" && sitesVitrine.length > 0 && (
+                  <VitrineForm
+                    role={ctx.role}
+                    sites={sitesVitrine}
+                    recettes={recettes}
+                    domaine={process.env.PATISGEST_DOMAINE ?? DOMAINE_SERVICE_PAR_DEFAUT}
+                  />
+                )}
+                {ctx.mode==='supabase' ? <ModulesSettings accounts={accounts} error={modulesError}/> : <section className="pg-card pg-card-pad"><h2>Accès aux modules</h2><p className="pg-muted">Disponible avec un établissement connecté.</p></section>}
+                <JournalAuditPanel
+                  lignes={lignesAudit}
+                  erreur={auditError}
+                  migrationAbsente={auditMigrationAbsente}
+                />
+                <DonneesPersonnellesPanel
+                  commandes={commandesPerso}
+                  migrationActive={migrationPersoActive}
+                />
+              </div>
+            </Disclosure>
           </>
         ) : (
-          <section className="rounded-2xl border bg-white p-5 text-sm">
+          <section className="pg-card pg-card-pad text-sm">
             <h2 className="font-bold">Identité de l’établissement</h2>
-            <p className="mt-1 text-slate-500">
-              Seul le propriétaire peut modifier ces mentions. Valeurs actuelles :
+            <p className="mt-1 pg-muted">
+              Seul le propriétaire peut modifier ces informations.
             </p>
             <ul className="mt-3 space-y-1 font-mono text-xs">
               <li>Nom : {etablissement.nom}</li>

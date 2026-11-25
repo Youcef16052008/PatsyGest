@@ -2,7 +2,9 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 import { APPEARANCE_COOKIE, readAppearance } from "@/lib/appearance";
+import { LOCALE_COOKIE, readLocale } from "@/lib/i18n";
 import { AppearanceProvider } from "@/components/appearance";
+import { LocaleProvider } from "@/components/locale-provider";
 import ServiceWorkerSetup from "@/components/service-worker";
 import "./globals.css";
 
@@ -31,8 +33,10 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const initial = readAppearance((await cookies()).get(APPEARANCE_COOKIE)?.value);
-  return <html lang="fr" data-design={initial.design} data-mode={initial.modes[initial.design]}>
-    <body className="antialiased"><AppearanceProvider initial={initial}>{children}</AppearanceProvider><ServiceWorkerSetup/></body>
+  const cookieStore = await cookies();
+  const initial = readAppearance(cookieStore.get(APPEARANCE_COOKIE)?.value);
+  const locale = readLocale(cookieStore.get(LOCALE_COOKIE)?.value);
+  return <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"} data-design={initial.design} data-mode={initial.modes[initial.design]}>
+    <body className="antialiased"><LocaleProvider initialLocale={locale}><AppearanceProvider initial={initial}>{children}</AppearanceProvider></LocaleProvider><ServiceWorkerSetup/></body>
   </html>;
 }

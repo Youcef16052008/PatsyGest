@@ -37,6 +37,8 @@ import { PageIntro } from "@/components/workspace-ui";
 import ListeCoursesPanel from "@/components/liste-courses-panel";
 import ChargeCapacitePanel from "@/components/charge-capacite-panel";
 import { lireListeCourses } from "@/lib/courses-server";
+import FreeRecipesWorkspace from "@/components/free-recipes-workspace";
+import { loadFreeRecipesCloud } from "@/lib/actions-free-recipes";
 
 const modules = {
   stocks: { title:'Articles & stocks', tables:[['articles','Articles'],['lots','Lots']] },
@@ -47,7 +49,7 @@ const modules = {
   simulation: { title:'Simulation de prix', tables:[['recette_familles','Recettes'],['recette_versions','Versions'],['lots','Lots']] },
   planning: { title:'Planning de production', tables:[['taches_planning','Tâches'],['ordres_fabrication','Ordres de fabrication']] },
   tracabilite: { title:'Traçabilité des lots', tables:[['lots','Lots'],['mouvements','Mouvements']] },
-  'cake-design': { title:'Cake Design Studio', tables:[['cakes','Devis et commandes']] },
+  'cake-design': { title:'Commandes & Gâteaux', tables:[['cakes','Devis et commandes']] },
   qualite: { title:'HACCP & qualité', tables:[['releve_temperatures','Températures'],['nettoyages','Nettoyages'],['non_conformites','Non-conformités']] },
   cloture: { title:'Clôture & pertes', tables:[['clotures','Clôtures']] },
   caisse: { title:'Caisse', tables:[['ventes','Ventes']] },
@@ -56,12 +58,12 @@ type Module = keyof typeof modules;
 
 const moduleDescriptions: Partial<Record<Module, string>> = {
   achats: "Préparez les commandes et retrouvez vos fournisseurs.",
-  recettes: "Organisez vos recettes et les versions utilisées en production.",
+  recettes: "Écrivez vos recettes librement, calculez vos moules/parts et vérifiez vos marges en DA.",
   simulation: "Comparez vos prix de vente et vos marges par produit.",
   transferts: "Retrouvez les mouvements de stock entre vos sites.",
   planning: "Préparez la journée et suivez les tâches du laboratoire.",
   tracabilite: "Retrouvez l’origine et les mouvements de chaque lot.",
-  'cake-design': "Suivez les devis, acomptes et livraisons de gâteaux sur commande.",
+  'cake-design': "Mariages, anniversaires, acomptes payés, reste à encaisser et suivi client.",
   qualite: "Contrôlez vos températures, nettoyages et alertes.",
   cloture: "Faites le bilan des ventes et des pertes par site.",
 };
@@ -245,10 +247,13 @@ export default async function ModulePage({ params, searchParams }: {
     writeForms=lotRes.error||artRes.error ? <p role="alert">Les lots de traçabilité sont indisponibles.</p> : <RecallForm lots={lotRows} />;
   } else if (key==='recettes' && coutsAutorises && canWrite(ctx.role)) {
     // Versions immuables : articles ou sous-recettes figées + activation.
-    const artRes=await supabase.from('articles').select('id, code, nom, niveau, unite').eq('client_id',ctx.clientId).order('nom').limit(150);
-    const verRes=await supabase.from('recette_versions')
-      .select('id, famille_id, version, active, rendement_qte, rendement_unite, recette_familles!inner(nom, code, produit_id)')
-      .eq('client_id',ctx.clientId).order('version',{ascending:false});
+    const [artRes, verRes, cloudRes] = await Promise.all([
+      supabase.from('articles').select('id, code, nom, niveau, unite').eq('client_id',ctx.clientId).order('nom').limit(150),
+      supabase.from('recette_versions')
+        .select('id, famille_id, version, active, rendement_qte, rendement_unite, recette_familles!inner(nom, code, produit_id)')
+        .eq('client_id',ctx.clientId).order('version',{ascending:false}),
+      loadFreeRecipesCloud(),
+    ]);
     const artRows=((artRes.data??[]) as {id:string;code:string;nom:string;niveau:string;unite:string}[]);
     const articles=artRows.map(a=>({id:a.id,label:`${a.code} · ${a.nom} (${a.unite})`}));
     const produits=artRows.map(a=>({id:a.id,label:`${a.code} · ${a.nom} — ${a.niveau}`}));
@@ -260,7 +265,37 @@ export default async function ModulePage({ params, searchParams }: {
     const familles=famRows.map(f=>({id:f.id,label:`${f.code} — ${f.nom}`}));
     const subVersions=verRows.map(v=>({id:v.id,label:`${v.fam.nom} · v${v.version} (${v.rendement_qte} ${v.rendement_unite})`}));
     const versionRows: VersionRow[]=verRows.map(v=>({id:v.id,familleId:v.famille_id,version:v.version,active:v.active,label:`${v.fam.nom} · v${v.version} (${v.rendement_qte} ${v.rendement_unite})`}));
-    writeForms=<VersionForm familles={familles} articles={articles} subVersions={subVersions} versions={versionRows} produits={produits} />;
+    const stockSuggestions = artRows
+      .filter((a) => a.niveau === 'matiere')
+      .map((a) => ({ id: a.id, nom: a.nom, unite: a.unite, prixUnitaireDa: null }));
+    writeForms = (
+      <FreeRecipesWorkspace
+        scopeKey={ctx.clientId}
+        stockSuggestions={stockSuggestions}
+        canEdit={canWrite(ctx.role)}
+        sessionMode="supabase"
+        canReadCosts={coutsAutorises}
+        userRole={ctx.role}
+        userName={ctx.nom.split(" (")[0]}
+        initialCloudRecipes={cloudRes.recipes}
+        cloudTableAvailable={cloudRes.tableAvailable}
+        stockLinkedNode={<VersionForm familles={familles} articles={articles} subVersions={subVersions} versions={versionRows} produits={produits} />}
+      />
+    );
+  } else if (key==='recettes') {
+    const cloudRes = await loadFreeRecipesCloud();
+    writeForms = (
+      <FreeRecipesWorkspace
+        scopeKey={ctx.clientId}
+        canEdit={false}
+        sessionMode="supabase"
+        canReadCosts={coutsAutorises}
+        userRole={ctx.role}
+        userName={ctx.nom.split(" (")[0]}
+        initialCloudRecipes={cloudRes.recipes}
+        cloudTableAvailable={cloudRes.tableAvailable}
+      />
+    );
   } else if (key==='cloture' && canWrite(ctx.role)) {
     // Clôture six flux + comptage tiroir-caisse séparé (repli pré-migration 21 sur caisse_bilan).
     const loadClotures = async () => {

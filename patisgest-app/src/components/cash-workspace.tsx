@@ -9,6 +9,8 @@ import type { CatalogueHorsLigne } from "@/lib/catalogue-cache";
 import SaleHistory from "./sale-history";
 import ZImportForm from "./z-import-form";
 import AvoirForm from "./avoir-form";
+import CreditsWorkspace from "./credits-workspace";
+import { loadCreditsCloud } from "@/lib/actions-credits";
 import { Icon } from "./workspace-icons";
 import { Disclosure, Notice, PageIntro } from "./workspace-ui";
 
@@ -34,15 +36,19 @@ export function CashPanel({ articles, sites, lots, identite, queueIdentity, clie
 
 export default async function CashWorkspace({ ctx, db }: { ctx: SessionContext; db: WorkspaceDB }) {
   const { clientId } = ctx;
-  const [articles, sites, lots, identite] = await Promise.all([
-    lireArticles(db, clientId, true), lireSites(db, clientId), lireLots(db, clientId, ctx.role), lireIdentiteCaisse(db, ctx),
+  const today = jourLocal();
+  const [articles, sites, lots, identite, creditsRes] = await Promise.all([
+    lireArticles(db, clientId, true), lireSites(db, clientId), lireLots(db, clientId, ctx.role), lireIdentiteCaisse(db, ctx), loadCreditsCloud(),
   ]);
   const sales = await lireHistoriqueCaisse(db, clientId, (articles ?? []).map(articleAffiche), sites ?? []);
   return <>
-    <PageIntro title="Caisse" label="Boutique" description="Composez le panier client (un ou plusieurs produits), choisissez le mode de règlement et enregistrez le ticket."
-      actions={<Link href="/stocks" className="pg-button pg-button-secondary"><Icon name="box" size={18}/> Voir les stocks</Link>}/>
+    <PageIntro title="Caisse rapide" label="Boutique" description="Composez le panier client en 1 clic, choisissez le règlement et imprimez le ticket."
+      actions={<><Link href="/cake-design" className="pg-button pg-button-secondary"><Icon name="cake" size={18}/> Acomptes &amp; commandes</Link><Link href="/stocks" className="pg-button pg-button-secondary"><Icon name="box" size={18}/> Stocks</Link></>}/>
     <div className="pg-stack">
       <CashPanel queueIdentity={{clientId:ctx.clientId,authUserId:ctx.authUserId}} articles={articles} sites={sites} lots={lots} identite={identite} clientId={ctx.clientId}/>
+      {creditsRes.tableAvailable && (
+        <CreditsWorkspace mode="supabase" scopeKey={ctx.clientId} shop={identite.nom} today={today} initialCredits={creditsRes.credits} />
+      )}
       <SaleHistory sales={sales}/>
       {canWrite(ctx.role) && <Disclosure title="Retour ou avoir" description="Reprendre un produit vendu : remise en stock ou destruction tracée." icon="receipt"><AvoirForm ventes={sales ?? []}/></Disclosure>}
       {canWrite(ctx.role) && <Disclosure title="Importer un Z de caisse" description="Ajouter les ventes d’une caisse externe." icon="list"><ZImportForm sites={sites ?? []}/></Disclosure>}

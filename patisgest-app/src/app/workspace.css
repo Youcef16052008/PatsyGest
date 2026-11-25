@@ -128,7 +128,7 @@
 .pg-search input { padding-left: 36px; }
 .pg-segment { display: inline-flex; align-items: stretch; padding: 3px; gap: 2px; background: var(--pg-subtle); border: 1px solid var(--pg-line); border-radius: 10px; }
 .pg-segment button, .pg-filter { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 10px; border: 1px solid transparent; border-radius: 8px; color: var(--pg-muted); font-size: .8rem; font-weight: 780; cursor: pointer; }
-.pg-segment button[aria-pressed='true'] { background: var(--pg-surface); color: var(--pg-link); border-color: var(--pg-tint-border); box-shadow: var(--pg-shadow); }
+.pg-segment button[aria-pressed='true'], .pg-segment button[aria-selected='true'] { background: var(--pg-surface); color: var(--pg-link); border-color: var(--pg-tint-border); box-shadow: var(--pg-shadow); }
 .pg-segment button:hover, .pg-filter:hover { color: var(--pg-link); }
 .pg-filter[aria-pressed='true'] { background: var(--pg-tint); color: var(--pg-link); border-color: var(--pg-tint-border); }
 .pg-badge { display: inline-flex; gap: .35rem; align-items: center; width: fit-content; max-width: 100%; padding: .26rem .54rem; border-radius: 999px; font-size: .72rem; font-weight: 800; line-height: 1.2; color: var(--pg-link); background: var(--pg-tint); overflow-wrap: anywhere; }
@@ -234,7 +234,7 @@
 .pg-product:hover:not(:disabled), .pg-product[aria-pressed='true'] { border-color: var(--pg-link); background: var(--pg-tint); }
 .pg-product:focus-visible { outline-offset: -2px; }
 .pg-product[aria-pressed='true'] { box-shadow: inset 0 0 0 1px var(--pg-link); }
-.pg-product-photo { display: none; }
+.pg-product-photo { display: block; order: -1; width: 100%; height: 92px; object-fit: cover; border-bottom: 1px solid var(--pg-line); background: var(--pg-subtle); }
 .pg-product-body { display: flex; width: 100%; align-items: center; gap: 9px; padding: 10px; flex: 1; }
 .pg-product-copy { display: grid; align-content: center; gap: 3px; flex: 1; min-width: 0; }
 .pg-product-copy strong { font-size: clamp(.96rem, 1.49vw, 1.13rem); line-height: 1.22; font-weight: 800; letter-spacing: -.02em; overflow-wrap: anywhere; }
@@ -616,4 +616,61 @@
 .pg-sw-update button {
   border: 0; border-radius: 8px; padding: .4rem .7rem; cursor: pointer;
   background: #6d28d9; color: #fff; font-size: .78rem; font-weight: 800;
+}
+
+/* Wave 2 — Look Boulangerie Moderne, badges sémantiques, Écran Cuisine & ergonomie mobile pouce */
+.pg-badge[data-tone="success"] { background: var(--pg-ok-bg); color: var(--pg-ok-ink); }
+.pg-badge[data-tone="warning"] { background: var(--pg-warn-bg); color: var(--pg-warn-ink); }
+.pg-badge[data-tone="danger"] { background: var(--pg-bad-bg); color: var(--pg-bad-ink); }
+.pg-badge[data-tone="planned"] { background: var(--pg-tint); color: var(--pg-link); }
+.pg-badge[data-tone="neutral"] { background: var(--pg-subtle); color: var(--pg-ink); border: 1px solid var(--pg-line); }
+
+.pg-kitchen-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.pg-product {
+  transition: transform .1s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.pg-product:active:not(:disabled) {
+  transform: scale(0.985);
+}
+@media (max-width: 900px) {
+  .pg-kitchen-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 480px) {
+  .pg-pilot-home .pg-home-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .pg-pilot-home .pg-metric {
+    min-height: 106px;
+    padding: 13px;
+  }
+  .pg-pilot-home .pg-metric strong {
+    font-size: 1.25rem;
+  }
+  .pg-button {
+    min-height: 44px;
+  }
+}
+
+/* Wave 3 & 4 — Mise en page RTL Arabe + Catalogue visuel */
+[dir="rtl"] .pg-product,
+[dir="rtl"] .pg-metric,
+[dir="rtl"] .pg-nav-link,
+[dir="rtl"] .pg-card {
+  text-align: right;
+}
+[dir="rtl"] .pg-stock-qty {
+  text-align: left;
+}
+[dir="rtl"] .pg-sidebar {
+  border-right: 0;
+  border-left: 1px solid var(--pg-line);
+}
+[dir="rtl"] .pg-nav-link[aria-current="page"]::before {
+  left: auto;
+  right: 0;
 }

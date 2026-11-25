@@ -1,31 +1,33 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DESIGNS, readAppearance, writeAppearance } from '../src/lib/appearance.ts';
+import { DESIGNS, readAdvancedMode, readAppearance, writeAppearance } from '../src/lib/appearance.ts';
 import { colonneProduction, correspond, dateLisible, indexLots, ordreLots, serieVentes, siteCaisse, stockArticle, stockParSite } from '../src/lib/workspace-data.ts';
 
 const today = '2026-11-17';
 const flour = { id: 'a', nom: 'Farine', code: 'MAT-001', niveau: 'matiere', unite: 'kg', seuil: 5 };
 const lot = (id, changes = {}) => ({ id, articleId: 'a', siteId: 'b', numero: `L-${id}`, qte: 2.635, recu: today, dlc: '2026-11-19', congele: false, bloque: false, ...changes });
 
-test('Apparence : chacun des cinq modes sombres est indépendant et persiste', () => {
-  assert.equal(DESIGNS.length, 5);
-  for (const { id } of DESIGNS) {
-    const a = readAppearance();
-    a.design = id;
-    a.modes[id] = 'dark';
-    const result = readAppearance(writeAppearance(a));
-    assert.deepEqual(result, a);
-    assert.equal(Object.values(result.modes).filter(mode => mode === 'dark').length, 1);
-  }
+test('Apparence : design unique avec bascule clair/sombre persistante', () => {
+  assert.equal(DESIGNS.length, 1);
+  const a = readAppearance();
+  a.modes.pilotage = 'dark';
+  const result = readAppearance(writeAppearance(a));
+  assert.deepEqual(result, a);
+  assert.equal(result.design, 'pilotage');
+  assert.equal(result.modes.pilotage, 'dark');
 });
 
-test('Apparence : seuls les noms et modes connus atteignent le HTML SSR', () => {
+test('Apparence : anciens cookies et valeurs invalides restent sûrs', () => {
   for (const raw of ['fabrication.invalid','"><script>','unknown.dddddd','atelier.ddddd.x','atelier.%3cdark']) {
     const result = readAppearance(raw);
-    assert.ok(DESIGNS.some(d => d.id === result.design));
-    assert.ok(Object.values(result.modes).every(mode => mode === 'light'));
+    assert.equal(result.design, 'pilotage');
+    assert.equal(result.modes.pilotage, 'light');
   }
-  assert.equal(readAppearance('comptoir.llldl').modes.comptoir, 'dark');
+  assert.equal(readAppearance('comptoir.llldl').modes.pilotage, 'dark');
+  assert.equal(readAppearance('atelier.dllll').modes.pilotage, 'dark');
+  assert.equal(readAdvancedMode('1'), true);
+  assert.equal(readAdvancedMode('0'), false);
+  assert.equal(readAdvancedMode(undefined), false);
 });
 
 test('Stocks : la quantité non bloquée reste exacte et la DLC reste visible', () => {
@@ -71,4 +73,5 @@ test('Pilotage : la série couvre 14 jours, compte les tickets et conserve les c
   assert.deepEqual(series.at(-1), { day:today, ttc:20.18, tickets:2 });
   assert.equal(series.slice(-7).reduce((s,v) => s+v.tickets,0), 2);
   assert.equal(series.reduce((s,v) => s+v.tickets,0), 3);
+  assert.equal(serieVentes(ventes, today, 30).length, 30);
 });

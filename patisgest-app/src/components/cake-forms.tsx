@@ -10,6 +10,7 @@ import { traiterDemandeVitrine } from "@/lib/actions-vitrine";
 import { peutTraiterDemande, type Role } from "@/lib/vitrine-permissions";
 import CakeTicket from "./cake-ticket";
 import { cakeConnectedTotals } from "@/lib/cake-money";
+import { whatsappOrderUrl } from "@/lib/whatsapp";
 
 function subscribeDraft(cb: () => void) {
   window.addEventListener("storage", cb);
@@ -142,7 +143,7 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-950">
             <span>
               <strong>Brouillon d&apos;estimation disponible :</strong> {draft.modeleNom} · {draft.parts} parts · {draft.formatLabel}
-              {!draft.coutIncomplet && draft.prixHtPropose != null ? ` · ${draft.prixHtPropose.toLocaleString("fr-DZ")} DA HT` : " · coût partiel (prix à saisir)"}
+              {!draft.coutIncomplet && draft.prixHtPropose != null ? ` · ${draft.prixHtPropose.toLocaleString("fr-DZ")} DA` : " · coût partiel (prix à saisir)"}
             </span>
             <span className="flex gap-2">
               <button type="button" onClick={appliquerBrouillon} className="rounded bg-violet-700 px-2.5 py-1 font-bold text-white">
@@ -165,7 +166,7 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
             <label className={`${label} w-40`}>Téléphone<input name="telephone" maxLength={40} className={field} /></label>
             <label className={`${label} w-44`}>Date événement<input name="dateEvent" type="date" min="2000-01-04" required className={field} /></label>
             <label className={`${label} w-28`}>Parts<input name="nbParts" type="number" min={1} max={10000} required value={nbPartsVal} onChange={(e) => setNbPartsVal(e.target.value)} className={field} /></label>
-            <label className={`${label} w-36`}>Prix HT (DA)<input name="prixHt" type="number" step="any" min={0.01} required value={prixHtVal} onChange={(e) => setPrixHtVal(e.target.value)} className={field} /></label>
+            <label className={`${label} w-36`}>Prix total (DA)<input name="prixHt" type="number" step="any" min={0.01} required value={prixHtVal} onChange={(e) => setPrixHtVal(e.target.value)} className={field} /></label>
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <label className={`${label} flex items-center gap-2 py-2`}><input name="cgv" type="checkbox" defaultChecked className="h-4 w-4" /> CGV acceptées</label>
@@ -193,20 +194,36 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
       <section className="rounded-2xl border bg-white p-5">
         <h2 className="mb-3 font-bold">Devis &amp; commandes en cours</h2>
         <p className="mb-3 text-xs text-slate-500">
-          Édition réservée au statut devis · paiements historisés · acompte 30 % HT minimum
+          Édition réservée au statut devis · paiements historisés · acompte 30 % minimum
           pour confirmer · solde avant livraison · preuve CGV horodatée · ticket imprimable.
         </p>
         <ul className="space-y-3">
-          {sorted.map((c) => (
+          {sorted.map((c) => {
+            const totals = cakeConnectedTotals(Number(c.prixHt), Number(c.tvaPct), Number(c.acompte));
+            const wa = whatsappOrderUrl({
+              phone: c.telephone,
+              client: c.clientNom,
+              numero: c.numero,
+              eventDate: c.dateEvent,
+              parts: c.nbParts,
+              resteDa: totals.balance,
+            });
+            return (
             <li key={c.id} className={`rounded-lg border p-3 text-sm ${payId === c.id ? "border-violet-500 ring-1 ring-violet-500" : ""}`}>
               <form action={evolveAction} className="space-y-2">
                 <input type="hidden" name="id" value={c.id} />
                 <div className="flex flex-wrap items-center gap-2">
                   <button type="button" onClick={() => setPayId(payId === c.id ? "" : c.id)} className="font-bold text-violet-800 underline">{c.numero}</button>
-                  <span>{c.clientNom}</span>
-                  <span className="text-slate-500">{Number(c.prixHt).toLocaleString("fr-FR")} DA HT · TVA {c.tvaPct} %</span>
+                  <b>{c.clientNom}</b>
+                  <span className="text-slate-500">{c.dateEvent} · {c.nbParts} parts</span>
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 font-bold uppercase text-xs">{c.statut}</span>
-                  <span className="text-xs text-slate-500">versé {Number(c.acompte).toLocaleString("fr-FR")} DA · solde TTC {cakeConnectedTotals(Number(c.prixHt), Number(c.tvaPct), Number(c.acompte)).balance.toFixed(2)} DA</span>
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-800">Acompte : {Number(c.acompte).toLocaleString("fr-FR")} DA</span>
+                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800">Reste : {totals.balance.toFixed(0)} DA</span>
+                  {wa && (
+                    <a href={wa} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-emerald-700 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-800">
+                      WhatsApp
+                    </a>
+                  )}
                   {c.cgv
                     ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">CGV {c.cgvVersion ?? ""} ✓</span>
                     : <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">CGV non acceptées</span>}
@@ -222,7 +239,7 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
                   </span>
                 </div>
                 {payId === c.id && (
-                  <label className={`${label} max-w-64`}>Montant du paiement (DA TTC)
+                  <label className={`${label} max-w-64`}>Montant du paiement (DA)
                     <input name="montant" type="number" step="any" min={0.01} required className={`${field} mt-0`} />
                   </label>
                 )}
@@ -247,12 +264,10 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
                   <label className={label}>Parts
                     <input name="nbParts" type="number" min={1} max={10000} required defaultValue={c.nbParts} className={field} />
                   </label>
-                  <label className={label}>Prix HT
+                  <label className={label}>Prix (DA)
                     <input name="prixHt" type="number" step="any" min={0.01} required defaultValue={c.prixHt} className={field} />
                   </label>
-                  <label className={label}>TVA %
-                    <input name="tvaPct" type="number" step="any" min={0} max={100} required defaultValue={c.tvaPct} className={field} />
-                  </label>
+                  <input type="hidden" name="tvaPct" value={c.tvaPct} />
                   <label className={`${label} sm:col-span-2`}>Notes
                     <input name="notes" maxLength={500} defaultValue={c.notes ?? ""} className={field} />
                   </label>
@@ -283,7 +298,8 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
                 </div>
               )}
             </li>
-          ))}
+            );
+          })}
           {sorted.length === 0 && <li className="text-sm text-slate-500">Aucun devis.</li>}
         </ul>
         {assignState.erreur && <p role="alert" className="mt-2 text-sm text-red-700">{assignState.erreur}</p>}

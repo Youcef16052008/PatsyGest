@@ -2,6 +2,8 @@
 
 import { useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { sellCart, type SaleState } from "@/lib/actions-caisse";
+import { createCreditCloud } from "@/lib/actions-credits";
+import type { CreditAccountType } from "@/lib/credits";
 import type { Etablissement } from "@/lib/etablissement";
 import { isPaymentMode, isValidCartQty, PAYMENT_MODE_LABELS, type PaymentMode } from "@/lib/pos-cart";
 import {
@@ -28,12 +30,12 @@ const label = "block text-xs font-semibold text-slate-600";
 
 type Msg = { kind: "err" | "ok" | "info"; text: string };
 
-type VenteAffichee = SaleState & {
+type VenteAffichee = Omit<SaleState, "modePaiement"> & {
   articleLabel: string;
   siteLabel: string;
   qte: number;
   lines: SaleTicketLine[];
-  modePaiement: PaymentMode;
+  modePaiement: PaymentMode | string;
   at: string;
   etablissement: Etablissement | null;
 };
@@ -183,8 +185,18 @@ export default function SaleForm({
     const siteLabel = sites.find((s) => s.id === siteId)?.label;
     const modeRaw = String(fd.get("modePaiement") ?? "especes");
     const modePaiement: PaymentMode = isPaymentMode(modeRaw) ? modeRaw : "especes";
+    const creditMode = String(fd.get("creditMode") ?? "0") === "1";
+    const creditNom = String(fd.get("creditNom") ?? "").trim();
+    const creditTelephone = String(fd.get("creditTelephone") ?? "").trim();
+    const creditType = (String(fd.get("creditType") ?? "particulier") === "cafe_entreprise"
+      ? "cafe_entreprise"
+      : "particulier") as CreditAccountType;
     if (!siteLabel) {
       setMsg({ kind: "err", text: "Choisissez un site de vente valide." });
+      return;
+    }
+    if (creditMode && !creditNom) {
+      setMsg({ kind: "err", text: "Indiquez le nom du client ou du café pour le carnet." });
       return;
     }
 
@@ -241,11 +253,25 @@ export default function SaleForm({
             // Chaque retrait est persistant immédiatement, sous le même verrou.
             queue.write(removeSale(queue.read(), sale.ticket));
             const ticket = ticketVente(state, sale);
-            if (ticket) setLastSale(ticket);
+            if (ticket) {
+              if (creditMode) ticket.modePaiement = "À crédit (Carnet)";
+              setLastSale(ticket);
+            }
+            if (creditMode && status === "ok" && (state.totalTTC ?? 0) > 0) {
+              await createCreditCloud({
+                nomDebiteur: creditNom,
+                telephone: creditTelephone,
+                typeCompte: creditType,
+                montantTotalDa: state.totalTTC ?? 0,
+                note: `Caisse ${state.numero ?? ""} · ${lignes.map((l) => `${l.articleLabel} × ${l.qte}`).join(", ")}`.slice(0, 280),
+              });
+            }
             setMsg({ kind: "ok", text: status === "dup" ? "Ticket déjà enregistré." :
-              (state.manquant ?? 0) > 0
-                ? `Ticket enregistré (${lignes.length} produit(s), ${PAYMENT_MODE_LABELS[modePaiement]}). Stock manquant : ${quantite(state.manquant ?? 0)}.`
-                : `Ticket enregistré (${lignes.length} produit(s), ${PAYMENT_MODE_LABELS[modePaiement]}).` });
+              creditMode
+                ? `Ticket noté au carnet de ${creditNom} (${Math.round(state.totalTTC ?? 0)} DA à encaisser).`
+                : (state.manquant ?? 0) > 0
+                  ? `Ticket enregistré (${lignes.length} produit(s), ${PAYMENT_MODE_LABELS[modePaiement]}). Stock manquant : ${quantite(state.manquant ?? 0)}.`
+                  : `Ticket enregistré (${lignes.length} produit(s), ${PAYMENT_MODE_LABELS[modePaiement]}).` });
           } else if (status === "network") {
             setMsg({ kind: "info", text: "Résultat inconnu : ticket conservé localement. Vérifiez puis synchronisez avec le même compte au retour du réseau." });
           } else {
@@ -386,6 +412,7 @@ export default function SaleForm({
             sites={sites}
             stock={stock}
             expiredStock={expiredStock}
+            scopeKey={queueIdentity.clientId}
             onSubmit={onSubmit}
             busy={pending || !!queueState.error}
             status={
