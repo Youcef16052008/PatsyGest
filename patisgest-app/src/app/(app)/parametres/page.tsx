@@ -8,7 +8,8 @@ import EtablissementForm from "@/components/etablissement-form";
 import TelephoneAlerteForm from "@/components/telephone-alerte-form";
 import SauvegardePanel from "@/components/sauvegarde-panel";
 import { lireStatutEssaiServeur } from "@/lib/trial-server";
-import { ThemeModeControl } from "@/components/appearance";
+import { paiementActif } from "@/lib/licence-mode";
+import { AppearanceSettings } from "@/components/appearance";
 import { LanguageToggle } from "@/components/locale-provider";
 import AdvancedModeToggle from "@/components/advanced-mode-toggle";
 import { ADVANCED_MODE_COOKIE, readAdvancedMode } from "@/lib/appearance";
@@ -231,7 +232,11 @@ export default async function Parametres() {
   }
 
   const advancedMode = readAdvancedMode((await cookies()).get(ADVANCED_MODE_COOKIE)?.value);
+  // Lecture utilisée pour le numéro d'alerte : sans objet en mode « tout
+  // gratuit » côté verrouillage, mais le téléphone reste utile aux alertes de
+  // coupure Internet, donc on interroge quand même la base.
   const essaiStatut = ctx.mode === "supabase" ? await lireStatutEssaiServeur() : null;
+  const paiementOuvert = paiementActif();
 
   return (
     <div className="pg-stack">
@@ -250,17 +255,33 @@ export default async function Parametres() {
         </div>
         <div className="pg-card-head border-t pt-4 mt-4 mb-0">
           <div>
-            <h2>Thème clair / sombre</h2>
-            <p>Un seul style propre, adapté au comptoir et au bureau.</p>
-          </div>
-          <ThemeModeControl />
-        </div>
-        <div className="pg-card-head border-t pt-4 mt-4 mb-0">
-          <div>
             <h2>Langue de l’interface / اللغة</h2>
             <p>Basculez entre Français et Arabe (avec mise en page RTL automatique).</p>
           </div>
           <LanguageToggle />
+        </div>
+      </section>
+
+      <section className="pg-card pg-card-pad">
+        <div className="pg-card-head">
+          <div>
+            <h2>Licence &amp; abonnement</h2>
+            <p>
+              {paiementOuvert
+                ? "Votre abonnement est géré par l’administrateur Master ; aucun paiement n’est demandé dans l’application."
+                : "Cette version est entièrement gratuite : pas d’essai daté, pas de paiement dans l’application, aucun écran de verrouillage."}
+            </p>
+          </div>
+          <span className="pg-badge" data-tone={paiementOuvert ? "warning" : "success"}>
+            {paiementOuvert ? "Abonnement" : "Gratuit · illimité"}
+          </span>
+        </div>
+      </section>
+
+      <section className="pg-card pg-card-pad">
+        <h2>Apparence</h2>
+        <div className="mt-4">
+          <AppearanceSettings />
         </div>
       </section>
 

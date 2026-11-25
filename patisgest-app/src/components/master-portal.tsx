@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { paiementActif } from "@/lib/licence-mode";
 import {
   masterChangerStatut,
   masterCreerCompteClient,
@@ -114,7 +115,10 @@ function ClientActionsRow({ client, nowMs }: { client: MasterClientRow; nowMs: n
   );
 
   const daysLeft = Math.ceil((Date.parse(client.essaiFinAt) - nowMs) / 86_400_000);
-  const expired = client.statutAbonnement === "essai" && daysLeft <= 0;
+  // En mode gratuit, aucun essai ne court : un compte « essai » ancien ne doit
+  // pas s'afficher comme expiré, sinon on croit à un blocage inexistant.
+  const suiviEssai = paiementActif();
+  const expired = suiviEssai && client.statutAbonnement === "essai" && daysLeft <= 0;
 
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -124,15 +128,22 @@ function ClientActionsRow({ client, nowMs }: { client: MasterClientRow; nowMs: n
             <h3 className="text-lg font-extrabold text-slate-900">{client.nom}</h3>
             <span
               className="pg-badge"
+              title={suiviEssai ? undefined : "Mode gratuit : aucun paiement ni échéance"}
               data-tone={
-                client.statutAbonnement === "paye"
+                !suiviEssai
+                  ? "success"
+                  : client.statutAbonnement === "paye"
                   ? "success"
                   : client.statutAbonnement === "suspendu" || expired
                     ? "danger"
                     : "warning"
               }
             >
-              {client.statutAbonnement === "paye"
+              {!suiviEssai
+                ? client.statutAbonnement === "suspendu"
+                  ? "SUSPENDU"
+                  : "GRATUIT · ACTIF"
+                : client.statutAbonnement === "paye"
                 ? "PAYÉ ✓"
                 : client.statutAbonnement === "suspendu"
                   ? "SUSPENDU"
@@ -143,8 +154,16 @@ function ClientActionsRow({ client, nowMs }: { client: MasterClientRow; nowMs: n
           </div>
           <p className="mt-1 text-xs text-slate-500">
             ID : <code>{client.id}</code> · Tél. établissement : {client.telephone || "non renseigné"} ·
-            Durée essai : <strong>{client.essaiDureeJours} jours</strong> · Fin d’essai :{" "}
-            {new Date(client.essaiFinAt).toLocaleDateString("fr-FR")}
+            {suiviEssai ? (
+              <>
+                Durée essai : <strong>{client.essaiDureeJours} jours</strong> · Fin d’essai :{" "}
+                {new Date(client.essaiFinAt).toLocaleDateString("fr-FR")}
+              </>
+            ) : (
+              <>
+                Accès : <strong>gratuit, sans échéance</strong>
+              </>
+            )}
             {client.payeAt && ` · Payé le ${new Date(client.payeAt).toLocaleDateString("fr-FR")}`}
           </p>
         </div>
@@ -299,6 +318,7 @@ export default function MasterPortal({
     {} as LicenceActionState,
   );
 
+  const abonnement = paiementActif();
   const essais = clients.filter((c) => c.statutAbonnement === "essai").length;
   const payes = clients.filter((c) => c.statutAbonnement === "paye").length;
   const expiresOuSuspendus = clients.filter(
@@ -309,13 +329,25 @@ export default function MasterPortal({
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 p-6">
+      {!abonnement && (
+        <div
+          role="status"
+          className="rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900"
+        >
+          <strong>Mode « tout gratuit » actif.</strong> Aucun essai ne s’écoule et aucun paiement
+          n’est demandé dans l’application : les comptes créés ici sont actifs sans échéance.
+          L’essai daté et la validation des paiements se réactivent avec{" "}
+          <code>PATISGEST_MODE_GRATUIT=0</code>.
+        </div>
+      )}
+
       <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-violet-700">
             Espace Master · PâtisGest
           </p>
           <h1 className="text-2xl font-extrabold text-slate-900">
-            Licences, essais &amp; connectivité
+            {abonnement ? "Licences, essais & connectivité" : "Comptes & connectivité"}
           </h1>
           <p className="text-xs text-slate-500">
             Connecté : {masterEmail} · Tél. alertes Master :{" "}

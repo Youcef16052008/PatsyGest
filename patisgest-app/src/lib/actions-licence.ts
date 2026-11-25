@@ -15,6 +15,7 @@ import {
 import { createAdminClient } from "./supabase/admin";
 import { createClient } from "./supabase/server";
 import { clampTrialDays, TRIAL_DURATION_DEFAULT_DAYS } from "./trial-crypto";
+import { modeGratuit } from "./licence-mode";
 
 export type LicenceActionState = {
   ok?: boolean;
@@ -66,17 +67,22 @@ export async function creerComptePatisserie(
         };
       }
       const userId = createdAuth.data.user.id;
-      const essaiFin = new Date(Date.now() + TRIAL_DURATION_DEFAULT_DAYS * 86_400_000).toISOString();
+      // Mode « tout gratuit » : le compte naît « payé » (aucune échéance, donc
+      // aucun verrouillage). Sinon, essai daté classique.
+      const comptesGratuits = modeGratuit();
+      const essaiDebut = new Date();
+      const essaiFin = new Date(essaiDebut.getTime() + TRIAL_DURATION_DEFAULT_DAYS * 86_400_000).toISOString();
       const { data: clientRow, error: clientErr } = await admin
         .from("clients")
         .insert({
           nom: nomEtab,
           telephone: telephone || null,
           offre: "solo",
-          statut_abonnement: "essai",
+          statut_abonnement: comptesGratuits ? "paye" : "essai",
           essai_duree_jours: TRIAL_DURATION_DEFAULT_DAYS,
-          essai_debut_at: new Date().toISOString(),
+          essai_debut_at: essaiDebut.toISOString(),
           essai_fin_at: essaiFin,
+          ...(comptesGratuits ? { paye_at: essaiDebut.toISOString(), paye_par_master: "mode-gratuit" } : {}),
         })
         .select("id")
         .single();
@@ -137,7 +143,9 @@ export async function creerComptePatisserie(
       return {
         ok: true,
         succes:
-          "Compte créé. Confirmez votre e-mail puis connectez-vous pour démarrer votre essai de 90 jours.",
+          modeGratuit()
+            ? "Compte créé. Confirmez votre e-mail puis connectez-vous : votre espace est gratuit et sans durée limitée."
+            : "Compte créé. Confirmez votre e-mail puis connectez-vous pour démarrer votre essai de 90 jours.",
       };
     }
     const { error: rpcErr } = await supabase.rpc("creer_espace_patisserie", {
@@ -246,16 +254,20 @@ export async function masterCreerCompteClient(
     }
     const now = new Date();
     const essaiFin = new Date(now.getTime() + duree * 86_400_000);
+    // Même règle que l'inscription libre : tant que l'abonnement n'est pas
+    // ouvert, le compte est actif sans échéance.
+    const comptesGratuits = modeGratuit();
     const { data: clientRow, error: clientErr } = await admin
       .from("clients")
       .insert({
         nom: nomEtab,
         telephone: telephone || null,
         offre: "solo",
-        statut_abonnement: "essai",
+        statut_abonnement: comptesGratuits ? "paye" : "essai",
         essai_duree_jours: duree,
         essai_debut_at: now.toISOString(),
         essai_fin_at: essaiFin.toISOString(),
+        ...(comptesGratuits ? { paye_at: now.toISOString(), paye_par_master: "mode-gratuit" } : {}),
       })
       .select("id")
       .single();

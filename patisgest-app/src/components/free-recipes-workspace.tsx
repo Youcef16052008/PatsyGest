@@ -28,6 +28,11 @@ import FetesPlanner from "./fetes-planner";
 import PortionEstimator from "./portion-estimator";
 import { Icon } from "./workspace-icons";
 import { jourLocal } from "@/lib/workspace-data";
+import {
+  compressImageFileToDataUrl,
+  defaultRecipePhoto,
+  RECIPE_PHOTOS,
+} from "@/lib/pastry-visuals";
 
 type Tab = "libre" | "calculateur" | "fetes" | "stock";
 
@@ -39,6 +44,11 @@ const BASIS_LABELS: Record<FreePriceBasis, string> = {
   par_unite: "DA / unité",
 };
 const money = (n: number) => `${new Intl.NumberFormat("fr-DZ", { maximumFractionDigits: 2 }).format(n)} DA`;
+
+/** Photo affichée : choix explicite, sinon illustration déduite du nom. */
+function photoDe(recipe: FreeRecipe): string | null {
+  return recipe.photo ?? defaultRecipePhoto(recipe.nom);
+}
 
 function makeEmptyRecipe(): FreeRecipe {
   return {
@@ -91,6 +101,7 @@ export default function FreeRecipesWorkspace({
   const [loaded, setLoaded] = useState(false);
   const [editing, setEditing] = useState<FreeRecipe | null>(null);
   const [feedback, setFeedback] = useState<string>("");
+  const [photoStatus, setPhotoStatus] = useState<string>("");
   const [localOnlyRecipes, setLocalOnlyRecipes] = useState<FreeRecipe[]>([]);
   const [syncPending, startSyncTransition] = useTransition();
 
@@ -137,6 +148,36 @@ export default function FreeRecipesWorkspace({
     () => (editing ? computeFreeRecipeSummary(editing) : null),
     [editing],
   );
+
+  /** Photo choisie dans la galerie livrée, ou retirée. */
+  function chooseRecipePhoto(src: string | null) {
+    if (!editing) return;
+    setEditing({ ...editing, photo: src });
+    setPhotoStatus(src ? "Photo sélectionnée — enregistrez la recette pour la conserver." : "Photo retirée.");
+  }
+
+  /**
+   * Photo prise au téléphone ou choisie dans la pellicule : elle est réduite
+   * et compressée ici (520 px, JPEG 0,72) avant de partir en base — jamais
+   * l'original de plusieurs Mo.
+   */
+  async function onRecipePhotoFile(file: File | undefined) {
+    if (!file || !editing) return;
+    if (!file.type.startsWith("image/")) {
+      setPhotoStatus("Choisissez un fichier image (JPEG, PNG, WebP).");
+      return;
+    }
+    try {
+      setPhotoStatus("Compression de la photo…");
+      const compressed = await compressImageFileToDataUrl(file, 520, 0.72);
+      setEditing({ ...editing, photo: compressed });
+      setPhotoStatus(
+        `Photo compressée (${Math.round(compressed.length / 1024)} Ko) — enregistrez la recette pour la conserver.`,
+      );
+    } catch {
+      setPhotoStatus("Impossible de lire cette image.");
+    }
+  }
 
   function saveDraft() {
     if (!editing) return;
@@ -385,6 +426,68 @@ export default function FreeRecipesWorkspace({
                     onChange={(e) => setEditing({ ...editing, unitePortion: e.target.value })}
                   />
                 </label>
+              </div>
+
+              <div className="pg-recipe-photo-editor">
+                <div className="pg-recipe-photo-frame">
+                  {photoDe(editing) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={photoDe(editing) as string}
+                      alt={`Aperçu de la photo pour ${editing.nom.trim() || "la recette"}`}
+                      width={520}
+                      height={389}
+                      decoding="async"
+                    />
+                  ) : (
+                    <span className="pg-recipe-photo-empty"><Icon name="book" size={22} /> Aucune photo</span>
+                  )}
+                </div>
+                <div className="pg-stack">
+                  <strong className="text-sm">Photo de la recette</strong>
+                  <p className="text-xs pg-muted">
+                    Choisissez une photo de la galerie PâtisGest, ou ajoutez la vôtre : elle est
+                    compressée sur cet appareil avant l’envoi (520 px, JPEG).
+                  </p>
+                  <label className="pg-button pg-button-secondary w-fit cursor-pointer">
+                    <Icon name="plus" size={16} /> Ajouter une photo
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="sr-only"
+                      onChange={(e) => {
+                        void onRecipePhotoFile(e.target.files?.[0]);
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                  <div className="pg-photo-choices" role="group" aria-label="Galerie de photos">
+                    {RECIPE_PHOTOS.map((p) => (
+                      <button
+                        key={p.src}
+                        type="button"
+                        className="pg-photo-choice"
+                        aria-pressed={editing.photo === p.src}
+                        title={p.label}
+                        aria-label={`Photo ${p.label}`}
+                        onClick={() => chooseRecipePhoto(p.src)}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={p.src} alt="" width={120} height={90} loading="lazy" decoding="async" />
+                      </button>
+                    ))}
+                  </div>
+                  {editing.photo && (
+                    <button
+                      type="button"
+                      className="pg-button pg-button-secondary w-fit"
+                      onClick={() => chooseRecipePhoto(null)}
+                    >
+                      <Icon name="close" size={15} /> Retirer la photo
+                    </button>
+                  )}
+                  {photoStatus && <p className="text-xs pg-muted" role="status">{photoStatus}</p>}
+                </div>
               </div>
 
               <div className="pg-stack">
@@ -681,6 +784,18 @@ export default function FreeRecipesWorkspace({
                 const s = computeFreeRecipeSummary(r);
                 return (
                   <article key={r.id} className="pg-card pg-card-pad pg-stack">
+                    {photoDe(r) && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        className="pg-recipe-photo"
+                        src={photoDe(r) as string}
+                        alt={`${r.nom} — photo de la recette`}
+                        width={900}
+                        height={672}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    )}
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <h3 className="text-lg font-extrabold">{r.nom}</h3>

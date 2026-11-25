@@ -68,6 +68,30 @@ export function defaultPastryVisual(productName: string): string {
   return buildSvgDataUri(matched, productName || matched.badge);
 }
 
+/**
+ * Photos « recette » livrées avec l'application (WebP compressés dans
+ * `public/recettes/`). Chaque fichier fait moins de 75 Ko : ils s'affichent
+ * hors ligne via le service worker, sans requête lourde en 3G.
+ */
+export const RECIPE_PHOTOS: { keywords: string[]; src: string; label: string }[] = [
+  { keywords: ["baklawa", "baklava", "griwech", "tcharek", "samsa"], src: "/recettes/baklawa.webp", label: "Baklawa" },
+  { keywords: ["mille-feuille", "millefeuille", "feuillet"], src: "/recettes/mille-feuille.webp", label: "Mille-feuille" },
+  { keywords: ["layer", "anniversaire", "entremets", "cake", "gateau", "gâteau", "mariage", "bento"], src: "/recettes/layer-cake.webp", label: "Layer cake" },
+  { keywords: ["pain au chocolat", "chocolatine"], src: "/recettes/pain-chocolat.webp", label: "Pain au chocolat" },
+  { keywords: ["eclair", "éclair", "choux", "paris-brest"], src: "/recettes/eclair.webp", label: "Éclair" },
+  { keywords: ["tarte", "tartelette", "citron", "meringue"], src: "/recettes/tarte-citron.webp", label: "Tartelette citron" },
+  { keywords: ["croissant", "brioche", "viennois", "pain"], src: "/recettes/croissant.webp", label: "Croissant" },
+];
+
+/** Photo illustrant une recette à partir de son nom, ou `null` si aucune ne correspond. */
+export function defaultRecipePhoto(nom: string): string | null {
+  const norm = (nom || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
+  const found = RECIPE_PHOTOS.find((p) =>
+    p.keywords.some((kw) => norm.includes(kw.normalize("NFD").replace(/\p{Diacritic}/gu, ""))),
+  );
+  return found?.src ?? null;
+}
+
 export function readProductPhotosMap(scopeKey: string): Record<string, string> {
   if (typeof window === "undefined") return {};
   try {

@@ -2,6 +2,7 @@
 import { useActionState, useState } from "react";
 import { login } from "@/lib/actions-auth";
 import { creerComptePatisserie, type LicenceActionState } from "@/lib/actions-licence";
+import { paiementActif } from "@/lib/licence-mode";
 
 export default function LoginForm() {
   const [mode, setMode] = useState<"connexion" | "inscription">("connexion");
@@ -10,6 +11,8 @@ export default function LoginForm() {
     creerComptePatisserie,
     {} as LicenceActionState,
   );
+  // Tant que l'abonnement n'est pas ouvert, on ne parle ni d'essai ni de jours.
+  const abonnement = paiementActif();
 
   return (
     <div className="space-y-4">
@@ -30,7 +33,7 @@ export default function LoginForm() {
           onClick={() => setMode("inscription")}
           className="flex-1"
         >
-          Créer un compte (essai 90 j)
+          {abonnement ? "Créer un compte (essai 90 j)" : "Créer un compte (gratuit)"}
         </button>
       </div>
 
@@ -62,8 +65,17 @@ export default function LoginForm() {
       ) : (
         <form action={signupAction} className="space-y-3">
           <p className="text-xs text-slate-600">
-            Chaque nouveau compte bénéficie d’un <strong>mode d’essai de 90 jours</strong> (3 mois)
-            configurable depuis l’espace Master.
+            {abonnement ? (
+              <>
+                Chaque nouveau compte bénéficie d’un <strong>mode d’essai de 90 jours</strong> (3 mois)
+                configurable depuis l’espace Master.
+              </>
+            ) : (
+              <>
+                La création d’un compte est <strong>gratuite et sans limite de durée</strong> : aucune
+                carte bancaire, aucun paiement dans l’application.
+              </>
+            )}
           </p>
           <label className="pg-field">
             Nom de votre pâtisserie
@@ -121,7 +133,11 @@ export default function LoginForm() {
             </p>
           )}
           <button disabled={signupPending} className="pg-button w-full">
-            {signupPending ? "Création de l’espace…" : "Démarrer mon essai gratuit (90 jours)"}
+            {signupPending
+              ? "Création de l’espace…"
+              : abonnement
+                ? "Démarrer mon essai gratuit (90 jours)"
+                : "Créer mon espace gratuitement"}
           </button>
         </form>
       )}

@@ -751,3 +751,65 @@
   background: rgba(16, 185, 129, 0.07);
 }
 
+
+/* ------------------------------------------------------------------ *
+   Paramètres — choix du design (cinq vignettes cliquables)
+   Les teintes de chaque vignette sont écrites en dur : un aperçu doit
+   montrer le design qu'il propose, pas celui actuellement actif.
+ * ------------------------------------------------------------------ */
+.pg-design-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); list-style: none; margin: 0; padding: 0; }
+.pg-design-card { display: flex; flex-direction: column; gap: 10px; width: 100%; height: 100%; text-align: start; padding: 10px; border: 1px solid var(--pg-line); border-radius: calc(var(--pg-radius) - 2px); background: var(--pg-surface); color: var(--pg-ink); cursor: pointer; }
+.pg-design-card:hover { border-color: var(--pg-tint-border); box-shadow: var(--pg-shadow); }
+.pg-design-card[data-active='true'] { border-color: var(--pg-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--pg-accent) 26%, transparent); }
+.pg-design-shot { display: block; position: relative; height: 92px; border-radius: 9px; overflow: hidden; border: 1px solid rgba(0, 0, 0, .07); }
+.pg-design-shot-bar { display: block; height: 17px; background: var(--shot-nav); }
+.pg-design-shot-body { display: flex; height: calc(100% - 17px); background: var(--shot-bg); }
+.pg-design-shot-side { display: block; width: 27%; background: var(--shot-side); border-inline-end: 1px solid var(--shot-line); }
+.pg-design-shot-main { display: grid; align-content: start; gap: 6px; flex: 1; padding: 8px; }
+.pg-design-shot-main i { display: block; height: 8px; border-radius: 4px; background: var(--shot-line); }
+.pg-design-shot-main i:first-child { height: 15px; width: 62%; background: var(--shot-accent); }
+.pg-design-shot-main i:last-child { width: 80%; }
+/* Aperçus : atelier (photo éditoriale), pilotage (barre latérale bleue),
+   fabrication (colonnes), comptoir (grandes tuiles), essentiel (une action). */
+.pg-design-card[data-design-preview='atelier'] { --shot-bg: #f5f3ec; --shot-nav: #2c4736; --shot-side: #efece1; --shot-line: #dcd8c9; --shot-accent: #305c47; }
+.pg-design-card[data-design-preview='atelier'] .pg-design-shot-main i:first-child { width: 100%; height: 34px; background: #2c4736; }
+.pg-design-card[data-design-preview='pilotage'] { --shot-bg: #eef3fb; --shot-nav: #14223a; --shot-side: #14223a; --shot-line: #d3dfef; --shot-accent: #315cc2; }
+.pg-design-card[data-design-preview='fabrication'] { --shot-bg: #eff4f0; --shot-nav: #21362f; --shot-side: #e2ebe4; --shot-line: #d3e2d7; --shot-accent: #2c6558; }
+.pg-design-card[data-design-preview='fabrication'] .pg-design-shot-main { grid-template-columns: repeat(3, 1fr); }
+.pg-design-card[data-design-preview='fabrication'] .pg-design-shot-main i { height: 100%; min-height: 40px; }
+.pg-design-card[data-design-preview='fabrication'] .pg-design-shot-main i:first-child { width: 100%; height: 100%; background: color-mix(in srgb, #2c6558 22%, #fff); }
+.pg-design-card[data-design-preview='comptoir'] { --shot-bg: #f2f6f2; --shot-nav: #17382c; --shot-side: #ffffff; --shot-line: #d9e7dd; --shot-accent: #13624a; }
+.pg-design-card[data-design-preview='comptoir'] .pg-design-shot-side { width: 34%; }
+.pg-design-card[data-design-preview='comptoir'] .pg-design-shot-main { grid-template-columns: 1fr 1fr; }
+.pg-design-card[data-design-preview='comptoir'] .pg-design-shot-main i:first-child { width: 100%; height: 26px; }
+.pg-design-card[data-design-preview='essentiel'] { --shot-bg: #f8f6fb; --shot-nav: #ffffff; --shot-side: #f0e8fc; --shot-line: #e3d7f2; --shot-accent: #6945a0; }
+.pg-design-card[data-design-preview='essentiel'] .pg-design-shot-side { width: 0; border: 0; }
+.pg-design-card[data-design-preview='essentiel'] .pg-design-shot-main i:first-child { width: 70%; height: 24px; background: #6945a0; }
+.pg-design-copy { display: grid; gap: 3px; }
+.pg-design-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pg-design-title b { font-size: .95rem; letter-spacing: -.02em; }
+.pg-design-copy small { color: var(--pg-muted); font-size: .78rem; line-height: 1.42; }
+
+/* ------------------------------------------------------------------ *
+   Recettes — photos générées (WebP compressés dans public/recettes)
+ * ------------------------------------------------------------------ */
+.pg-recipe-photo { display: block; width: 100%; max-height: 210px; object-fit: cover; border-radius: calc(var(--pg-radius) - 4px); border: 1px solid var(--pg-line); background: var(--pg-subtle); }
+.pg-recipe-photo-editor { display: grid; gap: 14px; grid-template-columns: minmax(0, 240px) minmax(0, 1fr); align-items: start; }
+@media (max-width: 640px) { .pg-recipe-photo-editor { grid-template-columns: minmax(0, 1fr); } }
+.pg-recipe-photo-frame { display: grid; place-items: center; overflow: hidden; border-radius: calc(var(--pg-radius) - 4px); border: 1px solid var(--pg-line); background: var(--pg-subtle); aspect-ratio: 4 / 3; }
+.pg-recipe-photo-frame img { width: 100%; height: 100%; object-fit: cover; }
+.pg-recipe-photo-empty { display: inline-flex; align-items: center; gap: 8px; color: var(--pg-muted); font-size: .82rem; font-weight: 700; }
+.pg-photo-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.pg-photo-choice { padding: 0; width: 74px; height: 56px; border: 2px solid var(--pg-line); border-radius: 9px; overflow: hidden; background: var(--pg-subtle); cursor: pointer; line-height: 0; }
+.pg-photo-choice img { width: 100%; height: 100%; object-fit: cover; }
+.pg-photo-choice:hover { border-color: var(--pg-tint-border); }
+.pg-photo-choice[aria-pressed='true'] { border-color: var(--pg-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--pg-accent) 24%, transparent); }
+.pg-appearance { position: relative; }
+.pg-appearance > summary { list-style: none; }
+.pg-appearance > summary::-webkit-details-marker { display: none; }
+.pg-appearance-links { top: calc(100% + 8px); inset-inline-end: 0; }
+.pg-appearance-option { width: 100%; justify-content: flex-start; border: 1px solid transparent; background: none; color: var(--pg-ink); font: inherit; }
+.pg-appearance-option:hover { background: var(--pg-tint); color: var(--pg-link); }
+.pg-appearance-option[data-active='true'] { background: var(--pg-tint); color: var(--pg-link); border-color: var(--pg-tint-border); font-weight: 800; }
+.pg-appearance-option small { margin-inline-start: auto; color: var(--pg-muted); font-size: .7rem; font-weight: 700; }
+@media (max-width: 640px) { .pg-appearance-label { display: none; } .pg-appearance-trigger { width: 39px; padding: 0; } }

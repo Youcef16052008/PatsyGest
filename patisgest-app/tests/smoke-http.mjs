@@ -255,6 +255,41 @@ test('Apparence : les cinq interfaces disposent d’un rendu clair et sombre ava
   }
 });
 
+test('Paramètres : cinq designs cliquables, thème par design et licence gratuite', async () => {
+  const session = `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`;
+  const res = await get('/parametres', session);
+  assert.equal(res.status, 200);
+  const html = await res.text();
+
+  // Les cinq vignettes sont présentes, une seule active.
+  const cards = [...html.matchAll(/class="pg-design-card"[^>]*data-design-preview="([a-z]+)"[^>]*data-active="(true|false)"/g)];
+  assert.equal(cards.length, 5, 'cinq designs doivent être proposés');
+  assert.deepEqual(cards.map((m) => m[1]), ['atelier', 'pilotage', 'fabrication', 'comptoir', 'essentiel']);
+  assert.equal(cards.filter((m) => m[2] === 'true').length, 1, 'un seul design actif');
+
+  // Le mode sombre de chaque design est conservé indépendamment du design choisi.
+  const dark = await get('/parametres', `${session}; patisgest.apparence=comptoir.ldldl`);
+  assert.equal(dark.status, 200);
+  assert.match(await dark.text(), /<html lang="fr" dir="ltr" data-design="comptoir" data-mode="dark"/);
+
+  // Mode « tout gratuit » (défaut) : aucun essai daté, aucune mention de paiement.
+  assert.match(html, /Gratuit · illimité/);
+  assert.doesNotMatch(html, /jours restants? sur/, 'aucun bandeau d’essai ne doit apparaître');
+});
+
+test('Recettes : les photos générées sont servies et affichées', async () => {
+  const session = `patisgest_pilot_session=${demoCookie('amina@patisserie.dz')}`;
+  const res = await get('/recettes', session);
+  assert.equal(res.status, 200);
+  for (const photo of ['baklawa.webp', 'mille-feuille.webp', 'layer-cake.webp']) {
+    const image = await get(`/recettes/${photo}`);
+    assert.equal(image.status, 200, `${photo} doit être servi`);
+    assert.equal(image.headers.get('content-type'), 'image/webp');
+    const bytes = (await image.arrayBuffer()).byteLength;
+    assert.ok(bytes > 1_000 && bytes < 110_000, `${photo} doit être compressé (${bytes} octets)`);
+  }
+});
+
 test('Volet A : /estimation est accessible sans compte ni cookie et affiche le calculateur DA', async () => {
   const res = await get('/estimation');
   assert.equal(res.status, 200, '/estimation doit répondre 200 sans session');

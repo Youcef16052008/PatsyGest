@@ -18,7 +18,9 @@ Application Next.js 16 pour pâtisseries artisanales : connexion Supabase à tro
 
 ## Interface
 
-Depuis le bouton **Apparence** de l’en-tête ou **Paramètres → Apparence** :
+Cinq designs sont livrés. Ils se changent depuis le bouton **Apparence** de
+l’en-tête (n’importe quel écran) ou **Paramètres → Apparence**, avec cinq
+vignettes d’aperçu :
 
 - **Atelier** : accueil illustré, indicateurs du jour et raccourcis.
 - **Pilotage** : suivi des ventes sur 7 ou 14 jours et alertes de stock.
@@ -26,8 +28,30 @@ Depuis le bouton **Apparence** de l’en-tête ou **Paramètres → Apparence** 
 - **Comptoir** : caisse directement sur l’accueil.
 - **Essentiel** : une prochaine action, ou le guide *Premiers pas* lorsqu’il est disponible.
 
-Chaque interface garde son propre mode clair/sombre dans ce navigateur. Changer
-l’apparence ne change ni les données ni les droits. Dans Stocks, la recherche
+Chaque design garde **son propre** mode clair/sombre : l’atelier peut rester
+clair sur le bureau pendant que le comptoir passe en sombre sur la tablette de
+caisse. Le choix est mémorisé par appareil (cookie) et appliqué avant le premier
+pixel de JavaScript : pas de flash clair sur un écran réglé en sombre. Changer
+l’apparence ne change ni les données ni les droits.
+
+### Licence & abonnement
+
+Cette version est **gratuite et sans limite de durée** : pas d’essai qui
+s’écoule, pas d’écran de verrouillage, pas de paiement dans l’application, et
+les comptes créés (inscription libre ou espace Master) sont actifs sans
+échéance. L’essai daté (60–90 jours) et la validation des paiements existent
+toujours dans le code mais sont **désactivés par défaut** ; ils se réactivent
+avec `PATISGEST_MODE_GRATUIT=0` (voir `src/lib/licence-mode.ts`).
+
+### Photos de recettes
+
+Sept photos de recettes sont livrées dans `public/recettes/` (WebP compressés,
+41–72 Ko chacune, soit ~400 Ko au total) : baklawa, mille-feuille, layer cake,
+croissant, pain au chocolat, éclair et tartelette citron. Elles illustrent les
+recettes de départ, sont déduites du nom pour les recettes saisies librement, et
+peuvent être remplacées par une photo de l’atelier : celle-ci est alors réduite
+et compressée **sur l’appareil** (520 px, JPEG ~0,72) avant l’envoi, et
+l’original n’est jamais conservé. Dans Stocks, la recherche
 accepte le nom, le code ou le numéro d’un lot en stock : cliquer sur une ligne
 pour voir ses détails. En caisse, choisir le site et le produit, vérifier la
 quantité et le TTC, puis enregistrer la vente (un produit par ticket). En démo,
