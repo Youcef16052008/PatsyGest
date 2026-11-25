@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { canWrite, getSessionContext } from "./auth";
+import { canDeleteRecipes, canWrite, getSessionContext } from "./auth";
 import type { FreeRecipe } from "./free-recipes";
 import { messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
@@ -127,7 +127,9 @@ export async function saveFreeRecipeCloud(recipe: FreeRecipe): Promise<{
 
 export async function deleteFreeRecipeCloud(id: string): Promise<{ ok: boolean; erreur?: string }> {
   const ctx = await getSessionContext();
-  if (!ctx || ctx.mode !== "supabase" || !canWrite(ctx.role)) return { ok: false };
+  if (!ctx || ctx.mode !== "supabase" || !canDeleteRecipes(ctx.role)) {
+    return { ok: false, erreur: "Seul le propriétaire peut supprimer une recette." };
+  }
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
     return { ok: true };
   }

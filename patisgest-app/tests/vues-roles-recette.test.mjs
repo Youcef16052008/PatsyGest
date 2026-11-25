@@ -29,7 +29,7 @@ const VUES_APP = [
 // promus en migrations. Ils sont marqués `todo` tant que le défaut est ouvert, ce
 // qui maintient la suite verte sans effacer le signal : `npm test` affiche 2 todo.
 // Retirer `.todo` fait partie de la livraison de la migration 44.
-test.todo('toute vue par rôle lue par l’application est décrite dans une migration', async () => {
+test('toute vue par rôle lue par l’application est décrite dans une migration', async () => {
   const racine = new URL('../supabase/', import.meta.url);
   const appliquables = (await readdir(racine))
     .filter(f => /^\d\d-.*\.sql$/.test(f))
@@ -41,7 +41,7 @@ test.todo('toute vue par rôle lue par l’application est décrite dans une mig
     `vues lues par l'app et absentes des migrations appliquées : ${absentes.join(', ')}`);
 });
 
-test.todo('les vues par rôle ne vivent pas uniquement dans un brouillon', async () => {
+test('les vues par rôle ne vivent pas uniquement dans un brouillon', async () => {
   // Le second piège du même angle mort : si les vues n'existent QUE dans
   // brouillons/, elles ne sont pas déployées, quelle que soit la verdeur des
   // tests qui les appliquent à la main.

@@ -73,11 +73,11 @@ export type ImpactActionState = {
   rapport?: IngredientImpactReport;
 };
 
-/** Enregistre les paramètres de coûts (RC-04 : taux horaire + charges). */
+/** Enregistre les paramètres de coûts (RC-04 : taux horaire + charges) — propriétaire uniquement. */
 export async function sauverParamsCoutsReal(_prev: CoutsState, formData: FormData): Promise<CoutsState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
-  if (!canWrite(ctx.role)) return { erreur: "Réservé aux rôles propriétaire et labo." };
+  if (!canReadCosts(ctx.role)) return { erreur: "Réservé au propriétaire." };
   // Saisie à la journée : le taux horaire RC-04 est dérivé (salaire ÷ heures payées).
   const salaire = Number(formData.get("salaireJournalier"));
   const heures = Number(formData.get("heuresParJour") ?? HEURES_PAYEES_PAR_JOUR_DEFAUT);
@@ -444,10 +444,10 @@ export async function analyserHausseMatiereReal(
     const ancienPu = ancienRaw !== "" ? Number(ancienRaw) : (merc.defaultAncien?.pu ?? Number.NaN);
     const nouveauPu = nouveauRaw !== "" ? Number(nouveauRaw) : (merc.defaultNouveau?.pu ?? Number.NaN);
     if (!Number.isFinite(ancienPu) || ancienPu < 0 || ancienPu > 100_000_000) {
-      return { erreur: "Renseignez l’ancien prix unitaire HT (DA)." };
+      return { erreur: "Renseignez l’ancien prix unitaire (DA)." };
     }
     if (!Number.isFinite(nouveauPu) || nouveauPu < 0 || nouveauPu > 100_000_000) {
-      return { erreur: "Renseignez le nouveau prix unitaire HT (DA)." };
+      return { erreur: "Renseignez le nouveau prix unitaire (DA)." };
     }
     const sourceAncien =
       sourceAncienRaw ||

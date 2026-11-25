@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSessionContext } from "./auth";
+import { canManageCreditsAdmin, canUseCredits, getSessionContext } from "./auth";
 import type { CreditAccountType, CreditEntry, CreditPaymentEntry } from "./credits";
 import { messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
@@ -51,7 +51,7 @@ export async function loadCreditsCloud(): Promise<{
   credits: CreditEntry[];
 }> {
   const ctx = await getSessionContext();
-  if (!ctx || ctx.mode !== "supabase") {
+  if (!ctx || ctx.mode !== "supabase" || !canUseCredits(ctx.role)) {
     return { ok: false, tableAvailable: false, credits: [] };
   }
   try {
@@ -85,6 +85,7 @@ export async function createCreditCloud(input: {
 }): Promise<{ ok: boolean; entry?: CreditEntry; erreur?: string }> {
   const ctx = await getSessionContext();
   if (!ctx || ctx.mode !== "supabase") return { ok: false, erreur: "Session Supabase requise." };
+  if (!canUseCredits(ctx.role)) return { ok: false, erreur: "Carnet réservé au comptoir." };
 
   const nom = input.nomDebiteur.trim();
   const total = Math.round(Number(input.montantTotalDa) * 100) / 100;
@@ -129,6 +130,7 @@ export async function payCreditCloud(
 ): Promise<{ ok: boolean; erreur?: string }> {
   const ctx = await getSessionContext();
   if (!ctx || ctx.mode !== "supabase") return { ok: false, erreur: "Session Supabase requise." };
+  if (!canUseCredits(ctx.role)) return { ok: false, erreur: "Carnet réservé au comptoir." };
   try {
     const db = await createClient();
     const { error } = await db.rpc("enregistrer_reglement_credit", {
@@ -137,6 +139,64 @@ export async function payCreditCloud(
       p_note: note,
     });
     if (error) return { ok: false, erreur: messageUtilisateur(error, "Règlement refusé") };
+    revalidatePath("/tableau-de-bord");
+    revalidatePath("/caisse");
+    return { ok: true };
+  } catch {
+    return { ok: false, erreur: "Serveur inaccessible." };
+  }
+}
+
+/** Annulation / clôture exceptionnelle d'une dette — propriétaire uniquement. */
+export async function cancelCreditCloud(creditId: string): Promise<{ ok: boolean; erreur?: string }> {
+  const ctx = await getSessionContext();
+  if (!ctx || ctx.mode !== "supabase") return { ok: false, erreur: "Session Supabase requise." };
+  if (!canManageCreditsAdmin(ctx.role)) {
+    return { ok: false, erreur: "Seul le propriétaire peut annuler ou modifier une dette." };
+  }
+  if (!/^[0-9a-f-]{36}$/i.test(creditId)) return { ok: false, erreur: "Crédit invalide." };
+  try {
+    const db = await createClient();
+    const { error } = await db
+      .from("credits_clients")
+      .update({ statut: "annule", updated_at: new Date().toISOString() })
+      .eq("id", creditId)
+      .eq("client_id", ctx.clientId);
+    if (error) return { ok: false, erreur: messageUtilisateur(error, "Annulation refusée") };
+    revalidatePath("/tableau-de-bord");
+    revalidatePath("/caisse");
+    return { ok: true };
+  } catch {
+    return { ok: false, erreur: "Serveur inaccessible." };
+  }
+}
+
+/** Modification du montant total d'une dette — propriétaire uniquement. */
+export async function updateCreditTotalCloud(
+  creditId: string,
+  nouveauMontantDa: number,
+  note?: string,
+): Promise<{ ok: boolean; erreur?: string }> {
+  const ctx = await getSessionContext();
+  if (!ctx || ctx.mode !== "supabase") return { ok: false, erreur: "Session Supabase requise." };
+  if (!canManageCreditsAdmin(ctx.role)) {
+    return { ok: false, erreur: "Seul le propriétaire peut modifier le montant d’une dette." };
+  }
+  if (!/^[0-9a-f-]{36}$/i.test(creditId)) return { ok: false, erreur: "Crédit invalide." };
+  const total = Math.round(Number(nouveauMontantDa) * 100) / 100;
+  if (!Number.isFinite(total) || total <= 0) return { ok: false, erreur: "Montant invalide." };
+  try {
+    const db = await createClient();
+    const { error } = await db
+      .from("credits_clients")
+      .update({
+        montant_total_da: total,
+        ...(note !== undefined ? { note: note.trim().slice(0, 400) } : {}),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", creditId)
+      .eq("client_id", ctx.clientId);
+    if (error) return { ok: false, erreur: messageUtilisateur(error, "Modification refusée") };
     revalidatePath("/tableau-de-bord");
     revalidatePath("/caisse");
     return { ok: true };

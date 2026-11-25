@@ -402,6 +402,18 @@
       "sha256": "527417d7a7a7a98bad7cce16e10e081ca491d54381a04121f0a410f1f5177065",
       "hors_fixture_pilote": true,
       "note": "Waves 3 & 4 (B.1/B.4) : photos articles (photo_url), justificatifs bons (facture_photo_url) et RPC sauver_photo_article."
+    },
+    {
+      "file": "50-roles-permissions-vues.sql",
+      "sha256": "e5bd5d39779d7dd09d2774b1eb12777ee0f3508fe03865e036d0bed9067171ce",
+      "hors_fixture_pilote": true,
+      "note": "Activation stricte des 3 rôles (propriétaire, labo, vendeur), promotion des 9 vues sans coûts et verrouillages SQL métier."
+    },
+    {
+      "file": "51-essai-abonnement-connectivite.sql",
+      "sha256": "ea68d5167d1d8bae64ae42e1cac65988f682c95ab034a04bf3cc88aecb692e45",
+      "hors_fixture_pilote": true,
+      "note": "Mode d'essai configurable 60-90 jours (défaut 90), verrouillage permanent, espace Master, présence et alertes >1h."
     }
   ],
   "exclus": [

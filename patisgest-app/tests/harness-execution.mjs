@@ -6,7 +6,7 @@
 // pour exécuter les actions avec une session et un client factices, et savoir
 // si la base a été appelée ou non.
 import { mock } from 'node:test';
-import { canWrite, canReadCosts, roleDisponible } from '../src/lib/permissions.ts';
+import * as permissions from '../src/lib/permissions.ts';
 
 const authUrl = new URL('../src/lib/auth.ts', import.meta.url).href;
 const serverUrl = new URL('../src/lib/supabase/server.ts', import.meta.url).href;
@@ -36,9 +36,7 @@ mock.module(authUrl, {
   // `namedExports` : supporté par Node 22 (CI) comme par Node 26 (local) ;
   // `exports` est plus récent mais absent de Node 22.
   namedExports: {
-    canWrite,
-    canReadCosts,
-    roleDisponible,
+    ...permissions,
     getSessionContext: async () => etat.session,
   },
 });

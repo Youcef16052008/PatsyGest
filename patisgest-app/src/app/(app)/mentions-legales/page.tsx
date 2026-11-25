@@ -27,29 +27,32 @@ export default function MentionsLegales() {
       <section className="mt-8 space-y-3 text-sm">
         <h2 className="text-xl font-bold">1. Éditeur</h2>
         <p>
-          PâtisGest — logiciel de gestion pour pâtisseries artisanales, édité pour le marché
-          algérien. Les coordonnées complètes de l&apos;éditeur (raison sociale, NIF, NIS, RC,
-          adresse, contact) doivent être complétées avant la mise en service commerciale.
+          PâtisGest — logiciel de gestion pour boulangeries, viennoiseries, cake shops et
+          pâtisseries artisanales, édité pour le marché algérien. Les coordonnées complètes de
+          l&apos;éditeur (raison sociale, NIF, NIS, RC, adresse, contact) doivent être complétées
+          avant la mise en service commerciale.
         </p>
 
         <h2 className="pt-4 text-xl font-bold">2. Objet du service</h2>
         <p>
           PâtisGest aide à suivre les stocks, calculer les coûts de revient, planifier la
           production, tracer les lots et encaisser les ventes. Les calculs appliquent les formules
-          du cahier des charges (parage, cuisson, main-d&apos;œuvre chargée, coût par portion
-          hors taxes).
+          du cahier des charges (parage, cuisson, main-d&apos;œuvre chargée, coût par portion en
+          DA).
         </p>
         <p className="font-semibold">
           PâtisGest est un outil d&apos;aide à la décision. Il ne remplace ni la comptabilité
           légale, ni le conseil fiscal. Les résultats affichés dépendent des données saisies.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold">3. Fiscalité — TVA</h2>
+        <h2 className="pt-4 text-xl font-bold">3. Fiscalité algérienne — Régime IFU &amp; TVA</h2>
         <p>
-          TVA par défaut : <b>19 %</b> sur les ventes de pâtisserie fine (produits transformés) et{" "}
-          <b>9 %</b> sur les achats de matières de base (farine, lait, sucre). Ces taux sont
-          réglables par article. Le coût de revient est toujours calculé <b>hors taxes</b>
-          (règle RC-05) : la TVA n&apos;entre jamais dans un coût.
+          Les prix en boutique sont saisis directement en dinars algériens (DA) payés par le client.
+          La TVA est réglable par article selon le régime fiscal algérien (LF 2026) : <b>0 %</b>{" "}
+          (IFU, non-assujetti ou pain courant exonéré), <b>9 %</b> (taux réduit : farine, lait,
+          sucre, levure, semoule) ou <b>19 %</b> (taux normal : pâtisserie fine, viennoiserie, cake
+          design). Pour les établissements soumis à la TVA, la part incluse est extraite
+          automatiquement lors de l&apos;export comptable.
         </p>
 
         <h2 className="pt-4 text-xl font-bold">4. Conservation des documents</h2>

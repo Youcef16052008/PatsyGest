@@ -9,8 +9,8 @@ import ServiceWorkerSetup from "@/components/service-worker";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PâtisGest — Gestion pâtisserie",
-  description: "Gérez vos stocks, recettes, fabrications et ventes dans le même espace, du laboratoire à la boutique.",
+  title: "PâtisGest — Boulangerie, Viennoiserie, Pâtisserie & Cake Shop",
+  description: "Gérez votre boulangerie, viennoiserie, pâtisserie ou cake shop : stocks, recettes, production, commandes, caisse et rentabilité.",
   applicationName: "PâtisGest",
   // NF-06 : installation sur tablette Android / PC.
   manifest: "/manifest.webmanifest",

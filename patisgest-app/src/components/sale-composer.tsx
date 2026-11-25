@@ -122,6 +122,11 @@ export default function SaleComposer({
   );
 
   function ajouterProduit(product: CatalogProduct) {
+    const unitPrice = prixUnitaire(product);
+    if (unitPrice === null || unitPrice <= 0) {
+      setCartError(`« ${product.label} » attend la validation de son prix par le propriétaire.`);
+      return;
+    }
     try {
       setCartError(null);
       setCart((prev) => {
@@ -251,6 +256,7 @@ export default function SaleComposer({
               const dispo = currentStock(a);
               const perime = currentExpired(a);
               const price = prixUnitaire(a);
+              const unpriced = price === null || price <= 0;
               const inCart = qtyInCart.get(a.id) ?? 0;
               return (
                 <button
@@ -258,7 +264,8 @@ export default function SaleComposer({
                   key={a.id}
                   className="pg-product"
                   aria-pressed={inCart > 0}
-                  disabled={busy}
+                  disabled={busy || unpriced}
+                  title={unpriced ? "Prix à valider par le patron avant mise en vente" : undefined}
                   onClick={() => ajouterProduit(a)}
                 >
                   <span className="pg-product-body">
@@ -273,7 +280,11 @@ export default function SaleComposer({
                           : `${quantite(dispo, a.unit)} utilisable${dispo > 1 ? "s" : ""}`}
                         {perime > 0 ? ` · ${quantite(perime)} DLC dépassée` : ""}
                       </span>
-                      {price !== null && <small>{dinars(price)}</small>}
+                      {unpriced ? (
+                        <small className="text-amber-700 font-semibold">Prix à valider par le patron</small>
+                      ) : (
+                        <small>{dinars(price)}</small>
+                      )}
                       {(noms.get(a.label) ?? 0) > 1 && a.code && <small>{a.code}</small>}
                     </span>
                     <span className="pg-product-select" data-count={inCart > 0 || undefined}>
@@ -494,9 +505,9 @@ export default function SaleComposer({
                     {site?.label} · {cart.length} {cart.length > 1 ? "produits" : "produit"}
                   </small>
                 </span>
-                {totals.totalTVA !== null && totals.totalTVA > 0.01 && totals.totalHT !== null && (
+                {totals.totalTVA !== null && totals.totalTVA > 0.01 && (
                   <small className="pg-num">
-                    Base {dinars(totals.totalHT)} · TVA {dinars(totals.totalTVA)}
+                    Dont TVA incluse : {dinars(totals.totalTVA)}
                   </small>
                 )}
               </div>

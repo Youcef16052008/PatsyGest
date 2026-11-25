@@ -7,11 +7,15 @@
     "src/app/(auth)/connexion/page.tsx",
     "src/app/(auth)/rejoindre/page.tsx",
     "src/app/(vitrine)/vitrine/[slug]/page.tsx",
+    "src/app/api/cron/connectivite/route.ts",
     "src/app/api/export/comptable/route.ts",
     "src/app/api/export/route.ts",
+    "src/app/api/licence/statut/route.ts",
+    "src/app/api/presence/heartbeat/route.ts",
     "src/app/api/sauvegarde/route.ts",
     "src/app/estimation/page.tsx",
     "src/app/hors-ligne/page.tsx",
+    "src/app/master/page.tsx",
     "src/app/page.tsx"
   ],
   "actions": {
@@ -40,9 +44,11 @@
       "sauverParamsCoutsReal"
     ],
     "src/lib/actions-credits.ts": [
+      "cancelCreditCloud",
       "createCreditCloud",
       "loadCreditsCloud",
-      "payCreditCloud"
+      "payCreditCloud",
+      "updateCreditTotalCloud"
     ],
     "src/lib/actions-donnees.ts": [
       "anonymiserCommande",
@@ -83,6 +89,17 @@
       "updateNc",
       "validateTomorrowLineReal",
       "validerComptageTiroir"
+    ],
+    "src/lib/actions-licence.ts": [
+      "creerComptePatisserie",
+      "definirMonTelephone",
+      "masterChangerStatut",
+      "masterCreerCompteClient",
+      "masterLogin",
+      "masterLogout",
+      "masterMarquerPaye",
+      "masterModifierDureeEssai",
+      "masterVerifierConnectivite"
     ],
     "src/lib/actions-modules.ts": [
       "modifierModule"

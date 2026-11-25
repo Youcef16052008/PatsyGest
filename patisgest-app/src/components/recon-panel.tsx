@@ -107,7 +107,7 @@ export default function ReconPanel({
 
               <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-600">
-                  2. Bilan tiroir-caisse (DA TTC · séparé des quantités)
+                  2. Bilan tiroir-caisse (en DA · séparé des quantités)
                 </h3>
                 {!cb ? (
                   <p className="text-xs text-slate-500">

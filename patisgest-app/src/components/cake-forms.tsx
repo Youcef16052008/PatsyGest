@@ -8,6 +8,7 @@ import {
 import { clearEstimatorDraft, ESTIMATOR_DRAFT_KEY, loadEstimatorDraft } from "@/lib/portion-estimator";
 import { traiterDemandeVitrine } from "@/lib/actions-vitrine";
 import { peutTraiterDemande, type Role } from "@/lib/vitrine-permissions";
+import { canCreateOrEditCakeQuotes, canSellAtPos } from "@/lib/permissions";
 import CakeTicket from "./cake-ticket";
 import { cakeConnectedTotals } from "@/lib/cake-money";
 import { whatsappOrderUrl } from "@/lib/whatsapp";
@@ -71,6 +72,13 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
   const autres = cakes.filter((c) => c.statut !== "demande");
   const sorted = [...autres].sort((a, b) => a.numero.localeCompare(b.numero));
   const peutTraiter = peutTraiterDemande(role);
+  const canCreateOrEditQuotes = canCreateOrEditCakeQuotes(role);
+  const transitionsDisponibles =
+    canCreateOrEditQuotes
+      ? ["payer", "confirme", "produit", "livre", "annule"]
+      : canSellAtPos(role)
+        ? ["payer", "confirme", "livre"]
+        : ["produit"];
 
   function appliquerBrouillon() {
     if (!draft) return;
@@ -128,6 +136,7 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
         </section>
       )}
 
+      {canCreateOrEditQuotes ? (
       <section className="rounded-2xl border bg-white p-5">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-bold">Nouveau devis gâteau</h2>
@@ -190,6 +199,11 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
           {createState.succes && <p role="status" className="text-sm text-emerald-700">{createState.succes}</p>}
         </form>
       </section>
+      ) : (
+        <section className="rounded-2xl border bg-slate-50 p-4 text-xs text-slate-700">
+          <strong>Espace comptoir :</strong> vous pouvez traiter les demandes de la vitrine, encaisser les acomptes ou soldes et marquer les commandes livrées. La création et la modification des prix de devis sont réservées au propriétaire.
+        </section>
+      )}
 
       <section className="rounded-2xl border bg-white p-5">
         <h2 className="mb-3 font-bold">Devis &amp; commandes en cours</h2>
@@ -228,11 +242,11 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
                     ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">CGV {c.cgvVersion ?? ""} ✓</span>
                     : <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">CGV non acceptées</span>}
                   <span className="ml-auto flex flex-wrap gap-1">
-                    {c.statut === "devis" && (
+                    {canCreateOrEditQuotes && c.statut === "devis" && (
                       <button type="button" onClick={() => setEditId(editId === c.id ? "" : c.id)} className={btn2}>éditer</button>
                     )}
                     <button type="button" onClick={() => setTicketId(ticketId === c.id ? "" : c.id)} className={btn2}>ticket</button>
-                    {["payer", "confirme", "produit", "livre", "annule"].map((t) => (
+                    {transitionsDisponibles.map((t) => (
                       <button key={t} type="submit" name="transition" value={t} disabled={evolvePending || (t === "annule" && !!c.ofId)}
                         className={btn2}>{t === "confirme" ? "confirmer" : t === "produit" ? "produire" : t === "livre" ? "livrer" : t === "annule" ? "annuler" : "payer"}</button>
                     ))}
@@ -249,7 +263,7 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
               {c.ofId && <p className="mt-2 text-xs text-slate-500">Un OF lié doit être terminé avec un lot avant de marquer produit. Annulation du dossier indisponible tant que cet OF existe.</p>}
               {c.ofNumero && <p className="mt-2 text-xs">OF : {c.ofNumero} · Lots : {c.lots.map(l=>l.numero).join(", ") || "aucun"}</p>}
               {!c.versionId && ["devis","acompte"].includes(c.statut) && <form action={assignAction} className="mt-3 rounded-lg border p-3 space-y-2"><p>Ancien devis : associez une production avant confirmation.</p><input type="hidden" name="id" value={c.id}/><ProductionFields recipes={recipes} sites={sites}/><button disabled={assignPending || optionsError || !recipes.length || !sites.length} className={btn2}>Associer</button></form>}
-              {editId === c.id && (
+              {editId === c.id && canCreateOrEditQuotes && (
                 <form action={editAction} className="mt-2 grid gap-2 rounded-lg border border-violet-200 bg-violet-50 p-3 sm:grid-cols-4">
                   <input type="hidden" name="id" value={c.id} />
                   <label className={label}>Client

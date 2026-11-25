@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { canWrite, getSessionContext } from "./auth";
+import { canManagePrices, canWrite, getSessionContext } from "./auth";
 import { messageUtilisateur } from "./erreurs-db";
+import { evaluateEmployeePriceSubmission } from "./owner-price-guard";
 import { createClient } from "./supabase/server";
 import { parseArticleInput, parseReceptionInput, parseTransferInput } from "./stock-input";
 
@@ -27,28 +28,71 @@ export async function createArticle(_prev: StockState, formData: FormData): Prom
     return { erreur: e instanceof Error ? e.message : "Saisie invalide." };
   }
 
+  const isOwner = canManagePrices(ctx.role);
+  const suggestedTtc = Number(formData.get("prix_ttc") ?? 0);
+  let insertedId: string | null = null;
   try {
     const supabase = await createClient();
-    const { error } = await supabase.from("articles").insert({
-      client_id: ctx.clientId,
-      code: input.code,
-      nom: input.nom,
-      niveau: input.niveau,
-      unite: input.unite,
-      seuil: input.seuil,
-      pv_ht: input.pv_ht,
-      tva: input.tva,
-      allergenes: input.allergenes,
-      traces: input.traces,
-    });
+    const { data, error } = await supabase
+      .from("articles")
+      .insert({
+        client_id: ctx.clientId,
+        code: input.code,
+        nom: input.nom,
+        niveau: input.niveau,
+        unite: input.unite,
+        seuil: input.seuil,
+        pv_ht: isOwner ? input.pv_ht : 0,
+        tva: isOwner ? input.tva : 0,
+        allergenes: input.allergenes,
+        traces: input.traces,
+      })
+      .select("id")
+      .single();
     if (error) return { erreur: message(error) };
+    insertedId = (data as { id?: string } | null)?.id ?? null;
+
+    if (!isOwner && Number.isFinite(suggestedTtc) && suggestedTtc > 0 && insertedId) {
+      const alert = evaluateEmployeePriceSubmission({
+        cibleType: "article",
+        cibleId: insertedId,
+        nomProduit: input.nom,
+        categorie: input.niveau === "produit" ? "gateau_entier" : "autre",
+        prixSaisiDa: Math.round(suggestedTtc * 100) / 100,
+        coutEstimeDa: null,
+        auteurNom: ctx.nom.split(" (")[0],
+        auteurRole: ctx.role,
+      });
+      if (alert) {
+        await supabase.from("notifications_patron").insert({
+          client_id: ctx.clientId,
+          type: alert.type,
+          severite: alert.severite,
+          cible_type: "article",
+          cible_id: insertedId,
+          nom_produit: alert.nomProduit,
+          categorie: alert.categorie,
+          prix_saisi_da: alert.prixSaisiDa,
+          cout_estime_da: alert.coutEstimeDa,
+          prix_conseille_da: alert.prixConseilleDa,
+          auteur_id: ctx.authUserId,
+          auteur_nom: alert.auteurNom,
+          message: alert.message,
+        });
+      }
+    }
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur." };
   }
 
   revalidatePath("/stocks");
   revalidatePath("/tableau-de-bord");
-  return { succes: `Article « ${input.nom} » créé.` };
+  if (!isOwner && Number.isFinite(suggestedTtc) && suggestedTtc > 0) {
+    return {
+      succes: `Article « ${input.nom} » créé (prix suggéré ${Math.round(suggestedTtc)} DA envoyé au propriétaire — non vendable en caisse avant validation).`,
+    };
+  }
+  return { succes: `Article « ${input.nom} » créé${!isOwner ? " (sans prix tant que le propriétaire ne l’a pas validé)" : ""}.` };
 }
 
 /** Réception de lot atomique (lot + mouvement) via la fonction RPC de la base. */

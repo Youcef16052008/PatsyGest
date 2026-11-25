@@ -13,7 +13,7 @@ export default function SaleHistory({ sales, demo = false }: { sales: SaleSummar
       <div className="pg-card-head">
         <div>
           <h2>{demo ? "Tickets de démonstration" : "Tickets récents"}</h2>
-          <p>Produits du panier, mode de règlement enregistré et montant TTC.</p>
+          <p>Produits du panier, mode de règlement enregistré et montant final.</p>
         </div>
       </div>
       {sales === null ? (
@@ -61,7 +61,6 @@ export default function SaleHistory({ sales, demo = false }: { sales: SaleSummar
                 </div>
                 <span className="pg-history-total">
                   {dinars(s.totalTTC)}
-                  <small>TTC</small>
                 </span>
               </li>
             );

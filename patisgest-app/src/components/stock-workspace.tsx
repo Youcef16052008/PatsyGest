@@ -9,6 +9,7 @@ import StockList from "./stock-list";
 import LabelMaker from "./label-maker";
 import ProductPhotoPicker from "./product-photo-picker";
 import InvoicePhotoIntake from "./invoice-photo-intake";
+import RestockRequestQuickForm from "./restock-request-quick-form";
 import { Disclosure, Notice, PageIntro } from "./workspace-ui";
 
 export default async function StockWorkspace({ ctx, db, filtre }: { ctx: SessionContext; db: WorkspaceDB; filtre?: string }) {
@@ -48,7 +49,7 @@ export default async function StockWorkspace({ ctx, db, filtre }: { ctx: Session
     : [];
 
   return <>
-    <PageIntro title="Stocks & Achats" label="Inventaire" description="Voyez ce qui manque en un coup d’œil et enregistrez vos réceptions de marchandise."
+    <PageIntro title={ctx.role === "vendeur" ? "Stocks boutique & Réassort" : "Stocks & Achats"} label="Inventaire" description={ctx.role === "vendeur" ? "Consultez les quantités disponibles en boutique et demandez un réassort au laboratoire." : "Voyez ce qui manque en un coup d’œil et enregistrez vos réceptions de marchandise."}
       actions={peutEcrire && <a className="pg-button pg-button-secondary" href="#gerer-stocks">Achat / Nouvel article</a>}/>
     <div className="pg-stack">
       {lowItems.length > 0 && (
@@ -60,6 +61,13 @@ export default async function StockWorkspace({ ctx, db, filtre }: { ctx: Session
       {ctx.role === "labo" && !articles
         ? <Notice kind="error">Le stock n&apos;est pas disponible sur cette installation : le module de confidentialité par rôle n&apos;a pas été appliqué en base. Le propriétaire peut lire les articles et les lots normalement.</Notice>
         : <StockList key={filtre ?? "tous"} articles={mappedArticles} lots={lots} sites={sites} today={today} filtre={filtre}/>}
+      {ctx.role === "vendeur" && (
+        <RestockRequestQuickForm
+          mode="supabase"
+          articles={produits.map((p) => ({ id: p.id, label: `${p.nom} · ${p.code}` }))}
+          sites={(sites ?? []).filter((s) => s.type === "boutique").map((s) => ({ id: s.id, label: s.label }))}
+        />
+      )}
       {peutEcrire && <div id="gerer-stocks" className="pg-stack">
         <Disclosure title="Importer une facture / bon fournisseur (photo)" description="Prenez en photo ou dictez les lignes du bon, vérifiez, puis entrez en stock." icon="store">
           <InvoicePhotoIntake
@@ -68,7 +76,7 @@ export default async function StockWorkspace({ ctx, db, filtre }: { ctx: Session
             sites={(sites ?? []).map((s) => ({ id: s.id, label: s.label }))}
           />
         </Disclosure>
-        <StockWriteForms articles={(articles ?? []).map(a => ({ id: a.id, label: `${a.nom} · ${a.code}` }))}
+        <StockWriteForms role={ctx.role} articles={(articles ?? []).map(a => ({ id: a.id, label: `${a.nom} · ${a.code}` }))}
           sites={sites ?? []} fournisseurs={(fournisseurs?.data ?? []).map(f => ({ id: f.id, label: f.nom }))}/>
         {produits.length > 0 && (
           <Disclosure title="Photos des produits (Caisse tactile)" description="Prenez ou choisissez une photo réelle pour chaque gâteau en boutique." icon="cake">

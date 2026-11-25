@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { avertissementsTicket, enteteTicket, type Etablissement } from "@/lib/etablissement";
+import { type Etablissement } from "@/lib/etablissement";
 import { isPaymentMode, PAYMENT_MODE_LABELS, type PaymentMode } from "@/lib/pos-cart";
 import { whatsappSaleReceiptUrl } from "@/lib/whatsapp";
 import { dinars, quantite } from "@/lib/workspace-data";
@@ -15,9 +15,8 @@ export type SaleTicketLine = {
 };
 
 /**
- * Ticket de vente caisse imprimable (format 80 mm), mono- ou multiproduit.
- * Porte NIF, NIS, RC, adresse, détail des lignes, totaux HT/TVA/TTC, mode de
- * règlement encaissé et lots FEFO tracés.
+ * Ticket de caisse simple (format 80 mm, style Algérie) :
+ * nom du magasin, date et heure, produits avec leurs prix, et total final en DA.
  */
 export type SaleTicketData = {
   numero?: string;
@@ -35,26 +34,36 @@ export type SaleTicketData = {
 };
 
 export default function SaleTicket({ data }: { data: SaleTicketData }) {
-  const entete = enteteTicket(data.etablissement);
-  const manques = avertissementsTicket(data.etablissement);
+  const shopName = data.etablissement?.nom?.trim() || "Boutique";
+  const shopAddress = data.etablissement?.adresse?.trim() || "";
+  const shopPhone = data.etablissement?.telephone?.trim() || "";
   const lines: SaleTicketLine[] =
     data.lines && data.lines.length > 0
       ? data.lines
       : [{ label: data.articleLabel, qty: data.qte, totalTTC: data.totalTTC }];
-  const totalTva = Math.round((data.totalTTC - data.totalHT) * 100) / 100;
+
+  const when = new Date(data.at);
+  const dateStr = Number.isNaN(when.getTime())
+    ? data.at
+    : when.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const timeStr = Number.isNaN(when.getTime())
+    ? ""
+    : when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+
   const modeLabel = isPaymentMode(data.modePaiement)
     ? PAYMENT_MODE_LABELS[data.modePaiement]
     : typeof data.modePaiement === "string" && data.modePaiement.trim()
       ? data.modePaiement
-      : null;
+      : undefined;
+
   const [clientPhone, setClientPhone] = useState("");
   const waUrl = whatsappSaleReceiptUrl({
     phone: clientPhone,
-    shop: data.etablissement?.nom ?? "Pâtisserie",
+    shop: shopName,
     numero: data.numero ?? "Ticket",
     totalDa: data.totalTTC,
     lines: lines.map((l) => ({ label: l.label, qty: l.qty, unit: l.unit, totalDa: l.totalTTC })),
-    modePaiement: modeLabel ?? undefined,
+    modePaiement: modeLabel,
   });
 
   return (
@@ -110,58 +119,35 @@ export default function SaleTicket({ data }: { data: SaleTicketData }) {
         </div>
       </div>
       <div className="sale-ticket mx-auto w-[80mm] max-w-full wrap-anywhere border border-dashed border-slate-400 bg-white p-3 font-mono text-[11px] leading-snug text-black">
-        {entete.map((ligne, i) => (
-          <div key={i} className={i === 0 ? "text-center font-bold uppercase" : "text-center"}>
-            {ligne}
-          </div>
-        ))}
-        <div className="text-center">{new Date(data.at).toLocaleString("fr-FR")}</div>
-        {data.demo && <div className="text-center font-bold">DÉMONSTRATION · SANS VALEUR FISCALE</div>}
-        {data.numero && <div className="text-center">Ticket n° {data.numero}</div>}
-        <div className="text-center">Site : {data.siteLabel}</div>
-        <div className="my-1 border-t border-dashed border-slate-400" />
-        {lines.map((l, idx) => (
-          <div key={idx} className="mb-1">
-            <div className="font-bold">{l.label}</div>
-            <div className="flex justify-between">
-              <span>× {quantite(l.qty, l.unit)}</span>
-              <span>{l.totalTTC != null ? dinars(l.totalTTC) : ""}</span>
+        <div className="text-center text-[13px] font-extrabold uppercase">{shopName}</div>
+        {shopAddress && <div className="text-center text-[10px]">{shopAddress}</div>}
+        {shopPhone && <div className="text-center text-[10px]">Tél : {shopPhone}</div>}
+        {data.demo && <div className="mt-1 text-center text-[10px] font-bold">DÉMONSTRATION · SANS VALEUR FISCALE</div>}
+        <div className="my-1.5 border-t border-dashed border-slate-400" />
+        <div className="flex justify-between text-[11px]">
+          <span>{dateStr}</span>
+          <span>{timeStr}</span>
+        </div>
+        <div className="my-1.5 border-t border-dashed border-slate-400" />
+        <div className="space-y-1">
+          {lines.map((l, idx) => (
+            <div key={idx} className="flex items-baseline justify-between gap-2">
+              <span className="min-w-0 flex-1">
+                <span className="font-bold">{quantite(l.qty, l.unit)}</span> × {l.label}
+              </span>
+              <span className="shrink-0 font-bold">
+                {l.totalTTC != null ? dinars(l.totalTTC) : ""}
+              </span>
             </div>
-          </div>
-        ))}
-        <div className="my-1 border-t border-dashed border-slate-400" />
-        {totalTva > 0.01 && (
-          <>
-            <div className="flex justify-between">
-              <span>Total HT</span>
-              <span>{dinars(data.totalHT)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>TVA</span>
-              <span>{dinars(totalTva)}</span>
-            </div>
-          </>
-        )}
-        <div className="flex justify-between text-[12px] font-extrabold">
-          <span>Total TTC</span>
+          ))}
+        </div>
+        <div className="my-1.5 border-t border-dashed border-slate-400" />
+        <div className="flex justify-between text-[13px] font-extrabold">
+          <span>TOTAL</span>
           <span>{dinars(data.totalTTC)}</span>
         </div>
-        {modeLabel && (
-          <div className="flex justify-between">
-            <span>Règlement</span>
-            <span>{modeLabel}</span>
-          </div>
-        )}
-        {data.lots.length > 0 && (
-          <div className="mt-1 text-[11px]">Lots : {data.lots.join(", ")}</div>
-        )}
-        <div className="my-1 border-t border-dashed border-slate-400" />
-        <div className="text-center">Merci de votre visite !</div>
-        {!data.demo && manques.length > 0 && (
-          <div className="no-print mt-1 text-center text-[10px]">
-            ⚠ Mentions légales incomplètes (Paramètres)
-          </div>
-        )}
+        <div className="my-1.5 border-t border-dashed border-slate-400" />
+        <div className="text-center text-[10px]">Merci de votre visite !</div>
       </div>
     </div>
   );

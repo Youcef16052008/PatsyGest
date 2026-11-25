@@ -2,13 +2,59 @@
  * Politique de rôles — pur, sans dépendance Next/Supabase, donc testable
  * (NF-08). `auth.ts` ré-exporte ces fonctions pour ne pas dupliquer la règle.
  *
- * Cahier §5 / RG-15.2 : propriétaire (tout) · labo (production, recettes,
- * sans lecture des coûts) · vendeur (caisse + clôture en lecture).
+ * Séparation stricte des 3 personnes métier :
+ *   • `proprietaire` : accès complet à tous les modules, prix, coûts, marges,
+ *     salaires, suppression/annulation de dettes/recettes, paramètres équipe.
+ *   • `labo` : production, planning, recettes (grammages/moules sans coûts ni
+ *     suppression), stocks/achats (quantités/DLC sans prix), transferts, qualité,
+ *     traçabilité, gâteaux vue atelier. Peut suggérer un prix pour validation
+ *     patron (non vendable en caisse tant que le patron n'a pas approuvé).
+ *     Zéro accès caisse, clôture financière, crédits, simulation ou coûts.
+ *   • `vendeur` : caisse rapide, carnet de crédits (ajout & encaissement de
+ *     règlement, jamais annulation/modification de dette), gâteaux comptoir
+ *     (encaisser acomptes/soldes & livrer, jamais créer/modifier le prix d'un
+ *     devis), clôture tiroir en mode aveugle (« compter ma caisse » sans voir
+ *     les écarts ni les ventes globales), disponibilité boutique + réassort.
  */
 
 export type Role = "proprietaire" | "labo" | "vendeur";
 
-/** Qui peut écrire : stocks, recettes, OF, achats, clôtures, rappels. */
+export type AppModule =
+  | "stocks"
+  | "achats"
+  | "recettes"
+  | "production"
+  | "transferts"
+  | "simulation"
+  | "planning"
+  | "tracabilite"
+  | "cake-design"
+  | "qualite"
+  | "cloture"
+  | "caisse";
+
+export const MODULE_ROLES: Record<AppModule, readonly Role[]> = {
+  stocks: ["proprietaire", "labo", "vendeur"],
+  achats: ["proprietaire", "labo"],
+  recettes: ["proprietaire", "labo"],
+  production: ["proprietaire", "labo"],
+  transferts: ["proprietaire", "labo"],
+  simulation: ["proprietaire"],
+  planning: ["proprietaire", "labo"],
+  tracabilite: ["proprietaire", "labo"],
+  "cake-design": ["proprietaire", "labo", "vendeur"],
+  qualite: ["proprietaire", "labo"],
+  cloture: ["proprietaire", "vendeur"],
+  caisse: ["proprietaire", "vendeur"],
+};
+
+export function canAccessModule(role: Role, moduleKey: string): boolean {
+  if (role === "proprietaire") return true;
+  if (!Object.hasOwn(MODULE_ROLES, moduleKey)) return false;
+  return MODULE_ROLES[moduleKey as AppModule].includes(role);
+}
+
+/** Qui peut écrire sur le périmètre atelier/stock (stocks, recettes, OF, achats, rappels). */
 export function canWrite(role: Role): boolean {
   return role === "proprietaire" || role === "labo";
 }
@@ -16,24 +62,46 @@ export function canWrite(role: Role): boolean {
 /**
  * Qui peut lire la STRUCTURE DE COÛTS (RC-01..RC-10) : matières FEFO,
  * MO chargée, énergie, frais généraux, taux horaire et charges.
- *
- * Le vendeur encaisse : il voit des prix de vente (PV HT/TTC), jamais un
- * coût de revient. Cette règle est appliquée à trois niveaux :
- *   1. navigation/rendu (`canReadCosts` dans la page module) ;
- *   2. actions serveur (`ficheCoutReal`, `simulerReal`) ;
- *   3. RLS Postgres (migration 17, policies SELECT par rôle).
  */
 export function canReadCosts(role: Role): boolean {
   return role === "proprietaire";
 }
 
+/** Seul le propriétaire fixe ou modifie les prix de vente, la TVA ou les charges/salaires. */
+export function canManagePrices(role: Role): boolean {
+  return role === "proprietaire";
+}
+
+/** Seul le propriétaire peut créer un devis chiffré ou modifier le prix d'une commande gâteau. */
+export function canCreateOrEditCakeQuotes(role: Role): boolean {
+  return role === "proprietaire";
+}
+
+/** Qui peut encaisser au comptoir (POS). Le labo n'a jamais accès à la caisse. */
+export function canSellAtPos(role: Role): boolean {
+  return role === "proprietaire" || role === "vendeur";
+}
+
+/** Qui peut enregistrer un crédit ou un règlement client au comptoir. */
+export function canUseCredits(role: Role): boolean {
+  return role === "proprietaire" || role === "vendeur";
+}
+
+/** Seul le propriétaire peut annuler, modifier le total ou supprimer une dette client. */
+export function canManageCreditsAdmin(role: Role): boolean {
+  return role === "proprietaire";
+}
+
+/** Seul le propriétaire peut supprimer une recette ou modifier les paramètres de coûts/salaires. */
+export function canDeleteRecipes(role: Role): boolean {
+  return role === "proprietaire";
+}
+
 /**
- * F-19 : les rôles labo et vendeur s'appuient sur des vues (`labo_*`,
- * `vendeur_*`) absentes du chemin déployable 01–23 + 25–34. Décision produit :
- * ils sont masqués tant que les migrations 101/115/116 ne sont pas réconciliées.
- * Passer à `true` seulement après réconciliation et test de la matrice app × schéma.
+ * Rôles labo et vendeur activés avec leurs vues sécurisées sans colonnes financières
+ * réconciliées dans `supabase/50-roles-permissions-vues.sql`.
  */
-export const ROLES_LABO_VENDEUR_ACTIFS = false;
+export const ROLES_LABO_VENDEUR_ACTIFS = true;
 
 /** Un rôle peut-il être attribué ou utilisé sur cette version ? */
 export function roleDisponible(role: Role): boolean {
@@ -41,13 +109,7 @@ export function roleDisponible(role: Role): boolean {
 }
 
 /**
- * NF-10 : qui peut lire le journal d'audit du tenant.
- *
- * Le propriétaire uniquement, et c'est cohérent à trois niveaux : la RLS
- * (migration 40, `patisgest_mon_role() = 'proprietaire'`), l'écran, et
- * l'action serveur. Le labo et le vendeur n'ont pas à lire l'historique
- * global des actions du compte — le journal contient des changements de
- * rôle et d'identité légale qui ne les concernent pas.
+ * NF-10 : qui peut lire le journal d'audit du tenant (propriétaire uniquement).
  */
 export function canReadAudit(role: Role): boolean {
   return role === "proprietaire";

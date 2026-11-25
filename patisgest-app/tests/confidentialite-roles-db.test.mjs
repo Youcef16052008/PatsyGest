@@ -55,7 +55,7 @@ async function socle() {
 
   // Migrations 01..43, mêmes contournements que schema-complet.test.mjs :
   // PGlite n'a pas pgcrypto, et 07/09 référencent des objets créés plus tard.
-  const base = (await readdir(supabase)).filter(f => /^\d\d-.*\.sql$/.test(f) && !f.startsWith('02-')).sort();
+  const base = (await readdir(supabase)).filter(f => /^\d\d-.*\.sql$/.test(f) && !f.startsWith('02-') && Number(f.slice(0, 2)) < 50).sort();
   for (const f of base) {
     let sql = await readFile(new URL(f, supabase), 'utf8');
     sql = sql.replace('create extension if not exists pgcrypto;', '');

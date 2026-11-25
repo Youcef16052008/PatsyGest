@@ -140,7 +140,7 @@ export default function ClotureForm({ sites, articles }: { sites: Option[]; arti
 
         <fieldset className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
           <legend className="px-1 text-xs font-bold uppercase tracking-wide text-slate-600">
-            2. Comptage tiroir-caisse (DA TTC · facultatif, séparé des produits)
+            2. Comptage tiroir-caisse (en DA · facultatif, séparé des produits)
           </legend>
           <p className="mb-2 text-xs text-slate-500">
             Espèces attendues = fond initial + ventes espèces − sorties justifiées. Les règlements chèque/virement,

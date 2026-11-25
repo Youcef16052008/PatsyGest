@@ -73,7 +73,7 @@ function ImpactReportView({ rapport }: { rapport: IngredientImpactReport }) {
                 <th scope="col" className="pg-num">Écart achat</th>
                 <th scope="col">1. Aux lots utilisables (FEFO)</th>
                 <th scope="col">2. Au prochain achat</th>
-                <th scope="col">Marge HT &amp; prix maintien</th>
+                <th scope="col">Marge &amp; prix maintien</th>
               </tr>
             </thead>
             <tbody>
@@ -164,12 +164,12 @@ function ImpactReportView({ rapport }: { rapport: IngredientImpactReport }) {
                         {r.prochainAchat.pvHtMaintienMarge != null && (
                           <div className="pg-help">
                             PV actuel {dinars(r.pvHt)} → maintien marge :{" "}
-                            <strong>{dinars(r.prochainAchat.pvHtMaintienMarge)} HT</strong>
+                            <strong>{dinars(r.prochainAchat.pvHtMaintienMarge)}</strong>
                           </div>
                         )}
                       </div>
                     ) : (
-                      <span className="pg-help">Sous-recette / PV HT non défini</span>
+                      <span className="pg-help">Sous-recette / prix de vente non défini</span>
                     )}
                     {r.gardeFous.length > 0 && (
                       <div className="pg-help" style={{ color: "var(--pg-danger)" }}>
@@ -283,7 +283,7 @@ export function IngredientImpactConnected({
           </select>
         </label>
         <label className="pg-field">
-          <span className="pg-label">Ancien prix HT (DA / {currentUnit})</span>
+          <span className="pg-label">Ancien prix (DA / {currentUnit})</span>
           <input
             name="ancienPu"
             type="number"
@@ -300,7 +300,7 @@ export function IngredientImpactConnected({
           {sourceAncien && <span className="pg-help">Source : {sourceAncien}</span>}
         </label>
         <label className="pg-field">
-          <span className="pg-label">Nouveau prix HT (DA / {currentUnit})</span>
+          <span className="pg-label">Nouveau prix (DA / {currentUnit})</span>
           <input
             name="nouveauPu"
             type="number"
@@ -420,7 +420,7 @@ export function IngredientImpactDemo({ state, initialArticleId }: { state: State
           </select>
         </label>
         <label className="pg-field">
-          <span className="pg-label">Ancien prix HT (DA / {currentMat?.unite ?? "u"})</span>
+          <span className="pg-label">Ancien prix (DA / {currentMat?.unite ?? "u"})</span>
           <input
             type="number"
             min={0}
@@ -435,7 +435,7 @@ export function IngredientImpactDemo({ state, initialArticleId }: { state: State
           <span className="pg-help">Source : {sourceAncien}</span>
         </label>
         <label className="pg-field">
-          <span className="pg-label">Nouveau prix HT (DA / {currentMat?.unite ?? "u"})</span>
+          <span className="pg-label">Nouveau prix (DA / {currentMat?.unite ?? "u"})</span>
           <input
             type="number"
             min={0}
