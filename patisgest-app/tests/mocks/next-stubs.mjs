@@ -9,3 +9,25 @@ export async function cookies() {
 export function redirect() {
   throw new Error('redirect');
 }
+
+// `next/server` — suffisant pour tester une route GET sans runtime Next.
+class ReponseSimulee {
+  constructor(corps, init = {}) {
+    this._corps = corps;
+    this.status = init.status ?? 200;
+    this.headers = new Headers(init.headers ?? {});
+  }
+  async json() {
+    return typeof this._corps === 'string' ? JSON.parse(this._corps) : this._corps;
+  }
+  async text() {
+    return typeof this._corps === 'string' ? this._corps : JSON.stringify(this._corps);
+  }
+}
+export const NextResponse = {
+  json(corps, init) {
+    const entetes = new Headers(init?.headers ?? {});
+    if (!entetes.has('content-type')) entetes.set('content-type', 'application/json');
+    return new ReponseSimulee(corps, { ...init, headers: entetes });
+  },
+};
