@@ -108,24 +108,10 @@ jobs:
 
   parcours-e2e:
     name: Parcours Playwright · ${{ matrix.spec }}
-    # DÉCLENCHEMENT MANUEL UNIQUEMENT — et ce n'est pas un oubli.
-    #
-    # Les 4 parcours (`tests/e2e/*.spec.mjs`) exigent TOUT ce qui suit, que ce
-    # workflow ne fournit pas :
-    #   1. une pile Supabase réelle (Auth + PostgREST) : le build de `quality`
-    #      pointe sur 127.0.0.1:65531, une adresse morte par construction ;
-    #   2. la chaîne de migrations appliquée à cette base (tables `articles`,
-    #      `lots`, `ventes`…) ;
-    #   3. `seed.mjs` (Baba au rhum, lot, vitrine publiée) ;
-    #   4. un utilisateur Auth réel : `connecter()` fait un vrai mot de passe
-    #      sur /connexion puis attend `**/tableau-de-bord` ;
-    #   5. l'application servie par `next start` avec l'URL de CETTE pile.
-    #
-    # Les déclencher sur `main` échouerait à coup sûr. Pour les automatiser,
-    # les brancher sur la pile jetable de `supabase-isole.yml` (qui a déjà
-    # 1., 2. et 3. et exporte `$RUNNER_TEMP/supabase-test.env`), sans quoi la
-    # porte reste fermée. L'étape « Préconditions » ci-dessous refuse de
-    # démarrer si la pile n'est pas là, au lieu d'échouer sur un timeout obscur.
+    # Déclenchement manuel (`workflow_dispatch`) sur pile Supabase CLI jetable :
+    # démarre Auth + PostgREST + PostgreSQL locaux, applique la chaîne 01..53,
+    # crée les comptes Auth de test + seed E2E, construit et démarre `next start`,
+    # puis exécute les 4 parcours Playwright dans Chromium headless.
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -133,19 +119,8 @@ jobs:
       fail-fast: false
       matrix:
         spec: [caisse, stock, transfert, vitrine]
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_PASSWORD: ci-only
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       NEXT_TELEMETRY_DISABLED: '1'
-      PATSYGEST_PG_URL: postgres://postgres:ci-only@127.0.0.1:5432/postgres
       PATSYGEST_E2E_BASE: http://127.0.0.1:3416
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -154,42 +129,56 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: patisgest-app/package-lock.json
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
+        with:
+          version: 2.75.0
       - run: npm ci
         working-directory: patisgest-app
       - name: Installer Chromium
         working-directory: patisgest-app
         run: npx playwright install --with-deps chromium
-      - name: Préconditions (pile Supabase + chaîne + seed)
+      - name: Démarrer une pile Supabase locale jetable
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/patsygest-e2e"
+          cd "$RUNNER_TEMP/patsygest-e2e"
+          supabase init
+          supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta,inbucket
+          umask 077
+          supabase status -o env > "$RUNNER_TEMP/supabase-e2e.env"
+      - name: Amorcer le schéma, les comptes Auth et le seed E2E
+        shell: bash
         working-directory: patisgest-app
         run: |
           set -euo pipefail
-          echec=0
-          if [ "${NEXT_PUBLIC_SUPABASE_URL}" = "http://127.0.0.1:65531" ]; then
-            echo "::error::NEXT_PUBLIC_SUPABASE_URL pointe sur l'adresse factice de la CI : brancher une vraie pile Supabase avant de lancer ce job."
-            echec=1
-          fi
-          if ! command -v psql > /dev/null 2>&1; then
-            echo "::error::psql absent : impossible de vérifier le schéma ni de seeder."
-            echec=1
-          elif ! psql "$PATSYGEST_PG_URL" -tAc "select to_regclass('public.articles') is not null" | grep -q t; then
-            echo "::error::La chaîne de migrations n'est pas appliquée (table articles absente). Ce job ne l'applique pas."
-            echec=1
-          fi
-          if [ "$echec" -ne 0 ]; then
-            echo "::notice::Voir le commentaire du job parcours-e2e : les 5 prérequis y sont listés."
-            exit 1
-          fi
-          echo "Préconditions satisfaites."
+          set -a
+          source "$RUNNER_TEMP/supabase-e2e.env"
+          set +a
+          export PATSYGEST_DISPOSABLE=yes
+          node tests/e2e/bootstrap-ci.mjs
       - name: Construire l'application
-        working-directory: patisgest-app
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:65531
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: test
-        run: npm run build
-      - name: Démarrer l'application
+        shell: bash
         working-directory: patisgest-app
         run: |
           set -euo pipefail
+          set -a
+          source "$RUNNER_TEMP/supabase-e2e.env"
+          set +a
+          export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
+          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY"
+          npm run build
+      - name: Démarrer l'application
+        shell: bash
+        working-directory: patisgest-app
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNNER_TEMP/supabase-e2e.env"
+          set +a
+          export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
+          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY"
+          export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
           nohup npm run start -- -p 3416 > "$RUNNER_TEMP/app.log" 2>&1 &
           for _ in $(seq 1 60); do
             if curl -fsS "$PATSYGEST_E2E_BASE/api/health" > /dev/null; then exit 0; fi
@@ -199,8 +188,21 @@ jobs:
           tail -50 "$RUNNER_TEMP/app.log"
           exit 1
       - name: Parcours ${{ matrix.spec }}
+        shell: bash
         working-directory: patisgest-app
-        run: node --test "tests/e2e/${{ matrix.spec }}.spec.mjs"
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNNER_TEMP/supabase-e2e.env"
+          set +a
+          export PATSYGEST_PG_URL="$DB_URL"
+          node --test "tests/e2e/${{ matrix.spec }}.spec.mjs"
       - name: Journal de l'application
         if: failure()
-        run: tail -100 "$RUNNER_TEMP/app.log"
+        run: tail -100 "$RUNNER_TEMP/app.log" || true
+      - name: Détruire la pile locale
+        if: always()
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/patsygest-e2e" 2>/dev/null || exit 0
+          supabase stop --no-backup || true

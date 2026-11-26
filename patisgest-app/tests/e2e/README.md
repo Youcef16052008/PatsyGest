@@ -19,11 +19,15 @@ production** et une stack Supabase **locale jetable** :
    supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta,inbucket
    supabase status -o env > supabase.env
    ```
-2. **Schéma** : chaîne `01`→`39` puis le seed `02-seed-pilote.sql` (voir
-   `tests/e2e/seed.mjs` pour les données de parcours). Le seed appliqué par le
-   script doit inclure `rls_auto_enable` (utilitaire DDL) et, sur une stack
-   locale, les *default privileges* Supabase (`grant all on all tables in
-   schema public to anon, authenticated, service_role`).
+2. **Schéma & amorçage** : exécuter `bootstrap-ci.mjs` avec les variables
+   exportées par `supabase status -o env` (applique `01`, `03`→`53`, crée les
+   comptes Auth pilotes et exécute `tests/e2e/seed.mjs`). En CI, le job
+   `parcours-e2e` de `.github/workflows/ci.yml` (`workflow_dispatch`) automatise
+   toute cette séquence sur une pile Supabase CLI jetable.
+   ```bash
+   set -a; . /tmp/patsygest-e2e/supabase.env; set +a
+   PATSYGEST_DISPOSABLE=yes node tests/e2e/bootstrap-ci.mjs
+   ```
 3. **Application en production** (le mode `next dev` ne répond pas aux clics
    synthétiques sur la grille de produits) :
    ```bash
