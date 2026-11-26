@@ -5,6 +5,46 @@ import {
   sendSmsAndWhatsAppAlerts,
 } from "./notifications-alerte";
 
+/** Ligne `utilisateurs` telle que la consomme le balayage de connectivité. */
+export type LigneUtilisateur = {
+  id: string;
+  client_id: string;
+  nom: string | null;
+  email: string;
+  role: "proprietaire" | "labo" | "vendeur";
+  telephone: string | null;
+  last_seen_at: string | null;
+  offline_alert_sent_at: string | null;
+  offline_alert_count: number | null;
+  /* PostgREST rend un objet OU un tableau pour une jointure 1-1. */
+  clients: { id: string; nom: string } | { id: string; nom: string }[] | null;
+};
+
+const ROLES_CONNUS = ["proprietaire", "labo", "vendeur"] as const;
+
+/**
+ * Garde de type étroite sur une ligne PostgREST.
+ *
+ * Remplace le `as unknown as Row[]` d'origine, qui affirmait une forme que rien
+ * ne vérifiait : une ligne nulle — ou privée de `client_id` — faisait lever
+ * « Cannot read properties of null » et annulait TOUT le balayage, y compris
+ * pour les comptes sains. On ne garde que les champs réellement exploités.
+ */
+export function estLigneUtilisateur(brut: unknown): brut is LigneUtilisateur {
+  if (!brut || typeof brut !== "object" || Array.isArray(brut)) return false;
+  const r = brut as Record<string, unknown>;
+  if (typeof r.id !== "string" || !r.id) return false;
+  if (typeof r.client_id !== "string" || !r.client_id) return false;
+  if (typeof r.email !== "string") return false;
+  if (!ROLES_CONNUS.includes(r.role as (typeof ROLES_CONNUS)[number])) return false;
+  for (const cle of ["nom", "telephone", "last_seen_at", "offline_alert_sent_at"]) {
+    if (r[cle] !== null && r[cle] !== undefined && typeof r[cle] !== "string") return false;
+  }
+  if (r.offline_alert_count !== null && r.offline_alert_count !== undefined
+      && typeof r.offline_alert_count !== "number") return false;
+  return true;
+}
+
 export interface ConnectivitySweepResult {
   ok: boolean;
   checkedAt: string;
@@ -49,21 +89,31 @@ export async function runOfflineDisconnectAlerts(): Promise<ConnectivitySweepRes
     };
   }
 
-  type Row = {
-    id: string;
-    client_id: string;
-    nom: string | null;
-    email: string;
-    role: "proprietaire" | "labo" | "vendeur";
-    telephone: string | null;
-    last_seen_at: string | null;
-    offline_alert_sent_at: string | null;
-    offline_alert_count: number | null;
-    clients: { id: string; nom: string } | null;
-  };
-
-  const rows = users as unknown as Row[];
-  const byClient = new Map<string, Row[]>();
+  /*
+   * La réponse vient de PostgREST : on la filtre par garde de type au lieu de
+   * la caster. Une ligne inexploitable est ignorée et comptée ; le balayage
+   * continue pour les comptes sains.
+   */
+  const rows: LigneUtilisateur[] = [];
+  let lignesIgnorees = 0;
+  for (const brut of Array.isArray(users) ? users : []) {
+    if (!estLigneUtilisateur(brut)) {
+      lignesIgnorees += 1;
+      continue;
+    }
+    rows.push(brut);
+  }
+  if (rows.length === 0 && lignesIgnorees > 0) {
+    return {
+      ok: false,
+      checkedAt,
+      thresholdMinutes: thresholdMin,
+      disconnectedFound: 0,
+      alertsDispatched: 0,
+      error: `Aucune ligne utilisateur exploitable (${lignesIgnorees} ignorée(s)).`,
+    };
+  }
+  const byClient = new Map<string, LigneUtilisateur[]>();
   for (const r of rows) {
     const arr = byClient.get(r.client_id) ?? [];
     arr.push(r);
@@ -93,7 +143,11 @@ export async function runOfflineDisconnectAlerts(): Promise<ConnectivitySweepRes
     });
 
     const disconnectedMinutes = Math.round((Date.now() - lastSeenMs) / 60_000);
-    const clientNom = u.clients?.nom ?? "Établissement";
+    // PostgREST rend la jointure en objet OU en tableau. `u.clients?.nom`
+    // ne couvrait que l'objet : en forme tableau, TOUTES les alertes
+    // affichaient « Établissement » au lieu du vrai nom (mesuré).
+    const jointure = Array.isArray(u.clients) ? u.clients[0] : u.clients;
+    const clientNom = jointure?.nom ?? "Établissement";
     const userName = u.nom || u.email;
     const message = buildOfflineAlertMessage({
       clientNom,
