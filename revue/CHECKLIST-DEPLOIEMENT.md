@@ -254,6 +254,27 @@ Trois niveaux, du moins invasif au plus.
 
 ---
 
+## 5 bis. Note de rebasage (à lire avant tout bisect)
+
+Les 11 commits de cette branche ont été rebasés sur `main` après PR #23, qui a
+pris le numéro de migration **52**. Deux points utiles si un `git bisect` passe
+un jour par ici :
+
+1. **La migration est `53-caisse-ticket-scope.sql`** (empreinte
+   `eb53b6915c8743c77f36a3b47813c335a4ff167ba950748bbaf3ffdda4604658`).
+   `52-recettes-photos.sql` appartient à `main` et **ne doit pas être rejouée**
+   sur le pilote si PR #23 l'y a déjà appliquée.
+2. **Les commits intermédiaires ne typent pas seuls.** `tsc` échoue sur le
+   commit « refactor(permissions) » (appels `getSessionContext({ allowLocked })`
+   avant que l'option n'existe, ajoutée au commit « feat(essai) »), et sur les
+   deux suivants (`client-logout.tsx` / `deconnexion-locale.ts` importés avant
+   leur ajout par « feat: finitions pilote »). **C'est antérieur au rebasage et
+   sans effet sur `main` ni sur la tête de branche** : seuls la CI de la branche
+   et le commit final comptent. Ne pas « corriger » ces commits en les
+   réécrivant, le découpage est volontaire.
+
+---
+
 ## 6. Journal de l'intervention
 
 | Élément | Valeur |
