@@ -7,6 +7,7 @@ import { equipeExperimentaleActive } from "./equipe-experimental";
 import { roleDisponible } from "./permissions";
 import { WORKSPACE_LINKS } from "./workspace-nav";
 import { notifierInvitationLocale, type NotificationInvitation } from "./invitation-mail";
+import { estProprietaireSeul } from "./permissions";
 
 export type EquipeActionState = { erreur?: string; succes?: string; code?: string };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -15,7 +16,7 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 async function clientProprietaire() {
   if (!equipeExperimentaleActive()) return null;
   const ctx = await getSessionContext();
-  if (!ctx || ctx.mode !== "supabase" || ctx.role !== "proprietaire") return null;
+  if (!ctx || ctx.mode !== "supabase" || !estProprietaireSeul(ctx.role)) return null;
   return createClient();
 }
 

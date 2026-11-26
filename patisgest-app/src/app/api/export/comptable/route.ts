@@ -11,6 +11,7 @@ import {
 } from "@/lib/export-comptable";
 import { lirePages } from "@/lib/pagination";
 import { messageUtilisateur } from "@/lib/erreurs-db";
+import { estProprietaireSeul } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -31,9 +32,10 @@ export const dynamic = "force-dynamic";
  *    déployée, on n'exporte *pas* silencieusement un CA sans avoirs : on le dit.
  */
 export async function GET(request: Request) {
-  const ctx = await getSessionContext();
+  // Export comptable = issue de secours en LECTURE, comme /api/export.
+  const ctx = await getSessionContext({ allowLocked: true });
   if (!ctx) return NextResponse.json({ erreur: "Session requise." }, { status: 401 });
-  if (ctx.role !== "proprietaire") {
+  if (!estProprietaireSeul(ctx.role)) {
     return NextResponse.json({ erreur: "Export comptable réservé au propriétaire." }, { status: 403 });
   }
 

@@ -8,6 +8,7 @@ import { createClient } from "./supabase/server";
 import { parseSaleInput } from "./stock-input";
 import { parseZCsv } from "./z-input";
 import { sameSaleReplay, sameSaleSession } from "./sale-session";
+import { estProprietaireSeul } from "./permissions";
 
 export type SaleReceiptLine = {
   articleId: string;
@@ -210,25 +211,6 @@ export async function sellCart(_prev: SaleState, formData: FormData): Promise<Sa
   }
 }
 
-/** Compatibilité mono-produit : délègue au même flux sécurisé et idempotent. */
-export async function sellProduct(prev: SaleState, formData: FormData): Promise<SaleState> {
-  try {
-    const input = parseSaleInput(formData);
-    const cartData = new FormData();
-    cartData.set("siteId", input.siteId);
-    cartData.set("expectedClientId", String(formData.get("expectedClientId") ?? ""));
-    cartData.set("expectedAuthUserId", String(formData.get("expectedAuthUserId") ?? ""));
-    cartData.set("lignesJson", JSON.stringify([{ articleId: input.articleId, qte: input.qte }]));
-    const ticket = String(formData.get("ticket") ?? "").trim();
-    if (ticket) cartData.set("ticket", ticket);
-    const mode = String(formData.get("modePaiement") ?? "especes").trim();
-    if (mode) cartData.set("modePaiement", mode);
-    return sellCart(prev, cartData);
-  } catch (e) {
-    return { erreur: e instanceof Error ? e.message : "Saisie invalide." };
-  }
-}
-
 export type ZImportResult = {
   z_import_id: string;
   sale_id: string | null;
@@ -248,7 +230,7 @@ export type ZImportResult = {
 export async function importZReal(_prev: SaleState, formData: FormData): Promise<SaleState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
-  if (ctx.role !== "proprietaire") return { erreur: "L’import de Z est réservé au propriétaire." };
+  if (!estProprietaireSeul(ctx.role)) return { erreur: "L’import de Z est réservé au propriétaire." };
 
   const date = String(formData.get("date") ?? "").trim();
   const siteId = String(formData.get("siteId") ?? "").trim();
@@ -330,7 +312,7 @@ export type AvoirResult = {
 export async function createAvoir(_prev: AvoirState, formData: FormData): Promise<AvoirState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session expirée. Reconnectez-vous." };
-  if (ctx.role !== "proprietaire") return { erreur: "Seul le propriétaire peut enregistrer un avoir ou retour." };
+  if (!estProprietaireSeul(ctx.role)) return { erreur: "Seul le propriétaire peut enregistrer un avoir ou retour." };
 
   const venteId = String(formData.get("venteId") ?? "").trim();
   const mode = String(formData.get("mode") ?? "").trim();

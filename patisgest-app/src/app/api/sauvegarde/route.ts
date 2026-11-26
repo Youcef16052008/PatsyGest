@@ -8,6 +8,7 @@ import {
   ORDRE_RESTAURATION, colonneTenant, construireSauvegarde, nomFichierSauvegarde, MAX_OCTETS_SAUVEGARDE,
   type TableSauvegardee,
 } from "@/lib/sauvegarde";
+import { estProprietaireSeul } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +19,11 @@ export const dynamic = "force-dynamic";
  * Lecture seule, aucune écriture.
  */
 export async function GET() {
-  const ctx = await getSessionContext();
+  // Sauvegarde = issue de secours : un propriétaire verrouillé doit pouvoir
+  // emporter ses données (promesse « aucune donnée en otage »). Lecture seule.
+  const ctx = await getSessionContext({ allowLocked: true });
   if (!ctx) return NextResponse.json({ erreur: "Session requise." }, { status: 401 });
-  if (ctx.role !== "proprietaire") {
+  if (!estProprietaireSeul(ctx.role)) {
     return NextResponse.json({ erreur: "Sauvegarde réservée au propriétaire." }, { status: 403 });
   }
 

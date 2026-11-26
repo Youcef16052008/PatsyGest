@@ -53,7 +53,20 @@ const PERMISSIONS: Record<ActionVitrine, readonly Role[]> = {
 };
 
 export function peutVitrine(role: Role, action: ActionVitrine): boolean {
-  return PERMISSIONS[action].includes(role);
+  /*
+   * ÉCHEC FERMÉ — mesuré avant correctif :
+   *   - action inconnue → `PERMISSIONS[action]` vaut `undefined` → `TypeError` ;
+   *   - clé héritée (`__proto__`, `toString`, `constructor`) → ce n'est pas
+   *     `undefined` mais un objet du prototype, donc `.includes` n'est même
+   *     plus une fonction.
+   * Une garde de permission ne doit jamais s'appuyer sur une exception pour
+   * refuser : toute action ou tout rôle non explicitement déclaré est refusé.
+   * `Object.hasOwn` neutralise en plus les clés héritées.
+   */
+  if (typeof action !== "string" || typeof role !== "string") return false;
+  if (!Object.hasOwn(PERMISSIONS, action)) return false;
+  const autorises = PERMISSIONS[action as ActionVitrine];
+  return Array.isArray(autorises) && autorises.includes(role as Role);
 }
 
 /**

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSessionContext } from "./auth";
 import { messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
+import { estProprietaireSeul } from "./permissions";
 
 /**
  * Loi 18-07 — actions serveur du droit d'accès et d'effacement.
@@ -37,7 +38,7 @@ export async function exporterDonnees(
 ): Promise<DonneesState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session expirée. Reconnectez-vous." };
-  if (ctx.role !== "proprietaire") {
+  if (!estProprietaireSeul(ctx.role)) {
     return { erreur: "L’export des données personnelles est réservé au propriétaire." };
   }
   try {
@@ -67,7 +68,7 @@ export async function anonymiserCommande(
 ): Promise<DonneesState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session expirée. Reconnectez-vous." };
-  if (ctx.role !== "proprietaire") {
+  if (!estProprietaireSeul(ctx.role)) {
     return { erreur: "L’anonymisation est réservée au propriétaire." };
   }
 

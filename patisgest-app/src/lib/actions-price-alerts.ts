@@ -11,6 +11,7 @@ import {
   type PriceAlertTargetType,
 } from "./owner-price-guard";
 import { createClient } from "./supabase/server";
+import { estProprietaireSeul } from "./permissions";
 
 type AlertRow = {
   id: string;
@@ -151,7 +152,7 @@ export async function resolveOwnerPriceAlertCloud(
 ): Promise<{ ok: boolean; erreur?: string }> {
   const ctx = await getSessionContext();
   if (!ctx || ctx.mode !== "supabase") return { ok: false, erreur: "Session Supabase requise." };
-  if (ctx.role !== "proprietaire") return { ok: false, erreur: "Réservé au propriétaire." };
+  if (!estProprietaireSeul(ctx.role)) return { ok: false, erreur: "Réservé au propriétaire." };
 
   try {
     const db = await createClient();

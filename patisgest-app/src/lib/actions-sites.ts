@@ -3,13 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { getSessionContext } from "./auth";
 import { createClient } from "./supabase/server";
+import { estProprietaireSeul } from "./permissions";
 
 export type SiteState = { erreur?: string; succes?: string };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function enregistrerSite(_prev: SiteState, form: FormData): Promise<SiteState> {
   const ctx = await getSessionContext();
-  if (!ctx || ctx.mode !== "supabase" || ctx.role !== "proprietaire") return { erreur: "Réservé au propriétaire connecté." };
+  if (!ctx || ctx.mode !== "supabase" || !estProprietaireSeul(ctx.role)) return { erreur: "Réservé au propriétaire connecté." };
   const id = String(form.get("id") ?? "").trim();
   const nom = String(form.get("nom") ?? "").trim();
   const type = String(form.get("type") ?? "");

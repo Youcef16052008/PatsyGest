@@ -9,6 +9,7 @@ import {
   type StarterVatRegime,
 } from "./pack-patisserie-dz";
 import { createClient } from "./supabase/server";
+import { estProprietaireSeul } from "./permissions";
 
 export type OnboardingActionState = {
   ok?: boolean;
@@ -23,7 +24,7 @@ export async function sauverBoutiqueExpress(
 ): Promise<OnboardingActionState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
-  if (ctx.role !== "proprietaire") return { erreur: "Réservé au propriétaire." };
+  if (!estProprietaireSeul(ctx.role)) return { erreur: "Réservé au propriétaire." };
   const nom = String(formData.get("nom") ?? "").trim();
   const telephone = String(formData.get("telephone") ?? "").trim();
   if (nom.length < 2 || nom.length > 100) return { erreur: "Nom de la boutique requis (2 à 100 caractères)." };
@@ -54,7 +55,7 @@ export async function importerPackPatisserieDz(
 ): Promise<OnboardingActionState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
-  if (ctx.role !== "proprietaire") return { erreur: "Réservé au propriétaire." };
+  if (!estProprietaireSeul(ctx.role)) return { erreur: "Réservé au propriétaire." };
   const selectedPack = filterPackByActivityAndVat(activity, tvaRegime);
   if (ctx.mode !== "supabase") {
     return { ok: true, imported: selectedPack.length, succes: "Pack métier algérien importé." };

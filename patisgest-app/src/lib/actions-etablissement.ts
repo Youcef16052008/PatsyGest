@@ -5,6 +5,7 @@ import { getSessionContext } from "./auth";
 import { createClient } from "./supabase/server";
 import { messageUtilisateur } from "./erreurs-db";
 import { validerNif, validerNis, validerRc } from "./etablissement";
+import { estProprietaireSeul } from "./permissions";
 
 export type EtablissementState = { erreur?: string; succes?: string };
 
@@ -16,7 +17,7 @@ export type EtablissementState = { erreur?: string; succes?: string };
 export async function sauverEtablissement(_prev: EtablissementState, formData: FormData): Promise<EtablissementState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
-  if (ctx.role !== "proprietaire") return { erreur: "Réservé au propriétaire." };
+  if (!estProprietaireSeul(ctx.role)) return { erreur: "Réservé au propriétaire." };
 
   const nom = String(formData.get("nom") ?? "").trim();
   const adresse = String(formData.get("adresse") ?? "").trim();
