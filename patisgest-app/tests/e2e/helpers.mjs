@@ -18,6 +18,7 @@ export async function connecter(page, email = PROPRIETAIRE.email) {
   await page.goto(`${BASE}/connexion`, { waitUntil: 'networkidle' });
   await page.fill('input[name=email]', email);
   await page.fill('input[name=motdepasse]', PROPRIETAIRE.motdepasse);
-  await page.click('button:has-text("Se connecter")');
-  await page.waitForURL('**/tableau-de-bord', { timeout: 60_000 });
+  await page.click('form button:has-text("Se connecter")');
+  await page.waitForURL('**/tableau-de-bord', { waitUntil: 'commit', timeout: 60_000 });
+  await page.waitForLoadState('networkidle');
 }

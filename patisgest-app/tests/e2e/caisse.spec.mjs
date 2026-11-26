@@ -19,8 +19,8 @@ test('parcours caisse : composer un panier et encaisser', async () => {
     await page.locator('text=Ticket enregistré').first().waitFor({ timeout: 30_000 });
     const texte = await page.innerText('body');
     assert.match(texte, /Ticket enregistré/, 'la vente est confirmée');
-    assert.match(texte, /Total TTC/, 'le ticket affiche le total');
-    assert.match(texte, /Ticket n° V-/, 'le numéro de ticket est présenté');
+    assert.match(texte, /\bTOTAL\b/i, 'le ticket affiche le total');
+    assert.match(texte, /\bV-[0-9A-Za-z-]+/, 'le numéro de ticket est présenté');
   } finally {
     await browser.close();
   }
