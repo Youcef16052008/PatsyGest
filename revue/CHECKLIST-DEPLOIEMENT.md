@@ -278,6 +278,59 @@ Trois niveaux, du moins invasif au plus.
 
 ---
 
+## 3 bis. Journal réel de l'application — 2026-11-26
+
+Appliquée par le connecteur Supabase, sur le pilote `evepzygucfxarpdnflzv`.
+
+| Étape | Résultat mesuré |
+|---|---|
+| Version avant | **51** (la 52 de `main` n'avait jamais été appliquée) |
+| Sauvegarde du corps de `vendre_panier` | `revue/sauvegardes/vendre_panier-avant-53.pgsql` |
+| `52-recettes-photos.sql` | appliquée → version **52**, colonne `photo_url` + contrainte présentes |
+| `53-caisse-ticket-scope.sql` | appliquée → version **53** |
+| `security_definer` / `search_path_pinne` | `true` / `true` |
+| `leve_sur_conflit` / `controle_taille` | `true` / `true` |
+| Signatures de `vendre_panier` | **1** (aucune surcharge) |
+| Contrainte `ventes_mode_paiement_valid` | alignée sur le corps 53 (plus de `carte`) |
+| Ventes / mouvements | 9 / 10 — inchangés |
+| `buckets` / `objets` Storage | **0 / 0** |
+
+### Rejeu de ticket, mesuré sur le pilote (dans des transactions annulées)
+
+Les deux chemins de la 53 ont été exercés en incarnant un vrai utilisateur
+(`set local role authenticated` + `request.jwt.claims`), puis `rollback;` —
+aucune écriture n'a survécu (9 ventes et 10 mouvements avant comme après).
+
+- **Rejeu exact** du ticket `134c0e07-…`, même panier, même site, mêmes
+  espèces → `{"duplicate": true, "sale_id": "f80e3da9-…", "missing": 0}` ;
+  aucune vente créée. C'est le comportement idempotent attendu.
+- **Même ticket, panier différent** (`qte: 99` au lieu de 3/3/4) →
+  `ERROR: 23505: Ticket deja utilise pour une autre vente.`
+  SQLSTATE exactement conforme à la spécification.
+
+### Deux écarts constatés, et ce qu'il en a été fait
+
+1. **La 52 de `main` manquait.** La consigne supposait qu'elle était déjà
+   appliquée ; la mesure a dit 51. Elle a donc été appliquée d'abord, sur
+   décision explicite, pour que la chaîne reste continue (51 → 52 → 53).
+2. **La 53 embarque le retrait du mode « carte »** (changement de la
+   migration 44, jamais appliquée et marquée « validation humaine
+   explicite »). Décision explicite : appliquer la 53 telle quelle. Aucun
+   impact sur les données — 0 vente en `carte` sur 9. La contrainte a été
+   alignée dans la foulée pour que la base ne se contredise pas.
+
+### Corps installé ≠ chaîne du dépôt (à savoir)
+
+Le corps de `vendre_panier` présent sur le pilote avant la 53 ne
+correspondait à **aucune** migration du dépôt : il portait la garde
+`patisgest_mon_role() = 'labo'` et `patisgest_exiger_modules`, absentes de
+`21-prix-demain-panier.sql`, et seuls `53` et ce corps utilisent le fuseau
+`Africa/Algiers`. La fonction du pilote avait donc été posée hors chaîne.
+C'est pourquoi la sauvegarde a été prise sur la valeur réelle et non
+reconstituée depuis un fichier.
+
+---
+
 ## 4 bis. Audit des variables Vercel — mesuré le 2026-11-26, **bloquant**
 
 Projet `patsy-gest` (`prj_UpFyCGQfqxP4BsO5JPAmWboeBp1z`), équipe
