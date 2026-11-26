@@ -3,51 +3,57 @@
 Solution de gestion tout-en-un pour ateliers et laboratoires de pâtisserie.
 
 > **Attention : pas de mise en production commerciale générale en l'état.**
-> `PâtisGest-Final.html` et l'application Electron qui l'encapsule sont des
-> **démonstrations avec données fictives uniquement**, pas des registres de vente,
-> de stock ou de production. Ne pas leur confier de données réelles. La
-> restauration et les migrations du pilote doivent être vérifiées avant toute
-> intervention ; voir [l'état des phases 0 et 1](patisgest-app/ETAT-PHASES-0-1.md)
-> et le [rapport consolidé](RAPPORT-CONSOLIDE-ET-PLAN.md).
+> Les jeux de démonstration et les parcours hors ligne travaillent sur des
+> **données fictives uniquement** : ce ne sont pas des registres de vente, de
+> stock ou de production. Ne pas leur confier de données réelles.
+>
+> Avant toute intervention sur le pilote :
+> - lire l'état réel du projet dans [`PLAN-AMELIORATION-PATISGEST.md`](PLAN-AMELIORATION-PATISGEST.md) ;
+> - vérifier la rejouabilité des migrations : `cd patisgest-app && npm test`
+>   (`chaine-rejouable`, `migrations-repetition`) ; la restauration n'est
+>   **pas** certifiée par le dépôt ;
+> - suivre [`revue/CHECKLIST-DEPLOIEMENT.md`](revue/CHECKLIST-DEPLOIEMENT.md)
+>   pour l'ordre exact des migrations et la vérification après déploiement.
 
 ## 📁 Structure du projet
 
 | Dossier / fichier | Description |
 |---|---|
-| `PâtisGest-Final.html` | **Prototype v1.0** : logiciel autonome en 1 fichier (16 écrans interactifs). Fonctionne directement dans le navigateur sans connexion. |
-| `PâtisGest-GUIDE.md` | Guide de référence : analyse technique, architecture et correspondance Next.js. |
-| `PâtisGest-Documents/` | **Documentation projet v4.0** (Word + Markdown) : Cahier des charges, Architecture, Roadmap, Plan pilote, Kit terrain. |
-| `patisgest-app/` | **Application Next.js** : interface web, authentification Supabase, base de données PostgreSQL & Drizzle ORM. |
-| `patisgest-desktop/` | **Application Bureau Electron** : encapsule le prototype en application Windows de bureau. |
-| `LISEZ-MOI.md` | Guide de démarrage initial. |
-| [`HANDOFF-EN.md`](HANDOFF-EN.md) | **Handoff in English** — what the storefront (vitrine) work does, why, what it deliberately does not do, and the traps that cost time. Start here if you are new to the project. |
-| `HANDOFF.md` | Passation en français (livraison antérieure, PR #4). |
+| [`patisgest-app/`](patisgest-app/) | **Application Next.js 16** — c'est le produit. Interface web, Server Actions, Supabase (PostgreSQL + Auth + Storage). |
+| [`patisgest-app/README.md`](patisgest-app/README.md) | Configuration de l'application, variables d'environnement, commandes. |
+| [`patisgest-app/AGENTS.md`](patisgest-app/AGENTS.md) | Règles de travail sur le dépôt (spécificités Next 16, conventions, pièges). |
+| [`PâtisGest-Documents/`](PâtisGest-Documents/) | **Documentation projet v4** (.md et .docx) : cahier des charges, architecture, roadmap, plan pilote, kit terrain. |
+| [`PLAN-AMELIORATION-PATISGEST.md`](PLAN-AMELIORATION-PATISGEST.md) | Plan d'amélioration et état d'avancement. |
+| [`GUIDE-PILOTE.md`](GUIDE-PILOTE.md) | Mise en service chez le pilote. |
+| [`NOTE-HEBERGEMENT.md`](NOTE-HEBERGEMENT.md) · [`NOTE-COUT-MINIMAL.md`](NOTE-COUT-MINIMAL.md) | Hébergement et coûts. |
+| [`PROTOCOLE-QUALIFICATION-MATERIELLE.md`](PROTOCOLE-QUALIFICATION-MATERIELLE.md) | Recette matérielle (tablette, imprimante, scan). |
+| [`revue/CHECKLIST-DEPLOIEMENT.md`](revue/CHECKLIST-DEPLOIEMENT.md) | **Checklist de déploiement** : pré-déploiement, migration manuelle, vérifications, retour arrière. |
 
 ## 🚀 Démarrage rapide
 
-### 1. Prototype interactif (Sans installation)
-Double-cliquez sur `PâtisGest-Final.html` pour tester l'application directement dans votre navigateur (tablette ou desktop).
-
-### 2. Application Web (`patisgest-app`)
+### Application web
 ```bash
 cd patisgest-app
-npm install
-cp .env.example .env.local
+npm ci
+cp .env.example .env.local   # puis renseigner les valeurs Supabase
 npm run dev
 ```
-Consultez le fichier `patisgest-app/README.md` pour la configuration complète de la base de données Supabase.
+Node **≥ 22.15** est requis (la suite de tests utilise
+`--experimental-test-module-mocks`). Voir
+[`patisgest-app/README.md`](patisgest-app/README.md) pour la configuration
+Supabase complète.
 
-### 3. Application Bureau (`patisgest-desktop`)
+### Vérifier avant de livrer
 ```bash
-cd patisgest-desktop
-npm install
-npm start
+cd patisgest-app
+npm run typecheck && npm run lint && npm test && npm run build
 ```
 
 ## 📚 Documentation
-Retrouvez les spécifications complètes dans le dossier `PâtisGest-Documents/` :
-- `01-Cahier-des-Charges-PatisGest-v4.md`
-- `02-Architecture-Technique-PatisGest-v4.md`
-- `03-Roadmap-Plan-Projet-PatisGest-v4.md`
-- `04-Plan-Attaque-1-Pilote.md`
-- `05-Kit-Phase0-Terrain.md`
+Spécifications complètes dans `PâtisGest-Documents/` :
+
+- [`01-Cahier-des-Charges-PatisGest-v4.md`](PâtisGest-Documents/01-Cahier-des-Charges-PatisGest-v4.md)
+- [`02-Architecture-Technique-PatisGest-v4.md`](PâtisGest-Documents/02-Architecture-Technique-PatisGest-v4.md)
+- [`03-Roadmap-Plan-Projet-PatisGest-v4.md`](PâtisGest-Documents/03-Roadmap-Plan-Projet-PatisGest-v4.md)
+- [`04-Plan-Attaque-1-Pilote.md`](PâtisGest-Documents/04-Plan-Attaque-1-Pilote.md)
+- [`05-Kit-Phase0-Terrain.md`](PâtisGest-Documents/05-Kit-Phase0-Terrain.md)
