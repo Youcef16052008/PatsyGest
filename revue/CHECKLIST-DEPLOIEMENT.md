@@ -1,7 +1,7 @@
 # Checklist de déploiement du pilote
 
 > **Portée :** mise en ligne de `patisgest-app/` chez **un** pilote, plus application
-> de la migration `52`. Ce document ne couvre pas une ouverture commerciale générale.
+> de la migration `53`. Ce document ne couvre pas une ouverture commerciale générale.
 >
 > **Statut :** prête, **non exécutée**. Les cases sont à cocher dans l'ordre.
 
@@ -55,21 +55,45 @@ désactivé hors `NODE_ENV=development` (`src/lib/auth.ts:60`).
 
 ---
 
-## 2. Migration 52 — application manuelle
+## 2. Migration 53 — application manuelle (précédée de la 52 de `main`)
 
-> **Pourquoi manuelle :** `patisgest-app/supabase/52-caisse-ticket-scope.sql` n'est pas dans la chaîne
+### 2.0 Vérifier d'abord la 52 de `main` (mesuré le 2026-11-26 : elle manque)
+
+> **Constat, pas hypothèse.** Interrogé avant toute écriture, le pilote
+> `evepzygucfxarpdnflzv` répond `app_schema_version = 51`. La migration
+> `52-recettes-photos.sql` (PR #23) **n'y a jamais été appliquée**. Elle est
+> additive (`add column if not exists`, contrainte recréée sous
+> `drop constraint if exists`) et c'est elle qui écrit la version 52 : sans
+> elle, la 53 passerait la version de 51 à 53 en sautant un cran, et la
+> contrainte `recettes_libres_photo_url_check` manquerait.
+
+```sql
+select version from public.app_schema_version where id = 1;
+```
+
+- **51** → appliquer d'abord `patisgest-app/supabase/52-recettes-photos.sql`,
+  puis contrôler `= 52`, puis seulement la 53 ci-dessous.
+- **52** → appliquer directement la 53.
+- **53** → rien à faire, la migration est déjà passée : arrêter.
+
+- [ ] Version de départ mesurée et notée dans le journal (§6)
+- [ ] Si 51 : `52-recettes-photos.sql` appliquée **avant** la 53
+
+
+> **Pourquoi manuelle :** `patisgest-app/supabase/53-caisse-ticket-scope.sql` n'est pas dans la chaîne
 > automatique de déploiement (`migrations/repetition.json`, entrée `main_hors_serie`
 > avec `hors_fixture_pilote: true`). Elle doit être appliquée explicitement.
 >
 > **Nature :** un seul `create or replace function public.vendre_panier(...)`
-> (ligne 38) + montée de `app_schema_version` à `52` (lignes 287-291).
+> (ligne 38) + montée de `app_schema_version` à `53` (lignes 287-291).
 > **Aucun `DROP`, aucune perte de données, aucun DDL destructif.**
 
 ### 2.1 Avant (relever l'état)
 
 ```sql
 select version from public.app_schema_version where id = 1;
--- Attendu : 51. Si 52 est déjà là, la migration a déjà été appliquée : arrêter.
+-- Attendu : 51, ou 52 si la 52 de `main` est déjà passée (voir 2.0).
+-- Si 53 est déjà là, la migration a déjà été appliquée : arrêter.
 ```
 
 - [ ] `app_schema_version` lue et notée (valeur : `______`)
@@ -90,7 +114,7 @@ select version from public.app_schema_version where id = 1;
    > sans ambiguïté. Les deux formes ont été vérifiées. En revanche
    > `'public.vendre_panier'::regprocedure` **échoue** (« expected a left
    > parenthesis ») : la signature est obligatoire avec ce cast.
-3. Exécuter le contenu de `patisgest-app/supabase/52-caisse-ticket-scope.sql`
+3. Exécuter le contenu de `patisgest-app/supabase/53-caisse-ticket-scope.sql`
    dans l'éditeur SQL Supabase.
 
    > **Le fichier porte DÉJÀ sa transaction** : `begin;` en ligne 36 et
@@ -119,9 +143,9 @@ select version from public.app_schema_version where id = 1;
 ```sql
 -- a) Version montée
 select version from public.app_schema_version where id = 1;
--- Attendu : 52
+-- Attendu : 53
 
--- b) La fonction installée est bien celle de 52.
+-- b) La fonction installée est bien celle de 53.
 --    On cherche des marqueurs ABSENTS des versions 21→50. Une simple présence
 --    de « site_id » ne prouverait rien : cette colonne existe depuis la 21.
 select
@@ -139,11 +163,11 @@ where proname = 'vendre_panier' and pronamespace = 'public'::regnamespace;
 -- Attendu : 1
 ```
 
-- [ ] Version = `52`
+- [ ] Version = `53`
 - [ ] Les quatre drapeaux de 2.3-b valent `true`
 - [ ] Une seule signature de `vendre_panier`
 
-> Si 2.3-a vaut 52 alors que 2.3-b est faux : la version a été incrémentée mais
+> Si 2.3-a vaut 53 alors que 2.3-b est faux : la version a été incrémentée mais
 > le corps n'a pas été remplacé (mauvaise base, script partiellement exécuté).
 > Ne pas réessayer à l'aveugle — restaurer la copie de 2.2-2 puis rouvrir
 > l'incident.
@@ -233,7 +257,7 @@ Trois niveaux, du moins invasif au plus.
 ### 5.1 Revenir sur le code (sans toucher à la base)
 
 - [ ] Redéployer le commit précédent depuis la plateforme
-- La migration 52 reste appliquée. C'est **sans danger** : l'ancien code de vente
+- La migration 53 reste appliquée. C'est **sans danger** : l'ancien code de vente
   appelle la même signature `public.vendre_panier(...)` ; seul son corps change.
 
 ### 5.2 Revenir sur la fonction `vendre_panier`
@@ -251,6 +275,44 @@ Trois niveaux, du moins invasif au plus.
 - [ ] Suivre `revue/PROCEDURE-RESTAURATION-PILOTE.md`
 - [ ] Rappel : cette procédure est **prête mais non exécutée** ; la restauration du
       pilote n'est **pas** certifiée par le dépôt
+
+---
+
+## 4 bis. Audit des variables Vercel — mesuré le 2026-11-26, **bloquant**
+
+Projet `patsy-gest` (`prj_UpFyCGQfqxP4BsO5JPAmWboeBp1z`), équipe
+`team_Zs0MWAYqYN2fjolkybUsUqbK`, racine `patisgest-app`.
+
+`list_env_vars` renvoie **six** variables, et **aucune** des quatre requises
+n'est présente :
+
+| Variable | Exigence | État mesuré |
+|---|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | doit exister | **ABSENTE** |
+| `PATISGEST_MASTER_KEY` | doit exister | **ABSENTE** |
+| `CRON_SECRET` | doit exister | **ABSENTE** |
+| `VITRINE_SECRET_ANTI_ABUS` | ≥ 32 caractères | présente, `sensitive`, **valeur vide** |
+| `VERCEL_ENV` | doit être absente | absente ✔ |
+| `PATISGEST_PREVIEW_BLOCKED` | doit être absente | absente ✔ |
+| `PATISGEST_DEMO_MODE` | doit être absente | absente ✔ |
+
+Seules existent : `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+(production + preview), plus les trois lignes du tableau ci-dessus.
+
+**Conséquence à décider avant de déployer.** La migration 53 se pose sans ces
+variables, mais l'application déployée s'en sert à l'exécution :
+
+- `SUPABASE_SERVICE_ROLE_KEY` — `/master` et `/api/cron/connectivite` ;
+- `PATISGEST_MASTER_KEY` — chiffrement de l'espace Master ;
+- `CRON_SECRET` — authentification des routes cron ;
+- `VITRINE_SECRET_ANTI_ABUS` vide — l'anti-abus vitrine retombe sur le plafond
+  global de la base, ce qui est le comportement de repli documenté, donc non
+  bloquant, mais **la protection par source est absente**.
+
+**Je n'écris aucune de ces valeurs** : un secret ne se fabrique pas à ma place
+et ne transite pas par la conversation. Elles sont à saisir par le propriétaire
+dans Vercel → Settings → Environment Variables (Production), avant le
+déploiement si l'on veut `/master` et le cron fonctionnels dès la mise en ligne.
 
 ---
 
