@@ -101,3 +101,28 @@ test('CSV : les tables de coût ne sont pas exportables par un vendeur', () => {
   assert.equal(tableExportable('couts', true), true);
   assert.equal(tableExportable('table-inconnue', true), false);
 });
+
+test('CSV : les caractères invisibles avant une formule sont neutralisés (W2-D1)', () => {
+  // `\s` en JS ne couvre ni U+200B ni U+202E : « ‹ZWSP›-2 » sortait brut et
+  // Excel l'exécutait. Les contrôles de direction (bidi) servent justement à
+  // faire passer une formule pour du texte dans un tableur.
+  const ZWSP = '\u200B';
+  const RLO = '\u202E';
+  const ZWJ = '\u200D';
+  const BOM = '\uFEFF';
+  for (const prefixe of [ZWSP, RLO, ZWJ, BOM, ZWSP + ZWSP]) {
+    for (const formule of ['=1+1', '-2+3', '+33', '@SUM(A1)']) {
+      const sortie = cellule(prefixe + formule);
+      assert.equal(
+        sortie.startsWith(`'${prefixe}`),
+        true,
+        `${JSON.stringify(prefixe + formule)} est sorti brut : ${JSON.stringify(sortie)}`,
+      );
+    }
+  }
+  // Un séparateur après l'invisible doit aussi déclencher l'échappement RFC.
+  assert.equal(cellule(`${ZWSP}=1;2`).startsWith(`"`), true);
+  // Aucune régression sur les nombres réels.
+  assert.equal(cellule(-42), '-42');
+  assert.equal(cellule(-0.5), '-0,5');
+});

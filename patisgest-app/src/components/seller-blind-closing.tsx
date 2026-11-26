@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
-import { validerComptageTiroir } from "@/lib/actions-journaux";
+import { validerComptageTiroir } from "@/lib/actions-clotures";
 import { dinars, jourLocal } from "@/lib/workspace-data";
 
 type SiteOption = { id: string; label: string };

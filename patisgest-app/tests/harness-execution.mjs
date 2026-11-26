@@ -64,15 +64,20 @@ export function fauxClient({ data = null, error = null, rpc: resolue } = {}) {
         return Promise.resolve({ data, error }).then(fait);
       },
     };
-    return new Proxy(b, {
+    // Le proxy doit se renvoyer LUI-MÊME : renvoyer la cible brute
+    // interrompait la chaîne au deuxième appel (`from().select().eq()` levait
+    // « eq is not a function »), l'exception étant ensuite avalée par le
+    // `catch` des actions — le test croyait alors tester un refus métier.
+    const proxy = new Proxy(b, {
       get(cible, prop) {
         if (prop in cible) return cible[prop];
         return (...args) => {
           appels.push({ op: String(prop), args });
-          return cible;
+          return proxy;
         };
       },
     });
+    return proxy;
   };
   return {
     appels,

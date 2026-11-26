@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { addCleaning, addNc, addTemperature, updateNc, type JournalState } from "@/lib/actions-journaux";
+import { addCleaning, addNc, addTemperature, updateNc } from "@/lib/actions-haccp";
+import { type JournalState } from "@/lib/journal-actions-communs";
 
 type Option = { id: string; label: string };
 export type NcRow = { id: string; statut: string; type: string; description: string; action: string };

@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useActionState, useState, useSyncExternalStore } from "react";
-import {
-  accepterCgvReal, assignCakeProductionReal, createCakeReal, editerCakeReal, evolveCakeReal, type JournalState,
-} from "@/lib/actions-journaux";
+import { accepterCgvReal, assignCakeProductionReal, createCakeReal, editerCakeReal, evolveCakeReal } from "@/lib/actions-cakes";
+import { type JournalState } from "@/lib/journal-actions-communs";
 import { clearEstimatorDraft, ESTIMATOR_DRAFT_KEY, loadEstimatorDraft } from "@/lib/portion-estimator";
 import { traiterDemandeVitrine } from "@/lib/actions-vitrine";
 import { peutTraiterDemande, type Role } from "@/lib/vitrine-permissions";

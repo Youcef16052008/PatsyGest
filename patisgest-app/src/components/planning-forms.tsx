@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { addTask, toggleTask, type JournalState } from "@/lib/actions-journaux";
+import { addTask, toggleTask } from "@/lib/actions-planning";
+import { type JournalState } from "@/lib/journal-actions-communs";
 
 export type TaskRow = { id: string; date: string; tache: string; ofNumero: string; fait: boolean };
 

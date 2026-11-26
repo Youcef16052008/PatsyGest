@@ -11,7 +11,14 @@ const stubs = new URL('./next-stubs.mjs', import.meta.url).href;
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier === 'next/cache' || specifier === 'next/headers' || specifier === 'next/navigation') {
+    if (
+      specifier === 'next/cache' ||
+      specifier === 'next/headers' ||
+      specifier === 'next/navigation' ||
+      // `next/server` n'est pas résolvable hors bundler non plus : les tests
+      // de routes (ex. /api/health) l'importent pour `NextResponse`.
+      specifier === 'next/server'
+    ) {
       return { url: stubs, shortCircuit: true };
     }
     // `server-only` est une garde de bundler (elle n'existe que pour faire

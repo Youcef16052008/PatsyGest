@@ -1,6 +1,7 @@
 import { createServerClient, type CookieMethodsServer } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { previewBloquee, routePubliquePreview } from "./lib/preview-guard";
+import { attendreRafraichissement, EN_TETE_SESSION_PERIMEE } from "./lib/proxy-session";
 import { DOMAINE_SERVICE_PAR_DEFAUT, deciderRoutage } from "@/lib/domaines";
 
 /**
@@ -72,10 +73,17 @@ export async function proxy(request: NextRequest) {
       },
     });
 
-    await Promise.race([
-      supabase.auth.getUser(),
-      new Promise((resolve) => setTimeout(resolve, 1200)),
-    ]);
+    // Attente bornée : c'est PENDANT `getUser()` que `setAll` écrit les
+    // nouveaux cookies. Abandonner trop tôt perdait la rotation de session en
+    // silence (mesuré : la réponse partait avec 0 cookie écrit). Voir
+    // `lib/proxy-session.ts` — au-delà du budget, la réponse est marquée au
+    // lieu d'être silencieusement périmée.
+    const rafraichissement = await attendreRafraichissement(() => supabase.auth.getUser());
+    if (rafraichissement.perime) {
+      // `supabaseResponse` peut avoir été réaffecté par `setAll` entre-temps :
+      // on marque la réponse courante, jamais une référence périmée.
+      supabaseResponse.headers.set(EN_TETE_SESSION_PERIMEE, "1");
+    }
   } catch {
     // Mode hors-ligne / sandbox : la session locale prend le relais
   }

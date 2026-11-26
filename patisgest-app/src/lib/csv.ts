@@ -20,8 +20,17 @@ export const CSV_BOM = "\uFEFF";
 
 /** Délimiteurs qui déclenchent l'échappement RFC 4180. */
 const A_ESCAPER = /["\n\r;]/;
-/** Préfixes interprétés comme formules par Excel / LibreOffice. */
-const FORMULE = /^[\s\uFEFF]*[=+\-@\t\r]/;
+/**
+ * Préfixes interprétés comme formules par Excel / LibreOffice.
+ *
+ * `\s` ne couvre PAS les caractères de largeur nulle (U+200B, U+200C, U+200D,
+ * U+2060) ni les contrôles bidirectionnels (U+202A–U+202E, U+2066–U+2069).
+ * Mesuré : `"\u200B-2"` et `"\u202E=1+1"` sortaient bruts et Excel les
+ * exécutait — c'est exactement l'usage malveillant du RTL override.
+ * On énumère donc explicitement la classe « invisible ».
+ */
+const INVISIBLES = "\u0000-\u0020\u00A0\uFEFF\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069";
+const FORMULE = new RegExp(`^[${INVISIBLES}]*[=+\\-@\\t\\r]`);
 
 export type ValeurCsv = string | number | boolean | null | undefined | Date | readonly ValeurCsv[] | { readonly [cle: string]: ValeurCsv };
 

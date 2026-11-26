@@ -87,9 +87,21 @@ export function canUseCredits(role: Role): boolean {
   return role === "proprietaire" || role === "vendeur";
 }
 
+/**
+ * Réservé au propriétaire — cas générique (export comptable, sauvegarde, Z,
+ * avoirs, restauration, réglages d'établissement, onboarding…).
+ *
+ * Remplace les tests inline `ctx.role !== "proprietaire"`, qui étaient
+ * dupliqués à l'identique dans 16 fichiers. Sémantique strictement identique :
+ * tout rôle autre que `proprietaire` est refusé.
+ */
+export function estProprietaireSeul(role: Role): boolean {
+  return role === "proprietaire";
+}
+
 /** Seul le propriétaire peut annuler, modifier le total ou supprimer une dette client. */
 export function canManageCreditsAdmin(role: Role): boolean {
-  return role === "proprietaire";
+  return estProprietaireSeul(role);
 }
 
 /** Seul le propriétaire peut supprimer une recette ou modifier les paramètres de coûts/salaires. */

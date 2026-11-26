@@ -7,6 +7,7 @@ import {
   type TrialAnchorRecord,
 } from "@/lib/trial-lock-client";
 import TrialLockScreen from "./trial-lock-screen";
+import { oublierDonneesLocalesDeSession } from "@/lib/deconnexion-locale";
 
 export default function TrialGuardClient({
   scopeId,
@@ -146,7 +147,14 @@ export default function TrialGuardClient({
             bundleRef.current = bundle;
             await runSync(bundle);
           }}
-          onLogout={onLogoutAction ? () => void onLogoutAction() : undefined}
+          onLogout={
+            onLogoutAction
+              ? () => {
+                  oublierDonneesLocalesDeSession();
+                  void onLogoutAction();
+                }
+              : undefined
+          }
         />
       )}
     </>

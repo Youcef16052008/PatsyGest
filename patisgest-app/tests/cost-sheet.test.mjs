@@ -86,3 +86,39 @@ test('RC-07 réel : agrégation des clôtures par produit', async () => {
   // produit absent → tout à0, pas de division par0
   assert.deepEqual(aggregatePertes(clotures, 'PF-XXX'), { produit: 0, jete: 0, casse: 0, taux: 0 });
 });
+
+test('RC : bornes hostiles refusées, jamais un coût faux (W2-D2)', () => {
+  // 1. ÷0 : un rendement net nul ne doit jamais produire Infinity/NaN.
+  assert.throws(() => rc05CoutParPortion(1000, 0), /rendement net/);
+  assert.throws(() => rc05CoutParPortion(1000, -1), /rendement net/);
+  // 2. parage à 100 % est LÉGAL (perte totale) mais jamais au-delà de 1000 %.
+  assert.equal(rc01Consommation(10, 100), 20);
+  assert.throws(() => rc01Consommation(10, 1000.1), /parage/);
+  assert.throws(() => rc01Consommation(10, -0.1), /parage/);
+  // 3. cuisson 100 % => rendement net nul, pas négatif.
+  assert.equal(rc02RendementNet(10, 100), 0);
+  assert.throws(() => rc02RendementNet(10, 100.1), /cuisson/);
+  // 4. PV HT nul : marge négative assumée, taux 0 (pas de ÷0).
+  const m = rc06Marge(0, 500);
+  assert.equal(m.marge, -500);
+  assert.equal(m.taux, 0);
+  // 5. NaN / Infinity / texte refusés partout.
+  for (const mauvais of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    assert.throws(() => rc03CoutTotal(mauvais, 0, 0, 0, 0), /RC-03/);
+    assert.throws(() => rc07TauxPerte(mauvais, 0, 10), /RC-07/);
+    assert.throws(() => rc08ManqueAJagner(0, mauvais, 10), /RC-08/);
+  }
+  // 6. Fabriqué nul : ÷0 refusé.
+  assert.throws(() => rc07TauxPerte(1, 1, 0), /fabriqué/);
+  // 7. RC-10 : référence nulle/absente => aucune alerte (pas de faux positif).
+  assert.deepEqual(rc10GardeFous(1000, null), []);
+  assert.deepEqual(rc10GardeFous(1000, 0), []);
+  // 8. RC-10 : bornes exactes ×10 et ÷10 déclenchent, 9,9× non.
+  assert.equal(rc10GardeFous(1000, 100).some((g) => g.code === 'RC-10-x10'), true);
+  assert.equal(rc10GardeFous(990, 100).some((g) => g.code === 'RC-10-x10'), false);
+  assert.equal(rc10GardeFous(10, 100).some((g) => g.code === 'RC-10-div10'), true);
+  assert.equal(rc10GardeFous(11, 100).some((g) => g.code === 'RC-10-div10'), false);
+  // 9. prix exactement 2× ne déclenche pas (strictement supérieur).
+  assert.deepEqual(rc10GardeFous(100, 100, 200, 100), []);
+  assert.equal(rc10GardeFous(100, 100, 200.01, 100).some((g) => g.code === 'RC-10-prix2x'), true);
+});

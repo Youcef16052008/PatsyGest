@@ -5,7 +5,9 @@ import { lireStatutEssaiServeur } from "@/lib/trial-server";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const ctx = await getSessionContext();
+  // Lu par l'écran de verrouillage : doit répondre même verrouillé, sinon
+  // il est impossible de détecter le déverrouillage après paiement.
+  const ctx = await getSessionContext({ allowLocked: true });
   if (!ctx) {
     return NextResponse.json({ erreur: "Session requise." }, { status: 401 });
   }

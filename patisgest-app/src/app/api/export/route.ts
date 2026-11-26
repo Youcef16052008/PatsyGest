@@ -5,6 +5,7 @@ import { TABLES_EXPORT, interpreterPeriode, nomFichier, tableExportable, versCsv
 import { lireModulesDesactives } from "@/lib/modules-access";
 import { messageUtilisateur } from "@/lib/erreurs-db";
 import { lirePages } from "@/lib/pagination";
+import { estProprietaireSeul } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +16,13 @@ export const dynamic = "force-dynamic";
  * (migration 17). Aucune donnée n'est modifiée.
  */
 export async function GET(request: Request) {
-  const ctx = await getSessionContext();
+  // Export CSV = issue de secours en LECTURE : accessible même verrouillé,
+  // pour qu'un essai échu n'emprisonne pas les données du propriétaire.
+  const ctx = await getSessionContext({ allowLocked: true });
   if (!ctx) return NextResponse.json({ erreur: "Session requise." }, { status: 401 });
   // Les tables dites non « coût » contiennent aussi des coûts et des JSON
   // financiers. Aucun export brut employé sans projection expurgée validée.
-  if (ctx.role !== "proprietaire") return NextResponse.json({ erreur: "Export non autorisé." }, { status: 403 });
+  if (!estProprietaireSeul(ctx.role)) return NextResponse.json({ erreur: "Export non autorisé." }, { status: 403 });
 
   const cle = new URL(request.url).searchParams.get("table") ?? "";
   if (!tableExportable(cle, canReadCosts(ctx.role))) {
