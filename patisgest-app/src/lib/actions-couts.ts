@@ -15,6 +15,7 @@ import {
   type GardeFou,
 } from "./cost-sheet";
 import { computeFefoCost, type FefoLot } from "./fefo-cost";
+import { jourLocal, plusJours } from "./workspace-data.ts";
 import { lireLotsPourArticles, type ClientLots } from "./lots-batch";
 import {
   buildPriceMercuriale,
@@ -135,8 +136,8 @@ export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Prom
 
   try {
     const supabase = await createClient();
-    const today = new Date().toISOString().slice(0, 10);
-    const trenteJours = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+    const today = jourLocal();
+    const trenteJours = plusJours(today, -30);
 
     const [simRes, verRes, paramsRes, artRes, cloRes] = await Promise.all([
       supabase.rpc("simuler_recette", { p_produit_id: produitId, p_qte: qte }),
@@ -348,7 +349,7 @@ export async function analyserHausseMatiereReal(
 
   try {
     const supabase = await createClient();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = jourLocal();
 
     const [artsRes, versRes, paramsRes, lotsRes, convRes, histRes, fournRes] = await Promise.all([
       supabase.from("articles").select("id, code, nom, unite, niveau, pv_ht").eq("client_id", ctx.clientId).limit(1000),

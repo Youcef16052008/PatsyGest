@@ -106,7 +106,7 @@ async function buildQualiteAlerts(supabase: Awaited<ReturnType<typeof createClie
   const articles=new Map((articleRes.data??[]).map(a=>[a.id,a]));
   const lots=(lotRes.data??[]).flatMap(l=>{const a=articles.get(l.article_id);return a?[{numero:l.numero,code:a.code,nom:a.nom,dlc:l.dlc,qteRest:l.qte_rest,bloque:l.bloque}]:[];});
   return computeQualityAlerts({
-    today: new Date().toISOString().slice(0,10),
+    today: jourLocal(),
     temperatures: (tRes.data??[]).map(t=>({frigoNom:t.frigo_nom,dateReleve:t.date_releve,temperature:t.temperature,seuilMax:t.seuil_max})),
     nettoyages: (nRes.data??[]).map(n=>({zone:n.zone,dateNettoyage:n.date_nettoyage,fait:n.fait})),
     nonConformites: (ncRes.data??[]).map(n=>({type:n.type,lotNumero:n.lot_numero,statut:n.statut,dateNc:n.date_nc})),

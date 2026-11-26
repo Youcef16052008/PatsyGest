@@ -19,6 +19,19 @@ export const dinars = (n: number, exact = true) => `${(exact ? monnaie : monnaie
  */
 export const jourLocal = (d: Date = new Date()) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Algiers", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+/** Calendrier grégorien : refuse 2026-02-30 et les dates avant 1970 restent valides. */
+export function dateIsoValide(s: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s)
+    && !Number.isNaN(Date.parse(`${s}T00:00:00Z`))
+    && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+}
+/**
+ * Une date métier saisie ne peut pas être dans le futur. `maintenant` est
+ * injectable : à 23 h 30 UTC, le jour métier est déjà le lendemain en Algérie.
+ */
+export function dateMetierPasFuture(s: string, maintenant: Date = new Date()): boolean {
+  return dateIsoValide(s) && s <= jourLocal(maintenant);
+}
 export function plusJours(day: string, n: number) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(`${day}T00:00:00Z`))) {
     throw new Error(`Date invalide (AAAA-MM-JJ attendu) : ${day}`);

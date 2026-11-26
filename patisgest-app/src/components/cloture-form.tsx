@@ -3,6 +3,7 @@
 import { useActionState, useState, useSyncExternalStore } from "react";
 import { saisirCloture } from "@/lib/actions-clotures";
 import { compterVentesEnAttente, messageAttenteCloture } from "@/lib/file-attente-cloture";
+import { jourLocal } from "@/lib/workspace-data";
 
 type Option = { id: string; label: string };
 type Row = {
@@ -81,7 +82,7 @@ export default function ClotureForm({ sites, articles }: { sites: Option[]; arti
               name="date"
               type="date"
               required
-              defaultValue={new Date().toISOString().slice(0, 10)}
+              defaultValue={jourLocal()}
               className={field}
             />
           </label>

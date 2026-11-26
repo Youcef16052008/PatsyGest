@@ -1,3 +1,5 @@
+import { jourLocal } from "./workspace-data.ts";
+
 export type FreeUnit = "g" | "kg" | "ml" | "cl" | "L" | "pcs";
 export type FreePriceBasis = "total" | "par_kg" | "par_L" | "par_unite";
 
@@ -103,7 +105,7 @@ export function defaultPriceBasisForUnit(unite: string): FreePriceBasis {
 }
 
 export function starterFreeRecipes(): FreeRecipe[] {
-  const now = new Date().toISOString().slice(0, 10);
+  const now = jourLocal();
   return [
     {
       id: "free-baklawa",

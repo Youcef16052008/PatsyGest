@@ -17,7 +17,7 @@ export function tousLesSql(readdirSync) {
 }
 
 /**
- * Chaîne de déploiement principale : historique 01–23 puis série main 24–39 (hors seed).
+ * Chaîne de déploiement principale : historique 01–23 puis série main 24–55 (hors seed).
  * Les brouillons 101–128 n'en font pas partie (statut « pas un ordre de déploiement »).
  */
 export function chaineDeploiement() {

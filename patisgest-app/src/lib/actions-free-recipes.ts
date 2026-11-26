@@ -89,6 +89,13 @@ export async function saveFreeRecipeCloud(recipe: FreeRecipe): Promise<{
 
   const nom = recipe.nom.trim();
   if (!nom) return { ok: false, tableAvailable: true, erreur: "Nom de recette requis." };
+  // H05-11 : un prix négatif n'est pas « pas de prix ». Le transformer en 0
+  // masquait la saisie et rendait la marge incohérente avec l'écran. 0 reste
+  // le sentinelle « prix non renseigné », mais toute valeur négative est refusée.
+  const prixVenteBrut = Number(recipe.prixVenteDa);
+  if (!Number.isFinite(prixVenteBrut) || prixVenteBrut < 0) {
+    return { ok: false, tableAvailable: true, erreur: "Prix de vente invalide." };
+  }
 
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recipe.id);
   const fraisFixes = Math.max(0, (Number(recipe.emballageDa) || 0) + (Number(recipe.cuissonMoDa) || 0));
@@ -99,7 +106,7 @@ export async function saveFreeRecipeCloud(recipe: FreeRecipe): Promise<{
     categorie: (recipe.categorie ?? "Pâtisserie").slice(0, 80),
     parts: Math.max(1, Math.round(Number(recipe.portions) || 1)),
     frais_fixes_da: Math.round(fraisFixes * 100) / 100,
-    prix_vente_da: Math.max(0, Math.round((Number(recipe.prixVenteDa) || 0) * 100) / 100),
+    prix_vente_da: Math.round(prixVenteBrut * 100) / 100,
     ingredients: recipe.ingredients ?? [],
     statut_prix: ctx.role === "proprietaire" ? (recipe.statutPrix ?? "valide") : "a_verifier_patron",
     photo_url: sanitizeRecipePhoto(recipe.photo),

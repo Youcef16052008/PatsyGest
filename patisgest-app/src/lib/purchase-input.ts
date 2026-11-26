@@ -3,6 +3,8 @@
  * réceptions). Aucune dépendance serveur : testable unitairement.
  */
 
+import { dateIsoValide, jourLocal } from "./workspace-data.ts";
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -48,20 +50,20 @@ export function parseCommandeInput(formData: FormData): CommandeInput {
 export type ReceptionLineInput = { index: number; qte: number; numero: string; dlc: string };
 export type ReceptionInput = { commandeId: string; siteId: string; receptions: ReceptionLineInput[] };
 
-export function parseReceptionLinesInput(formData: FormData): ReceptionInput {
+export function parseReceptionLinesInput(formData: FormData, maintenant?: Date): ReceptionInput {
   const commandeId = uuid(formData.get("commandeId"), "Commande");
   const siteId = uuid(formData.get("siteId"), "Site");
   const count = Number(formData.get("receptionCount"));
   if (!Number.isInteger(count) || count < 1 || count > 100) {
     throw new Error("Nombre de réceptions invalide (1 à 100).");
   }
-  const today = new Date().toISOString().slice(0, 10);
+  const today = jourLocal(maintenant);
   const receptions: ReceptionLineInput[] = [];
   for (let i = 0; i < count; i++) {
     const index = Number(formData.get(`rec${i}_index`));
     if (!Number.isInteger(index) || index < 0) throw new Error("Ligne de commande invalide.");
     const dlc = String(formData.get(`rec${i}_dlc`) ?? "").trim();
-    if (!DATE_RE.test(dlc) || Number.isNaN(Date.parse(dlc)) || new Date(dlc).toISOString().slice(0, 10) !== dlc || dlc < today) {
+    if (!dateIsoValide(dlc) || dlc < today) {
       throw new Error(`DLC ligne ${i + 1} : date invalide (aujourd'hui ou plus tard).`);
     }
     receptions.push({

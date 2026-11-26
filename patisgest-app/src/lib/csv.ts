@@ -1,3 +1,5 @@
+import { jourLocal } from "./workspace-data.ts";
+
 /**
  * MOD-15 — Export CSV (US-15.2 « export complet, aucune donnée prisonnière »).
  *
@@ -79,7 +81,7 @@ export function versCsv(
 
 /** Nom de fichier sûr et horodaté : `patisgest-ventes-2026-11-17.csv`. */
 export function nomFichier(prefixe: string, date = new Date()): string {
-  const jour = date.toISOString().slice(0, 10);
+  const jour = jourLocal(date);
   const base = prefixe
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")

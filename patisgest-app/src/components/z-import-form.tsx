@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { importZReal, type SaleState } from "@/lib/actions-caisse";
 import { parseZCsv } from "@/lib/z-input";
+import { jourLocal } from "@/lib/workspace-data";
 
 type Option = { id: string; label: string };
 
@@ -20,7 +21,7 @@ export default function ZImportForm({ sites }: { sites: Option[] }) {
   const [csv, setCsv] = useState("");
   const [preview, setPreview] = useState<{ lines: number; totalHT: number } | null>(null);
   const [previewError, setPreviewError] = useState("");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = jourLocal();
 
   const doPreview = () => {
     try {

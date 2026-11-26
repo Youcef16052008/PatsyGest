@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { jourLocal } from "@/lib/workspace-data";
 
 /**
  * MOD-15 — panneau d'export CSV (US-15.2) et export comptable (§8.3).
@@ -19,9 +20,9 @@ export type TableExportUi = { cle: string; titre: string; cout?: boolean };
 
 /** Mois précédent par défaut : c'est la période que demande un comptable. */
 function periodeParDefaut(): { du: string; au: string } {
-  const now = new Date();
-  const premier = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-  const dernier = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
+  const [annee, mois] = jourLocal().split("-").map(Number);
+  const premier = new Date(Date.UTC(annee, mois - 2, 1));
+  const dernier = new Date(Date.UTC(annee, mois - 1, 0));
   return { du: premier.toISOString().slice(0, 10), au: dernier.toISOString().slice(0, 10) };
 }
 

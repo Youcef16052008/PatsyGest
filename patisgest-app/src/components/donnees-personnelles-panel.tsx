@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { anonymiserCommande, exporterDonnees, type DonneesState } from "@/lib/actions-donnees";
 import { Notice } from "./workspace-ui";
+import { jourLocal } from "@/lib/workspace-data";
 
 /**
  * Loi 18-07 — panneau « Données personnelles » dans Paramètres.
@@ -74,7 +75,7 @@ export default function DonneesPersonnellesPanel({
         {etatExport.export ? (
           <div className="mt-2">
             <a
-              download={`patisgest-donnees-personnelles-${new Date().toISOString().slice(0, 10)}.json`}
+              download={`patisgest-donnees-personnelles-${jourLocal()}.json`}
               href={`data:application/json;charset=utf-8,${encodeURIComponent(
                 JSON.stringify(etatExport.export, null, 2),
               )}`}

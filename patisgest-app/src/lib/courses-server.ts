@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { listeCourses, type BesoinArticle, type ResultatCourses } from "@/lib/liste-courses";
+import { jourLocal } from "@/lib/workspace-data";
 
 /**
  * US-03.3 — lecture serveur de la liste de courses.
@@ -39,7 +40,7 @@ export async function lireListeCourses(clientId: string): Promise<DonneesCourses
 
   try {
     const db = await createClient();
-    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const aujourdhui = jourLocal();
 
     // Un OF terminé ou annulé n'a plus besoin d'ingrédients : on ne commande
     // que pour ce qui reste à produire.

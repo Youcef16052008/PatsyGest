@@ -23,14 +23,33 @@ export function clampTrialDays(value: unknown): number {
   return Math.min(TRIAL_DURATION_MAX_DAYS, Math.max(TRIAL_DURATION_MIN_DAYS, Math.round(num)));
 }
 
+/** Graine de développement, volontairement publique : JAMAIS utilisée en production. */
+const DEV_FALLBACK_SEED = "patisgest-ephemeral-dev-seed-change-in-production";
+
+/** Vrai pour un déploiement de production, y compris après promotion d'un build Vercel. */
+function environnementProduction(): boolean {
+  return process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
+}
+
+/**
+ * Une clé de licence signée avec la graine publique du dépôt serait falsifiable
+ * par n'importe quel lecteur du code. En production, on échoue donc fermé si
+ * aucune clé privée/JWK ni aucun secret serveur n'est configuré. Le repli
+ * public reste disponible hors production pour les tests et la démo locale.
+ */
 function serverSeed(): string {
-  return (
+  const secret =
     process.env.PATISGEST_LICENSE_PRIVATE_KEY ||
     process.env.PATISGEST_MASTER_KEY ||
     process.env.VITRINE_SECRET_ANTI_ABUS ||
-    process.env.PATISGEST_DEMO_SECRET ||
-    "patisgest-ephemeral-dev-seed-change-in-production"
-  );
+    process.env.PATISGEST_DEMO_SECRET;
+  if (secret) return secret;
+  if (environnementProduction()) {
+    throw new Error(
+      "Clé de licence absente en production : définir PATISGEST_LICENSE_PRIVATE_JWK ou PATISGEST_LICENSE_PRIVATE_KEY.",
+    );
+  }
+  return DEV_FALLBACK_SEED;
 }
 
 type EcJwk = {

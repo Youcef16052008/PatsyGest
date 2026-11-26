@@ -9,6 +9,7 @@ import { parseSaleInput } from "./stock-input";
 import { parseZCsv } from "./z-input";
 import { sameSaleReplay, sameSaleSession } from "./sale-session";
 import { estProprietaireSeul } from "./permissions";
+import { dateMetierPasFuture } from "./workspace-data.ts";
 
 export type SaleReceiptLine = {
   articleId: string;
@@ -120,6 +121,14 @@ export async function sellCart(_prev: SaleState, formData: FormData): Promise<Sa
         return {
           erreur:
             "Le panier multiproduit nécessite l’application de la migration SQL 21 sur la base Supabase.",
+        };
+      }
+      // `vendre_article` (signature 4 args, migration pré-21) force « especes ».
+      // Un autre mode ne peut donc pas être rejoué sans être silencieusement
+      // transformé : on refuse explicitement plutôt que d'encaisser un faux tiroir.
+      if (input.modePaiement !== "especes") {
+        return {
+          erreur: "Migration SQL 21 requise pour enregistrer ce mode de règlement.",
         };
       }
       rpcRes = await supabase.rpc("vendre_article", {
@@ -239,7 +248,7 @@ export async function importZReal(_prev: SaleState, formData: FormData): Promise
   const csv = String(formData.get("csv") ?? "");
   const confirm = formData.get("confirm") === "on";
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > new Date().toISOString().slice(0, 10)) {
+  if (!dateMetierPasFuture(date)) {
     return { erreur: "Date de Z invalide." };
   }
   if (!/^[0-9a-f-]{36}$/i.test(siteId)) return { erreur: "Site invalide." };
