@@ -114,9 +114,27 @@ jobs:
           relu=$(mktemp -p /dev/shm patisgest-relu.XXXXXX)
           PATSYGEST_BACKUP_PASSPHRASE="$PASSPHRASE" \
             node patisgest-app/scripts/coffre-sauvegarde.mjs dechiffrer "$fichier" "$relu"
-          gzip -dc "$relu" | docker run --rm -i postgres:17-alpine pg_restore --file=/dev/null
+          # CONTENU, pas seulement lisibilité. `pg_restore --file=/dev/null`
+          # ne prouve que la validité de l'archive : un projet Supabase en PAUSE
+          # (ou une base vidée) produit un dump parfaitement lisible et …
+          # absolument vide, qui était ensuite publié comme « sauvegarde
+          # réussie ». C'est exactement le scénario « échec silencieux ».
+          toc=$([ -n "$relu" ] && gzip -dc "$relu" | docker run --rm -i postgres:17-alpine pg_restore -l)
           rm -f "$relu"
-          echo "Lecture du dump vérifiée ; ceci ne certifie pas une restauration."
+          # Les tables du schéma public (hors tables du système/extensions).
+          nb_tables=$(printf '%s\n' "$toc" | grep -cE '^[0-9]+; [0-9]+ [0-9]+ TABLE public ' || true)
+          echo "Tables du schéma public dans le dump : $nb_tables"
+          if [ "$nb_tables" -lt 10 ]; then
+            echo "::error::Sauvegarde suspecte : $nb_tables table(s) public seulement. Le projet Supabase est peut-être en pause, ou la source est vide. Aucune sauvegarde n'est publiée."
+            exit 1
+          fi
+          # Témoin : la table des utilisateurs prouve qu'on a bien dumpé la
+          # base métier et non une base voisine.
+          if ! printf '%s\n' "$toc" | grep -qE '^[0-9]+; [0-9]+ [0-9]+ TABLE public utilisateurs '; then
+            echo "::error::Sauvegarde suspecte : table « utilisateurs » absente du dump. Source probablement incorrecte."
+            exit 1
+          fi
+          echo "Contenu du dump vérifié ($nb_tables tables) ; ceci ne certifie pas une restauration."
           echo "FICHIER=$fichier" >> "$GITHUB_ENV"
 
       - name: Conserver la sauvegarde (artefact GitHub, 30 jours)
