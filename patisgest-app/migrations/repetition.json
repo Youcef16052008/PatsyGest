@@ -414,6 +414,11 @@
       "sha256": "ea68d5167d1d8bae64ae42e1cac65988f682c95ab034a04bf3cc88aecb692e45",
       "hors_fixture_pilote": true,
       "note": "Mode d'essai configurable 60-90 jours (défaut 90), verrouillage permanent, espace Master, présence et alertes >1h."
+    },
+    {
+      "file": "52-recettes-photos.sql",
+      "sha256": "6a926010bf0032a749ddfc20bc1cdf3e24d41e30f96dbd1598b579db5856d60e",
+      "hors_fixture_pilote": true
     }
   ],
   "exclus": [

@@ -49,8 +49,8 @@ export default async function ProductionWorkspace({ ctx, db }: { ctx: SessionCon
         today={today}
         auteurNom={ctx.nom.split(" (")[0]}
         auteurRole={ctx.role}
-        orders={orders ?? []}
-        cakes={cakes}
+        orders={orders}
+        cakes={cakesRes.error || (cakesRes.data?.length ?? 0) >= 20 ? null : cakes}
       />
       <OfForms sites={sites ?? []} orders={orders} canEdit={canEdit} versions={versions} optionsIndisponibles={Boolean(versionsRes?.error || labVersions?.error || familles?.error || !sites)}/>
     </div>

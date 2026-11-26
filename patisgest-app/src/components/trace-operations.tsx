@@ -2,8 +2,8 @@
 import { useState, type FormEvent } from 'react';
 import { traceLot, setLotBlocked, type State, type Lot } from '@/lib/patisgest-store';
 import Link from 'next/link';
-const box='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
-const field='w-full rounded-lg border border-slate-300 bg-white p-2 text-sm';
+const box='pg-card pg-card-pad';
+const field='pg-input';
 type Props={data:State; canEdit:boolean; save:(state:State)=>boolean; notify:(message:string)=>void};
 function originText(lot:Lot, data:State):string {
   const origin=lot.origin;

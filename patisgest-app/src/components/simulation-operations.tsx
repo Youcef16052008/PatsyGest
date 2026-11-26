@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { simulatePrice, type State } from '@/lib/patisgest-store';
 import { IngredientImpactDemo } from './ingredient-impact-panel';
-const box='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
-const field='w-full rounded-lg border border-slate-300 bg-white p-2 text-sm';
+const box='pg-card pg-card-pad';
+const field='pg-input';
 const money=(n:number)=>new Intl.NumberFormat('fr-DZ',{maximumFractionDigits:2}).format(n)+' DA';
 const format=(n:number)=>new Intl.NumberFormat('fr-DZ',{maximumFractionDigits:2}).format(n);
 export function SimulationOperations({data}:{data:State}) {

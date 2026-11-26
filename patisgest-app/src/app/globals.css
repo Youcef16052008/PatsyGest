@@ -1,3 +1,5 @@
 @import "tailwindcss";
 @import "./appearance.css";
 @import "./workspace.css";
+
+@import "./refinement.css";

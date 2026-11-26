@@ -1,30 +1,46 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DESIGNS, readAdvancedMode, readAppearance, writeAppearance } from '../src/lib/appearance.ts';
+import { DESIGNS, modeActif, readAdvancedMode, readAppearance, writeAppearance } from '../src/lib/appearance.ts';
 import { colonneProduction, correspond, dateLisible, indexLots, ordreLots, serieVentes, siteCaisse, stockArticle, stockParSite } from '../src/lib/workspace-data.ts';
 
 const today = '2026-11-17';
 const flour = { id: 'a', nom: 'Farine', code: 'MAT-001', niveau: 'matiere', unite: 'kg', seuil: 5 };
 const lot = (id, changes = {}) => ({ id, articleId: 'a', siteId: 'b', numero: `L-${id}`, qte: 2.635, recu: today, dlc: '2026-11-19', congele: false, bloque: false, ...changes });
 
-test('Apparence : design unique avec bascule clair/sombre persistante', () => {
-  assert.equal(DESIGNS.length, 1);
-  const a = readAppearance();
-  a.modes.pilotage = 'dark';
-  const result = readAppearance(writeAppearance(a));
-  assert.deepEqual(result, a);
-  assert.equal(result.design, 'pilotage');
-  assert.equal(result.modes.pilotage, 'dark');
+test('Apparence : cinq designs, chacun avec son propre thème clair/sombre', () => {
+  assert.equal(DESIGNS.length, 5);
+  assert.deepEqual(DESIGNS.map((d) => d.id), ['atelier', 'pilotage', 'fabrication', 'comptoir', 'essentiel']);
+
+  const base = readAppearance();
+  assert.equal(base.design, 'atelier');
+  assert.deepEqual(Object.values(base.modes), ['light', 'light', 'light', 'light', 'light']);
+
+  const custom = { design: 'comptoir', modes: { atelier: 'light', pilotage: 'dark', fabrication: 'light', comptoir: 'dark', essentiel: 'light' } };
+  const roundTrip = readAppearance(writeAppearance(custom));
+  assert.deepEqual(roundTrip, custom);
+  assert.equal(modeActif(roundTrip), 'dark');
+
+  const switched = { design: 'pilotage', modes: roundTrip.modes };
+  assert.equal(modeActif(readAppearance(writeAppearance(switched))), 'dark');
+  assert.equal(modeActif({ design: 'atelier', modes: roundTrip.modes }), 'light');
 });
 
 test('Apparence : anciens cookies et valeurs invalides restent sûrs', () => {
-  for (const raw of ['fabrication.invalid','"><script>','unknown.dddddd','atelier.ddddd.x','atelier.%3cdark']) {
+  // Design inconnu ou mode illisible : on retombe sur le design par défaut, en clair.
+  for (const raw of ['\"><script>','unknown.dddddd','atelier.ddddd.x','atelier.%3cdark','']) {
     const result = readAppearance(raw);
-    assert.equal(result.design, 'pilotage');
-    assert.equal(result.modes.pilotage, 'light');
+    assert.equal(result.design, 'atelier');
+    assert.deepEqual(Object.values(result.modes), ['light', 'light', 'light', 'light', 'light']);
   }
-  assert.equal(readAppearance('comptoir.llldl').modes.pilotage, 'dark');
-  assert.equal(readAppearance('atelier.dllll').modes.pilotage, 'dark');
+  // Design connu mais mode illisible : le design est conservé, en clair.
+  assert.equal(readAppearance('fabrication.invalid').design, 'fabrication');
+  assert.equal(modeActif(readAppearance('fabrication.invalid')), 'light');
+  // Ancien format « design.mode » : le mode s'applique au design choisi.
+  assert.equal(modeActif(readAppearance('comptoir.d')), 'dark');
+  assert.equal(modeActif(readAppearance('atelier.l')), 'light');
+  assert.equal(readAppearance('inconnu.d').design, 'atelier');
+  // Nouveau format : une lettre par design.
+  assert.deepEqual(readAppearance('essentiel.ldldl').modes, { atelier: 'light', pilotage: 'dark', fabrication: 'light', comptoir: 'dark', essentiel: 'light' });
   assert.equal(readAdvancedMode('1'), true);
   assert.equal(readAdvancedMode('0'), false);
   assert.equal(readAdvancedMode(undefined), false);

@@ -5,6 +5,7 @@ import { canDeleteRecipes, canWrite, getSessionContext } from "./auth";
 import type { FreeRecipe } from "./free-recipes";
 import { messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
+import { sanitizeRecipePhoto } from "./recipe-photo";
 
 export type FreeRecipeCloudResult = {
   ok: boolean;
@@ -37,6 +38,7 @@ function mapRow(row: DbRow): FreeRecipe {
     cuissonMoDa: 0,
     prixVenteDa: Number(row.prix_vente_da) || 0,
     notes: "",
+    photo: sanitizeRecipePhoto((row as DbRow & { photo_url?: string | null }).photo_url ?? null),
     ingredients: rawIng as FreeRecipe["ingredients"],
     statutPrix:
       row.statut_prix === "a_verifier_patron" || row.statut_prix === "bloque" ? row.statut_prix : "valide",
@@ -53,7 +55,9 @@ export async function loadFreeRecipesCloud(): Promise<FreeRecipeCloudResult> {
     const db = await createClient();
     const { data, error } = await db
       .from("recettes_libres")
-      .select("id, nom, categorie, parts, frais_fixes_da, prix_vente_da, ingredients, statut_prix, updated_at")
+      // `*` : tolère l'absence de la colonne `photo_url` (migration photo non
+      // encore appliquée) sans casser la lecture des recettes existantes.
+      .select("*")
       .eq("client_id", ctx.clientId)
       .order("updated_at", { ascending: false })
       .limit(300);
@@ -98,6 +102,7 @@ export async function saveFreeRecipeCloud(recipe: FreeRecipe): Promise<{
     prix_vente_da: Math.max(0, Math.round((Number(recipe.prixVenteDa) || 0) * 100) / 100),
     ingredients: recipe.ingredients ?? [],
     statut_prix: ctx.role === "proprietaire" ? (recipe.statutPrix ?? "valide") : "a_verifier_patron",
+    photo_url: sanitizeRecipePhoto(recipe.photo),
     modifie_par: ctx.authUserId,
     updated_at: new Date().toISOString(),
   };

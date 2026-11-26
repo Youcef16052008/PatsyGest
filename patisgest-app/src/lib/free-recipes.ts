@@ -21,6 +21,8 @@ export type FreeRecipe = {
   cuissonMoDa: number;
   prixVenteDa: number;
   notes: string;
+  /** Photo de la recette servie (chemin public WebP compressé). */
+  photo?: string | null;
   ingredients: FreeIngredientLine[];
   statutPrix?: "valide" | "a_verifier_patron" | "bloque";
   saisiPar?: string;
@@ -106,6 +108,7 @@ export function starterFreeRecipes(): FreeRecipe[] {
     {
       id: "free-baklawa",
       nom: "Baklawa aux amandes (Plateau 40 pièces)",
+      photo: "/recettes/baklawa.webp",
       portions: 40,
       unitePortion: "pièces",
       emballageDa: 250,
@@ -124,6 +127,7 @@ export function starterFreeRecipes(): FreeRecipe[] {
     {
       id: "free-millefeuille",
       nom: "Mille-feuille vanille maison",
+      photo: "/recettes/mille-feuille.webp",
       portions: 24,
       unitePortion: "parts",
       emballageDa: 180,
@@ -142,6 +146,7 @@ export function starterFreeRecipes(): FreeRecipe[] {
     {
       id: "free-layercake",
       nom: "Layer Cake Anniversaire Chocolat (16 parts)",
+      photo: "/recettes/layer-cake.webp",
       portions: 16,
       unitePortion: "parts",
       emballageDa: 450,

@@ -30,7 +30,8 @@ import KitchenLabScreen from "./kitchen-lab-screen";
 import ShopAdvisorPanel from "./shop-advisor-panel";
 import { Tr } from "./locale-provider";
 import { Icon } from "./workspace-icons";
-import { Notice } from "./workspace-ui";
+import { Disclosure, Notice } from "./workspace-ui";
+import OwnerDayOverview from "./owner-day-overview";
 
 export type DashboardUpcomingCake = {
   id: string;
@@ -63,6 +64,7 @@ export default function PilotDashboard({
   estimatedMarginDa = null,
   estimatedMarginPct = null,
   upcomingCakes = [],
+  cakesAvailable = true,
   mode = "demo",
   scopeKey = "demo",
   ownerPhoneDefault = "",
@@ -85,6 +87,7 @@ export default function PilotDashboard({
   estimatedMarginDa?: number | null;
   estimatedMarginPct?: number | null;
   upcomingCakes?: DashboardUpcomingCake[];
+  cakesAvailable?: boolean;
   mode?: "demo" | "supabase";
   scopeKey?: string;
   ownerPhoneDefault?: string;
@@ -116,18 +119,8 @@ export default function PilotDashboard({
   const todayCakesCount = activeCakes.filter((c) => c.eventDate === today).length;
   const todayRevenue = todaySales?.ttc ?? 0;
 
-  const displayedMarginDa =
-    estimatedMarginDa !== null
-      ? estimatedMarginDa
-      : todayRevenue > 0
-        ? Math.round(todayRevenue * 0.55)
-        : 0;
-  const displayedMarginPct =
-    estimatedMarginPct !== null
-      ? estimatedMarginPct
-      : todayRevenue > 0
-        ? 55
-        : null;
+  const displayedMarginDa = estimatedMarginDa;
+  const displayedMarginPct = estimatedMarginPct;
 
   const alreadyClosed = Boolean(closing && closing.length > 0 && closing.every((c) => c.closed));
   const openCreditsTotal = sumOpenCreditsDa(initialCredits);
@@ -135,7 +128,7 @@ export default function PilotDashboard({
 
   return (
     <div className="pg-dashboard pg-pilot-home pg-stack">
-      <header className="pg-dashboard-lead">
+      {!owner && <header className="pg-dashboard-lead">
         <div className="pg-dash-copy">
           <p className="pg-kicker">
             {shop} · {owner ? "TABLEAU DE BORD PATRON" : "LABORATOIRE"}
@@ -171,10 +164,13 @@ export default function PilotDashboard({
         <span className="pg-dash-date">
           <Icon name="calendar" size={16} /> {dateLisible(today, "full")}
         </span>
-      </header>
+      </header>}
 
       {owner && (
         <>
+          <OwnerDayOverview nom={nom} shop={shop} today={today} articles={articles} lots={lots}
+            cakes={cakesAvailable ? upcomingCakes : null} orders={orders} series={series}
+            creditsDa={openCreditsTotal} creditsAvailable={mode === "demo" || creditsTableAvailable}/>
           <OwnerPriceAlerts
             mode={mode}
             scopeKey={scopeKey}
@@ -187,6 +183,7 @@ export default function PilotDashboard({
               onDemoImportPack={onDemoImportPack}
             />
           )}
+          <Disclosure title="Conseils financiers" description="Charges et objectif de ventes indicatif" icon="trend">
           <ShopAdvisorPanel
             scopeKey={scopeKey}
             today={today}
@@ -199,6 +196,9 @@ export default function PilotDashboard({
             pendingPriceAlertsCount={initialOwnerAlerts.filter((a) => a.traiteStatut === "en_attente").length}
             estimatedMarginPct={displayedMarginPct}
           />
+          </Disclosure>
+          <Disclosure title="Analyse des ventes" description="Indicateurs et produits vendus" icon="trend">
+          <div className="pg-stack">
           {/* 4 cartes KPI fortes */}
           <section className="pg-home-kpis" aria-label="Indicateurs clés du jour">
             <Link href="/caisse" className="pg-card pg-metric">
@@ -224,16 +224,16 @@ export default function PilotDashboard({
 
             <Link href="/recettes" className="pg-card pg-metric">
               <div>
-                <span><Tr fr="Bénéfice estimé (aujourd’hui)" ar="الربح التقديري (اليوم)" /></span>
+                <span><Tr fr="Ventes moins coût des recettes (estim.)" ar="المبيعات ناقص تكلفة الوصفات (تقديري)" /></span>
                 <span className="pg-emblem" style={{ background: "var(--pg-ok-bg)", color: "var(--pg-ok-ink)" }}>
                   <Icon name="check" size={18} />
                 </span>
               </div>
-              <strong>{series ? dinars(displayedMarginDa, false) : "—"}</strong>
+              <strong>{series && displayedMarginDa !== null ? dinars(displayedMarginDa, false) : "—"}</strong>
               <small>
                 {displayedMarginPct !== null
-                  ? `Marge estimée ~${displayedMarginPct.toFixed(0)} % · voir Recettes & Coûts`
-                  : "Enregistrez vos ventes ou recettes"}
+                  ? `Estimation ~${displayedMarginPct.toFixed(0)} % · hors charges fixes`
+                  : "Coûts insuffisants pour une estimation fiable"}
               </small>
             </Link>
 
@@ -338,6 +338,9 @@ export default function PilotDashboard({
             </section>
           </div>
 
+          </div>
+          </Disclosure>
+          <Disclosure title="Caisse et commandes" description="Livraisons à venir et comptage du soir" icon="receipt">
           {/* 2 blocs opérationnels simples */}
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="pg-card pg-card-pad pg-stack">
@@ -350,7 +353,9 @@ export default function PilotDashboard({
                   Tout voir →
                 </Link>
               </div>
-              {activeCakes.length === 0 ? (
+              {!cakesAvailable ? (
+                <Notice kind="warning">La liste des commandes est indisponible ou incomplète. Consultez le module Commandes &amp; Gâteaux.</Notice>
+              ) : activeCakes.length === 0 ? (
                 <div className="pg-empty">
                   <b>Aucune commande en attente</b>
                   <p>Enregistrez vos commandes spéciales (mariage, anniversaire) avec acompte.</p>
@@ -421,7 +426,9 @@ export default function PilotDashboard({
             />
           </div>
 
+          </Disclosure>
           {(mode === "demo" || creditsTableAvailable) && (
+            <Disclosure title="Carnet de crédits" description="Suivre et encaisser les montants dus" icon="book">
             <CreditsWorkspace
               mode={mode}
               scopeKey={scopeKey}
@@ -431,6 +438,7 @@ export default function PilotDashboard({
               compact
               canManageAdmin={owner}
             />
+            </Disclosure>
           )}
         </>
       )}
@@ -443,8 +451,8 @@ export default function PilotDashboard({
             today={today}
             auteurNom={nom}
             auteurRole="labo"
-            orders={orders ?? []}
-            cakes={upcomingCakes.map((c) => ({
+            orders={orders}
+            cakes={cakesAvailable ? upcomingCakes.map((c) => ({
               id: c.id,
               numero: c.numero,
               client: c.client,
@@ -452,7 +460,7 @@ export default function PilotDashboard({
               portions: c.portions,
               statut: c.statut,
               notes: c.notes,
-            }))}
+            })) : null}
           />
           <section className="pg-card pg-card-pad">
             <h2>Stocks à vérifier</h2>

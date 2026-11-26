@@ -6,9 +6,9 @@ import ProductionBoard from './production-board';
 import { Disclosure } from './workspace-ui';
 import { createPurchase, receivePurchase, createProduction, startProduction, completeProduction, transferStock, type State } from '@/lib/patisgest-store';
 
-const box='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
-const field='w-full rounded-lg border border-slate-300 bg-white p-2 text-sm';
-const btn='rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white hover:bg-violet-800';
+const box='pg-card pg-card-pad';
+const field='pg-input';
+const btn='pg-button';
 const money=(n:number)=>new Intl.NumberFormat('fr-DZ',{maximumFractionDigits:2}).format(n)+' DA';
 type Props={data:State; canEdit:boolean; canReadCosts?:boolean; save:(state:State)=>boolean; notify:(message:string)=>void};
 function act(fn:()=>State, {save,notify}:Props, message:string):boolean {
