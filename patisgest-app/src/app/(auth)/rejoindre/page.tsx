@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getSessionContext } from "@/lib/auth";
-import { logout } from "@/lib/actions-auth";
+import ClientLogout from "@/components/client-logout";
 import { equipeExperimentaleActive } from "@/lib/equipe-experimental";
 import { createClient } from "@/lib/supabase/server";
 import RejoindreEquipe from "@/components/rejoindre-equipe";
@@ -10,7 +10,10 @@ export const metadata = { title: "Rejoindre un établissement — PâtisGest" };
 
 export default async function RejoindrePage() {
   if (!equipeExperimentaleActive()) notFound();
-  if (await getSessionContext()) redirect("/tableau-de-bord");
+  // Un essai verrouillé a bien une session : le renvoyer ici vers le tableau
+  // de bord est correct — son layout rend l'écran de verrouillage.
+  // `allowLocked` évite qu'il soit traité comme « non connecté ».
+  if (await getSessionContext({ allowLocked: true })) redirect("/tableau-de-bord");
   const db = await createClient();
   const { data, error } = await db.auth.getUser();
   if (error || !data.user?.email) redirect("/connexion");
@@ -29,6 +32,6 @@ export default async function RejoindrePage() {
     <p>Connecté : {data.user.email}. Parcours réservé à une pile locale jetable ; aucun e-mail réel n’est envoyé par cette interface.</p>
     <p role="alert">L’admission reste verrouillée jusqu’à validation complète. Une demande ou une invitation ne donne pas accès automatiquement.</p>
     {unavailable ? <p role="alert">Adresse vérifiée ou données d’équipe indisponibles. Contactez le propriétaire ; aucune action n’est proposée.</p> : <RejoindreEquipe demandes={demandes} invitations={invitations}/>}
-    <form action={logout}><button className="pg-button pg-button-secondary">Se déconnecter</button></form>
+    <ClientLogout className="pg-button pg-button-secondary">Se déconnecter</ClientLogout>
   </main>;
 }

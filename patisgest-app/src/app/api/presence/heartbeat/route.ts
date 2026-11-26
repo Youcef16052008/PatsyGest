@@ -6,7 +6,13 @@ import { clampTrialDays, signTrialLicense, type SubscriptionStatus } from "@/lib
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  const ctx = await getSessionContext();
+  // Issue de secours, sans laquelle le verrou ne se lève jamais :
+  // l'écran de verrouillage ne sonde QUE /api/licence/statut et ce heartbeat
+  // (src/components/trial-guard-client.tsx). Avec `getSessionContext()` nu,
+  // un client verrouillé recevait 401 : impossible de voir le paiement validé.
+  // Ce heartbeat n'est pas une écriture métier : il rafraîchit la présence et
+  // renvoie le jeton de statut. Les actions de vente/stock restent fermées.
+  const ctx = await getSessionContext({ allowLocked: true });
   if (!ctx) {
     return NextResponse.json({ erreur: "Session requise." }, { status: 401 });
   }

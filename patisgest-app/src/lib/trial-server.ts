@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "./supabase/server";
 import {
   clampTrialDays,
@@ -24,6 +25,44 @@ export interface ClientTrialStatus {
     publicJwk: Record<string, unknown>;
     payload: TrialLicensePayload;
   };
+}
+
+/*
+ * Déduplication par requête HTTP.
+ *
+ * Le layout a besoin du statut complet (jeton signé pour le client) et la
+ * garde de session n'a besoin que de `verrouille` : les deux doivent partager
+ * UN SEUL appel RPC par requête, sinon chaque page en déclencherait deux ou
+ * trois.
+ *
+ * Deux mécanismes complémentaires :
+ *  • `cache()` de React — vrai périmètre « requête » sous Next (RSC, actions,
+ *    routes). Hors rendu React, la fonction s'exécute simplement sans cache :
+ *    jamais d'erreur, seulement moins d'économies.
+ *  • déduplication en vol — deux appels simultanés dans le même tick
+ *    partagent la même promesse, cache React ou pas (utile en test et dans
+ *    les cas hors rendu).
+ *
+ * Sur l'échec : une lecture ratée produit `null`, donc « non verrouillé ».
+ * Au sein d'une même requête c'est cohérent (la garde et le layout voient la
+ * même réponse) ; la requête suivante refait une lecture fraîche.
+ */
+let statutEnVol: Promise<ClientTrialStatus | null> | null = null;
+
+function lireStatutEssaiMemoise(): Promise<ClientTrialStatus | null> {
+  if (!statutEnVol) {
+    statutEnVol = lireStatutEssaiServeur().finally(() => { statutEnVol = null; });
+  }
+  return statutEnVol;
+}
+
+/** Statut d'essai partagé pour la requête courante (un seul RPC). */
+export const lireStatutEssaiPartage: () => Promise<ClientTrialStatus | null> =
+  cache(lireStatutEssaiMemoise);
+
+/** Réinitialise la déduplication en vol (tests uniquement). */
+export function reinitialiserStatutEssaiPartage(): void {
+  statutEnVol = null;
 }
 
 export async function lireStatutEssaiServeur(): Promise<ClientTrialStatus | null> {
