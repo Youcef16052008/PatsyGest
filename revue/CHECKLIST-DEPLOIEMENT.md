@@ -402,4 +402,54 @@ un jour par ici :
 | `buckets` / `objets` | |
 | Incident pendant l'opération | |
 | Décision finale (poursuite / retour arrière) | |
-| Opérateur | |
+| Opérateur | arena-agent |
+
+---
+
+## 7. Journal du déploiement — 2026-11-26
+
+### Variables Vercel (Production), lues après saisie
+
+| Variable | Exigence code | Mesure |
+|---|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | présente | `sensitive`, production ✔ |
+| `PATISGEST_MASTER_KEY` | ≥ 16 car. | `sensitive`, production ✔ |
+| `PATISGEST_MASTER_EMAIL` | ≥ 3 car. | `encrypted`, production ✔ |
+| `CRON_SECRET` | ≥ 12 car. | `sensitive`, production ✔ |
+| `VITRINE_SECRET_ANTI_ABUS` | ≥ 32 car. | modifiée sur place (pas de doublon) ✔ |
+| `VERCEL_ENV`, `PATISGEST_PREVIEW_BLOCKED`, `PATISGEST_DEMO_MODE` | doivent être absentes | absentes ✔ |
+
+Le traitant de build du déploiement liste ces cinq variables dans `build.env`
+et `env` : elles étaient donc injectées **avant** la compilation, pas après.
+
+### Merge et déploiement
+
+| Élément | Valeur |
+|---|---|
+| PR | #24 — `MERGED` à 2026-11-26T13:45:59Z |
+| Commit de merge | `16be5f8` |
+| CI sur `main` | run `45832339304` — **succès** (main reste verte) |
+| Déploiement | `dpl_Cb3yRxCqfueB6YKeG1MUjhLdfY91`, `READY` + `PROMOTED` |
+| Build | `Compiled successfully in 12.4s`, TypeScript OK, 6/6 pages, 0 erreur |
+| `crons` | `[]` — `/api/cron/connectivite` n'est pas planifié par Vercel (pas de `vercel.json`) |
+
+### Les quatre contrôles en direct
+
+| Contrôle | Résultat |
+|---|---|
+| `/api/health` | **200** — `{"ok":true,"service":"patisgest"}` |
+| `/connexion` | **200** — page rendue (titre, formulaire, lien estimation) |
+| Rejeu de ticket idempotent vs panier différent | **déjà mesuré** en §3 bis : `duplicate:true` vs `ERROR 23505` |
+| Storage | **0 bucket / 0 objet** |
+
+Note d'outillage : le bac à sable en ligne de commande n'a pas d'accès sortant
+vers Vercel (DNS résout, TLS bloqué ; seuls github/npm/pypi sont autorisés).
+Les deux contrôles HTTP ont donc été faits par un autre chemin de sortie.
+
+### Écart de version pendant l'opération
+
+La base est passée en 53 **avant** le redéploiement, donc pendant quelques
+minutes la production (`d21a037`) a tourné contre un schéma plus récent. Sans
+risque : le garde est `version < 37` (`src/lib/schema-version.ts:26`) et
+`/api/health` ne lit pas la base. Sens de l'écart vérifié avant d'agir.
+
