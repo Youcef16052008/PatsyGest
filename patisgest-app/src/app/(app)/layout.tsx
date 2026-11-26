@@ -4,7 +4,6 @@ import { cookies } from "next/headers";
 import { ROLE_LABELS, canAccessModule, canReadCosts, requireSession, roleDisponible } from "@/lib/auth";
 import { logout } from "@/lib/actions-auth";
 import { WORKSPACE_LINKS } from "@/lib/workspace-nav";
-import { QuickColorMode, QuickDesignMenu } from "@/components/appearance";
 import { LanguageToggle } from "@/components/locale-provider";
 import { ADVANCED_MODE_COOKIE, readAdvancedMode } from "@/lib/appearance";
 import { lireModulesDesactives } from "@/lib/modules-access";
@@ -51,8 +50,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <div className="pg-top-actions">
         {demo && <span className="pg-demo-pill" title="Données fictives enregistrées dans ce navigateur">Démo locale</span>}
         <LanguageToggle/>
-        <QuickDesignMenu/>
-        <QuickColorMode/>
         <span className="pg-user" title={`${ctx.nom} · ${ROLE_LABELS[ctx.role]}`}><span className="pg-avatar" aria-hidden="true">{ctx.nom.trim().slice(0, 1).toLocaleUpperCase("fr")}</span><span><b>{ctx.nom.split(" (")[0]}</b><small>{ROLE_LABELS[ctx.role]}</small></span></span>
         <form action={logout}><button type="submit" className="pg-icon-button" aria-label="Déconnexion" title="Déconnexion"><Icon name="logout" size={18}/></button></form>
       </div>

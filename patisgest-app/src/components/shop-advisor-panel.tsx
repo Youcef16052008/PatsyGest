@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import {
   analyzeShopHealth,
@@ -19,8 +18,6 @@ import {
   type VentesJour,
 } from "@/lib/workspace-data";
 import { Icon } from "./workspace-icons";
-
-const DEFAULT_SNAPSHOT = JSON.stringify(DEFAULT_OVERHEAD_CONFIG);
 
 export default function ShopAdvisorPanel({
   scopeKey,
@@ -57,25 +54,31 @@ export default function ShopAdvisorPanel({
     },
     () => {
       try {
-        return window.localStorage.getItem(storageKey) ?? DEFAULT_SNAPSHOT;
+        return window.localStorage.getItem(storageKey) ?? "__UNCONFIGURED__";
       } catch {
-        return DEFAULT_SNAPSHOT;
+        return "__UNCONFIGURED__";
       }
     },
-    () => DEFAULT_SNAPSHOT,
+    () => "__UNCONFIGURED__",
   );
 
-  const config = useMemo(() => {
+  const savedConfig = useMemo(() => {
     try {
-      return sanitizeOverheadConfig(JSON.parse(rawConfig) as Partial<ShopOverheadConfig>);
+      const raw = JSON.parse(rawConfig) as Partial<ShopOverheadConfig> | null;
+      if (!raw || ![raw.monthlyRentDa, raw.monthlyPayrollDa, raw.monthlyUtilitiesDa, raw.openDaysPerMonth, raw.targetFoodCostPct]
+        .every((value) => typeof value === "number" && Number.isFinite(value))) return null;
+      return sanitizeOverheadConfig(raw);
     } catch {
-      return DEFAULT_OVERHEAD_CONFIG;
+      return null;
     }
   }, [rawConfig]);
+  const configured = savedConfig !== null;
+  const config = savedConfig ?? DEFAULT_OVERHEAD_CONFIG;
 
   const [showSettings, setShowSettings] = useState(false);
   const [draft, setDraft] = useState<ShopOverheadConfig | null>(null);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [saveError, setSaveError] = useState(false);
 
   const report = useMemo(
     () =>
@@ -99,6 +102,7 @@ export default function ShopAdvisorPanel({
   function openEditor() {
     setDraft(config);
     setSavedNotice(false);
+    setSaveError(false);
     setShowSettings((v) => !v);
   }
 
@@ -109,116 +113,37 @@ export default function ShopAdvisorPanel({
       window.localStorage.setItem(storageKey, JSON.stringify(cleaned));
       window.dispatchEvent(new Event("patisgest-overhead-updated"));
     } catch {
-      // ignore storage quota errors
+      setSaveError(true);
+      return;
     }
+    setSaveError(false);
     setDraft(null);
     setSavedNotice(true);
     setShowSettings(false);
   }
 
-  const scoreTone =
-    report.status === "sain" ? "success" : report.status === "vigilance" ? "warning" : "danger";
-  const progressBarPct = Math.min(100, Math.max(2, report.todayProgressPct));
-  const sevTone = (sev: string) =>
-    sev === "critique"
-      ? "danger"
-      : sev === "urgent"
-        ? "warning"
-        : sev === "bravo"
-          ? "success"
-          : "planned";
-  const sevLabel = (sev: string) =>
-    sev === "critique"
-      ? "Critique"
-      : sev === "urgent"
-        ? "Action rapide"
-        : sev === "bravo"
-          ? "Objectif atteint"
-          : "Conseil pro";
+  const progressBarPct = Math.min(100, Math.max(0, report.todayProgressPct));
 
   return (
-    <section className="pg-card pg-card-pad pg-stack pg-advisor-panel" aria-label="Robot Conseiller & Seuil de rentabilité">
-      {/* Bandeau exécutif : Score Santé + Jauge Break-Even du jour */}
-      <div className="pg-advisor-top">
-        <div className="pg-advisor-score-box">
-          <div className="pg-advisor-score-ring" data-tone={scoreTone}>
-            <strong>{report.score}</strong>
-            <span>/ 100</span>
-          </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="pg-kicker">ROBOT CONSEILLER ANTI-FERMETURE</span>
-              <span className="pg-badge" data-tone={scoreTone}>
-                {report.statusLabel}
-              </span>
-            </div>
-            <h2 className="mt-1">
-              {report.remainingToBreakEvenTodayDa > 0
-                ? `Encore ${dinars(report.remainingToBreakEvenTodayDa, false)} à vendre aujourd’hui`
-                : `Objectif du jour atteint (${dinars(report.todayRevenueDa, false)})`}
-            </h2>
-            <p className="text-xs pg-muted mt-0.5">
-              {report.remainingToBreakEvenTodayDa > 0 ? (
-                <>
-                  Seuil pour couvrir vos charges du jour ({dinars(report.dailyFixedCostsDa, false)}/j) :{" "}
-                  <b>{dinars(report.dailyBreakEvenDa, false)}</b>
-                  {report.equivalentTopProduct
-                    ? ` · soit ~${report.equivalentTopProduct.units} ${report.equivalentTopProduct.unit} de ${report.equivalentTopProduct.nom}`
-                    : ""}
-                  {report.equivalentTickets ? ` (~${report.equivalentTickets} tickets)` : ""}.
-                </>
-              ) : (
-                <>
-                  Charges quotidiennes couvertes · bénéfice net estimé aujourd’hui :{" "}
-                  <b className="text-emerald-700">+{dinars(Math.max(0, report.todayNetResultDa), false)}</b>
-                  {report.avgTicketDa ? ` · Panier moyen : ${dinars(report.avgTicketDa, false)}` : ""}.
-                </>
-              )}
-            </p>
-          </div>
+    <section className="pg-card pg-card-pad pg-stack pg-advisor-panel" aria-label="Objectif de ventes indicatif">
+      <div className="pg-card-head">
+        <div>
+          <h2>Objectif de ventes indicatif</h2>
+          <p>Une estimation à partir des charges et d’une marge supposée, pas un bénéfice réel.</p>
         </div>
-
-        <div className="pg-advisor-actions">
-          <button
-            type="button"
-            className="pg-button pg-button-secondary"
-            onClick={openEditor}
-            aria-expanded={showSettings}
-          >
-            <Icon name="settings" size={16} />
-            {showSettings ? "Fermer réglages" : "Charges & loyer"}
-          </button>
-        </div>
+        <button type="button" className="pg-button pg-button-secondary" onClick={openEditor} aria-expanded={showSettings}>
+          <Icon name="settings" size={16} /> {showSettings ? "Fermer" : "Renseigner les charges"}
+        </button>
       </div>
-
-      {/* Jauge visuelle de rentabilité du jour + repères 30 jours */}
-      <div className="pg-breakeven-bar-wrap">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold mb-1.5">
-          <span>
-            Objectif du jour : <b>{dinars(report.todayRevenueDa, false)}</b> /{" "}
-            {dinars(report.dailyBreakEvenDa, false)} ({Math.min(200, report.todayProgressPct)} %)
-          </span>
-          <span className="pg-muted">
-            CA 30j : {dinars(report.revenue30dDa, false)} ({report.monthCoveragePct} % du seuil mensuel{" "}
-            {dinars(report.monthlyBreakEvenDa, false)})
-            {report.avgTicketDa ? ` · Ticket moyen : ${dinars(report.avgTicketDa, false)}` : ""}
-          </span>
+      {!configured && <p className="pg-muted text-sm">Renseignez et enregistrez vos charges pour calculer un objectif. Les valeurs proposées sont des exemples à adapter.</p>}
+      {configured && !series && <p className="pg-muted text-sm">Les ventes sont indisponibles : l’objectif ne peut pas être comparé aujourd’hui.</p>}
+      {configured && series && <div className="pg-breakeven-bar-wrap">
+        <p><strong>{dinars(report.todayRevenueDa, false)}</strong> de ventes enregistrées / objectif estimé de <strong>{dinars(report.dailyBreakEvenDa, false)}</strong></p>
+        <p className="pg-muted text-xs">Calcul basé sur {dinars(report.dailyFixedCostsDa, false)} de charges par jour et une marge estimée de {report.grossMarginPct} %. Vérifiez les charges et coûts avant toute décision.</p>
+        <div className="h-3 w-full overflow-hidden rounded-full mt-2" style={{ background: "var(--pg-subtle)" }}>
+          <div className="h-full rounded-full" style={{ width: `${progressBarPct}%`, background: "var(--pg-accent)" }} />
         </div>
-        <div className="h-3 w-full overflow-hidden rounded-full" style={{ background: "var(--pg-subtle)" }}>
-          <div
-            className="h-full rounded-full transition-all"
-            style={{
-              width: `${progressBarPct}%`,
-              background:
-                report.todayProgressPct >= 100
-                  ? "var(--pg-ok-ink)"
-                  : report.todayProgressPct >= 60
-                    ? "var(--pg-accent)"
-                    : "var(--pg-warn-ink)",
-            }}
-          />
-        </div>
-      </div>
+      </div>}
 
       {savedNotice && (
         <div className="pg-notice" data-kind="success">
@@ -226,12 +151,13 @@ export default function ShopAdvisorPanel({
         </div>
       )}
 
+      {saveError && <div className="pg-notice" data-kind="error" role="alert">Impossible d’enregistrer les charges dans ce navigateur.</div>}
       {showSettings && (
         <form onSubmit={saveConfig} className="rounded-xl border p-4 grid gap-3 sm:grid-cols-3" style={{ background: "var(--pg-subtle)" }}>
           <div className="sm:col-span-3">
             <strong className="text-sm">Paramètres financiers de la boutique (calcul du seuil anti-perte)</strong>
             <p className="text-xs pg-muted">
-              Adaptez ces montants à votre boulangerie, viennoiserie, pâtisserie ou cake shop pour un calcul exact.
+              Adaptez ces montants à votre établissement : le résultat reste une estimation.
             </p>
           </div>
           <label className="pg-field">
@@ -333,23 +259,6 @@ export default function ShopAdvisorPanel({
         </form>
       )}
 
-      {/* Recommandations priorisées du Robot */}
-      <div className="grid gap-3 md:grid-cols-2">
-        {report.recommendations.slice(0, 4).map((rec) => (
-          <article key={rec.id} className="pg-advisor-card" data-severity={rec.severity}>
-            <div className="flex items-start justify-between gap-2">
-              <span className="pg-badge" data-tone={sevTone(rec.severity)}>
-                {sevLabel(rec.severity)}
-              </span>
-              <Link href={rec.actionHref} className="pg-text-link text-xs">
-                {rec.actionLabel} →
-              </Link>
-            </div>
-            <h3 className="mt-2 text-sm font-bold">{rec.title}</h3>
-            <p className="mt-1 text-xs pg-muted leading-relaxed">{rec.detail}</p>
-          </article>
-        ))}
-      </div>
     </section>
   );
 }

@@ -40,7 +40,7 @@ export default async function Dashboard() {
       salesOn ? lireVentesPeriode(db,clientId,plusJours(today,-29),today) : null,
       closingOn ? db.from("clotures").select("site_id, caisse_bilan, revision").eq("client_id",clientId).eq("date_cloture",today).limit(1000) : null,
       cakesOn
-        ? db.from("cakes").select("id, numero, client_nom, telephone, date_event, nb_parts, prix_ht, tva_pct, acompte, statut, notes").eq("client_id",clientId).gte("date_event",today).order("date_event").limit(20)
+        ? db.from("cakes").select("id, numero, client_nom, telephone, date_event, nb_parts, prix_ht, tva_pct, acompte, statut, notes").eq("client_id",clientId).not("statut", "in", "(livre,annule)").order("date_event").limit(20)
         : !owner
           ? db.from("labo_cakes").select("id, numero, client_nom, date_event, nb_parts, statut").eq("client_id",clientId).gte("date_event",today).order("date_event").limit(20)
           : null,
@@ -73,7 +73,7 @@ export default async function Dashboard() {
       };
     });
     const ownerPhoneDefault = String((clientRes.data as { telephone?: string | null } | null)?.telephone ?? "");
-    return <PilotDashboard nom={nom} shop={ctx.clientNom} today={today} owner={owner} articles={enrichedArticles} lots={lots} orders={orders} series={ventes && !ventes.truncated ? serieVentes(ventes.rows,today,30):null} sales={ventes && !ventes.truncated ? ventes.rows.map(r=>({date:r.date,totalTTC:r.totalTTC,modePaiement:r.modePaiement,lignes:r.lignes})) : null} shopIds={boutiques?.map(s=>s.id)??null} closing={closing} upcomingCakes={upcomingCakes} mode="supabase" scopeKey={clientId} ownerPhoneDefault={ownerPhoneDefault} initialCredits={creditsRes.credits} creditsTableAvailable={creditsRes.tableAvailable} initialOwnerAlerts={alertsRes.alerts}/>;
+    return <PilotDashboard nom={nom} shop={ctx.clientNom} today={today} owner={owner} articles={enrichedArticles} lots={lots} orders={orders} series={ventes && !ventes.truncated ? serieVentes(ventes.rows,today,30):null} sales={ventes && !ventes.truncated ? ventes.rows.map(r=>({date:r.date,totalTTC:r.totalTTC,modePaiement:r.modePaiement,lignes:r.lignes})) : null} shopIds={boutiques?.map(s=>s.id)??null} closing={closing} upcomingCakes={upcomingCakes} cakesAvailable={Boolean(cakesRes && !cakesRes.error && (cakesRes.data?.length ?? 0) < 20)} mode="supabase" scopeKey={clientId} ownerPhoneDefault={ownerPhoneDefault} initialCredits={creditsRes.credits} creditsTableAvailable={creditsRes.ok && creditsRes.tableAvailable} initialOwnerAlerts={alertsRes.alerts}/>;
   }
   const afficheOnboarding = ctx.mode === 'supabase' && coutsAutorises && canWrite(ctx.role);
   const guide = afficheOnboarding ? compterGuide(ctx, db) : null;

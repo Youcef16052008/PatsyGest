@@ -18,9 +18,9 @@ import {
 import ReconPanel from "./recon-panel";
 import { jourLocal } from "@/lib/workspace-data";
 
-const box = "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm";
-const field = "w-full rounded-lg border border-slate-300 bg-white p-2 text-sm";
-const btn = "rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white hover:bg-violet-800";
+const box = "pg-card pg-card-pad";
+const field = "pg-input";
+const btn = "pg-button";
 const money = (n: number) => new Intl.NumberFormat("fr-DZ", { maximumFractionDigits: 2 }).format(n) + " DA";
 const format = (n: number) => new Intl.NumberFormat("fr-DZ", { maximumFractionDigits: 4 }).format(n);
 const flux = [

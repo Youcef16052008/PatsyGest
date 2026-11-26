@@ -53,8 +53,8 @@ export default function KitchenLabScreen({
   today: string;
   auteurNom: string;
   auteurRole: string;
-  orders: ProductionItem[];
-  cakes?: KitchenCakeItem[];
+  orders: ProductionItem[] | null;
+  cakes?: KitchenCakeItem[] | null;
 }) {
   const tomorrow = plusJours(today, 1);
   const { locale, t } = useLocale();
@@ -100,14 +100,17 @@ export default function KitchenLabScreen({
   const [showPriceForm, setShowPriceForm] = useState(false);
   const [priceFeedback, setPriceFeedback] = useState<{ kind: "success" | "warning" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [stageError, setStageError] = useState("");
+  const [ordersLimit, setOrdersLimit] = useState(8);
 
   function setStage(itemId: string, nextStage: KitchenStage) {
     try {
       const next = { ...stages, [itemId]: nextStage };
       window.localStorage.setItem(stageStorageKey, JSON.stringify(next));
       window.dispatchEvent(new Event("patisgest-kitchen-stages"));
+      setStageError("");
     } catch {
-      /* ignore */
+      setStageError("Impossible d’enregistrer ce repère sur cet appareil.");
     }
   }
 
@@ -194,9 +197,10 @@ export default function KitchenLabScreen({
     }
   }
 
-  const todayCakes = cakes.filter((c) => c.statut !== "annule" && c.statut !== "livre" && c.eventDate === today);
-  const tomorrowCakes = cakes.filter((c) => c.statut !== "annule" && c.statut !== "livre" && c.eventDate === tomorrow);
-  const activeOrders = orders.filter((o) => o.statut !== "annule" && (o.date === today || o.date === tomorrow || o.statut !== "termine"));
+  const todayCakes = (cakes ?? []).filter((c) => c.statut !== "annule" && c.statut !== "livre" && c.eventDate === today);
+  const tomorrowCakes = (cakes ?? []).filter((c) => c.statut !== "annule" && c.statut !== "livre" && c.eventDate === tomorrow);
+  const activeOrders = (orders ?? []).filter((o) => o.statut !== "annule" && (o.date === today || o.date === tomorrow || o.statut !== "termine"))
+    .slice().sort((a, b) => Number(a.statut === "termine") - Number(b.statut === "termine") || (a.date || "9999").localeCompare(b.date || "9999"));
 
   return (
     <section className="pg-stack" aria-label="Écran Cuisine et Laboratoire">
@@ -215,6 +219,8 @@ export default function KitchenLabScreen({
         </button>
       </div>
 
+      <p className="pg-kitchen-local-note">Les repères d’avancement ci-dessous sont enregistrés uniquement sur cet appareil. Ils ne modifient pas le statut officiel des commandes ou des fournées.</p>
+      {stageError && <p className="pg-notice" data-kind="error" role="alert">{stageError}</p>}
       {priceFeedback && (
         <div className="pg-notice" data-kind={priceFeedback.kind}>
           {priceFeedback.text}
@@ -268,12 +274,14 @@ export default function KitchenLabScreen({
               <h3>Gâteaux sur commande (Aujourd’hui &amp; Demain)</h3>
               <p>{dateLisible(today)} &amp; {dateLisible(tomorrow)}</p>
             </div>
-            <span className="pg-badge" data-tone="planned">
+            {cakes !== null && <span className="pg-badge" data-tone="planned">
               {todayCakes.length + tomorrowCakes.length} commande(s)
-            </span>
+            </span>}
           </div>
 
-          {todayCakes.length + tomorrowCakes.length === 0 ? (
+          {cakes === null ? (
+            <p className="pg-notice" data-kind="warning" role="status">Les commandes ne sont pas disponibles ou la liste est incomplète.</p>
+          ) : todayCakes.length + tomorrowCakes.length === 0 ? (
             <p className="text-sm pg-muted">Aucun gâteau sur commande prévu aujourd’hui ou demain.</p>
           ) : (
             <div className="space-y-3">
@@ -299,6 +307,8 @@ export default function KitchenLabScreen({
                           key={target}
                           type="button"
                           onClick={() => setStage(`cake-${c.id}`, target)}
+                          aria-pressed={st === target}
+                          aria-label={`${stageLabels[target]} · ${c.client}`}
                           className={st === target ? "pg-button text-xs" : "pg-button pg-button-secondary text-xs"}
                         >
                           {stageLabels[target]}
@@ -318,16 +328,18 @@ export default function KitchenLabScreen({
               <h3>Fournées &amp; préparations atelier</h3>
               <p>Cochez l’avancement au fur et à mesure</p>
             </div>
-            <span className="pg-badge" data-tone="planned">
+            {orders !== null && <span className="pg-badge" data-tone="planned">
               {activeOrders.length} fournée(s)
-            </span>
+            </span>}
           </div>
 
-          {activeOrders.length === 0 ? (
+          {orders === null ? (
+            <p className="pg-notice" data-kind="warning" role="status">Les fournées ne sont pas disponibles pour le moment.</p>
+          ) : activeOrders.length === 0 ? (
             <p className="text-sm pg-muted">Aucune fournée planifiée pour le moment.</p>
           ) : (
             <div className="space-y-3">
-              {activeOrders.slice(0, 8).map((o) => {
+              {activeOrders.slice(0, ordersLimit).map((o) => {
                 const st = currentStage(`of-${o.id}`, o.statut);
                 return (
                   <article key={o.id} className="rounded-xl border p-3.5 space-y-2.5" style={{ background: "var(--pg-subtle)" }}>
@@ -348,6 +360,8 @@ export default function KitchenLabScreen({
                           key={target}
                           type="button"
                           onClick={() => setStage(`of-${o.id}`, target)}
+                          aria-pressed={st === target}
+                          aria-label={`${stageLabels[target]} · ${o.title} · ${o.numero}`}
                           className={st === target ? "pg-button text-xs" : "pg-button pg-button-secondary text-xs"}
                         >
                           {stageLabels[target]}
@@ -357,6 +371,7 @@ export default function KitchenLabScreen({
                   </article>
                 );
               })}
+              {activeOrders.length > ordersLimit && <button type="button" className="pg-button pg-button-secondary" onClick={() => setOrdersLimit((limit) => limit + 8)}>Afficher plus de fournées ({activeOrders.length - ordersLimit} restantes)</button>}
             </div>
           )}
         </div>

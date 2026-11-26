@@ -3,9 +3,9 @@ import { type FormEvent } from 'react';
 import { addTemperature, addCleaning, addIncident, updateIncident, type State } from '@/lib/patisgest-store';
 import { jourLocal } from '@/lib/workspace-data';
 
-const box='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
-const field='w-full rounded-lg border border-slate-300 bg-white p-2 text-sm';
-const btn='rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white hover:bg-violet-800';
+const box='pg-card pg-card-pad';
+const field='pg-input';
+const btn='pg-button';
 type Props={data:State; canEdit:boolean; save:(state:State)=>boolean; notify:(message:string)=>void};
 function trySave(next:()=>State,props:Props,success:string):boolean {try {if(props.save(next())) {props.notify(success); return true;} return false;} catch(err) {props.notify(err instanceof Error?err.message:'Opération impossible.'); return false;}}
 export function QualityOperations(props:Props) {

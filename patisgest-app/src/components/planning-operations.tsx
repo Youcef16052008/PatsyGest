@@ -5,9 +5,9 @@ import { planningOverview, createPlanningTask, markPlanningTask, removePlanningT
 import { jourLocal } from '@/lib/workspace-data';
 import { TomorrowLabDemo } from './tomorrow-lab-panel';
 
-const box='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
-const field='w-full rounded-lg border border-slate-300 bg-white p-2 text-sm';
-const btn='rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white hover:bg-violet-800';
+const box='pg-card pg-card-pad';
+const field='pg-input';
+const btn='pg-button';
 type Props={data:State; canEdit:boolean; save:(state:State)=>boolean; notify:(message:string)=>void};
 function act(fn:()=>State, props:Props, msg:string):boolean {try {if(props.save(fn())) {props.notify(msg); return true;} return false;} catch(err){props.notify(err instanceof Error?err.message:'Opération impossible.'); return false;}}
 const fmt=(value:number)=>new Intl.NumberFormat('fr-DZ',{maximumFractionDigits:4}).format(value);

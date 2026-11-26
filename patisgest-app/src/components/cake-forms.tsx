@@ -12,6 +12,7 @@ import { canCreateOrEditCakeQuotes, canSellAtPos } from "@/lib/permissions";
 import CakeTicket from "./cake-ticket";
 import { cakeConnectedTotals } from "@/lib/cake-money";
 import { whatsappOrderUrl } from "@/lib/whatsapp";
+import { compareCakePriority } from "@/lib/cake-priority";
 
 function subscribeDraft(cb: () => void) {
   window.addEventListener("storage", cb);
@@ -62,7 +63,6 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
   const [prixHtVal, setPrixHtVal] = useState("");
   const [notesVal, setNotesVal] = useState("");
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
-  const today = new Date().toISOString().slice(0, 10);
   // Les demandes de vitrine ne sont PAS des devis : elles n'ont ni prix ni
   // paiement. On les isole en haut pour que le vendeur voie d'abord ce qui
   // attend une réponse, au lieu de les chercher au milieu des devis.
@@ -70,7 +70,7 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
     .filter((c) => c.statut === "demande")
     .sort((a, b) => a.dateEvent.localeCompare(b.dateEvent));
   const autres = cakes.filter((c) => c.statut !== "demande");
-  const sorted = [...autres].sort((a, b) => a.numero.localeCompare(b.numero));
+  const sorted = [...autres].sort((a, b) => compareCakePriority({ status: a.statut, date: a.dateEvent, numero: a.numero }, { status: b.statut, date: b.dateEvent, numero: b.numero }));
   const peutTraiter = peutTraiterDemande(role);
   const canCreateOrEditQuotes = canCreateOrEditCakeQuotes(role);
   const transitionsDisponibles =
@@ -208,8 +208,7 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
       <section className="rounded-2xl border bg-white p-5">
         <h2 className="mb-3 font-bold">Devis &amp; commandes en cours</h2>
         <p className="mb-3 text-xs text-slate-500">
-          Édition réservée au statut devis · paiements historisés · acompte 30 % minimum
-          pour confirmer · solde avant livraison · preuve CGV horodatée · ticket imprimable.
+          Les retraits les plus proches apparaissent en premier ; les dossiers terminés suivent.
         </p>
         <ul className="space-y-3">
           {sorted.map((c) => {

@@ -4,10 +4,11 @@ import { useState, type FormEvent } from 'react';
 import { assignCakeProduction, createCake, payCake, advanceCake, setCakeTask, cakeTotals, moneyToCents, type CakeStatus, type State } from '@/lib/patisgest-store';
 import { clearEstimatorDraft, loadEstimatorDraft, type EstimatorDraft } from '@/lib/portion-estimator';
 import { whatsappOrderUrl } from '@/lib/whatsapp';
+import { compareCakePriority } from '@/lib/cake-priority';
 
-const box='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
-const field='w-full rounded-lg border border-slate-300 bg-white p-2 text-sm';
-const btn='rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white hover:bg-violet-800';
+const box='pg-card pg-card-pad';
+const field='pg-input';
+const btn='pg-button';
 const money=(cents:number)=>new Intl.NumberFormat('fr-DZ',{maximumFractionDigits:2}).format(cents/100)+' DA';
 const labels:Record<CakeStatus,string>={devis:'Devis',acompte:'Acompte payé',confirme:'Confirmé',produit:'Prêt à livrer',livre:'Livré / soldé',annule:'Annulé'};
 type Props={data:State; save:(state:State)=>boolean; notify:(message:string)=>void; canCreateOrEditQuotes?:boolean; role?:'proprietaire'|'labo'|'vendeur'};
@@ -40,7 +41,7 @@ export function CakeOperations(props:Props) {
     ) : !isLabo && (
       <section className={box}><p className="text-xs text-slate-600"><strong>Espace comptoir :</strong> encaissez les acomptes/soldes, confirmez et livrez les commandes. La création et la modification des devis chiffrés sont réservées au propriétaire.</p></section>
     )}
-    <section className={box}><h2 className="font-bold">Commandes en cours &amp; devis</h2>{!data.cakes.length && <p className="mt-3 text-sm text-slate-500">Aucune commande enregistrée.</p>}<div className="mt-4 space-y-4">{data.cakes.slice().reverse().map(c=>{const t=cakeTotals(c);const wa=whatsappOrderUrl({phone:c.telephone,client:c.client,numero:c.numero,eventDate:c.eventDate,parts:c.portions,resteDa:t.balance/100});return <article key={c.id} className="rounded-xl border p-4"><div className="flex flex-wrap justify-between gap-2"><div><h3 className="font-bold">{c.numero} · {c.client}</h3><p className="text-sm text-slate-500">{c.eventDate} · {c.portions} parts{c.telephone?` · ${c.telephone}`:''}</p></div><div className="flex flex-wrap items-center gap-2">{wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-800">WhatsApp</a>}<b className="pg-badge">{labels[c.status]}</b></div></div>
+    <section className={box}><h2 className="font-bold">Commandes en cours &amp; devis</h2><p className="mt-1 text-sm pg-muted">Les retraits les plus proches en premier ; les dossiers terminés suivent.</p>{!data.cakes.length && <p className="mt-3 text-sm text-slate-500">Aucune commande enregistrée.</p>}<div className="mt-4 space-y-4">{data.cakes.slice().sort((a,b)=>compareCakePriority({status:a.status,date:a.eventDate,numero:a.numero},{status:b.status,date:b.eventDate,numero:b.numero})).map(c=>{const t=cakeTotals(c);const wa=whatsappOrderUrl({phone:c.telephone,client:c.client,numero:c.numero,eventDate:c.eventDate,parts:c.portions,resteDa:t.balance/100});return <article key={c.id} className="rounded-xl border p-4"><div className="flex flex-wrap justify-between gap-2"><div><h3 className="font-bold">{c.numero} · {c.client}</h3><p className="text-sm text-slate-500">{c.eventDate} · {c.portions} parts{c.telephone?` · ${c.telephone}`:''}</p></div><div className="flex flex-wrap items-center gap-2">{wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-800">WhatsApp</a>}<b className="pg-badge">{labels[c.status]}</b></div></div>
       {!isLabo && (
         <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3"><div className="rounded-lg bg-slate-50 p-2.5">Prix total<br/><b>{money(c.priceCents)}</b></div><div className="rounded-lg bg-emerald-50 p-2.5 text-emerald-900">Acompte payé<br/><b>{money(t.paid)}</b></div><div className="rounded-lg bg-amber-50 p-2.5 text-amber-900">Reste à payer<br/><b>{money(t.balance)}</b></div></div>
       )}

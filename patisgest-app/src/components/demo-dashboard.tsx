@@ -96,6 +96,7 @@ export default function DemoDashboard({ nom, shop, role }: { nom: string; shop: 
       save({ ...data, articles: [...data.articles, ...added] });
     }
   }
+  if (!data) return <p role="status">Chargement de la démo…</p>;
   if (role !== "vendeur") {
     const owner = role === "proprietaire";
     const closing =
@@ -132,16 +133,18 @@ export default function DemoDashboard({ nom, shop, role }: { nom: string; shop: 
       if (todaySales.length > 0) {
         let rev = 0;
         let cost = 0;
+        let missingCost = false;
         for (const s of todaySales) {
           rev += s.totalTTC;
           const lines = s.lines && s.lines.length > 0 ? s.lines : [{ articleId: s.articleId, qty: s.qty }];
           for (const l of lines) {
             const uc = unitCostByProduct.get(l.articleId);
             if (uc != null) cost += uc * l.qty;
+            else missingCost = true;
           }
         }
-        estimatedMarginDa = Math.round(rev - cost);
-        estimatedMarginPct = rev > 0 ? Math.round(((rev - cost) / rev) * 1000) / 10 : null;
+        estimatedMarginDa = missingCost ? null : Math.round(rev - cost);
+        estimatedMarginPct = !missingCost && rev > 0 ? Math.round(((rev - cost) / rev) * 1000) / 10 : null;
       } else {
         estimatedMarginDa = 0;
         estimatedMarginPct = null;
@@ -149,7 +152,7 @@ export default function DemoDashboard({ nom, shop, role }: { nom: string; shop: 
     }
 
     const upcomingCakes: DashboardUpcomingCake[] =
-      owner && data
+      data
         ? data.cakes
             .slice()
             .sort((a, b) => a.eventDate.localeCompare(b.eventDate))
@@ -159,12 +162,12 @@ export default function DemoDashboard({ nom, shop, role }: { nom: string; shop: 
                 id: c.id,
                 numero: c.numero,
                 client: c.client,
-                telephone: c.telephone || null,
+                telephone: owner ? c.telephone || null : null,
                 eventDate: c.eventDate,
                 portions: c.portions,
-                prixTotalDa: c.priceCents / 100,
-                acompteDa: t.paid / 100,
-                resteDa: t.balance / 100,
+                prixTotalDa: owner ? c.priceCents / 100 : 0,
+                acompteDa: owner ? t.paid / 100 : 0,
+                resteDa: owner ? t.balance / 100 : 0,
                 statut: c.status,
                 notes: c.notes || null,
               };

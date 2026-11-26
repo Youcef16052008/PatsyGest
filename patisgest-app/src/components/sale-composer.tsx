@@ -186,7 +186,7 @@ export default function SaleComposer({
         <div className="pg-card-head">
           <div>
             <h2 id={`${id}-catalog`}>{t.posProducts}</h2>
-            <p>Touchez un ou plusieurs produits pour composer le panier client (stocks éligibles FEFO).</p>
+            <p>Touchez un produit pour l’ajouter au panier. Les quantités vendables tiennent compte des dates limites.</p>
           </div>
           {status}
         </div>
