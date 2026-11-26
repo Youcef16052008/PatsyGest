@@ -419,6 +419,12 @@
       "file": "52-recettes-photos.sql",
       "sha256": "6a926010bf0032a749ddfc20bc1cdf3e24d41e30f96dbd1598b579db5856d60e",
       "hors_fixture_pilote": true
+    },
+    {
+      "file": "53-caisse-ticket-scope.sql",
+      "sha256": "eb53b6915c8743c77f36a3b47813c335a4ff167ba950748bbaf3ffdda4604658",
+      "hors_fixture_pilote": true,
+      "note": "Caisse : portée du ticket (site, source, contenu). Corrige le seul corps de vendre_panier ; vendre_article y délègue. Non présent dans tests/fixtures/pilote-vitrine (pilote non réconcilié)."
     }
   ],
   "exclus": [
