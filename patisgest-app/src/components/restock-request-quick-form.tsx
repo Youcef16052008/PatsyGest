@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { createRestockRequestReal, type JournalState } from "@/lib/actions-journaux";
+import { createRestockRequestReal } from "@/lib/actions-planning";
+import { type JournalState } from "@/lib/journal-actions-communs";
 import { addRestockRequest } from "@/lib/patisgest-store";
 import { jourLocal, plusJours } from "@/lib/workspace-data";
 import { useOptionalDemoWorkspace } from "./demo-workspace";

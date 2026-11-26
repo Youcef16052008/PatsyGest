@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { saisirCloture } from "@/lib/actions-journaux";
+import { useActionState, useState, useSyncExternalStore } from "react";
+import { saisirCloture } from "@/lib/actions-clotures";
+import { compterVentesEnAttente, messageAttenteCloture } from "@/lib/file-attente-cloture";
 
 type Option = { id: string; label: string };
 type Row = {
@@ -45,6 +46,24 @@ export default function ClotureForm({ sites, articles }: { sites: Option[]; arti
   const [rows, setRows] = useState<Row[]>([emptyRow(articles[0]?.id ?? "")]);
   const update = (i: number, patch: Partial<Row>) =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+
+  /**
+   * Ventes encore en file locale (coupure réseau). On ne clôture pas un tiroir
+   * qui contient leur argent sans le dire explicitement.
+   */
+  const attente = useSyncExternalStore(
+    (cb) => {
+      window.addEventListener("storage", cb);
+      window.addEventListener("patisgest-sale-queue", cb);
+      return () => {
+        window.removeEventListener("storage", cb);
+        window.removeEventListener("patisgest-sale-queue", cb);
+      };
+    },
+    () => compterVentesEnAttente(window.localStorage),
+    () => ({ tickets: 0, illisible: false }),
+  );
+  const avertissementFile = messageAttenteCloture(attente);
 
   return (
     <section className="mb-6 rounded-2xl border bg-white p-5">
@@ -193,7 +212,15 @@ export default function ClotureForm({ sites, articles }: { sites: Option[]; arti
           </div>
         </fieldset>
 
-        <button disabled={pending || articles.length === 0} className={btn}>
+        {avertissementFile && (
+          <p role="alert" data-testid="file-attente" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            {avertissementFile}
+          </p>
+        )}
+        <button
+          disabled={pending || articles.length === 0 || attente.tickets > 0}
+          className={btn}
+        >
           {pending ? "Enregistrement…" : "Enregistrer la clôture"}
         </button>
         {state.erreur && <p role="alert" className="text-sm text-red-700">{state.erreur}</p>}

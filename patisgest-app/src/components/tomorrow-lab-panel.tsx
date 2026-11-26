@@ -1,12 +1,8 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import {
-  cancelRestockRequestReal,
-  createRestockRequestReal,
-  validateTomorrowLineReal,
-  type JournalState,
-} from "@/lib/actions-journaux";
+import { cancelRestockRequestReal, createRestockRequestReal, validateTomorrowLineReal } from "@/lib/actions-planning";
+import { type JournalState } from "@/lib/journal-actions-communs";
 import { transferReal, type TransferState } from "@/lib/actions-stock";
 import ClientRefField from "./client-ref-field";
 import { demoTomorrowPlan } from "@/lib/demo-workspace";

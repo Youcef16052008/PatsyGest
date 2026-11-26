@@ -2,9 +2,10 @@
 
 import { useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
-import { validerComptageTiroir } from "@/lib/actions-journaux";
+import { validerComptageTiroir } from "@/lib/actions-clotures";
 import { whatsappDailyClosingUrl } from "@/lib/whatsapp";
 import { dinars } from "@/lib/workspace-data";
+import { compterVentesEnAttente, messageAttenteCloture } from "@/lib/file-attente-cloture";
 
 export default function CashClosingQuickWidget({
   today,
@@ -80,8 +81,30 @@ export default function CashClosingQuickWidget({
     resteEncaisserDa,
   });
 
+  /**
+   * Ventes en attente de synchronisation : les compter ici évite de valider un
+   * comptage de tiroir qui contient de l'argent non remonté au serveur.
+   */
+  const attente = useSyncExternalStore(
+    (cb) => {
+      window.addEventListener("storage", cb);
+      window.addEventListener("patisgest-sale-queue", cb);
+      return () => {
+        window.removeEventListener("storage", cb);
+        window.removeEventListener("patisgest-sale-queue", cb);
+      };
+    },
+    () => compterVentesEnAttente(window.localStorage),
+    () => ({ tickets: 0, illisible: false }),
+  );
+  const avertissementFile = messageAttenteCloture(attente);
+
   function saveQuickCheck() {
     setSavedNotice(null);
+    if (attente.tickets > 0) {
+      setSavedNotice({ kind: "error", text: avertissementFile ?? "Ventes non synchronisées." });
+      return;
+    }
     try {
       window.localStorage.setItem(
         `patisgest.caisse_soir.${today}`,
@@ -175,7 +198,7 @@ export default function CashClosingQuickWidget({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={!hasCount || pending}
+            disabled={!hasCount || pending || attente.tickets > 0}
             onClick={saveQuickCheck}
             className="pg-button"
           >
@@ -184,6 +207,11 @@ export default function CashClosingQuickWidget({
           <Link href="/cloture" className="pg-text-link text-xs">
             Bilan détaillé →
           </Link>
+          {avertissementFile && (
+            <p role="alert" data-testid="file-attente" className="pg-notice w-full" data-kind="warning">
+              {avertissementFile}
+            </p>
+          )}
         </div>
       </div>
 

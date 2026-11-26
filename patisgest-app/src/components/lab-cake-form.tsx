@@ -1,6 +1,6 @@
 "use client";
 import { useActionState } from 'react';
-import { evolveCakeReal } from '@/lib/actions-journaux';
+import { evolveCakeReal } from '@/lib/actions-cakes';
 
 type Cake={id:string;numero:string;client_nom:string;date_event:string;nb_parts:number;statut:string};
 export default function LabCakeForm({cakes,unavailable}:{cakes:Cake[];unavailable:boolean}) {
