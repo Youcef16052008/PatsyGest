@@ -196,7 +196,17 @@ jobs:
           source "$RUNNER_TEMP/supabase-e2e.env"
           set +a
           export PATSYGEST_PG_URL="$DB_URL"
-          node --test "tests/e2e/${{ matrix.spec }}.spec.mjs"
+          set +e
+          node --test "tests/e2e/${{ matrix.spec }}.spec.mjs" 2>&1 | tee "$RUNNER_TEMP/e2e-result.txt"
+          result=${PIPESTATUS[0]}
+          set -e
+          if [ "$result" -ne 0 ]; then
+            while IFS= read -r line; do
+              line=${line//'%'/'%25'}; line=${line//$'\r'/'%0D'}; line=${line//$'\n'/'%0A'}
+              echo "::error::$line"
+            done < <(grep -E '(^not ok|error:|Error:|TimeoutError:|AssertionError:|operator:|expected:|actual:|waiting for|locator|spec\.mjs|helpers\.mjs)' "$RUNNER_TEMP/e2e-result.txt" | head -25)
+          fi
+          exit "$result"
       - name: Journal de l'application
         if: failure()
         run: tail -100 "$RUNNER_TEMP/app.log" || true

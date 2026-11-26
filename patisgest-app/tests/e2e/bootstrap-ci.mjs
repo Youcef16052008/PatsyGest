@@ -61,13 +61,17 @@ try {
   const existing = await sql`select to_regclass('public.clients') as table_name`;
   assert.equal(existing[0].table_name, null, 'La base jetable doit être vierge avant bootstrap E2E');
 
-  // Utilitaire DDL présent sur Supabase hébergé mais absent de certaines piles CLI locales.
+  // Utilitaire DDL présent sur Supabase hébergé mais absent de certaines piles CLI locales,
+  // et privilèges par défaut d'un projet Supabase réel avant la chaîne 01..53.
   await sql.unsafe(`
     do $$ begin
       if to_regprocedure('public.rls_auto_enable()') is null then
         create function public.rls_auto_enable() returns event_trigger language plpgsql as $f$begin end$f$;
       end if;
     end $$;
+    alter default privileges in schema public grant all on tables to authenticated, service_role;
+    alter default privileges in schema public grant all on sequences to authenticated, service_role;
+    alter default privileges in schema public grant execute on functions to authenticated, service_role;
   `);
 
   for (const file of chaineDeploiement()) {
@@ -147,7 +151,7 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
-  // Vérifier qu'une connexion Auth réelle fonctionne avant de lancer Playwright.
+  // Vérifier qu'une connexion Auth réelle et les lectures RLS de base fonctionnent avant Playwright.
   const anon = createClient(API_URL, ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -156,6 +160,13 @@ try {
     password: PASSWORD,
   });
   assert.ifError(signIn.error && new Error(`Test signInWithPassword : ${signIn.error.message}`));
+  const me = await anon.from('utilisateurs').select('id, role').single();
+  assert.ifError(me.error && new Error(`Lecture utilisateurs : ${me.error.message}`));
+  const schemaVer = await anon.from('app_schema_version').select('version').maybeSingle();
+  assert.ifError(schemaVer.error && new Error(`Lecture app_schema_version : ${schemaVer.error.message}`));
+  assert.equal(schemaVer.data?.version, 53);
+  const arts = await anon.from('articles').select('id').limit(1);
+  assert.ifError(arts.error && new Error(`Lecture articles : ${arts.error.message}`));
 
   console.log('Bootstrap E2E prêt (chaîne 01..53, comptes Auth réels, seed et PostgREST vérifiés).');
 } finally {
