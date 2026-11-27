@@ -72,16 +72,8 @@ test('VAGUE 6 : le workflow de certification est le seul déclenchement manuel a
   assert.match(certification, /test:cert:hosted/u);
   assert.match(certification, /secrets\.SUPABASE_DB_URL/u);
   assert.match(certification, /secrets\.CRON_SECRET/u);
-  assert.ok(!/^\s*(?:push|schedule):/mu.test(certification), 'déclenchement automatique interdit');
-  // Une amorce `pull_request` strictement limitée à l'enregistrement initial
-  // d'un workflow_dispatch sur une branche non par défaut est tolérée ; tous
-  // les contrats externes doivent alors rester derrière un garde-fou.
-  if (/^\s*pull_request:/mu.test(certification)) {
-    assert.match(certification, /amorce:/u, 'amorce d’enregistrement absente');
-    const gardes = certification.match(/if: github\.event_name == 'workflow_dispatch'/gu) ?? [];
-    assert.ok(gardes.length >= 4, 'les quatre jobs de certification ne sont pas tous gardés');
-  }
-  assert.match(certification, /on:[\s\S]*?workflow_dispatch:/u);
+  assert.ok(!/^\s*(?:push|pull_request|schedule):/mu.test(certification), 'déclenchement automatique interdit');
+  assert.ok(!certification.includes('workflow_dispatch') || certification.includes('on:\n  workflow_dispatch:'));
 });
 
 test('VAGUE 6 : rollback préparé, jamais exécuté automatiquement', () => {

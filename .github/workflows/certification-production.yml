@@ -1,12 +1,6 @@
 name: Certification production · pile réelle
 
 on:
-  # Amorce temporaire : GitHub n'enregistre un workflow_dispatch qu'après une
-  # première exécution. Le déclencheur pull_request est retiré dès que le
-  # workflow est visible, puis la certification est lancée par dispatch sur la
-  # branche courante. Aucun contrôle externe n'est exécuté par cette amorce.
-  pull_request:
-    types: [synchronize]
   workflow_dispatch:
     inputs:
       base_url:
@@ -23,13 +17,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  amorce:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - run: echo "Enregistrement initial de certification-production.yml (aucun contrôle externe)."
-
   contrats-ocr:
     if: github.event_name == 'workflow_dispatch'
     name: Contrats OCR, chaîne SQL, types et lint
