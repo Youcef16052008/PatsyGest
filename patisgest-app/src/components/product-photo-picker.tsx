@@ -7,9 +7,10 @@ import {
   compressImageFileToDataUrl,
   defaultPastryVisual,
   PRODUCT_PHOTOS_KEY_PREFIX,
-  readProductPhotosMap,
+  sanitizeProductPhotosSnapshot,
   saveProductPhotoLocal,
 } from "@/lib/pastry-visuals";
+import { sanitizeImageDataUrl, sanitizePhotoSource } from "@/lib/recipe-photo";
 
 export default function ProductPhotoPicker({
   mode,
@@ -43,19 +44,15 @@ export default function ProductPhotoPicker({
     () => "{}",
   );
 
-  const customMap: Record<string, string> = (() => {
-    try {
-      const parsed = JSON.parse(photosSnapshot);
-      return parsed && typeof parsed === "object" ? parsed : {};
-    } catch {
-      return readProductPhotosMap(scopeKey);
-    }
-  })();
+  const customMap = sanitizeProductPhotosSnapshot(photosSnapshot);
 
   if (products.length === 0) return null;
 
   const active = products.find((p) => p.id === selectedId) ?? products[0];
-  const previewSrc = customMap[active.id] || active.photo || defaultPastryVisual(active.nom);
+  const previewSrc =
+    customMap[active.id] ??
+    sanitizePhotoSource(active.photo) ??
+    defaultPastryVisual(active.nom);
 
   async function onFileSelected(file: File | undefined) {
     if (!file || !active) return;
@@ -63,9 +60,11 @@ export default function ProductPhotoPicker({
     setStatus("");
     try {
       const compressed = await compressImageFileToDataUrl(file, 480, 0.78);
-      saveProductPhotoLocal(scopeKey, active.id, compressed);
+      const image = sanitizeImageDataUrl(compressed);
+      if (!image) throw new Error("Photo invalide : choisissez une image JPEG, PNG ou WebP.");
+      saveProductPhotoLocal(scopeKey, active.id, image);
       if (mode === "supabase") {
-        const res = await sauverPhotoArticleCloud(active.id, compressed);
+        const res = await sauverPhotoArticleCloud(active.id, image);
         setStatus(
           res.ok
             ? `Photo de « ${active.nom} » enregistrée dans le cloud ✓`

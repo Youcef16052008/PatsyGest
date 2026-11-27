@@ -1,5 +1,6 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
+import { jourLocal, plusJours } from '../src/lib/workspace-data.ts';
 
 /*
  * H04-01 / H04-03 — la commande publique ne doit jamais contourner le plafond
@@ -48,7 +49,7 @@ function formulaire() {
   fd.set('cleRecette', 'baklawa');
   fd.set('nom', 'Client Test');
   fd.set('telephone', '0555123456');
-  fd.set('dateEvent', '2026-12-01');
+  fd.set('dateEvent', plusJours(jourLocal(), 1));
   fd.set('nbParts', '8');
   fd.set('note', '');
   fd.set('cleNavigateur', 'cle-navigateur-stable-1234567890');
@@ -108,5 +109,18 @@ test('H04-01/H04-03 : vérification réussie ⇒ la commande principale reste ap
     const verif = etat.appels[0].args;
     assert.equal(verif.p_sous_domaine, 'elyasmine');
     assert.match(verif.p_source, /^[0-9a-f]{64}$/);
+  } finally { restaurer(); }
+});
+
+test('H09-09 : date impossible, passée ou au-delà d’un an ⇒ refus avant tout RPC', async () => {
+  const restaurer = environnementInitial();
+  try {
+    for (const date of ['2026-02-30', '2020-01-01', plusJours(jourLocal(), 366)]) {
+      const fd = formulaire();
+      fd.set('dateEvent', date);
+      const resultat = await demanderCommande({}, fd);
+      assert.match(resultat.erreur ?? '', /date valide/i);
+    }
+    assert.deepEqual(etat.appels, [], 'une date invalide ne doit pas joindre la base');
   } finally { restaurer(); }
 });

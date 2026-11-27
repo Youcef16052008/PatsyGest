@@ -15,7 +15,8 @@ import {
   type CartItem,
   type PaymentMode,
 } from "@/lib/pos-cart";
-import { defaultPastryVisual, PRODUCT_PHOTOS_KEY_PREFIX } from "@/lib/pastry-visuals";
+import { defaultPastryVisual, PRODUCT_PHOTOS_KEY_PREFIX, sanitizeProductPhotosSnapshot } from "@/lib/pastry-visuals";
+import { sanitizePhotoSource } from "@/lib/recipe-photo";
 import { correspond, dinars, quantite, siteCaisse, type CatalogProduct, type SiteStock, type WorkspaceSite } from "@/lib/workspace-data";
 import { EmptyState } from "./workspace-ui";
 import { Icon } from "./workspace-icons";
@@ -66,14 +67,7 @@ export default function SaleComposer({
     },
     () => "{}",
   );
-  const customPhotoMap: Record<string, string> = (() => {
-    try {
-      const parsed = JSON.parse(photosSnapshot);
-      return parsed && typeof parsed === "object" ? parsed : {};
-    } catch {
-      return {};
-    }
-  })();
+  const customPhotoMap = sanitizeProductPhotosSnapshot(photosSnapshot);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({});
   const [modePaiement, setModePaiement] = useState<PaymentMode>("especes");
@@ -297,7 +291,7 @@ export default function SaleComposer({
                   </span>
                   <Image
                     className="pg-product-photo"
-                    src={customPhotoMap[a.id] || a.photo || defaultPastryVisual(a.label)}
+                    src={customPhotoMap[a.id] ?? sanitizePhotoSource(a.photo) ?? defaultPastryVisual(a.label)}
                     alt=""
                     width={480}
                     height={336}

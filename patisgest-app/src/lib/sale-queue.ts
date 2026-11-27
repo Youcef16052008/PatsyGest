@@ -33,8 +33,32 @@ export type QueuedSale = {
 
 export type StorageLike = Pick<Storage, "getItem" | "setItem">;
 
-const KEY = "patisgest.saleQueue.v1";
+export const PREFIXE_FILE_V1 = "patisgest.saleQueue.v1";
+export const PREFIXE_FILE_V2 = "patisgest.saleQueue.v2.";
+const KEY = PREFIXE_FILE_V1;
 const MAX = 200;
+
+/**
+ * Reconnaît les clés réellement écrites par cette application. Une clé `v2`
+ * d'une forme inconnue n'est PAS ignorée : elle doit être signalée comme
+ * illisible plutôt que faire croire à une file vide.
+ */
+export type CategorieCleFile = "v1" | "v2" | "inconnue" | null;
+export function categorieCleFileVente(cle: string): CategorieCleFile {
+  if (cle === KEY || cle.startsWith(`${KEY}.`)) return "v1";
+  if (!cle.startsWith(PREFIXE_FILE_V2)) return null;
+  try {
+    const identite: unknown = JSON.parse(cle.slice(PREFIXE_FILE_V2.length));
+    return Array.isArray(identite) &&
+      identite.length === 2 &&
+      typeof identite[0] === "string" && identite[0].length > 0 &&
+      typeof identite[1] === "string" && identite[1].length > 0
+      ? "v2"
+      : "inconnue";
+  } catch {
+    return "inconnue";
+  }
+}
 
 /** Retourne toujours la liste normalisée des lignes d'un ticket en file. */
 export function queuedSaleLines(sale: QueuedSale): QueuedSaleLine[] {
@@ -180,7 +204,7 @@ export const emptyQueueSnapshot: QueueSnapshot = { sales: [], error: null, legac
 
 export function scopedQueueKey(identity: QueueIdentity): string {
   if (!identity.clientId || !identity.authUserId) throw new Error("Identité de caisse manquante.");
-  return `patisgest.saleQueue.v2.${JSON.stringify([identity.clientId, identity.authUserId])}`;
+  return `${PREFIXE_FILE_V2}${JSON.stringify([identity.clientId, identity.authUserId])}`;
 }
 
 /** Une file corrompue ne doit jamais être filtrée ni écrasée silencieusement. */

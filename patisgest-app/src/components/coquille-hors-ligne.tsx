@@ -81,9 +81,9 @@ export default function CoquilleHorsLigne() {
       };
     },
     () => navigator.onLine,
-    // Côté serveur on ne peut pas savoir : on n'affiche pas la bannière plutôt
-    // que d'annoncer à tort « hors-ligne ».
-    () => null as unknown as boolean,
+    // Côté serveur on ne peut pas savoir : un booléen `false` garde le même
+    // type que le snapshot client et n'annonce pas « connexion revenue ».
+    () => false,
   );
 
   const activeScopeId = useMemo(() => {

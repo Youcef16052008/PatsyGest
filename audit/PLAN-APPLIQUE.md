@@ -5,11 +5,11 @@
 > sans preuve directe dans le code exécutable. README, commentaires et noms de tests
 > ne sont pas des preuves de comportement.
 >
-> **Portée des vagues** : les `VAGUE 1`/`VAGUE 2` de ce fichier sont les vagues
-> d'hypothèses de remédiation (`H01`…`H04`, puis `H05`…`H08`). Elles ne doivent
-> pas être confondues avec les `VAGUE 1`…`VAGUE 4` fonctionnelles du
-> `PLAN-AMELIORATION-PATISGEST.md` (`A.1`…`A.6`, `B.5`…`B.7`, etc.). Les
-> fonctionnalités produit de la VAGUE 2 du roadmap ne sont pas implémentées ici.
+> **Portée des vagues** : les `VAGUE 1`/`VAGUE 2`/`VAGUE 3` de ce fichier sont les
+> vagues d'hypothèses de remédiation (`H01`…`H04`, `H05`…`H08`, puis `H09`…`H12`).
+> Elles ne doivent pas être confondues avec les `VAGUE 1`…`VAGUE 4` fonctionnelles
+> du `PLAN-AMELIORATION-PATISGEST.md` (`A.1`…`A.6`, `B.5`…`B.7`, `B.1`/`B.3`, etc.).
+> Les fonctionnalités produit du roadmap ne sont pas implémentées ici.
 
 ## ÉTAPE 0 — baseline exécutée
 
@@ -278,3 +278,167 @@ un déploiement Supabase/PostgreSQL réel.
 - Le garde-fou applicatif `src/lib/schema-version.ts:7` exige toujours un schéma
   minimal 37; la sonde PGlite vérifie désormais `>= 55` après rejeu, sans
   transformer 37 en plafond.
+
+---
+
+## VAGUE 3 — contrats, état client, PWA, fichiers et médias (`H09`…`H12`)
+
+Périmètre : **46 hypothèses**, `H09-01`…`H12-12`. Cette vague couvre les tranches
+d'audit 09 à 12, **pas** la VAGUE 3 fonctionnelle du roadmap (`B.1`, `B.3`).
+Bilan : **10 CORRIGÉ**, **12 DIFFÉRÉ**, **24 RÉFUTÉ**. Le point de départ est le
+commit `7e6f474` ; le HEAD local a été réaligné sur l'origine sans écraser les
+modifications de cette vague. Aucun fichier SQL de migration déjà appliqué n'a été
+réécrit et aucune migration 56 n'a été ajoutée : les correctifs restent dans le
+code applicatif et dans les tests.
+
+### Correctifs livrés
+
+1. **H09-01 / H09-02 / H09-03** — `src/lib/pagination.ts` : une page courte ne
+   conclut plus « fin de collection » sans sonde à l'offset suivant ; une page
+   qui dépasse la taille demandée, une sonde de plusieurs lignes, `data:null` ou
+   `error` sont refusés. `src/app/api/export/comptable/route.ts` applique la même
+   pagination sûre aux avoirs : 20 001 avoirs donnent 413 et une lecture en
+   erreur ne produit aucun CSV. `tests/vague3-contrats.test.mjs` et
+   `tests/vague3-exports.test.mjs` exécutent ces chemins.
+2. **H09-09** — `src/lib/workspace-data.ts` expose `dateCommandeVitrineValide()` ;
+   `src/app/(vitrine)/vitrine/[slug]/commander/actions.ts` refuse une date
+   impossible, passée ou au-delà d'un an avant tout RPC, avec le jour métier
+   d'Alger. `tests/commande-vitrine-anti-abus.test.mjs` et
+   `tests/vague3-contrats.test.mjs` couvrent minuit UTC et `2026-02-30`.
+3. **H10-06 / H11-09 / H11-12** — `src/lib/sale-queue.ts` publie la
+   reconnaissance des clés `v1`/`v2` ; `src/lib/file-attente-cloture.ts` compte
+   la file active `patisgest.saleQueue.v2.<identité JSON>`, signale toute clé
+   `v2` inconnue et expose un snapshot stable pour `useSyncExternalStore`.
+   `network-status-pill.tsx`, `cash-closing-quick.tsx` et `cloture-form.tsx`
+   utilisent ce snapshot partagé et bloquent aussi une file illisible.
+   `tests/file-attente-cloture.test.mjs` et `tests/cloture-file-attente.test.mjs`
+   prouvent le comptage et la stabilité.
+4. **H12-02** — `src/lib/csv.ts` double l'apostrophe initiale d'une valeur qui
+   en possédait déjà une : `=1+1` et `'=1+1` ne produisent plus la même cellule.
+   `tests/csv.test.mjs` verrouille l'injectivité, y compris avec guillemets RFC.
+5. **H12-04 / H12-05 / H12-06** — `src/lib/recipe-photo.ts` vérifie le base64
+   canonique et les octets magiques JPEG, PNG ou WebP ; `src/lib/actions-photos.ts`
+   applique la même borne **côté serveur** avant le RPC ; `pastry-visuals.ts`,
+   `product-photo-picker.tsx` et `sale-composer.tsx` ne rendent ni n'écrivent une
+   valeur locale non vérifiée. `tests/vague3-photos-serveur.test.mjs` exécute la
+   frontière serveur et le stockage local ; `tests/apparence-licence-photos.test.mjs`
+   couvre les faux JPEG.
+6. **H12-11** — `src/app/api/export/comptable/route.ts` remplace le
+   `.limit(20000)` des avoirs par `lirePages` et conserve les codes 413, 409 et
+   500 sans fichier partiel. `tests/vague3-exports.test.mjs` exécute les cinq
+   issues de la route avec un faux client Supabase explicite.
+7. **H10-11** — `src/components/coquille-hors-ligne.tsx` remplace le cast
+   `null as unknown as boolean` par un snapshot serveur `false` de même type.
+   C'est une correction de type, **pas** une preuve d'hydratation navigateur :
+   l'hypothèse reste `DIFFÉRÉ`.
+8. **Harnais de test** — `tests/mocks/next-stubs.mjs` rend `NextResponse`
+   constructible afin que les routes CSV soient réellement appelées dans Node.
+   Ce fichier n'est pas du code produit.
+
+### Vérifications obligatoires de la vague
+
+Chaîne exécutée après les correctifs, dans `patisgest-app` :
+
+| Commande | Code | Fin de sortie brute |
+|---|---:|---|
+| `npm run typecheck` | 0 | `tsc --noEmit` sans erreur |
+| `npm run lint` | 0 | `eslint .` sans erreur |
+| `npm test` | 0 | `1..843`, `# tests 846`, `# pass 839`, `# fail 0`, `# skipped 3`, `# todo 4`, `# duration_ms 272436.246151` |
+| `npm run build` | 0 | route list jusqu'à `ƒ /vitrine/[slug]`, `ƒ Proxy (Middleware)` |
+| `npm audit --omit=dev --no-fund --audit-level=high` | 0 | `found 0 vulnerabilities` |
+
+Logs : `/tmp/v3_{typecheck,lint,test,build,audit}.log`, codes `/tmp/v3-codes.txt`.
+Tests ciblés : **77/77** sur les dix fichiers de la vague (`/tmp/v3-focused5.log`).
+Le fichier ignoré `tsconfig.tsbuildinfo` généré par `tsc` a été supprimé.
+
+### Preuves « échoue avant / passe après »
+
+Six sondes restaurent temporairement les fichiers produit de `HEAD`, exécutent les
+tests ciblés, puis restaurent les fichiers courants **octet pour octet**. Chaque
+sonde exige `AVANT rc != 0` et `APRÈS rc = 0` ; `git status --porcelain` est
+identique avant et après (`STATUT_FINAL_IDENTIQUE True`). Résumé brut dans
+`/tmp/v3-probes-summary.log` :
+
+| Sonde | Fichiers remis à HEAD | Tests | Avant | Après |
+|---|---|---|---|---|
+| A | `pagination.ts`, `export/comptable/route.ts` | contrats + exports | `rc=1`, `14/20` | `rc=0`, `20/20` |
+| B | `csv.ts` | `csv.test.mjs` | `rc=1`, `13/14` | `rc=0`, `14/14` |
+| C | `commander/actions.ts`, `workspace-data.ts` | anti-abus + contrats | `rc=1`, `3/5` (import absent) | `rc=0`, `15/15` |
+| D | `recipe-photo.ts`, `pastry-visuals.ts`, `actions-photos.ts`, `product-photo-picker.tsx`, `sale-composer.tsx` | apparence + photos serveur | `rc=1`, `4/12` | `rc=0`, `12/12` |
+| E | `sale-queue.ts`, `file-attente-cloture.ts`, `network-status-pill.tsx`, `cash-closing-quick.tsx`, `cloture-form.tsx` | file + clôture + état client | `rc=1`, `9/12` | `rc=0`, `18/18` |
+| F | `coquille-hors-ligne.tsx` | état client | `rc=1`, `6/7` | `rc=0`, `7/7` |
+
+La sonde F ne prouve qu'une correction de source : aucun navigateur n'a été
+lancé. Les sondes A, B, C, D et E portent sur des fonctions ou routes réellement
+exécutées par Node.
+
+### Tableau récapitulatif
+
+| ID | Statut (CORRIGÉ / RÉFUTÉ / DIFFÉRÉ) | Fichiers modifiés | Test ajouté | Vérification (EXÉCUTÉ ou [STATIQUE UNIQUEMENT]) |
+|---|---|---|---|---|
+| H09-01 | CORRIGÉ | `patisgest-app/src/lib/pagination.ts`, `patisgest-app/src/app/api/export/comptable/route.ts` | `patisgest-app/tests/vague3-contrats.test.mjs`, `patisgest-app/tests/vague3-exports.test.mjs` | EXÉCUTÉ — page courte suivie d'une ligne cachée, page surdimensionnée et 20 001 lignes refusées sans CSV ; sonde A `14/20` avant, `20/20` après. |
+| H09-02 | RÉFUTÉ | — | `patisgest-app/tests/vague3-contrats.test.mjs` | EXÉCUTÉ — `range(offset, offset + limite - 1)` est déjà inclusif dans les deux routes ; un lecteur qui renvoie `limite + 1` lignes est désormais détecté par la garde supplémentaire. |
+| H09-03 | RÉFUTÉ | — | `patisgest-app/tests/vague3-contrats.test.mjs` | EXÉCUTÉ — la sonde à `limiteTotale` ne relit pas une ligne incluse ; `raison` distingue `limite` de `lecture` et `messageUtilisateur` reste la normalisation des erreurs. |
+| H09-04 | RÉFUTÉ | — | `patisgest-app/tests/vague3-contrats.test.mjs` | EXÉCUTÉ — `parseZCsv` applique 50 000 caractères et 100 lignes ; `actions-caisse.ts:258` appelle le même parseur avant `importer_z`. |
+| H09-05 | RÉFUTÉ | — | `patisgest-app/tests/vague3-contrats.test.mjs` | EXÉCUTÉ — `parseClosingInput` ne copie que les six flux autorisés ; un champ `line0_injecte` ajouté au FormData n'apparaît pas dans la ligne. La propagation SQL est lue dans `21-prix-demain-panier.sql`, sans PGlite dédié. |
+| H09-06 | RÉFUTÉ | — | `patisgest-app/tests/vague3-exports.test.mjs` | EXÉCUTÉ — une erreur de lecture des ventes donne 500 et aucun corps CSV ; le cast de `ventesLecture.lignes` est une assertion de type, pas une affectation de masse. |
+| H09-07 | RÉFUTÉ | — | `patisgest-app/tests/vague3-contrats.test.mjs` | EXÉCUTÉ — `actions-cakes.ts:42` contient déjà `Number.isInteger(nbParts)` et les bornes 1 à 10 000 ; `14-cake-edition-cgv-ticket.sql` et `27-commandes-vitrine.sql` répètent la garde. |
+| H09-08 | RÉFUTÉ | — | `patisgest-app/tests/vague3-contrats.test.mjs` | EXÉCUTÉ — `actions-credits.ts:101` applique `slice(0, 140)` avant l'insertion ; `46-credits-clients.sql:9` contrôle `char_length(trim(nom_debiteur)) between 1 and 140`. |
+| H09-09 | CORRIGÉ | `patisgest-app/src/lib/workspace-data.ts`, `patisgest-app/src/app/(vitrine)/vitrine/[slug]/commander/actions.ts` | `patisgest-app/tests/commande-vitrine-anti-abus.test.mjs`, `patisgest-app/tests/vague3-contrats.test.mjs` | EXÉCUTÉ — `2026-02-30`, une date passée et `jourLocal() + 366` sont refusés avant tout RPC ; sonde C `3/5` avant, `15/15` après. |
+| H09-10 | RÉFUTÉ | — | `patisgest-app/tests/erreurs-db.test.mjs` | EXÉCUTÉ — seul `P0001` renvoie le message métier épuré ; `XX999` et les contraintes techniques sont remplacés par un message générique, sans SQLSTATE brut. |
+| H09-11 | RÉFUTÉ | — | `patisgest-app/tests/vague3-contrats.test.mjs` | EXÉCUTÉ — `parseTransferInput` valide les deux UUID, refuse deux sites identiques ; `tests/transfert-client-ref-db.test.mjs` et `08-transferts.sql` couvrent le rattachement au même client côté RPC. |
+| H10-01 | DIFFÉRÉ | — | `patisgest-app/tests/vague3-etat-client.test.mjs` | `[STATIQUE UNIQUEMENT]` — `initialBundle` ne contient que `token`, `publicJwk` et `payload`, aucune clé privée ; le bundle réel livré au navigateur n'a pas été inspecté. |
+| H10-02 | RÉFUTÉ | — | `patisgest-app/tests/trial-lock.test.mjs` | EXÉCUTÉ — `getSessionContextDetaille` renvoie `ctx:null` et `raison:"essai-verrouille"` ; le masquage UI n'est pas la seule barrière. |
+| H10-03 | DIFFÉRÉ | — | `patisgest-app/tests/vague3-etat-client.test.mjs` | `[STATIQUE UNIQUEMENT]` — `demo-workspace.tsx` protège `JSON.parse` par `try/catch` et passe par `upgradeState`, mais la course de deux onglets et l'absence de versionnage n'ont pas été rejouées dans un navigateur. |
+| H10-04 | RÉFUTÉ | — | `patisgest-app/tests/catalogue-hors-ligne.test.mjs` | EXÉCUTÉ — `cataloguePourIdentite` refuse `autre-compte`, `sans-identite`, `perime` et `illisible` avant tout rendu ; la coquille appelle cette fonction, pas le snapshot brut. |
+| H10-05 | DIFFÉRÉ | — | `patisgest-app/tests/catalogue-hors-ligne.test.mjs` | `[STATIQUE UNIQUEMENT]` — `getCatalogueSnapshot()` garde un cache module-level et n'est importé par aucun composant ; aucune fuite de compte n'est donc observable dans l'UI exécutée. Le test ajouté verrouille le refus `autre-compte` après échec d'écriture de l'identité. |
+| H10-06 | CORRIGÉ | `patisgest-app/src/components/network-status-pill.tsx`, `patisgest-app/src/lib/file-attente-cloture.ts` | `patisgest-app/tests/file-attente-cloture.test.mjs`, `patisgest-app/tests/vague3-etat-client.test.mjs` | EXÉCUTÉ — snapshot stable, file corrompue signalée et non confondue avec zéro, clés `v2` comptées ; sonde E `9/12` avant, `18/18` après. |
+| H10-07 | DIFFÉRÉ | — | `patisgest-app/tests/service-worker-securite.test.mjs` | `[STATIQUE UNIQUEMENT]` — `if (!majPrete) return null` garde le rechargement, mais aucun cycle réel `SKIP_WAITING` puis `reload` n'a été exécuté. |
+| H10-08 | DIFFÉRÉ | — | `patisgest-app/tests/vague3-etat-client.test.mjs` | `[STATIQUE UNIQUEMENT]` — `cache:"no-store"` et le retour anticipé hors ligne sont inventoriés ; la race de navigation et le polling réseau réel restent non exécutés. |
+| H10-09 | RÉFUTÉ | — | `patisgest-app/tests/vague3-etat-client.test.mjs` | `[STATIQUE UNIQUEMENT]` — en mode cloud, `setCloudCredits` n'est appelée qu'après `res.ok && res.entry` ; aucun rendu React concurrent n'a été exécuté. |
+| H10-10 | RÉFUTÉ | — | `patisgest-app/tests/vague3-etat-client.test.mjs` | EXÉCUTÉ (définitions SQL) — `cake_options_production` ne renvoie aucun champ de coût ; `[module]/page.tsx` transmet `peutVoir={canReadCosts(ctx.role)}` et `liste-courses-panel.tsx` retourne `null` sans droit. |
+| H10-11 | DIFFÉRÉ | `patisgest-app/src/components/coquille-hors-ligne.tsx` | `patisgest-app/tests/vague3-etat-client.test.mjs` | `[STATIQUE UNIQUEMENT]` — le cast serveur est remplacé par `false` ; sonde F `6/7` avant, `7/7` après. L'effet d'hydratation réel reste non prouvé sans navigateur. |
+| H11-01 | DIFFÉRÉ | — | `patisgest-app/tests/service-worker-securite.test.mjs` | `[STATIQUE UNIQUEMENT]` — `sw.js` n'intercepte que les GET ; aucun POST ni Server Action réel n'a été rejoué pour prouver que la file est le seul mécanisme de reprise. |
+| H11-02 | RÉFUTÉ | — | `patisgest-app/tests/service-worker-securite.test.mjs` | `[STATIQUE UNIQUEMENT]` — navigation authentifiée, RSC et API sont exclus des caches ; seule `/hors-ligne` est mise en cache, sans donnée de compte. |
+| H11-03 | RÉFUTÉ | — | `patisgest-app/tests/service-worker-securite.test.mjs` | `[STATIQUE UNIQUEMENT]` — `contenuAssetValide` refuse `response.redirected`, exige `response.type === "basic"` et compare l'extension au Content-Type ; un PNG servi en `text/html` n'entre pas dans le cache. |
+| H11-04 | DIFFÉRÉ | — | `patisgest-app/tests/service-worker-securite.test.mjs` | `[STATIQUE UNIQUEMENT]` — la purge des caches `patisgest-*` à l'activation est inventoriée ; l'usage concurrent par un autre onglet ou un autre compte n'a pas été exécuté. |
+| H11-05 | RÉFUTÉ | — | `patisgest-app/tests/sale-queue.test.mjs` | EXÉCUTÉ — à 200 tickets, `enqueueSale` lève « File pleine » et la file reste intacte ; aucune perte silencieuse ni écrasement. |
+| H11-06 | DIFFÉRÉ | — | `patisgest-app/tests/catalogue-hors-ligne.test.mjs` | `[STATIQUE UNIQUEMENT]` — `ageCatalogue` utilise l'horloge client ; un cache de 14 jours est refusé avec `ageJours`, mais aucune horloge déréglée n'a été comparée à un serveur réel. |
+| H11-07 | DIFFÉRÉ | — | `patisgest-app/tests/catalogue-hors-ligne.test.mjs` | `[STATIQUE UNIQUEMENT]` — l'échec d'`enregistrerIdentite` est avalé sans signal UI ; `cataloguePourIdentite` échoue fermé, mais l'absence d'avertissement utilisateur reste non testée dans un navigateur. |
+| H11-08 | DIFFÉRÉ | — | `patisgest-app/tests/of-queue.test.mjs` | `[STATIQUE UNIQUEMENT]` — `slice(-MAX)` garde les 100 derniers OF et le test existant l'attend ; deux onglets réellement concurrents et l'absence de verrou inter-onglets restent non exécutés. |
+| H11-09 | CORRIGÉ | `patisgest-app/src/lib/file-attente-cloture.ts`, `patisgest-app/src/lib/sale-queue.ts` | `patisgest-app/tests/file-attente-cloture.test.mjs` | EXÉCUTÉ — JSON corrompu, contenu non tableau, clé `v2` inconnue et stockage inaccessible donnent `illisible:true` ; le message combine tickets et illisible. |
+| H11-10 | RÉFUTÉ | — | `patisgest-app/tests/vague2-preuves.test.mjs` | EXÉCUTÉ — `today` du tableau de bord est calculé avec `Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Algiers" })` puis passé en prop ; la clé locale n'est pas recalculée en UTC dans le composant. |
+| H11-11 | RÉFUTÉ | — | `patisgest-app/tests/vague3-etat-client.test.mjs` | EXÉCUTÉ — `manifest()` renvoie `start_url:"/"`, `scope:"/"`, `display:"standalone"` et deux raccourcis ; aucune donnée de tenant n'apparaît dans le JSON. |
+| H11-12 | CORRIGÉ | `patisgest-app/src/lib/sale-queue.ts`, `patisgest-app/src/lib/file-attente-cloture.ts` | `patisgest-app/tests/file-attente-cloture.test.mjs` | EXÉCUTÉ — `scopedQueueKey` et `categorieCleFileVente` partagent les préfixes `v1`/`v2` ; une clé `patisgest.saleQueue.v2.old` est signalée illisible au lieu d'être ignorée. |
+| H12-01 | RÉFUTÉ | — | `patisgest-app/tests/vague3-contrats.test.mjs`, `patisgest-app/tests/csv.test.mjs` | EXÉCUTÉ — U+200B, U+202E, U+2066 à U+2069, U+FEFF, tabulation et CR avant une formule sont neutralisés ; plusieurs invisibles consécutifs restent couverts. |
+| H12-02 | CORRIGÉ | `patisgest-app/src/lib/csv.ts` | `patisgest-app/tests/csv.test.mjs` | EXÉCUTÉ — `cellule("=1+1")` et `cellule("'=1+1")` diffèrent ; sonde B `13/14` avant, `14/14` après. |
+| H12-03 | RÉFUTÉ | — | `patisgest-app/tests/vague3-exports.test.mjs` | EXÉCUTÉ — les octets `EF BB BF`, le séparateur `;`, `Content-Disposition`, `Cache-Control:no-store` et les en-têtes triées sont vérifiés sur une vraie `Response` de route. |
+| H12-04 | CORRIGÉ | `patisgest-app/src/lib/recipe-photo.ts` | `patisgest-app/tests/apparence-licence-photos.test.mjs`, `patisgest-app/tests/vague3-photos-serveur.test.mjs` | EXÉCUTÉ — base64 `AAAA…` refusé malgré le préfixe JPEG ; octets magiques JPEG, PNG et WebP acceptés ; sonde D `4/12` avant, `12/12` après. |
+| H12-05 | CORRIGÉ | `patisgest-app/src/lib/actions-photos.ts` | `patisgest-app/tests/vague3-photos-serveur.test.mjs` | EXÉCUTÉ — faux JPEG, SVG, URL externe, charge de 230 000 octets et UUID invalide sont refusés avant `createClient()` ; un JPEG réel et la suppression `null` appellent le RPC. |
+| H12-06 | CORRIGÉ | `patisgest-app/src/lib/pastry-visuals.ts`, `patisgest-app/src/components/product-photo-picker.tsx`, `patisgest-app/src/components/sale-composer.tsx` | `patisgest-app/tests/vague3-photos-serveur.test.mjs` | EXÉCUTÉ — snapshot local écartant les valeurs non image, sauvegarde locale refusant une charge invalide, et chaîne composant vers serveur lue explicitement `[STATIQUE UNIQUEMENT]`. |
+| H12-07 | RÉFUTÉ | — | `patisgest-app/tests/coffre-sauvegarde.test.mjs` | EXÉCUTÉ — scrypt, AAD sur l'en-tête, tag AES-256-GCM et `MAX_DATA_SIZE` sont couverts par les tests existants du coffre. |
+| H12-08 | RÉFUTÉ | — | `patisgest-app/tests/coffre-sauvegarde.test.mjs` | EXÉCUTÉ — roundtrip, refus de sortie préexistante, corruption, troncature, absence de fichier partiel, mode 0600 et nettoyage sont couverts. |
+| H12-09 | DIFFÉRÉ | — | — | `[STATIQUE UNIQUEMENT]` — `52-recettes-photos.sql` impose `char_length(photo_url) <= 300000` et `45-recettes-libres.sql` active RLS avec `client_id = patisgest_mon_client()` ; aucune contrainte de format DB n'est ajoutée, le format est validé par le code exécuté. Aucune nouvelle sonde PGlite dédiée n'a été lancée. |
+| H12-10 | RÉFUTÉ | — | `patisgest-app/tests/vague3-contrats.test.mjs` | EXÉCUTÉ — avec `Date.now()` figé, trois lignes de facture obtiennent trois identifiants distincts grâce à `parsed.length` ; aucune collision interne ni déduplication exécutée. |
+| H12-11 | CORRIGÉ | `patisgest-app/src/app/api/export/comptable/route.ts` | `patisgest-app/tests/vague3-exports.test.mjs` | EXÉCUTÉ — 200, 409, 413, 500 et lecture courte des avoirs sont exercés ; 20 001 avoirs ne livrent aucun fichier partiel ; sonde A `14/20` avant, `20/20` après. |
+| H12-12 | RÉFUTÉ | — | `patisgest-app/tests/csv.test.mjs`, `patisgest-app/tests/vague3-contrats.test.mjs` | EXÉCUTÉ — `Date` sort en ISO, `1234.5` en `1234,5`, sans séparateur de milliers ; BOM et CRLF sont couverts. |
+
+### Limites et reports
+
+- Les 12 lignes `DIFFÉRÉ` ne sont pas des correctifs démontrés : bundle navigateur,
+  course de deux onglets, cache module-level inutilisé, cycle de rechargement du
+  service worker, heartbeat réel, hydratation, reprise POST hors ligne, purge de
+  cache concurrente, horloge client, signal UI d'identité, concurrence de la file
+  OF et contrainte de format DB. La correction de type H10-11 est explicitement
+  maintenue `DIFFÉRÉ`.
+- `EXÉCUTÉ` signifie Node, routes appelées avec un faux client Supabase, modules
+  purs ou harnais PGlite existants. Restent `[STATIQUE UNIQUEMENT]` : PostgreSQL,
+  Supabase, PostgREST et Auth réels, concurrence réelle, navigateur, Playwright,
+  mobile 360 px, secrets de production, état de la base pilote, staging et CI
+  distante. Les applications connectées n'ont pas été appelées.
+- Aucun rapport MODE B `audit/rapports/S09.md`…`S12.md` n'est créé : ces rapports
+  appartiennent aux prompts `audit/09`…`audit/12`, pas au plan de remédiation
+  appliqué. Aucune pull request n'est ouverte par cette vague.
+- Aucune migration SQL n'est ajoutée ni réécrite ; `app_schema_version` reste à 55.
+  Le harnais `next-stubs.mjs` est la seule modification de test rendant les routes
+  CSV constructibles, sans changement du contrat produit.

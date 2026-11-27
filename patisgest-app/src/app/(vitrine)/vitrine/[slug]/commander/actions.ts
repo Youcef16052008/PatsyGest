@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { messageUtilisateur } from "@/lib/erreurs-db";
 import { createClient } from "@/lib/supabase/server";
+import { dateCommandeVitrineValide } from "@/lib/workspace-data";
 import { productionSansSecretAntiAbus, sourceVisiteur } from "@/lib/vitrine-anti-abus";
 
 export type CommandeState = {
@@ -50,8 +51,11 @@ export async function demanderCommande(
   if (telephone.replace(/\D/g, "").length < 6 || telephone.length > 40) {
     return { erreur: "Indiquez un numéro de téléphone où vous joindre." };
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateEvent)) {
-    return { erreur: "Choisissez une date pour votre commande." };
+  // H09-09 : la forme AAAA-MM-JJ ne suffit pas (2026-02-30 ni une date
+  // passée ne sont pas des dates). On applique ici les mêmes bornes calendrier
+  // que le RPC 27, avec le jour métier d'Alger, avant tout appel réseau.
+  if (!dateCommandeVitrineValide(dateEvent)) {
+    return { erreur: "Choisissez une date valide, aujourd’hui ou dans l’année à venir." };
   }
   if (!Number.isInteger(parts) || parts < 1 || parts > 10000) {
     return { erreur: "Indiquez un nombre de parts entre 1 et 10000." };

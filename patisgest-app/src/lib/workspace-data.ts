@@ -40,6 +40,16 @@ export function plusJours(day: string, n: number) {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
+/**
+ * Date d'événement acceptée par la commande vitrine : calendrier réel, jour
+ * métier courant d'Alger inclus, et au plus un an (borne du RPC 27 après la
+ * migration 55). `maintenant` est injectable pour tester minuit UTC.
+ */
+export function dateCommandeVitrineValide(s: string, maintenant: Date = new Date()): boolean {
+  if (!dateIsoValide(s)) return false;
+  const aujourdhui = jourLocal(maintenant);
+  return s >= aujourdhui && s <= plusJours(aujourdhui, 365);
+}
 export function dateLisible(value: string | null | undefined, style: "short" | "medium" | "long" | "full" = "medium") {
   if (!value) return "—";
   const d = new Date(value);

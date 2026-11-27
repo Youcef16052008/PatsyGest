@@ -74,27 +74,46 @@ export async function GET(request: Request) {
 
     let avoirs: AvoirComptable[] = [];
     {
-      let q = supabase
-        .from("avoirs")
-        .select("id, numero, cree_le, site_id, total_ht, total_ttc, tva_pct")
-        .eq("client_id", ctx.clientId);
-      if (periode.du) q = q.gte("cree_le", `${periode.du}T00:00:00`);
-      if (periode.au) q = q.lte("cree_le", `${periode.au}T23:59:59`);
-      const { data, error } = await q.limit(20000);
-      if (error) {
-        const absente = error.code === "42P01" || error.code === "PGRST205";
+      // H12-11 : un `.limit(20000)` sans sonde livrait silencieusement un
+      // fichier avec les 20 000 premiers avoirs. La même pagination sûre que
+      // les ventes refuse désormais tout dépassement avant le premier octet
+      // CSV ; une lecture en erreur ne produit aucun fichier partiel.
+      const avoirsLecture = await lirePages<{
+        id: string; numero: string; cree_le: string; total_ht: number; total_ttc: number; tva_pct: number;
+      }>(
+        async (offset, limite) => {
+          let q = supabase
+            .from("avoirs")
+            .select("id, numero, cree_le, site_id, total_ht, total_ttc, tva_pct")
+            .eq("client_id", ctx.clientId);
+          if (periode.du) q = q.gte("cree_le", `${periode.du}T00:00:00`);
+          if (periode.au) q = q.lte("cree_le", `${periode.au}T23:59:59`);
+          const { data, error } = await q.order("id").range(offset, offset + limite - 1);
+          return { data: (data ?? null) as {
+            id: string; numero: string; cree_le: string; total_ht: number; total_ttc: number; tva_pct: number;
+          }[] | null, error };
+        },
+        20000,
+      );
+      if (!avoirsLecture.ok) {
+        if (avoirsLecture.raison === "limite") {
+          return NextResponse.json(
+            { erreur: "Export refusé : plus de 20 000 avoirs. Limitez la période d'export." },
+            { status: 413 },
+          );
+        }
+        const erreur = avoirsLecture.error as { code?: string | null; message?: string | null } | null | undefined;
+        const absente = erreur?.code === "42P01" || erreur?.code === "PGRST205";
         return NextResponse.json(
           {
             erreur: absente
               ? "L'export comptable sera exact une fois la migration 41 (avoirs) appliquée. Sans elle, le chiffre d'affaires exporté ignorerait les retours."
-              : messageUtilisateur(error, "Export impossible"),
+              : erreur ? messageUtilisateur(erreur, "Export impossible") : "Export impossible",
           },
           { status: absente ? 409 : 500 },
         );
       }
-      avoirs = ((data ?? []) as {
-        id: string; numero: string; cree_le: string; total_ht: number; total_ttc: number; tva_pct: number;
-      }[]).map((a) => ({
+      avoirs = avoirsLecture.lignes.map((a) => ({
         id: a.id,
         numero: a.numero,
         date: String(a.cree_le).slice(0, 10),

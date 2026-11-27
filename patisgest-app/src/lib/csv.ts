@@ -38,7 +38,14 @@ export type ValeurCsv = string | number | boolean | null | undefined | Date | re
 
 function echapper(valeur: string): string {
   let s = valeur;
-  if (FORMULE.test(s)) s = "'" + s;
+  if (FORMULE.test(s)) {
+    // OWASP : l'apostrophe empêche Excel d'exécuter la formule. On double
+    // l'apostrophe d'une valeur qui en possédait déjà une : sinon `=1+1` et
+    // `'=1+1` produiraient exactement la même cellule (`'=1+1`).
+    s = "'" + s;
+  } else if (s.startsWith("'")) {
+    s = "'" + s;
+  }
   if (A_ESCAPER.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
   return s;
 }
