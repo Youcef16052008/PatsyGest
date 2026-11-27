@@ -15,7 +15,7 @@ Drive. Les documents d’audit livrés précédemment n’ont pas été réécri
 
 | Élément | Résultat |
 |---|---|
-| B.2 FR/AR + RTL | Dictionnaire symétrique, cookie immédiat, profil Supabase `utilisateurs.langue`, SSR `dir="rtl"`, traductions cuisine/caisse/ticket/dashboard/navigation. |
+| B.2 FR/AR + RTL | Dictionnaire symétrique, cookie immédiat, profil Supabase `utilisateurs.langue`, SSR `dir="rtl"`, FR/AR strict sur les surfaces ciblées : navigation, cuisine, caisse, ticket et 4 KPI du tableau de bord pilote. Couverture encore partielle sur les dashboards génériques. |
 | B.4 facture fournisseur par photo | Capture `image/*`, compression et aperçu, pré-remplissage des lignes, **validation humaine obligatoire**, entrée en stock explicite, photo conservée à côté des lignes. |
 | Migration A `recettes_libres` | Déjà livrée (`45-recettes-libres.sql`) ; RLS multi-tenant prouvée à nouveau. |
 | Migration B `credits_clients` | Déjà livrée (`46-credits-clients.sql`) ; RLS multi-tenant prouvée à nouveau. |
@@ -139,6 +139,10 @@ Logs locaux : `/tmp/vague4-chain-final/*.log` (hors dépôt, non persistants).
 - Aucun déploiement, aucun changement d’env/secrets, aucune écriture
   Supabase/Vercel/Figma, aucune mutation du dossier Drive après l’upload
   H13–H20 déjà livré. La PR #26 est ouverte et enrichie, sans fusion.
+- **B.2 reste partiel** : les libellés de `dashboard-workspace.tsx` et la
+  coquille de chargement de `demo-dashboard.tsx` ne sont pas encore traduits.
+  Les surfaces couvertes (navigation, cuisine, caisse, ticket, 4 KPI du pilote)
+  sont strictement FR ou AR, sans chaîne mixte, avec RTL vérifié à 360 px.
 - PGlite ne certifie ni concurrence PostgreSQL réelle, ni Auth/PostgREST/Storage
   Supabase, ni CI distante. Les parcours E2E utilisent le mode démo local, pas
   la pile Supabase CLI complète.
@@ -146,6 +150,8 @@ Logs locaux : `/tmp/vague4-chain-final/*.log` (hors dépôt, non persistants).
   rollback à chaud, exécution `workflow_dispatch` distante et E2E complet sur
   pile Supabase locale.
 
-**Conclusion** : la VAGUE 4 demandée est livrée et validée localement sur le
-dépôt, avec une chaîne de migrations rejouable 01→57 et des preuves HTTP/mobile
-360 px. La mise en production reste une décision distincte, non exécutée.
+**Conclusion** : le noyau fonctionnel de la VAGUE 4 demandée est livré et
+validé localement sur le dépôt, avec une chaîne de migrations rejouable 01→57
+et des preuves HTTP/mobile 360 px. La couverture B.2 reste partielle sur les
+dashboards génériques ; la mise en production est une décision distincte, non
+exécutée.

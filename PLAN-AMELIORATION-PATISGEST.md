@@ -219,7 +219,7 @@ Toutes les nouvelles tables suivront strictement les règles déjà établies da
 
 | Élément | État | Preuve directe |
 |---|---|---|
-| **B.2 — FR/AR + RTL** | Complété | `src/lib/i18n.ts`, `src/components/locale-provider.tsx`, `src/app/layout.tsx` ; cookie + profil `utilisateurs.langue` (migration 56) ; traductions prioritaires cuisine, caisse, ticket et dashboard. |
+| **B.2 — FR/AR + RTL** | Noyau livré, couverture partielle | `src/lib/i18n.ts`, `src/components/locale-provider.tsx`, `src/app/layout.tsx` ; cookie + profil `utilisateurs.langue` (migration 56) ; FR/AR strict sur navigation, cuisine, caisse, ticket et 4 KPI du tableau de bord pilote. `dashboard-workspace.tsx` et les contours de `demo-dashboard.tsx` restent en français. |
 | **B.4 — Facture fournisseur par photo** | Complété | `src/components/invoice-photo-intake.tsx` : capture `image/*`, pré-remplissage, **validation humaine obligatoire**, photo conservée à côté des lignes, entrée en stock démo/Supabase. |
 | **Migration A — `recettes_libres`** | Déjà livrée | `supabase/45-recettes-libres.sql`, RLS `client_id`, tests `actions-free-recipes` et chaîne PGlite. |
 | **Migration B — `credits_clients`** | Déjà livrée | `supabase/46-credits-clients.sql`, RPC `enregistrer_reglement_credit`, tests `credits`/`actions-credits`. |
