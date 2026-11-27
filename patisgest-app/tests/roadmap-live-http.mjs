@@ -144,6 +144,10 @@ test('B.2 : le cookie AR est rendu en RTL côté serveur, FR et valeur invalide 
   assert.match(ar, /<html[^>]*lang="ar"[^>]*dir="rtl"/, 'SSR arabe RTL absent');
   assert.match(ar, /لوحة التحكم|مبيعات اليوم/, 'libellé arabe absent du HTML');
 
+  const stocksAr = await (await get('/stocks', LANGUE_AR)).text();
+  assert.match(stocksAr, /جارٍ تحميل العرض التجريبي…/, 'coquille SSR arabe absente');
+  assert.doesNotMatch(stocksAr, /Chargement de la démo/, 'coquille SSR restée française en AR');
+
   const fr = await (await get('/tableau-de-bord', LANGUE_FR)).text();
   assert.match(fr, /<html[^>]*lang="fr"[^>]*dir="ltr"/);
   const invalide = await (await get('/tableau-de-bord', LANGUE_INVALIDE)).text();

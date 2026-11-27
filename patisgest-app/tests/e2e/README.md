@@ -1,8 +1,8 @@
 # Tests E2E (Phase 4) — Playwright
 
-Cinq parcours navigateur, en Chromium headless. Quatre nécessitent l'application
-**en production** et une stack Supabase **locale jetable** ; le parcours VAGUE 4
-démarre son propre serveur de démonstration locale :
+Dix parcours navigateur, en Chromium headless. Quatre nécessitent l'application
+**en production** et une stack Supabase **locale jetable** ; les six parcours
+VAGUE 4 démarrent leur propre serveur de démonstration locale :
 
 | Spéc | Parcours |
 |---|---|
@@ -10,7 +10,7 @@ démarre son propre serveur de démonstration locale :
 | `stock.spec.mjs` | créer un article → réceptionner un lot |
 | `transfert.spec.mjs` | déplacer des lots entre deux sites (RPC idempotente) |
 | `vitrine.spec.mjs` | commande publique sans compte sur une boutique publiée |
-| `roadmap-vague4.spec.mjs` | B.2/B.4 en démo locale, viewport **360 px**, RTL et absence de débordement horizontal |
+| `roadmap-vague4.spec.mjs` | B.2/B.4 en démo locale, viewport **360 px**, dashboards propriétaire + vendeur en AR, RTL et absence de débordement horizontal |
 
 ## Prérequis
 
@@ -59,9 +59,11 @@ npm run test:e2e
 Le parcours `roadmap-vague4.spec.mjs` ne demande ni pile Supabase, ni seed,
 ni `PATSYGEST_E2E_BASE` : il démarre et arrête son propre `next dev` en mode
 démo local sur `3419` (`ROADMAP_E2E_PORT` pour changer), avec un viewport
-**360 × 780 px**. Il vérifie RTL/bascule FR-AR, ticket caisse arabe, photo
-fournisseur B.4, Mode Simple, absence de débordement horizontal et bandeau
-hors-ligne :
+**360 × 780 px**. Il vérifie RTL/bascule FR-AR, l’absence de libellés
+interface français sur les dashboards propriétaire et vendeur après hydratation,
+ticket caisse arabe, photo fournisseur B.4, Mode Simple, absence de débordement
+horizontal et bandeau hors-ligne. La traduction des composants enfants est
+assurée par le filet DOM `useDomTranslation()` de `locale-provider.tsx` :
 
 ```bash
 export PATISGEST_CHROMIUM_PATH=/tmp/chromium

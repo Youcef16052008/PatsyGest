@@ -15,14 +15,14 @@ Drive. Les documents d’audit livrés précédemment n’ont pas été réécri
 
 | Élément | Résultat |
 |---|---|
-| B.2 FR/AR + RTL | Dictionnaire symétrique, cookie immédiat, profil Supabase `utilisateurs.langue`, SSR `dir="rtl"`, FR/AR strict sur les surfaces ciblées : navigation, cuisine, caisse, ticket et 4 KPI du tableau de bord pilote. Couverture encore partielle sur les dashboards génériques. |
+| B.2 FR/AR + RTL | **Complété sur le périmètre prioritaire de la roadmap** : dictionnaire étendu de 380+ libellés, cookie immédiat, profil `utilisateurs.langue`, SSR `dir="rtl"`, traduction des dashboards propriétaire **et vendeur**, cuisine, caisse, tickets, navigation, alertes et bandeaux. Filet DOM post-hydratation pour les composants enfants. |
 | B.4 facture fournisseur par photo | Capture `image/*`, compression et aperçu, pré-remplissage des lignes, **validation humaine obligatoire**, entrée en stock explicite, photo conservée à côté des lignes. |
 | Migration A `recettes_libres` | Déjà livrée (`45-recettes-libres.sql`) ; RLS multi-tenant prouvée à nouveau. |
 | Migration B `credits_clients` | Déjà livrée (`46-credits-clients.sql`) ; RLS multi-tenant prouvée à nouveau. |
 | Migration C alertes prix | Déjà livrée (`48-notifications-patron.sql`, verrouillée par `50-roles-permissions-vues.sql`) ; employé déclenche, ne s’auto-valide pas, patron approuve. |
 | Migration D onboarding DZ | Complétée par `57-onboarding-pack-dz-rpc.sql` : RPC SQL `importer_pack_patisserie_dz` idempotente, 24 articles, propriétaire seul, `client_id` issu de `auth.uid()`. |
 | Chaîne SQL | `migrations/repetition.json` : 34 entrées `main_hors_serie`, 56 fichiers de schéma, `01→57`, `app_schema_version = 57`. |
-| Live + mobile 360 px | HTTP 4/4, navigateur 5/5 avec Chromium headless 158, viewport 360 × 780. |
+| Live + mobile 360 px | HTTP 4/4, navigateur 6/6 avec Chromium headless 158, viewport 360 × 780, dont un parcours vendeur AR sans libellé UI français. |
 
 Aucune migration historique n’a été réécrite. SQL 56 (profil langue) et SQL 57
 (pack DZ) sont additifs et idempotents.
@@ -34,15 +34,16 @@ Aucune migration historique n’a été réécrite. SQL 56 (profil langue) et SQ
 ### Produit
 - `patisgest-app/supabase/56-profil-langue.sql` — SHA `2c68399dab39e49c7b178b16ab61fcbd39199f31a34a8391b708f71e128461b1`.
 - `patisgest-app/supabase/57-onboarding-pack-dz-rpc.sql` — SHA `885745d7e2d10c6636882dbf577700663e05270645ca729af40a0df4f05bb38d`.
-- `patisgest-app/src/lib/actions-locale.ts`, `src/lib/locale-profil.ts`, `src/lib/i18n.ts`.
-- `src/app/layout.tsx`, `src/components/locale-provider.tsx`, `src/components/sale-ticket.tsx`, `src/components/invoice-photo-intake.tsx`.
+- `patisgest-app/src/lib/actions-locale.ts`, `src/lib/locale-profil.ts`, `src/lib/i18n.ts` : dictionnaire `UI_TEXT_AR`, `translateUI()` et traduction des dates/unités/montants/pluriels.
+- `src/app/layout.tsx`, `src/components/locale-provider.tsx` : `useDomTranslation()` (MutationObserver + restauration FR), `useTranslator()`, `Tr`, `AutoTr`.
+- `src/components/sale-ticket.tsx`, `src/components/invoice-photo-intake.tsx`, `src/components/demo-dashboard.tsx`, `src/components/demo-module.tsx` : coquilles et tickets traduits.
 - `migrations/repetition.json` : empreintes 56/57 et version de chaîne.
 
 ### Tests et harnais
-- `tests/roadmap-vague4.test.mjs` : 5 tests purs/câblage B.2, B.4 et pack DZ.
+- `tests/roadmap-vague4.test.mjs` : 6 tests purs/câblage B.2, B.4 et pack DZ, dont dictionnaire étendu, harnais DOM et fragments dynamiques.
 - `tests/roadmap-vague4-db.test.mjs` : 5 tests PGlite sur la chaîne 01→57.
-- `tests/roadmap-live-http.mjs` : 4 tests SSR/HTTP, démarre son propre `next dev` démo.
-- `tests/e2e/roadmap-vague4.spec.mjs` : 5 parcours 360 px, démarre son propre serveur démo.
+- `tests/roadmap-live-http.mjs` : 4 tests SSR/HTTP, coquille AR de `/stocks`, démarre son propre `next dev` démo.
+- `tests/e2e/roadmap-vague4.spec.mjs` : 6 parcours 360 px, dashboards propriétaire + vendeur AR, démarre son propre serveur démo.
 - `tests/support/chaine-active.mjs` : `creerChaineActive()` réutilisable, façade `appliquerChaineActive()` conservée.
 - `tests/e2e/helpers.mjs` : support optionnel d’un Chromium local hors CDN.
 - `tests/inventaire-surface.json` : 30 fichiers `use server`, 90 actions mesurées.
@@ -92,16 +93,19 @@ Tests exécutés :
 - 15 routes du workspace en SSR 200 avec session démo ; module inconnu 404.
 - Cookie `patisgest.lang=ar` ⇒ `<html lang="ar" dir="rtl">` et libellé arabe ;
   `fr` ou valeur invalide ⇒ `ltr`.
+- La coquille SSR de `/stocks` en AR affiche `جارٍ تحميل العرض التجريبي…` et
+  non `Chargement de la démo…`.
 - Cookie Mode Simple rendu dans `/parametres` ; la coquille SSR de `/caisse`
   n’affiche aucun `HT`.
 
-### Navigateur (`npm run test:roadmap:e2e`, 5/5)
+### Navigateur (`npm run test:roadmap:e2e`, 6/6)
 Chromium 158 headless local, viewport **360 × 780**, `isMobile`/`hasTouch`.
 Le CDN Playwright ayant échoué (`ECONNRESET`), le harnais accepte
 `PATISGEST_CHROMIUM_PATH`, `PATISGEST_CHROMIUM_LIBS` et
 `PATISGEST_CHROMIUM_FONTS` ; ces artefacts restent hors dépôt.
 
-- Dashboard arabe RTL, KPI traduits, bascule FR/AR/FR, aucun débordement horizontal.
+- Dashboard propriétaire arabe RTL, KPI traduits, bascule FR/AR/FR, aucun libellé UI français visible après hydratation, aucun débordement horizontal.
+- Dashboard vendeur arabe : `dashboard-workspace.tsx` traduit, raccourcis/alertes en AR, aucun libellé UI français, aucun débordement.
 - Caisse tactile : tuile produit et bouton d’encaissement ≥ 44 px, vente,
   ticket arabe `المجموع`, aucun `TOTAL`, aucun débordement.
 - B.4 : photo PNG 1×1, aperçu, deux lignes pré-remplies, mention de
@@ -119,15 +123,15 @@ Le CDN Playwright ayant échoué (`ECONNRESET`), le harnais accepte
 |---|---|
 | `npm run typecheck` | rc0 |
 | `npm run lint` | rc0 |
-| `npm test` | `1..881`, 884 tests, 878 pass, 0 fail, 3 skipped, 3 todo, `238775.159214 ms` |
-| `npm run test:roadmap` | 10/10 |
+| `npm test` | `1..882`, 885 tests, 879 pass, 0 fail, 3 skipped, 3 todo, `236635.104815 ms` |
+| `npm run test:roadmap` | 11/11 |
 | `npm run test:roadmap:live` | 4/4 |
-| `npm run test:roadmap:e2e` | 5/5 |
-| `npm run build` | Next 16.4.6, `Compiled successfully in 806ms`, 6/6 pages, `ƒ Proxy (Middleware)` |
+| `npm run test:roadmap:e2e` | 6/6 |
+| `npm run build` | Next 16.4.6, `Compiled successfully in 920ms`, 6/6 pages, `ƒ Proxy (Middleware)` |
 | `npm audit --audit-level=high` | `found 0 vulnerabilities` |
 | `git diff --check` | rc0 |
 
-Logs locaux : `/tmp/vague4-chain-final/*.log` (hors dépôt, non persistants).
+Logs locaux : `/tmp/vague4-final-3/*.log` (hors dépôt, non persistants).
 
 ---
 
@@ -139,10 +143,11 @@ Logs locaux : `/tmp/vague4-chain-final/*.log` (hors dépôt, non persistants).
 - Aucun déploiement, aucun changement d’env/secrets, aucune écriture
   Supabase/Vercel/Figma, aucune mutation du dossier Drive après l’upload
   H13–H20 déjà livré. La PR #26 est ouverte et enrichie, sans fusion.
-- **B.2 reste partiel** : les libellés de `dashboard-workspace.tsx` et la
-  coquille de chargement de `demo-dashboard.tsx` ne sont pas encore traduits.
-  Les surfaces couvertes (navigation, cuisine, caisse, ticket, 4 KPI du pilote)
-  sont strictement FR ou AR, sans chaîne mixte, avec RTL vérifié à 360 px.
+- **B.2 est complété sur les surfaces prioritaires** : navigation, cuisine,
+  caisse, tickets, dashboard propriétaire, dashboard vendeur, alertes, réseau
+  et coquilles de démo. Le filet DOM agit après hydratation ; le SSR livre le
+  `dir`, la navigation et les coquilles traduites. Les modules avancés dont un
+  libellé n’est pas dans le dictionnaire conservent leur texte français.
 - PGlite ne certifie ni concurrence PostgreSQL réelle, ni Auth/PostgREST/Storage
   Supabase, ni CI distante. Les parcours E2E utilisent le mode démo local, pas
   la pile Supabase CLI complète.
@@ -150,8 +155,8 @@ Logs locaux : `/tmp/vague4-chain-final/*.log` (hors dépôt, non persistants).
   rollback à chaud, exécution `workflow_dispatch` distante et E2E complet sur
   pile Supabase locale.
 
-**Conclusion** : le noyau fonctionnel de la VAGUE 4 demandée est livré et
-validé localement sur le dépôt, avec une chaîne de migrations rejouable 01→57
-et des preuves HTTP/mobile 360 px. La couverture B.2 reste partielle sur les
-dashboards génériques ; la mise en production est une décision distincte, non
-exécutée.
+**Conclusion** : la VAGUE 4 demandée est livrée sur son périmètre prioritaire
+et validée localement sur le dépôt, avec une chaîne de migrations rejouable
+01→57, une couverture FR/AR des deux dashboards et des preuves HTTP/mobile
+360 px. L’OCR image→données reste hors périmètre ; la mise en production est
+une décision distincte, non exécutée.

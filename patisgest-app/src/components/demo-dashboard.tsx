@@ -15,9 +15,11 @@ import type { Role } from "@/lib/permissions";
 import DashboardWorkspace from "./dashboard-workspace";
 import DemoCaisse from "./demo-caisse";
 import { useDemoWorkspace } from "./demo-workspace";
+import { useTranslator } from "./locale-provider";
 
 export default function DemoDashboard({ nom, shop, role }: { nom: string; shop: string; role: Role }) {
   const { data, save } = useDemoWorkspace();
+  const tx = useTranslator();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Algiers", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
   const demoCreditsSnapshot = useSyncExternalStore(
@@ -96,7 +98,7 @@ export default function DemoDashboard({ nom, shop, role }: { nom: string; shop: 
       save({ ...data, articles: [...data.articles, ...added] });
     }
   }
-  if (!data) return <p role="status">Chargement de la démo…</p>;
+  if (!data) return <p role="status">{tx("Chargement de la démo…")}</p>;
   if (role !== "vendeur") {
     const owner = role === "proprietaire";
     const closing =

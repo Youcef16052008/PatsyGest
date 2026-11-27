@@ -219,7 +219,7 @@ Toutes les nouvelles tables suivront strictement les règles déjà établies da
 
 | Élément | État | Preuve directe |
 |---|---|---|
-| **B.2 — FR/AR + RTL** | Noyau livré, couverture partielle | `src/lib/i18n.ts`, `src/components/locale-provider.tsx`, `src/app/layout.tsx` ; cookie + profil `utilisateurs.langue` (migration 56) ; FR/AR strict sur navigation, cuisine, caisse, ticket et 4 KPI du tableau de bord pilote. `dashboard-workspace.tsx` et les contours de `demo-dashboard.tsx` restent en français. |
+| **B.2 — FR/AR + RTL** | Complété sur le périmètre prioritaire | `src/lib/i18n.ts` (dictionnaire étendu + dates/unités/montants), `src/components/locale-provider.tsx` (`useDomTranslation()` post-hydratation), `src/app/layout.tsx` ; cookie + profil `utilisateurs.langue` (migration 56) ; dashboards propriétaire et vendeur, navigation, cuisine, caisse, tickets, alertes, réseau, coquilles démo ; RTL et absence de libellés UI français prouvés à 360 px. |
 | **B.4 — Facture fournisseur par photo** | Complété | `src/components/invoice-photo-intake.tsx` : capture `image/*`, pré-remplissage, **validation humaine obligatoire**, photo conservée à côté des lignes, entrée en stock démo/Supabase. |
 | **Migration A — `recettes_libres`** | Déjà livrée | `supabase/45-recettes-libres.sql`, RLS `client_id`, tests `actions-free-recipes` et chaîne PGlite. |
 | **Migration B — `credits_clients`** | Déjà livrée | `supabase/46-credits-clients.sql`, RPC `enregistrer_reglement_credit`, tests `credits`/`actions-credits`. |
@@ -227,12 +227,12 @@ Toutes les nouvelles tables suivront strictement les règles déjà établies da
 | **Migration D — onboarding DZ** | Complétée | `supabase/57-onboarding-pack-dz-rpc.sql` : RPC SQL `importer_pack_patisserie_dz` idempotente, isolée par `client_id`, propriétaire seul, pack de 24 articles ; l’action serveur existante reste le parcours démo/Supabase. |
 | **Additif 56 — profil langue** | Ajouté | `supabase/56-profil-langue.sql`, RPC `enregistrer_langue_utilisateur`, manifeste et test PGlite actif. |
 | **Additif 57 — RPC pack DZ** | Ajouté | `supabase/57-onboarding-pack-dz-rpc.sql`, `app_schema_version = 57`, chaîne PGlite 01→57 et test DB d’idempotence multi-tenant. |
-| **Vérification live & mobile 360 px** | Exécutée localement | `npm run test:roadmap:live` 4/4, `npm run test:roadmap:e2e` 5/5 avec Chromium headless 158 et viewport 360 × 780 ; SSR/HTTP, RTL, ticket arabe, B.4, absence de débordement horizontal, Mode Simple sans `HT`, coupure réseau. |
+| **Vérification live & mobile 360 px** | Exécutée localement | `npm run test:roadmap:live` 4/4, `npm run test:roadmap:e2e` 6/6 avec Chromium headless 158 et viewport 360 × 780 ; SSR/HTTP, RTL, dashboards propriétaire/vendeur AR, ticket arabe, B.4, absence de débordement horizontal, Mode Simple sans `HT`, coupure réseau. |
 
-Chaîne complète exécutée : `typecheck`/`lint` rc0, `npm test` **884 tests /
-878 pass / 0 fail / 3 skipped / 3 todo**, `test:roadmap` 10/10,
-`test:roadmap:live` 4/4, `test:roadmap:e2e` 5/5, build Next 16.4.6
-(`Compiled successfully in 806ms`, 6/6 pages), `npm audit` 0 vulnérabilité et
+Chaîne complète réexécutée : `typecheck`/`lint` rc0, `npm test` **885 tests /
+879 pass / 0 fail / 3 skipped / 3 todo**, `test:roadmap` 11/11,
+`test:roadmap:live` 4/4, `test:roadmap:e2e` 6/6, build Next 16.4.6
+(`Compiled successfully in 920ms`, 6/6 pages), `npm audit` 0 vulnérabilité et
 `git diff --check` rc0. Le détail et les limites figurent dans
 `audit/RAPPORT-VAGUE4.md`.
 

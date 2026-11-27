@@ -6,7 +6,9 @@ import {
   LOCALE_COOKIE,
   NAV_LABELS_AR,
   UI_DICT,
+  UI_TEXT_AR,
   readLocale,
+  translateUI,
 } from '../src/lib/i18n.ts';
 import {
   PACK_PATISSERIE_DZ,
@@ -84,6 +86,40 @@ test('B.2 : layout, profil, bascule, caisse, ticket et dashboard sont réellemen
   for (const fichier of ['../src/components/kitchen-lab-screen.tsx', '../src/components/sale-composer.tsx', '../src/components/workspace-nav.tsx']) {
     assert.match(await lire(fichier), /useLocale/);
   }
+});
+
+test('B.2 : le dictionnaire étendu couvre les dashboards et le harnais DOM est câblé', async () => {
+  assert.ok(Object.keys(UI_TEXT_AR).length >= 350, 'dictionnaire FR/AR trop court');
+  for (const [fr, ar] of Object.entries(UI_TEXT_AR)) {
+    assert.match(fr, /[A-Za-zÀ-ÿ]/, `clé non française : ${fr}`);
+    assert.match(ar, ARABE, `traduction non arabe : ${fr}`);
+    assert.notEqual(ar, fr, `traduction absente : ${fr}`);
+  }
+  for (const fr of [
+    'Ventes du jour', 'Vos raccourcis', 'Le comptoir', 'Prochaines fournées',
+    'Voir les stocks', 'Articles à surveiller', 'Chargement de la démo…',
+    'Votre atelier au quotidien', 'Mode hors-ligne actif', 'TABLEAU DE BORD PATRON',
+  ]) {
+    assert.match(translateUI(fr, 'ar'), ARABE, `libellé non traduit : ${fr}`);
+  }
+  assert.equal(translateUI('Ventes du jour', 'fr'), 'Ventes du jour');
+  assert.equal(translateUI('2 articles à surveiller.', 'ar'), '2 عناصر للمراقبة.');
+  assert.match(translateUI('1 234,56 DA', 'ar'), /دج/);
+  assert.match(translateUI('jeudi 26 novembre 2026', 'ar'), /نوفمبر/);
+  assert.equal(translateUI('s', 'ar'), '');
+
+  const provider = await lire('../src/components/locale-provider.tsx');
+  for (const motif of [
+    'useDomTranslation', 'MutationObserver', 'translateUI', 'export function AutoTr',
+    'export function useTranslator', 'export function Tr', 'WeakMap<Text, EntreeTexte>',
+  ]) {
+    assert.ok(provider.includes(motif), `harnais B.2 absent : ${motif}`);
+  }
+  for (const fichier of ['../src/components/demo-dashboard.tsx', '../src/components/demo-module.tsx']) {
+    assert.match(await lire(fichier), /useTranslator/, `${fichier} : coquille non traduite`);
+  }
+  const layout = await lire('../src/app/(app)/layout.tsx');
+  assert.match(layout, /LanguageToggle/, 'bascule de langue absente du layout');
 });
 
 test('B.4 : le parseur pré-remplit des lignes sans jamais les enregistrer tout seul', () => {

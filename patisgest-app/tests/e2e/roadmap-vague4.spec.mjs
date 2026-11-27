@@ -25,6 +25,13 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const DEMO_SECRET = 'roadmap-vague4-e2e-secret-0123456789abcdef0123456789';
 const NEXT_BIN = path.join(APP_ROOT, 'node_modules', '.bin', 'next');
 const VIEWPORT = { width: 360, height: 780 };
+const LIBELLES_FR_UI = [
+  'Ventes du jour', 'Vos raccourcis', 'Le comptoir', 'Prochaines fournées',
+  'Voir les stocks', 'Articles à surveiller', 'Alertes stock', 'Votre journée',
+  'Analyse des ventes', 'Votre atelier au quotidien', 'Vos priorités',
+  'Ouvrir la caisse', 'Tiroir caisse', 'Comptage du soir',
+];
+
 const PNG_1X1 = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==',
   'base64',
@@ -34,9 +41,9 @@ let server;
 let browser;
 let serverLog = '';
 
-function demoValue() {
+function demoValue(email = 'amina@patisserie.dz') {
   const payload = Buffer.from(JSON.stringify({
-    email: 'amina@patisserie.dz',
+    email,
     expires: Date.now() + 3_600_000,
   })).toString('base64url');
   return `${payload}.${createHmac('sha256', DEMO_SECRET).update(payload).digest('hex')}`;
@@ -60,7 +67,7 @@ async function waitForServer() {
   throw new Error(`Le serveur next dev n’a pas démarré à temps.\n${serverLog}`);
 }
 
-async function contexte({ langue = 'fr', modeSimple = false } = {}) {
+async function contexte({ langue = 'fr', modeSimple = false, email = 'amina@patisserie.dz' } = {}) {
   const ctx = await browser.newContext({
     viewport: VIEWPORT,
     isMobile: true,
@@ -69,7 +76,7 @@ async function contexte({ langue = 'fr', modeSimple = false } = {}) {
     locale: langue === 'ar' ? 'ar-DZ' : 'fr-FR',
   });
   const cookies = [
-    { name: 'patisgest_pilot_session', value: demoValue(), url: BASE, sameSite: 'Lax' },
+    { name: 'patisgest_pilot_session', value: demoValue(email), url: BASE, sameSite: 'Lax' },
     { name: 'patisgest.lang', value: langue, url: BASE, sameSite: 'Lax' },
   ];
   if (modeSimple) {
@@ -133,12 +140,22 @@ test('360 px · B.2 : dashboard arabe RTL, KPI traduits, bascule FR/AR sans déb
     await ouvrir(page, '/tableau-de-bord');
     // Les KPI sont dans un <details> replié : on l'ouvre avant d'exiger la
     // visibilité, plutôt que de confondre « présent mais replié » et « traduit ».
-    const analyse = page.locator('details').filter({ hasText: 'Analyse des ventes' }).first();
+    await page.locator('.pg-dashboard').first().waitFor({ state: 'visible', timeout: 30_000 });
+    const analyse = page.locator('details').filter({ hasText: /تحليل المبيعات|Analyse des ventes/ }).first();
     if (!(await analyse.evaluate((el) => el.open))) await analyse.locator('summary').first().click();
     await page.getByText('مبيعات اليوم').first().waitFor({ timeout: 30_000 });
     assert.equal(await page.locator('html').getAttribute('lang'), 'ar');
     assert.equal(await page.locator('html').getAttribute('dir'), 'rtl');
-    assert.match(await page.locator('body').innerText(), /لوحة التحكم|مبيعات اليوم/);
+    await page.waitForFunction(
+      (libelles) => !libelles.some((libelle) => document.body.innerText.includes(libelle)),
+      LIBELLES_FR_UI,
+      { timeout: 30_000 },
+    );
+    const visibleAr = await page.locator('body').innerText();
+    assert.match(visibleAr, /لوحة التحكم|مبيعات اليوم|ورشتك اليومية/);
+    for (const libelle of LIBELLES_FR_UI) {
+      assert.ok(!visibleAr.includes(libelle), `libellé FR encore visible en AR : ${libelle}`);
+    }
     await sansDebordement(page, 'dashboard AR');
 
     await page.getByRole('button', { name: /اللغة/ }).click();
@@ -149,6 +166,33 @@ test('360 px · B.2 : dashboard arabe RTL, KPI traduits, bascule FR/AR sans déb
     await page.getByRole('button', { name: /Langue : Français/ }).click();
     await page.waitForFunction(() => document.documentElement.dir === 'rtl', null, { timeout: 30_000 });
     await sansDebordement(page, 'dashboard retour AR');
+  } finally {
+    await ctx.close();
+  }
+});
+
+test('360 px · B.2 : dashboard vendeur arabe, libellés génériques traduits et RTL', async () => {
+  const { ctx, page } = await contexte({ langue: 'ar', email: 'amine@patisserie.dz' });
+  try {
+    await ouvrir(page, '/tableau-de-bord');
+    await page.locator('.pg-demo-banner').waitFor({ state: 'visible', timeout: 30_000 });
+    await page.locator('.pg-dashboard').first().waitFor({ state: 'visible', timeout: 30_000 });
+    await page.waitForFunction(
+      (libelles) => {
+        const texte = document.body.innerText;
+        return /مرحباً|اختصاراتك|للمراقبة|عرض المخزون/.test(texte)
+          && !libelles.some((libelle) => texte.includes(libelle));
+      },
+      LIBELLES_FR_UI,
+      { timeout: 30_000 },
+    );
+    const visible = await page.locator('body').innerText();
+    assert.match(visible, /مرحباً|اختصاراتك|للمراقبة|عرض المخزون/);
+    assert.equal(await page.locator('html').getAttribute('dir'), 'rtl');
+    for (const libelle of LIBELLES_FR_UI) {
+      assert.ok(!visible.includes(libelle), `libellé FR encore visible en AR (vendeur) : ${libelle}`);
+    }
+    await sansDebordement(page, 'dashboard vendeur AR');
   } finally {
     await ctx.close();
   }
