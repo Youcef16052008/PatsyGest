@@ -12,6 +12,13 @@ import { compressImageFileToDataUrl } from "@/lib/pastry-visuals";
 import { dinars } from "@/lib/workspace-data";
 import { useLocale } from "./locale-provider";
 
+type ReponseOcr = {
+  ok?: boolean;
+  text?: string;
+  code?: string;
+  erreur?: string;
+};
+
 export default function InvoicePhotoIntake({
   mode,
   canReadCosts = true,
@@ -26,36 +33,96 @@ export default function InvoicePhotoIntake({
   onDemoReceiveLines?: (lines: { articleId: string; site: string; numero: string; qte: number; pu: number }[]) => void;
 }) {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [rawText, setRawText] = useState<string>("");
   const [numeroBon, setNumeroBon] = useState<string>(() => `BON-${new Date().toISOString().slice(5, 10).replace("-", "")}`);
   const [siteId, setSiteId] = useState<string>(sites[0]?.id ?? "Labo");
   const [lines, setLines] = useState<InvoiceDraftLine[]>([]);
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [ocrPending, setOcrPending] = useState(false);
   const [pending, startTransition] = useTransition();
   const { t } = useLocale();
 
-  async function onPickPhoto(file: File | undefined) {
-    if (!file) return;
+  function ligneVide(): InvoiceDraftLine | null {
+    if (articles.length === 0) return null;
+    return {
+      id: `line-${Date.now()}`,
+      rawText: "",
+      designation: articles[0].nom,
+      articleId: articles[0].id,
+      qte: 1,
+      puDa: 0,
+      matched: true,
+    };
+  }
+
+  function messagesErreurOcr(): Record<string, string> {
+    return {
+      missing: t.invoiceOcrError,
+      "bad-format": t.invoiceOcrBadFormat,
+      "too-large": t.invoiceOcrTooLarge,
+      unauthorized: t.invoiceOcrError,
+      "no-text": t.invoiceOcrEmpty,
+      "ocr-error": t.invoiceOcrError,
+    };
+  }
+
+  async function lirePhoto(file: File) {
     setFeedback(null);
+    setOcrPending(true);
     try {
       const compressed = await compressImageFileToDataUrl(file, 960, 0.82);
       setPhotoPreview(compressed);
-      if (lines.length === 0 && articles.length > 0) {
-        setLines([
-          {
-            id: `line-${Date.now()}`,
-            rawText: "",
-            designation: articles[0].nom,
-            articleId: articles[0].id,
-            qte: 1,
-            puDa: 0,
-            matched: true,
-          },
-        ]);
+      const blob = await (await fetch(compressed)).blob();
+      const formData = new FormData();
+      formData.set("image", blob, file.name || "bon-fournisseur.jpg");
+
+      const reponse = await fetch("/api/invoice-ocr", {
+        method: "POST",
+        body: formData,
+        cache: "no-store",
+      });
+      const donnees = (await reponse.json().catch(() => ({}))) as ReponseOcr;
+      if (!reponse.ok || donnees.ok !== true) {
+        const code = typeof donnees.code === "string" ? donnees.code : "ocr-error";
+        setFeedback({
+          kind: "error",
+          text: messagesErreurOcr()[code] ?? t.invoiceOcrError,
+        });
+        return;
       }
-    } catch (err) {
-      setFeedback({ kind: "error", text: err instanceof Error ? err.message : "Photo illisible." });
+
+      const texte = typeof donnees.text === "string" ? donnees.text : "";
+      if (!texte.trim()) {
+        setFeedback({ kind: "error", text: t.invoiceOcrEmpty });
+        return;
+      }
+      setRawText(texte);
+      const parsed = parseSupplierInvoiceText(texte, articles, { ocr: true });
+      if (parsed.length > 0) setLines(parsed);
+      setFeedback({
+        kind: "success",
+        text: t.invoiceOcrSuccess.replace(/\{n\}|\{عدد\}/u, String(parsed.length)),
+      });
+    } catch {
+      setFeedback({ kind: "error", text: t.invoiceOcrError });
+    } finally {
+      setOcrPending(false);
     }
+  }
+
+  async function onPickPhoto(file: File | undefined) {
+    if (!file) return;
+    setPhotoFile(file);
+    if (lines.length === 0 && articles.length > 0) {
+      const vide = ligneVide();
+      if (vide) setLines([vide]);
+    }
+    await lirePhoto(file);
+  }
+
+  function relancerLecture() {
+    if (photoFile && !ocrPending) void lirePhoto(photoFile);
   }
 
   function analyzeText() {
@@ -70,18 +137,10 @@ export default function InvoicePhotoIntake({
 
   function addEmptyLine() {
     if (articles.length === 0) return;
-    setLines((prev) => [
-      ...prev,
-      {
-        id: `line-${Date.now()}-${prev.length}`,
-        rawText: "",
-        designation: articles[0].nom,
-        articleId: articles[0].id,
-        qte: 1,
-        puDa: 0,
-        matched: true,
-      },
-    ]);
+    setLines((prev) => {
+      const vide = ligneVide();
+      return vide ? [...prev, { ...vide, id: `line-${Date.now()}-${prev.length}` }] : prev;
+    });
   }
 
   function validateAllIntoStock() {
@@ -152,20 +211,40 @@ export default function InvoicePhotoIntake({
             {t.invoiceSubtitle}
           </p>
         </div>
-        <label className="pg-button cursor-pointer text-xs">
-          {t.invoicePhoto}
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="sr-only"
-            onChange={(e) => void onPickPhoto(e.target.files?.[0])}
-          />
-        </label>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {photoFile && photoPreview && (
+            <button
+              type="button"
+              onClick={relancerLecture}
+              disabled={ocrPending}
+              className="pg-button pg-button-secondary text-xs"
+            >
+              {t.invoiceOcrRetry}
+            </button>
+          )}
+          <label className="pg-button cursor-pointer text-xs" aria-busy={ocrPending}>
+            {t.invoicePhoto}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              disabled={ocrPending}
+              onChange={(e) => void onPickPhoto(e.target.files?.[0])}
+            />
+          </label>
+        </div>
       </div>
 
+      <p className="text-xs pg-muted">{t.invoiceOcrOffline}</p>
+      {ocrPending && (
+        <div className="pg-notice" data-kind="success" aria-live="polite">
+          {t.invoiceOcrReading}
+        </div>
+      )}
+
       {feedback && (
-        <div className="pg-notice" data-kind={feedback.kind}>
+        <div className="pg-notice" data-kind={feedback.kind} aria-live="polite">
           {feedback.text}
         </div>
       )}

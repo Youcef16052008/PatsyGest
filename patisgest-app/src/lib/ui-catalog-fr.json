@@ -2777,5 +2777,12 @@
   "⛔ Sous-déclaration :",
   "🌡️ Relevés de température",
   "📷 Photographier un bon",
-  "🔴 bloqué"
+  "🔴 bloqué",
+  "Lecture de la photo en cours…",
+  "Relancer la lecture",
+  "Aucun texte reconnu sur cette photo.",
+  "Lecture de la photo impossible.",
+  "Photo trop volumineuse.",
+  "Format de photo non pris en charge.",
+  "Lecture hors ligne sur le serveur."
 ]

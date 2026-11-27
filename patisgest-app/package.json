@@ -20,7 +20,13 @@
     "test:roadmap": "node --experimental-strip-types --experimental-test-module-mocks --import ./tests/mocks/register-hooks.mjs --test tests/roadmap-vague4.test.mjs tests/roadmap-vague4-db.test.mjs",
     "test:roadmap:live": "node --test tests/roadmap-live-http.mjs",
     "test:roadmap:e2e": "node --test tests/e2e/roadmap-vague4.spec.mjs",
-    "test:bench:pglite": "node --experimental-strip-types --test tests/pglite-benchmark.test.mjs"
+    "test:bench:pglite": "node --experimental-strip-types --test tests/pglite-benchmark.test.mjs",
+    "build:chain": "node scripts/construire-chaine-sql.mjs",
+    "test:cert:ocr": "node --experimental-strip-types --test tests/ocr-production.test.mjs tests/i18n-ocr-vague6.test.mjs tests/certification-contrats.test.mjs",
+    "test:cert:postgresql": "node --experimental-strip-types --test tests/concurrence-transfert-reel.test.mjs",
+    "test:cert:concurrency": "node scripts/certification-concurrence-postgres.mjs",
+    "test:cert:hosted": "node scripts/certification-production.mjs",
+    "test:cert:production": "npm run test:cert:ocr && npm run test:cert:postgresql && npm run test:cert:concurrency && npm run test:cert:hosted"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.0",
@@ -29,7 +35,8 @@
     "nodemailer": "^10.6.0",
     "postgres": "^3.4.9",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.16",

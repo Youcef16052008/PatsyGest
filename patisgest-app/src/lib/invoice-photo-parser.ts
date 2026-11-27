@@ -19,6 +19,8 @@ export type InvoiceDraftLine = {
   matched: boolean;
 };
 
+export type OptionsParseFacture = { ocr?: boolean };
+
 function normalizeText(s: string): string {
   return s
     .toLowerCase()
@@ -55,13 +57,31 @@ export function matchCatalogArticle(designation: string, catalog: CatalogMatchOp
 }
 
 /**
+ * En mode OCR, les en-têtes, totaux et mentions administratives ne doivent pas
+ * devenir des lignes de stock. La saisie manuelle garde l'ancien comportement :
+ * une ligne sans nombre reste éditable par l'utilisateur.
+ */
+function ligneBruitOcr(rawText: string, nombreDeNombres: number): boolean {
+  const libelle = rawText.trim();
+  if (!libelle) return true;
+  if (/^(?:facture|bon|re[cç]u|ticket|total|sous[- ]?total|tva|timbre|montant|date|client|fournisseur|adresse|t[ée]l[ée]phone)\b/iu.test(libelle)) {
+    return true;
+  }
+  return nombreDeNombres === 0 && /[A-ZÀ-Ÿ]{3}/u.test(libelle);
+}
+
+/**
  * Exemples reconnus :
  * - "Farine 25 kg 95"
  * - "Beurre de tourage : 10 x 950"
  * - "Amandes 5kg 1900 DA"
  * - "Sucre ; 15 ; 110"
  */
-export function parseSupplierInvoiceText(text: string, catalog: CatalogMatchOption[]): InvoiceDraftLine[] {
+export function parseSupplierInvoiceText(
+  text: string,
+  catalog: CatalogMatchOption[],
+  options: OptionsParseFacture = {},
+): InvoiceDraftLine[] {
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -83,6 +103,7 @@ export function parseSupplierInvoiceText(text: string, catalog: CatalogMatchOpti
         numbers.push({ idx: i, val: Number(t) });
       }
     }
+    if (options?.ocr && ligneBruitOcr(rawText, numbers.length)) continue;
 
     const qte = numbers.length >= 1 && numbers[0].val > 0 ? numbers[0].val : 1;
     const puDa = numbers.length >= 2 && numbers[1].val >= 0 ? numbers[1].val : 0;

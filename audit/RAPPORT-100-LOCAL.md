@@ -5,6 +5,12 @@
 **Décision utilisateur** : `scope_100 = local_full`, `pr_final = keep_open`  
 **PR** : #26 ouverte vers `main`, non fusionnée
 
+> **Mise à jour VAGUE 6** : une partie des limites externes listées ci-dessous est
+> désormais traitée par `audit/RAPPORT-VAGUE6-PRODUCTION.md` (OCR serveur,
+> chaîne pilote 01→57, déploiement, CI distante et pile hébergée). Le présent
+> rapport reste l'historique figé du périmètre local `local_full` ; il n'est pas
+> réécrit en « production certifiée ».
+
 ## 1. Ce que signifie « 100 % » ici
 
 La demande « termine tout le rest 100% » a été explicitement bornée à

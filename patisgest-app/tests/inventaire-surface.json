@@ -11,6 +11,8 @@
     "src/app/api/export/comptable/route.ts",
     "src/app/api/export/route.ts",
     "src/app/api/health/route.ts",
+    "src/app/api/health/stack/route.ts",
+    "src/app/api/invoice-ocr/route.ts",
     "src/app/api/licence/statut/route.ts",
     "src/app/api/presence/heartbeat/route.ts",
     "src/app/api/sauvegarde/route.ts",

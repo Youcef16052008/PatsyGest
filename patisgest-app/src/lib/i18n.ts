@@ -82,6 +82,14 @@ export const UI_DICT = {
     invoiceRemove: "Retirer",
     invoiceValidate: "Valider & entrer {n} ligne(s) en stock ✓",
     invoiceSaving: "Enregistrement…",
+    invoiceOcrReading: "Lecture de la photo en cours…",
+    invoiceOcrRetry: "Relancer la lecture",
+    invoiceOcrSuccess: "Photo lue : {n} ligne(s) proposée(s). Vérifiez avant validation.",
+    invoiceOcrEmpty: "Aucun texte reconnu sur cette photo.",
+    invoiceOcrError: "Lecture de la photo impossible.",
+    invoiceOcrTooLarge: "Photo trop volumineuse.",
+    invoiceOcrBadFormat: "Format de photo non pris en charge.",
+    invoiceOcrOffline: "Lecture hors ligne sur le serveur.",
   },
   ar: {
     dir: "rtl" as const,
@@ -138,6 +146,14 @@ export const UI_DICT = {
     invoiceRemove: "حذف",
     invoiceValidate: "تأكيد وإدخال {n} سطر إلى المخزون ✓",
     invoiceSaving: "جارٍ الحفظ…",
+    invoiceOcrReading: "جارٍ قراءة الصورة…",
+    invoiceOcrRetry: "إعادة القراءة",
+    invoiceOcrSuccess: "تمت قراءة الصورة : اقتُرح {عدد} سطرًا. تحقق قبل التأكيد.",
+    invoiceOcrEmpty: "لم يُتعرف على أي نص في هذه الصورة.",
+    invoiceOcrError: "تعذرت قراءة الصورة.",
+    invoiceOcrTooLarge: "الصورة كبيرة جداً.",
+    invoiceOcrBadFormat: "صيغة الصورة غير مدعومة.",
+    invoiceOcrOffline: "قراءة دون اتصال على الخادم.",
   },
 } as const;
 
@@ -534,6 +550,13 @@ const UI_TEXT_AR_NOYAU: Record<string, string> = {
   "Écran Cuisine et Laboratoire": "شاشة المطبخ والمخبر",
   "Électricité, gaz, eau, emballages / mois (DA)": "كهرباء، غاز، ماء، تغليف / الشهر (دج)",
   "à lancer": "للإطلاق",
+  "Lecture de la photo en cours…": "جارٍ قراءة الصورة…",
+  "Relancer la lecture": "إعادة القراءة",
+  "Aucun texte reconnu sur cette photo.": "لم يُتعرف على أي نص في هذه الصورة.",
+  "Lecture de la photo impossible.": "تعذرت قراءة الصورة.",
+  "Photo trop volumineuse.": "الصورة كبيرة جداً.",
+  "Format de photo non pris en charge.": "صيغة الصورة غير مدعومة.",
+  "Lecture hors ligne sur le serveur.": "قراءة دون اتصال على الخادم.",
 };
 
 /** Dictionnaire complet : couverture générée hors ligne + noyau validé prioritaire. */
