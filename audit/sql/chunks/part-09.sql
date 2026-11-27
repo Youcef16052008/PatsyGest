@@ -854,3 +854,4 @@ begin
       from public.avoirs a
      where a.vente_id = v_vente.id and a.article_id = v_article.id;
     if v_deja + v_qte > v_vendu then
+      raise exception 'Quantite d''avoir superieure a la quantite vendue (% vendu, % deja rendu).',

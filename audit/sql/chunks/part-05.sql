@@ -912,3 +912,4 @@ begin
       raise exception '%', 'Ligne ' || v_idx || ' invalide : utilisez code;quantite;prix HT (sans en-tete).';
     end if;
     v_qty := replace(v_parts[2], ',', '.')::numeric;
+    v_pu := replace(v_parts[3], ',', '.')::numeric;

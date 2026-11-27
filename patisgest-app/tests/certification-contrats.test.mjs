@@ -34,9 +34,15 @@ test('VAGUE 6 : la chaîne SQL et ses 12 fragments sont déterministes et sûrs'
   assert.equal(meta.parts, 12);
   assert.equal(meta.bytes, chaine.length);
   assert.equal(meta.sha256, sha256(chaine));
-  assert.equal((chaine.toString('utf8').match(/^-- ===== /gmu) ?? []).length, 56);
-  assert.match(chaine.toString('utf8'), /values \(1, 57\)/u);
-  assert.ok(!/(^|\n)\s*(?:begin|commit)\s*;/iu.test(chaine.toString('utf8')), 'transaction non retirée');
+  const texteChaine = chaine.toString('utf8');
+  assert.equal((texteChaine.match(/^-- ===== /gmu) ?? []).length, 56);
+  assert.match(texteChaine, /values \(1, 57\)/u);
+  assert.equal(meta.replay_patches, 5, 'correctifs de rejouabilité absents du manifeste');
+  assert.match(texteChaine, /ADD COLUMN IF NOT EXISTS revision integer DEFAULT 1/u);
+  assert.match(texteChaine, /ADD COLUMN IF NOT EXISTS agent_id uuid/u);
+  assert.ok(!texteChaine.includes('revoke execute on function public.creer_of(uuid, uuid, numeric, date)'), 'ACL 4 args non corrigée');
+  assert.ok(!texteChaine.includes('drop function if exists public.creer_of(uuid, uuid, numeric, date);'), 'drop 4 args non corrigé');
+  assert.ok(!/(^|\n)\s*(?:begin|commit)\s*;/iu.test(texteChaine), 'transaction non retirée');
   for (const motif of [
     /create\s+event\s+trigger/iu,
     /alter\s+system/iu,

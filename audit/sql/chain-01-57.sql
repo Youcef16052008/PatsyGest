@@ -1168,8 +1168,8 @@ end;
 $$;
 
 -- Frontiere d'autorisation : execution uniquement roles applicatifs.
-revoke execute on function public.creer_of(uuid, uuid, numeric, date) from public, anon;
-grant execute on function public.creer_of(uuid, uuid, numeric, date) to authenticated, service_role;
+-- rejeu: surcharge 4 args absente
+-- rejeu: droits portes par la signature 5 args
 revoke execute on function public.demarrer_of(uuid) from public, anon;
 grant execute on function public.demarrer_of(uuid) to authenticated, service_role;
 revoke execute on function public.terminer_of(uuid, numeric, text, date) from public, anon;
@@ -1353,7 +1353,7 @@ grant execute on function public.transferer_article(uuid, uuid, uuid, numeric, t
 -- =====================================================================
 
 -- ------------------------------------------------- colonnes & contraintes
-ALTER TABLE public.clotures ALTER COLUMN revision SET DEFAULT 1;
+ALTER TABLE public.clotures ADD COLUMN IF NOT EXISTS revision integer DEFAULT 1; ALTER TABLE public.clotures ADD COLUMN IF NOT EXISTS agent_id uuid; ALTER TABLE public.clotures ALTER COLUMN revision SET DEFAULT 1;
 CREATE UNIQUE INDEX IF NOT EXISTS clotures_revision_unique
   ON public.clotures (client_id, date_cloture, site_id, revision);
 
@@ -3356,8 +3356,8 @@ grant execute on function public.simuler_recette(uuid, numeric) to authenticated
 -- ---------------------------------------- Surcharge creer_of obsolète (4 args)
 -- La migration 16 a livré creer_of(...,p_client_ref). L'ancienne signature
 -- restait joignable (y compris par `anon`) et créait un OF sans idempotence.
-revoke all on function public.creer_of(uuid, uuid, numeric, date) from public, anon, authenticated;
-drop function if exists public.creer_of(uuid, uuid, numeric, date);
+-- rejeu: surcharge 4 args absente
+-- rejeu: surcharge 4 args absente
 
 -- creer_of 5 args : n'était accordée qu'à authenticated, mais l'ACL portait
 -- aussi le droit par défaut `=X` (PUBLIC), que `anon` héritait -> révoqué.

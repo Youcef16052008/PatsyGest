@@ -1,4 +1,3 @@
-    v_pu := replace(v_parts[3], ',', '.')::numeric;
     if v_qty is null or v_qty <= 0 or v_qty > 1000000 or v_pu is null or v_pu < 0 or v_pu > 1000000000 then
       raise exception '%', 'Quantite ou prix invalide a la ligne ' || v_idx || '.';
     end if;

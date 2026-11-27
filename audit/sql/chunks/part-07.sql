@@ -842,3 +842,4 @@ begin
   -- Accepter ne veut pas dire vendre : la demande devient un DEVIS, que
   -- le personnel chiffre ensuite. Aucun prix n'est inventé ici.
   if p_decision = 'accepter' then
+    v_statut := 'devis';

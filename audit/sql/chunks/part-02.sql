@@ -203,8 +203,8 @@ end;
 $$;
 
 -- Frontiere d'autorisation : execution uniquement roles applicatifs.
-revoke execute on function public.creer_of(uuid, uuid, numeric, date) from public, anon;
-grant execute on function public.creer_of(uuid, uuid, numeric, date) to authenticated, service_role;
+-- rejeu: surcharge 4 args absente
+-- rejeu: droits portes par la signature 5 args
 revoke execute on function public.demarrer_of(uuid) from public, anon;
 grant execute on function public.demarrer_of(uuid) to authenticated, service_role;
 revoke execute on function public.terminer_of(uuid, numeric, text, date) from public, anon;
@@ -388,7 +388,7 @@ grant execute on function public.transferer_article(uuid, uuid, uuid, numeric, t
 -- =====================================================================
 
 -- ------------------------------------------------- colonnes & contraintes
-ALTER TABLE public.clotures ALTER COLUMN revision SET DEFAULT 1;
+ALTER TABLE public.clotures ADD COLUMN IF NOT EXISTS revision integer DEFAULT 1; ALTER TABLE public.clotures ADD COLUMN IF NOT EXISTS agent_id uuid; ALTER TABLE public.clotures ALTER COLUMN revision SET DEFAULT 1;
 CREATE UNIQUE INDEX IF NOT EXISTS clotures_revision_unique
   ON public.clotures (client_id, date_cloture, site_id, revision);
 
@@ -923,4 +923,3 @@ declare
 begin
   if v_auth is null then raise exception 'Non authentifie.'; end if;
   if p_commande_id is null or p_site_id is null then raise exception 'Commande et site obligatoires.'; end if;
-  if p_receptions is null or jsonb_typeof(p_receptions) <> 'array' or jsonb_array_length(p_receptions) < 1

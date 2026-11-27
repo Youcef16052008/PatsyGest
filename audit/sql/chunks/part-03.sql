@@ -1,3 +1,4 @@
+  if p_receptions is null or jsonb_typeof(p_receptions) <> 'array' or jsonb_array_length(p_receptions) < 1
      or jsonb_array_length(p_receptions) > 100 then
     raise exception 'Reception invalide (1 a 100 lignes).';
   end if;
@@ -820,5 +821,3 @@ begin
   select l.id, l.client_id into v_lot from public.lots l where l.id = p_lot_id;
   if not found then raise exception 'Lot introuvable.'; end if;
   if v_lot.client_id <> v_client then raise exception 'Lot hors perimetre.'; end if;
-
-  if coalesce(p_bloque, false) and coalesce(p_descendants, false) then

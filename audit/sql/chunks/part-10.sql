@@ -1,4 +1,3 @@
-      raise exception 'Quantite d''avoir superieure a la quantite vendue (% vendu, % deja rendu).',
         v_vendu, v_deja;
     end if;
   end;

@@ -1,3 +1,5 @@
+
+  if coalesce(p_bloque, false) and coalesce(p_descendants, false) then
     -- BFS : miroirs de transfert (source qte<0) + lots produits par les OF
     -- consommateurs, profondeur max3.
     while coalesce(array_length(v_frontier, 1), 0) > 0 and v_depth < 3 loop
@@ -641,8 +643,8 @@ grant execute on function public.simuler_recette(uuid, numeric) to authenticated
 -- ---------------------------------------- Surcharge creer_of obsolète (4 args)
 -- La migration 16 a livré creer_of(...,p_client_ref). L'ancienne signature
 -- restait joignable (y compris par `anon`) et créait un OF sans idempotence.
-revoke all on function public.creer_of(uuid, uuid, numeric, date) from public, anon, authenticated;
-drop function if exists public.creer_of(uuid, uuid, numeric, date);
+-- rejeu: surcharge 4 args absente
+-- rejeu: surcharge 4 args absente
 
 -- creer_of 5 args : n'était accordée qu'à authenticated, mais l'ACL portait
 -- aussi le droit par défaut `=X` (PUBLIC), que `anon` héritait -> révoqué.

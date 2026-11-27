@@ -35,7 +35,42 @@ for (let i = 0; i < fichiers.length; i++) {
     );
   morceaux.push(contenu.replace(/\n+$/u, ""));
 }
-const chaine = `${morceaux.join("\n")}\n`;
+let chaine = `${morceaux.join("\n")}\n`;
+
+/**
+ * Correctifs de REJOUABILITÉ constatés sur le pilote vierge. Les fichiers
+ * historiques supposent une base qui avait déjà vécu des migrations anciennes :
+ * ACL d'une surcharge 4 args absente du code actuel, et colonnes `clotures`
+ * ajoutées jadis hors de la chaîne. Ces remplacements rendent 01→57 exécutable
+ * depuis un schéma public vide sans réécrire l'historique SQL.
+ */
+const CORRECTIONS_REJOUABILITE = [
+  [
+    "revoke execute on function public.creer_of(uuid, uuid, numeric, date) from public, anon;",
+    "-- rejeu: surcharge 4 args absente",
+  ],
+  [
+    "grant execute on function public.creer_of(uuid, uuid, numeric, date) to authenticated, service_role;",
+    "-- rejeu: droits portes par la signature 5 args",
+  ],
+  [
+    "revoke all on function public.creer_of(uuid, uuid, numeric, date) from public, anon, authenticated;",
+    "-- rejeu: surcharge 4 args absente",
+  ],
+  [
+    "drop function if exists public.creer_of(uuid, uuid, numeric, date);",
+    "-- rejeu: surcharge 4 args absente",
+  ],
+  [
+    "ALTER TABLE public.clotures ALTER COLUMN revision SET DEFAULT 1;",
+    "ALTER TABLE public.clotures ADD COLUMN IF NOT EXISTS revision integer DEFAULT 1; ALTER TABLE public.clotures ADD COLUMN IF NOT EXISTS agent_id uuid; ALTER TABLE public.clotures ALTER COLUMN revision SET DEFAULT 1;",
+  ],
+];
+for (const [avant, apres] of CORRECTIONS_REJOUABILITE) {
+  if (!chaine.includes(avant)) throw new Error(`correctif de rejouabilité introuvable : ${avant}`);
+  chaine = chaine.replace(avant, apres);
+}
+
 const octets = Buffer.from(chaine, "utf8");
 
 /** 12 coupes sur des fins de ligne : jamais au milieu d'un caractère UTF-8. */
@@ -72,6 +107,7 @@ const meta = {
   marqueurs: (chaine.match(/^-- ===== /gmu) ?? []).length,
   bytes: total,
   parts: 12,
+  replay_patches: CORRECTIONS_REJOUABILITE.length,
   sha256: sha256(octets),
   md5: md5(octets),
   chunks: fragments.map((fragment, index) => ({

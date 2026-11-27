@@ -1,4 +1,3 @@
-    v_statut := 'devis';
   else
     v_statut := 'annule';
   end if;
