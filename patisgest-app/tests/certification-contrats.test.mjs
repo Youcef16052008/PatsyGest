@@ -70,8 +70,8 @@ test('VAGUE 6 : le workflow de certification est le seul déclenchement manuel a
   assert.match(certification, /test:cert:postgresql/u);
   assert.match(certification, /test:cert:concurrency/u);
   assert.match(certification, /test:cert:hosted/u);
-  assert.match(certification, /secrets\.SUPABASE_DB_URL/u);
   assert.match(certification, /secrets\.CRON_SECRET/u);
+  assert.ok(!certification.includes('secrets.SUPABASE_DB_URL'), 'dépendance au secret DB périmé non retirée');
   assert.ok(!/^\s*(?:push|pull_request|schedule):/mu.test(certification), 'déclenchement automatique interdit');
   assert.ok(!certification.includes('workflow_dispatch') || certification.includes('on:\n  workflow_dispatch:'));
 });

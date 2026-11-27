@@ -17,6 +17,18 @@
 
 Le déploiement VAGUE 6 est créé depuis un nouveau commit de la branche courante avec un `git_source` étroit (`type=github`, `repoId`, `ref` de branche et `sha` exact) et `project_settings:null`. Le rollback, lui, promeut un déploiement déjà `READY` : il ne reconstruit pas le code.
 
+### 1bis. Déploiement VAGUE 6 effectivement promu
+
+| Élément | Valeur constatée |
+|---|---|
+| Déploiement | `dpl_AAB6vX2CNHBSBG8s4YVebyX1uL43` |
+| Commit | `31fa43b2d50d35edb89ea00e6773f682458b83ac` (branche courante) |
+| État | `READY`, `readySubstate=PROMOTED`, `aliasAssigned=true` |
+| Alias | `patsy-gest.vercel.app`, `patsy-gest-all-intelligence.vercel.app`, `patsy-gest-git-arena-923a4433-patsygest-all-intelligence.vercel.app` |
+| Cible de rollback conservée | `dpl_5Adbh8YbYDYjUyYP1fzy26jfsdy3` (ancienne production `main`/`da5857d`) |
+
+Les commits postérieurs à `31fa43b` ne modifient que des scripts de certification, des tests et des workflows ; aucun code d'exécution Next n'a changé. Le runbook garde `dpl_5Adbh8YbYDYjUyYP1fzy26jfsdy3` comme cible de retour arrière, conformément à `rollback=plan_only`.
+
 ## 2. Workflow préparé, non dispatché
 
 `.github/workflows/rollback-chaud.yml` est `workflow_dispatch` uniquement. Son input `dry_run` vaut `true` par défaut ; le job `promote` exige en plus `confirm=ROLLBACK`. Dans cette passe, aucun `workflow_dispatch` de rollback n'a été envoyé.
