@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { enteteTicket, avertissementsTicket } from '../src/lib/etablissement.ts';
+import { UI_DICT } from '../src/lib/i18n.ts';
 
 const ticket = await readFile(new URL('../src/components/sale-ticket.tsx', import.meta.url), 'utf8');
 
@@ -60,10 +61,14 @@ test('Ticket simple algérien : nom boutique, date/heure, produits/prix et TOTAL
   assert.match(ticket, /shopName/);
   assert.match(ticket, /dateStr/);
   assert.match(ticket, /timeStr/);
-  assert.match(ticket, /<span>TOTAL<\/span>/);
+  assert.match(ticket, /t\.ticketTotal/, 'B.2 : le total passe par le dictionnaire FR/AR');
+  assert.equal(UI_DICT.fr.ticketTotal, 'TOTAL');
+  assert.equal(UI_DICT.ar.ticketTotal, 'المجموع');
 });
 
 test('§5 : un ticket de démonstration porte la mention sans valeur fiscale', () => {
-  assert.match(ticket, /SANS VALEUR FISCALE/);
+  assert.match(ticket, /t\.ticketDemo/, 'B.2 : la mention légale passe par le dictionnaire FR/AR');
+  assert.equal(UI_DICT.fr.ticketDemo, 'DÉMONSTRATION · SANS VALEUR FISCALE');
+  assert.match(UI_DICT.ar.ticketDemo, /بدون قيمة جبائية/);
   assert.match(ticket, /\{data\.demo &&/);
 });

@@ -5,6 +5,7 @@ import { type Etablissement } from "@/lib/etablissement";
 import { isPaymentMode, PAYMENT_MODE_LABELS, type PaymentMode } from "@/lib/pos-cart";
 import { whatsappSaleReceiptUrl } from "@/lib/whatsapp";
 import { dinars, quantite } from "@/lib/workspace-data";
+import { useLocale } from "./locale-provider";
 import { Icon } from "./workspace-icons";
 
 export type SaleTicketLine = {
@@ -34,6 +35,7 @@ export type SaleTicketData = {
 };
 
 export default function SaleTicket({ data }: { data: SaleTicketData }) {
+  const { t } = useLocale();
   const shopName = data.etablissement?.nom?.trim() || "Boutique";
   const shopAddress = data.etablissement?.adresse?.trim() || "";
   const shopPhone = data.etablissement?.telephone?.trim() || "";
@@ -98,31 +100,31 @@ export default function SaleTicket({ data }: { data: SaleTicketData }) {
         }
       `}</style>
       <div className="pg-card-head no-print">
-        <h2>Dernier ticket</h2>
+        <h2>{t.ticketTitle}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <input
             type="tel"
             value={clientPhone}
             onChange={(e) => setClientPhone(e.target.value)}
-            placeholder="WhatsApp client (0550...)"
+            placeholder={t.ticketWhatsAppPlaceholder}
             className="pg-input w-44 text-xs"
-            aria-label="Numéro WhatsApp du client"
+            aria-label={t.ticketWhatsAppLabel}
           />
           {waUrl && (
             <a href={waUrl} target="_blank" rel="noopener noreferrer" className="pg-button text-xs">
-              Envoyer reçu WhatsApp
+              {t.ticketSendWhatsApp}
             </a>
           )}
           <button type="button" onClick={() => window.print()} className="pg-button pg-button-secondary">
-            <Icon name="print" size={18} /> Imprimer
+            <Icon name="print" size={18} /> {t.ticketPrint}
           </button>
         </div>
       </div>
       <div className="sale-ticket mx-auto w-[80mm] max-w-full wrap-anywhere border border-dashed border-slate-400 bg-white p-3 font-mono text-[11px] leading-snug text-black">
         <div className="text-center text-[13px] font-extrabold uppercase">{shopName}</div>
         {shopAddress && <div className="text-center text-[10px]">{shopAddress}</div>}
-        {shopPhone && <div className="text-center text-[10px]">Tél : {shopPhone}</div>}
-        {data.demo && <div className="mt-1 text-center text-[10px] font-bold">DÉMONSTRATION · SANS VALEUR FISCALE</div>}
+        {shopPhone && <div className="text-center text-[10px]">{t.ticketPhone} {shopPhone}</div>}
+        {data.demo && <div className="mt-1 text-center text-[10px] font-bold">{t.ticketDemo}</div>}
         <div className="my-1.5 border-t border-dashed border-slate-400" />
         <div className="flex justify-between text-[11px]">
           <span>{dateStr}</span>
@@ -143,11 +145,11 @@ export default function SaleTicket({ data }: { data: SaleTicketData }) {
         </div>
         <div className="my-1.5 border-t border-dashed border-slate-400" />
         <div className="flex justify-between text-[13px] font-extrabold">
-          <span>TOTAL</span>
+          <span>{t.ticketTotal}</span>
           <span>{dinars(data.totalTTC)}</span>
         </div>
         <div className="my-1.5 border-t border-dashed border-slate-400" />
-        <div className="text-center text-[10px]">Merci de votre visite !</div>
+        <div className="text-center text-[10px]">{t.ticketThanks}</div>
       </div>
     </div>
   );

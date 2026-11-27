@@ -5,18 +5,18 @@ import { appliquerChaineActive } from './support/chaine-active.mjs';
 /*
  * Le `test.todo('01→43')` était incapable d'échouer : il gardait une suite verte
  * sans jamais appliquer la chaîne réelle. La source de vérité est désormais
- * `migrations/repetition.json` (`historique` + `main_hors_serie`, 01→55), via
- * `chaineDeploiement()`. Le harnais PGlite applique RÉELLEMENT les 54 fichiers
+ * `migrations/repetition.json` (`historique` + `main_hors_serie`, 01→57), via
+ * `chaineDeploiement()`. Le harnais PGlite applique RÉELLEMENT les 56 fichiers
  * de schéma ; les stubs Auth / pgcrypto sont explicites dans `chaine-active.mjs`.
  *
  * `migrations/CHAINE-NON-REJOUABLE.md` reste un relevé HISTORIQUE du 23/11/2026,
  * pas l'état courant. Une migration cassée fait maintenant échouer ce test.
  */
 
-test('les migrations du manifeste 01→55 se rejouent sur PGlite', async () => {
+test('les migrations du manifeste 01→57 se rejouent sur PGlite', async () => {
   const resultat = await appliquerChaineActive();
-  assert.equal(resultat.files, 54, '54 fichiers de schéma, seed exclu');
-  assert.equal(resultat.version, 55, 'app_schema_version doit atteindre 55');
+  assert.equal(resultat.files, 56, '56 fichiers de schéma, seed exclu');
+  assert.equal(resultat.version, 57, 'app_schema_version doit atteindre 57');
 });
 
 test('sonde : une migration cassée fait échouer la chaîne active', async () => {

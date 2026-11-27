@@ -1,9 +1,9 @@
 # ARCHIVÉ — relevé historique 01→43 du 23 novembre 2026
 
 > **Ne pas utiliser comme état courant.** La source de vérité est
-> `migrations/repetition.json` (`historique` + `main_hors_serie`, 01→55) et le
+> `migrations/repetition.json` (`historique` + `main_hors_serie`, 01→57) et le
 > test actif `tests/chaine-rejouable.test.mjs`, qui applique réellement les
-> 54 fichiers de schéma sur PGlite et atteint `app_schema_version = 55`.
+> 56 fichiers de schéma sur PGlite et atteint `app_schema_version = 57`.
 > Le relevé ci-dessous documente une dérive constatée avant la mise à jour du
 > manifeste ; il reste utile pour comprendre les adaptations Supabase explicites.
 

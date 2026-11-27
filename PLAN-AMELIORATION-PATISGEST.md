@@ -212,3 +212,31 @@ Toutes les nouvelles tables suivront strictement les règles déjà établies da
    - Calculs purs : détection de prix bas/anormal (`owner-price-guard.test.mjs`), soldes crédits (`credits.test.mjs`), agrégation liste de courses fêtes (`fetes-courses.test.mjs`), formatage messages WhatsApp (`free-recipes-dashboard.test.mjs`).
 3. **Tests SQL & isolation RLS (PGlite)** : vérifier qu’un employé peut soumettre un prix et déclencher l’alerte mais ne peut pas s’auto-valider en tant que patron, et qu’un établissement A ne voit jamais les recettes/crédits/alertes d’un établissement B.
 4. **Tests parcours live & mobile (`360 px`)** : vérification SSR/HTTP sur toutes les routes, test visuel caisse tactile, vérification Mode Simple (zéro `HT` visible) et test coupure réseau hors-ligne.
+
+---
+
+## Suivi d’exécution — VAGUE 4 (branche `arena/923a4433-patsygest`)
+
+| Élément | État | Preuve directe |
+|---|---|---|
+| **B.2 — FR/AR + RTL** | Complété | `src/lib/i18n.ts`, `src/components/locale-provider.tsx`, `src/app/layout.tsx` ; cookie + profil `utilisateurs.langue` (migration 56) ; traductions prioritaires cuisine, caisse, ticket et dashboard. |
+| **B.4 — Facture fournisseur par photo** | Complété | `src/components/invoice-photo-intake.tsx` : capture `image/*`, pré-remplissage, **validation humaine obligatoire**, photo conservée à côté des lignes, entrée en stock démo/Supabase. |
+| **Migration A — `recettes_libres`** | Déjà livrée | `supabase/45-recettes-libres.sql`, RLS `client_id`, tests `actions-free-recipes` et chaîne PGlite. |
+| **Migration B — `credits_clients`** | Déjà livrée | `supabase/46-credits-clients.sql`, RPC `enregistrer_reglement_credit`, tests `credits`/`actions-credits`. |
+| **Migration C — `notifications_patron_prix`** | Déjà livrée | `supabase/48-notifications-patron.sql` + verrouillage `supabase/50-roles-permissions-vues.sql`, RPC `traiter_alerte_prix_patron`. |
+| **Migration D — onboarding DZ** | Complétée | `supabase/57-onboarding-pack-dz-rpc.sql` : RPC SQL `importer_pack_patisserie_dz` idempotente, isolée par `client_id`, propriétaire seul, pack de 24 articles ; l’action serveur existante reste le parcours démo/Supabase. |
+| **Additif 56 — profil langue** | Ajouté | `supabase/56-profil-langue.sql`, RPC `enregistrer_langue_utilisateur`, manifeste et test PGlite actif. |
+| **Additif 57 — RPC pack DZ** | Ajouté | `supabase/57-onboarding-pack-dz-rpc.sql`, `app_schema_version = 57`, chaîne PGlite 01→57 et test DB d’idempotence multi-tenant. |
+| **Vérification live & mobile 360 px** | Exécutée localement | `npm run test:roadmap:live` 4/4, `npm run test:roadmap:e2e` 5/5 avec Chromium headless 158 et viewport 360 × 780 ; SSR/HTTP, RTL, ticket arabe, B.4, absence de débordement horizontal, Mode Simple sans `HT`, coupure réseau. |
+
+Chaîne complète exécutée : `typecheck`/`lint` rc0, `npm test` **884 tests /
+878 pass / 0 fail / 3 skipped / 3 todo**, `test:roadmap` 10/10,
+`test:roadmap:live` 4/4, `test:roadmap:e2e` 5/5, build Next 16.4.6
+(`Compiled successfully in 806ms`, 6/6 pages), `npm audit` 0 vulnérabilité et
+`git diff --check` rc0. Le détail et les limites figurent dans
+`audit/RAPPORT-VAGUE4.md`.
+
+Aucune migration 54/55/56/57 n’est appliquée au pilote ni à la production :
+`schema_version 53` observé en lecture seule. Aucun déploiement, aucun
+changement d’env/secrets, aucune écriture Supabase/Vercel/Figma. La PR **#26**
+reste ouverte vers `main`, sans fusion.

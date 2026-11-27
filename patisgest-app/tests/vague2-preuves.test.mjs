@@ -1,6 +1,6 @@
 // VAGUE 2 — preuves exécutables (calculs, dates, définitions SQL).
 //
-// Tests purs Node + sonde PGlite sur la chaîne de déploiement 01→55.
+// Tests purs Node + sonde PGlite sur la chaîne de déploiement 01→57.
 // Les actions serveur mockées sont dans `vague2-actions.test.mjs` : le harnais
 // `mock.module` de Node intercepte aussi la résolution des paquets CommonJS.
 // PGlite n'est PAS un déploiement Supabase/PostgreSQL réel.
@@ -234,7 +234,7 @@ test('H08-03/H06-*/H07-* : définitions SQL installées après 55', async () => 
     assert.doesNotMatch(avoir, /current_date/i);
     assert.doesNotMatch(tiroir, /current_date/i);
     const version = (await db.query('select version from public.app_schema_version')).rows[0].version;
-    assert.ok(version >= 55);
+    assert.ok(version >= 57);
 
     // H05-03 : le serveur refuse bien un prix nul (migration 32 + 53).
     const vendre = await def(db, 'public.vendre_panier(uuid,jsonb,text,text)');

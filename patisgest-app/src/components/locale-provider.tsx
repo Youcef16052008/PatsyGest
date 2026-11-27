@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { LOCALE_COOKIE, UI_DICT, type Locale } from "@/lib/i18n";
+import { enregistrerLangueUtilisateur } from "@/lib/actions-locale";
 
 const LocaleContext = createContext<{
   locale: Locale;
@@ -22,6 +23,7 @@ export function LocaleProvider({
   children: ReactNode;
 }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
+  const [, startTransition] = useTransition();
   const router = useRouter();
 
   function setLocale(next: Locale) {
@@ -29,7 +31,14 @@ export function LocaleProvider({
     document.cookie = `${LOCALE_COOKIE}=${next}; Path=/; Max-Age=31536000; SameSite=Lax`;
     document.documentElement.lang = next;
     document.documentElement.dir = next === "ar" ? "rtl" : "ltr";
-    router.refresh();
+    startTransition(async () => {
+      try {
+        await enregistrerLangueUtilisateur(next);
+      } catch {
+        // Le cookie garde la préférence même si le profil est indisponible.
+      }
+      router.refresh();
+    });
   }
 
   return (

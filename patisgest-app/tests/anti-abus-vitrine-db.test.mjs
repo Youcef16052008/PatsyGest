@@ -95,8 +95,8 @@ test('B-008 : plafond global relevé à 300 ; migration rejouable', async () => 
     assert.doesNotMatch(def, /if v_flux >= 30 then/);
     await db.exec(await readFile(new URL(`../supabase/${cheminMigration('38-anti-abus-vitrine-source.sql')}`, import.meta.url), 'utf8'));
     // Intention du test : la 38 est rejouable sur son propre périmètre. La version
-    // de schéma ne doit donc jamais redescendre en dessous de 38 — elle vaut 55
-    // depuis la migration 55 (rattrapage des dates métier), qui la relève aussi.
+    // de schéma ne doit donc jamais redescendre en dessous de 38 — elle vaut 57
+    // depuis la migration 57 (pack DZ VAGUE 4), qui la relève aussi.
     const version = (await db.query('select version from app_schema_version where id=1')).rows[0].version;
     assert.ok(version >= 38, `version ${version} : la 38 a abaissé le marqueur de schéma`);
   } finally { await db.close(); }

@@ -100,6 +100,9 @@
       "masterModifierDureeEssai",
       "masterVerifierConnectivite"
     ],
+    "src/lib/actions-locale.ts": [
+      "enregistrerLangueUtilisateur"
+    ],
     "src/lib/actions-modules.ts": [
       "modifierModule"
     ],

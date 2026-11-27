@@ -22,10 +22,14 @@ alter default privileges in schema public grant execute on functions to anon,aut
 grant execute on function auth.uid() to authenticated,anon,service_role;`;
 
 /**
+ * Ouvre une base PGlite avec toute la chaîne active appliquée. L'appelant doit
+ * fermer `db` ; `appliquerChaineActive()` reste la façade fermante utilisée par
+ * le test de rejouabilité.
+ *
  * @param {{ corrompre?: (file: string, sql: string) => string | null | undefined }} [options]
- * @returns {Promise<{ files: number, version: number }>}
+ * @returns {Promise<{ db: PGlite, fichiers: string[], version: number }>}
  */
-export async function appliquerChaineActive(options = {}) {
+export async function creerChaineActive(options = {}) {
   const db = new PGlite();
   const fichiers = chaineDeploiement();
   try {
@@ -48,7 +52,21 @@ export async function appliquerChaineActive(options = {}) {
       }
     }
     const res = await db.query('select max(version)::int as version from public.app_schema_version');
-    return { files: fichiers.length, version: Number(res.rows[0]?.version ?? 0) };
+    return { db, fichiers, version: Number(res.rows[0]?.version ?? 0) };
+  } catch (error) {
+    await db.close();
+    throw error;
+  }
+}
+
+/**
+ * @param {{ corrompre?: (file: string, sql: string) => string | null | undefined }} [options]
+ * @returns {Promise<{ files: number, version: number }>}
+ */
+export async function appliquerChaineActive(options = {}) {
+  const { db, fichiers, version } = await creerChaineActive(options);
+  try {
+    return { files: fichiers.length, version };
   } finally {
     await db.close();
   }

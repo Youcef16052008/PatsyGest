@@ -34,9 +34,9 @@ test('H20-07 : surface() reste comparée au JSON, mais le parseur est plus compl
   const attendu = JSON.parse(await lire('./inventaire-surface.json'));
   const reel = await surface();
   assert.deepEqual(reel, attendu);
-  assert.equal(Object.keys(reel.actions).length, 29);
+  assert.equal(Object.keys(reel.actions).length, 30);
   const total = Object.values(reel.actions).reduce((n, a) => n + a.length, 0);
-  assert.equal(total, 89, 'le nombre d’actions doit être mesuré, pas écrit en dur dans un commentaire');
+  assert.equal(total, 90, 'le nombre d’actions doit être mesuré, pas écrit en dur dans un commentaire');
 });
 
 test('H20-11 : les commentaires exécutables ne figent plus « 87 actions »', async () => {
@@ -51,15 +51,15 @@ test('H20-10 : CHAINE-NON-REJOUABLE.md est explicitement archivé', async () => 
   const doc = await lire('../migrations/CHAINE-NON-REJOUABLE.md');
   assert.match(doc, /ARCHIVÉ/);
   assert.match(doc, /Ne pas utiliser comme état courant/);
-  assert.match(doc, /01→55/);
+  assert.match(doc, /01→57/);
 });
 
-test('H18-01/H20-02 : le manifeste 01→55 a un test actif, sans todo 01→43', async () => {
+test('H18-01/H20-02 : le manifeste 01→57 a un test actif, sans todo 01→43', async () => {
   const source = await lire('./chaine-rejouable.test.mjs');
   const chaine = chaineDeploiement();
   assert.doesNotMatch(source, /^\s*test\.todo\(/m);
   assert.match(source, /appliquerChaineActive/);
-  assert.equal(chaine.length, 54);
+  assert.equal(chaine.length, 56);
   assert.equal(chaine[0], '01-socle.sql');
-  assert.equal(chaine.at(-1), '55-dates-algiers-rattrapage.sql');
+  assert.equal(chaine.at(-1), '57-onboarding-pack-dz-rpc.sql');
 });

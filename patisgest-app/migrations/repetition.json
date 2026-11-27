@@ -437,6 +437,18 @@
       "sha256": "7b65a87d079697f58a8082319e7f1bcc5672a9e6dfd3d103f9618c6bd453e4b3",
       "hors_fixture_pilote": true,
       "note": "H08-03 : rattrapage current_date -> date Africa/Algiers dans les fonctions créées après 36 (41, 47/50). Nouvelle migration, aucune réécriture."
+    },
+    {
+      "file": "56-profil-langue.sql",
+      "sha256": "2c68399dab39e49c7b178b16ab61fcbd39199f31a34a8391b708f71e128461b1",
+      "hors_fixture_pilote": true,
+      "note": "VAGUE 4 B.2 : langue FR/AR du profil utilisateur, RPC enregistrer_langue_utilisateur et version 56."
+    },
+    {
+      "file": "57-onboarding-pack-dz-rpc.sql",
+      "sha256": "885745d7e2d10c6636882dbf577700663e05270645ca729af40a0df4f05bb38d",
+      "hors_fixture_pilote": true,
+      "note": "VAGUE 4 D : RPC idempotente importer_pack_patisserie_dz, pack DZ isolé par client_id et version 57."
     }
   ],
   "exclus": [
