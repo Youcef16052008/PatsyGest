@@ -12,6 +12,10 @@ import {
 import { lirePages } from "@/lib/pagination";
 import { messageUtilisateur } from "@/lib/erreurs-db";
 import { estProprietaireSeul } from "@/lib/permissions";
+import {
+  validerLignesAvoirsComptables,
+  validerLignesVentesComptables,
+} from "@/lib/export-comptable-lignes";
 
 export const dynamic = "force-dynamic";
 
@@ -113,35 +117,48 @@ export async function GET(request: Request) {
           { status: absente ? 409 : 500 },
         );
       }
-      avoirs = avoirsLecture.lignes.map((a) => ({
+      const avoirsValides = validerLignesAvoirsComptables(avoirsLecture.lignes);
+      if (!avoirsValides.ok) {
+        return NextResponse.json(
+          { erreur: `Export refusé : ligne d'avoir illisible (${avoirsValides.raison}).` },
+          { status: 500 },
+        );
+      }
+      avoirs = avoirsValides.lignes.map((a) => ({
         id: a.id,
         numero: a.numero,
         date: String(a.cree_le).slice(0, 10),
         site: ctx.clientNom,
-        totalHT: Number(a.total_ht),
-        totalTTC: Number(a.total_ttc),
-        tva: Number(a.tva_pct),
+        totalHT: a.total_ht,
+        totalTTC: a.total_ttc,
+        tva: a.tva_pct,
       }));
     }
 
     // Les lignes de vente portent la TVA par ligne (RG-06.3 : TVA par nature et
     // par ligne). On agrège le taux effectif du ticket pour le contrôle.
-    const ventes: VenteComptable[] = (ventesLecture.lignes as unknown as {
-      id: string; numero: string; date_vente: string; total_ht: number; total_ttc: number;
-      lignes: { tva?: number }[] | null;
-    }[]).map((v) => {
-      const lignes = Array.isArray(v.lignes) ? v.lignes : [];
+    // H16-06 : aucune ligne PostgREST incomplète ne doit produire un NaN dans
+    // le CSV ; le validateur pure refuse l'export avant toute écriture.
+    const ventesValides = validerLignesVentesComptables(ventesLecture.lignes);
+    if (!ventesValides.ok) {
+      return NextResponse.json(
+        { erreur: `Export refusé : ligne de vente illisible (${ventesValides.raison}).` },
+        { status: 500 },
+      );
+    }
+    const ventes: VenteComptable[] = ventesValides.lignes.map((v) => {
+      const lignes = v.lignes ?? [];
       const taux = lignes
-        .map((l) => Number(l?.tva))
-        .filter((t) => Number.isFinite(t));
+        .map((l) => l.tva)
+        .filter((t): t is number => typeof t === "number" && Number.isFinite(t));
       const tva = taux.length ? Math.max(...taux) : 0;
       return {
         id: v.id,
         numero: v.numero,
         date: String(v.date_vente).slice(0, 10),
         site: ctx.clientNom,
-        totalHT: Number(v.total_ht),
-        totalTTC: Number(v.total_ttc),
+        totalHT: v.total_ht,
+        totalTTC: v.total_ttc,
         tva,
       };
     });

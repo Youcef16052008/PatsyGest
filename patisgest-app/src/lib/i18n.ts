@@ -1,3 +1,6 @@
+import { UI_TEXT_AR_COMPLET } from "./ui-text-ar-complet.ts";
+import { estDonneePure } from "./i18n-data.ts";
+
 export type Locale = "fr" | "ar";
 
 export const LOCALE_COOKIE = "patisgest.lang";
@@ -141,7 +144,7 @@ export const UI_DICT = {
 // Dictionnaire FR → AR des surfaces prioritaires B.2 (VAGUE 4).
 // Les clés sont les libellés français exacts du code ; `translateUI` applique
 // ensuite les remplacements dynamiques (dates, unités, montants, pluriels).
-export const UI_TEXT_AR: Record<string, string> = {
+const UI_TEXT_AR_NOYAU: Record<string, string> = {
   "commande": "طلب",
   "commandes": "طلبات",
   "pour demain": "للغد",
@@ -169,7 +172,7 @@ export const UI_TEXT_AR: Record<string, string> = {
   "Achats fournisseurs": "مشتريات الموردين",
   "Activité principale": "النشاط الرئيسي",
   "Adaptez ces montants à votre établissement : le résultat reste une estimation.": "كيّف هذه المبالغ مع محلك : النتيجة تقديرية.",
-  "Adapté aux boulangeries, viennoiseries, pâtisseries et cake shops algériens.": "مناسب للمخابز، المعجنات، محلات الحلويات و cake shops الجزائرية.",
+  "Adapté aux boulangeries, viennoiseries, pâtisseries et cake shops algériens.": "مناسب للمخابز، المعجنات، محلات الحلويات ومحلات الكيك الجزائرية.",
   "Afficher plus de fournées": "عرض دفعات أكثر",
   "Afficher plus de produits": "عرض منتجات أكثر",
   "Ajuster les prix": "تعديل الأسعار",
@@ -185,7 +188,7 @@ export const UI_TEXT_AR: Record<string, string> = {
   "Anticiper": "التوقع",
   "Articles du panier": "منتجات السلة",
   "Articles à surveiller": "مواد للمراقبة",
-  "Artisan IFU · 0 % TVA (prix net DA)": "حرفي IFU · 0٪ ضريبة (سعر صافي دج)",
+  "Artisan IFU · 0 % TVA (prix net DA)": "حرفي بنظام الضريبة الجزافية · 0٪ ضريبة (سعر صافي دج)",
   "Atelier": "الورشة",
   "Aucun article à surveiller": "لا توجد مواد للمراقبة",
   "Aucun crédit ouvert pour ce filtre.": "لا ديون مفتوحة لهذا الفلتر.",
@@ -224,7 +227,7 @@ export const UI_TEXT_AR: Record<string, string> = {
   "Caisse prête !": "الصندوق جاهز !",
   "Caisse rapide": "الصندوق السريع",
   "Cake": "كيك",
-  "Cake Shop & Gâteaux sur mesure": "Cake Shop وحلويات حسب الطلب",
+  "Cake Shop & Gâteaux sur mesure": "محل الكيك والحلويات حسب الطلب",
   "Carnet de crédits": "دفتر الديون",
   "Catégorie": "الفئة",
   "Ce qui manque et achats rapides": "ما ينقص والمشتريات السريعة",
@@ -382,7 +385,7 @@ export const UI_TEXT_AR: Record<string, string> = {
   "Panier vide": "السلة فارغة",
   "Paramètres financiers de la boutique (calcul du seuil anti-perte)": "الإعدادات المالية للمحل (حساب عتبة تفادي الخسارة)",
   "Passer cette étape": "تجاوز هذه الخطوة",
-  "Pilotage complet Boulangerie, Viennoiserie, Pâtisserie & Cake Shop : seuil de rentabilité, alertes robot anti-perte, caisse et commandes.": "إدارة شاملة للمخبز، المعجنات، الحلويات و Cake Shop : عتبة الربحية، تنبيهات مكافحة الخسارة، الصندوق والطلبات.",
+  "Pilotage complet Boulangerie, Viennoiserie, Pâtisserie & Cake Shop : seuil de rentabilité, alertes robot anti-perte, caisse et commandes.": "إدارة شاملة للمخبز، المعجنات، الحلويات ومحلات الكيك : عتبة الربحية، تنبيهات مكافحة الخسارة، الصندوق والطلبات.",
   "Planifier et suivre les fournées": "تخطيط الدفعات ومتابعتها",
   "Planifiez une fabrication depuis Production.": "خطّط لتصنيع من وحدة الإنتاج.",
   "Planning": "الجدول",
@@ -405,7 +408,7 @@ export const UI_TEXT_AR: Record<string, string> = {
   "Pâtisserie & Orientale": "حلويات شرقية وغربية",
   "Période des ventes": "فترة المبيعات",
   "Qualité": "الجودة",
-  "Qualité & HACCP": "الجودة و HACCP",
+  "Qualité & HACCP": "الجودة وسلامة الغذاء",
   "Raccourcis métier": "اختصارات العمل",
   "Recette / Part": "وصفة / قطعة",
   "Recettes": "الوصفات",
@@ -533,6 +536,9 @@ export const UI_TEXT_AR: Record<string, string> = {
   "à lancer": "للإطلاق",
 };
 
+/** Dictionnaire complet : couverture générée hors ligne + noyau validé prioritaire. */
+export const UI_TEXT_AR: Record<string, string> = { ...UI_TEXT_AR_COMPLET, ...UI_TEXT_AR_NOYAU };
+
 const MOIS_AR: Record<string, string> = {
   "janvier": "جانفي", "janv.": "جانفي", "février": "فيفري", "févr.": "فيفري",
   "mars": "مارس", "avril": "أفريل", "avr.": "أفريل", "mai": "ماي",
@@ -547,6 +553,73 @@ function echapperRegex(texte: string): string {
   return texte.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Règles ancrées : elles ne corrompent jamais une phrase longue. */
+const REGLES_DYNAMIQUES: readonly (readonly [RegExp, string])[] = [
+  [/^(\d+)\s+articles? à surveiller\.$/u, "$1 عناصر للمراقبة."],
+  [/^(\d+)\s+عناصر à surveiller$/u, "$1 عناصر للمراقبة"],
+  [/^(\d+)\s+dates à vérifier$/u, "$1 تواريخ للتحقق"],
+  [/^(\d+)\s+à lancer\.$/u, "$1 للإطلاق."],
+  [/^~(\d+(?:[.,]\d+)?)j stock$/u, "مخزون $1 يوم"],
+  [/^(\d+) tickets · encaissé$/u, "$1 تذاكر · محصّلة"],
+  [/^(\d+)\s+ticket\b/u, "$1 تذكرة"],
+  [/^(\d+)\s+tickets\b/u, "$1 تذاكر"],
+  [/^Détail du panier \((\d+) produits?\)$/u, "تفاصيل السلة ($1 منتجات)"],
+  [/^Voir le panier \((\d+)\)$/u, "عرض السلة ($1)"],
+  [/^Retrait :$/u, "الاستلام :"],
+  [/^Quantité :$/u, "الكمية :"],
+  [/^DLC dépassée$/u, "الصلاحية منتهية"],
+  [/^DLC proche$/u, "الصلاحية قريبة"],
+  [/^Lot bloqué$/u, "دفعة محجوبة"],
+  [/^Rupture$/u, "نفاد"],
+  [/^Stock bas$/u, "مخزون منخفض"],
+  [/^DLC$/u, "الصلاحية"],
+  [/^DLC (.+)$/u, "الصلاحية $1"],
+  [/^Type ligne (\d+)$/u, "نوع السطر $1"],
+  [/^Démarrer (.+)$/u, "بدء $1"],
+  [/^Retirer (.+)$/u, "إزالة $1"],
+  [/^Design (.+)$/u, "تصميم $1"],
+  [/^Passer en français$/u, "التبديل إلى الفرنسية"],
+  [/^Passer en mode sombre$/u, "تفعيل الوضع الداكن"],
+  [/^Mode sombre$/u, "الوضع الداكن"],
+  [/^Mettre en pause les animations décoratives$/u, "إيقاف الحركات الزخرفية"],
+  [/^Filtrer les عناصر$/u, "تصفية العناصر"],
+  [/^Évolution des ventes sur (\d+) jours : (.+?) au total$/u, "تطور المبيعات على $1 أيام : $2 إجمالاً"],
+  [/^(\d+(?:[.,]\d+)?)\s+(kg|L|l|pcs)\s+avec parage$/u, "$1 $2 مع التقشير"],
+  [/^(\d+(?:[.,]\d+)?)\s+(كغ|ل|قطعة)\s+avec parage$/u, "$1 $2 مع التقشير"],
+  [/^avec parage$/u, "مع التقشير"],
+  [/^(\d+)\s+commandes? pour demain$/u, "$1 طلب للغد"],
+  [/^Confirmez les quantités et les ingrédients : (\d+) prévus?\.$/u, "تأكد من الكميات والمكونات : $1 مبرمجة."],
+  [/^Confirmez les quantités et les ingrédients :$/u, "تأكد من الكميات والمكونات :"],
+  [/^\((\d+) tickets? en attente\)$/u, "($1 تذاكر قيد الانتظار)"],
+  [/^(\d+) ticket enregistré hors-ligne prêt à synchroniser\.$/u, "تذكرة واحدة مسجلة دون اتصال وجاهزة للمزامنة."],
+  [/^(\d+) tickets? enregistrés? hors-ligne prêts? à synchroniser\.$/u, "$1 تذاكر مسجلة دون اتصال وجاهزة للمزامنة."],
+  [/^(\d[\d\s\u202f]*(?:[.,]\d+)?)\s+DA restent à encaisser\. Vérifiez les échéances et relancez si besoin\.$/u, "$1 دج تبقى لتحصيلها. تحقق من الآجال وذكّر عند الحاجة."],
+  [/^· (TK-[0-9A-F]+)$/u, "· مرجع $1"],
+  [/^(DEV-[0-9A-F]+)$/u, "مرجع $1"],
+  [/^Site (BC-[0-9A-F]+)$/u, "الموقع $1"],
+  [/^([a-f0-9]{8,})$/u, "المعرّف $1"],
+  [/^Réception du (\d{4}-\d{2}-\d{2}) \((.+?)\)$/u, "استلام بتاريخ $1 ($2)"],
+  [/^Déjà en OF pour le (\d{4}-\d{2}-\d{2}) : (.+?) \((OF-[0-9A-F]+)\)$/u, "مبرمج بالفعل في أمر التصنيع بتاريخ $1 : $2 ($3)"],
+  [/^Devis \((.+?)\) → Acompte payé \((.+?)\) → Confirmé \((.+?)\)$/u, "عرض ($1) → العربون مدفوع ($2) → مؤكد ($3)"],
+  [/^Ventes comptoir attendues \((\d+) samedis observés\) : (\d+) قطعة$/u, "المبيعات المتوقعة في المحل ($1 سبت ملاحظ) : $2 قطعة"],
+  [/^Stock boutique utilisable le (\d{4}-\d{2}-\d{2}) : (.+)$/u, "مخزون المحل المتاح بتاريخ $1 : $2"],
+  [/^Moyenne comptoir récente \((\d+) j\) : (.+)$/u, "متوسط مبيعات المحل الأخيرة ($1 يوم) : $2"],
+  [/^Demande boutique : (\d+) قطعة — (.+)$/u, "طلب المحل : $1 قطعة — $2"],
+  [/^Suggéré \(patron\) : (\d+) دج$/u, "مقترح (المالكة) : $1 دج"],
+  [/^Date مبرمجة$/u, "التاريخ المبرمج"],
+  [/^Date limite de consommation$/u, "تاريخ انتهاء الصلاحية"],
+  [/^Date à préparer$/u, "تاريخ التحضير"],
+  [/^Date du planning$/u, "تاريخ الجدول"],
+  [/^Date du Z$/u, "تاريخ Z"],
+  [/^Date de retrait \/ événement$/u, "تاريخ الاستلام / المناسبة"],
+  [/^Aucun transfert\.$/u, "لا توجد تحويلات."],
+  [/^Aucune liaison connue\.$/u, "لا توجد روابط معروفة."],
+  [/^Aucun import Z\.$/u, "لا يوجد استيراد لـ Z."],
+  [/^Adresse manquante — exigée par le décret 13-378\.$/u, "العنوان مفقود — مطلوب بموجب المرسوم 13-378."],
+  [/^Sorties d'espèces \(دج\)$/u, "مدفوعات نقدية (دج)"],
+  [/^Vendu$/u, "مباع"],
+];
+
 /**
  * Traduction FR → AR des libellés exacts et des fragments dynamiques
  * (dates, unités, montants, pluriels). Le français reste inchangé en `fr`.
@@ -558,43 +631,15 @@ export function translateUI(fr: string, locale: Locale): string {
   if (fr.trim() === "s") return fr.replace("s", "");
   const cle = fr.trim();
   let out = UI_TEXT_AR[cle] ?? cle;
+  if (out === cle && estDonneePure(cle)) return fr;
 
   if (out === cle) {
-    out = out
-      .replace(/restent à encaisser\. Vérifiez les échéances et relancez si besoin\./g, "تبقى لتحصيلها. تحقق من الآجال وذكّر عند الحاجة.")
-      .replace(/(\d+) commandes? pour demain/g, "$1 طلب للغد")
-      .replace(/Confirmez les quantités et les ingrédients :/g, "تأكد من الكميات والمكونات :")
-      .replace(/\((\d+) tickets? en attente\)/g, "($1 تذاكر قيد الانتظار)")
-      .replace(/(\d+) ticket enregistré hors-ligne prêt à synchroniser\./g, "تذكرة واحدة مسجلة دون اتصال وجاهزة للمزامنة.")
-      .replace(/(\d+) tickets? enregistrés? hors-ligne prêts? à synchroniser\./g, "$1 تذاكر مسجلة دون اتصال وجاهزة للمزامنة.")
-      .replace(/(\d+)\s+article à surveiller\./g, "$1 عنصر للمراقبة.")
-      .replace(/(\d+)\s+articles à surveiller\./g, "$1 عناصر للمراقبة.")
-      .replace(/(\d+)\s+à lancer\./g, "$1 للإطلاق.")
-      .replace(/(\d+)\s+ticket\b/g, "$1 تذكرة")
-      .replace(/(\d+)\s+tickets\b/g, "$1 تذاكر")
-      .replace(/~(\d+(?:[.,]\d+)?)j stock/g, "مخزون $1 يوم")
-      .replace(/\bDétail du panier \((\d+) produits?\)/g, "تفاصيل السلة ($1 منتجات)")
-      .replace(/\bVoir le panier \((\d+)\)/g, "عرض السلة ($1)")
-      .replace(/\bRetrait :/g, "الاستلام :")
-      .replace(/\bQuantité :/g, "الكمية :")
-      .replace(/\bDLC dépassée\b/g, "الصلاحية منتهية")
-      .replace(/\bDLC proche\b/g, "الصلاحية قريبة")
-      .replace(/\bLot bloqué\b/g, "دفعة محجوبة")
-      .replace(/\bRupture\b/g, "نفاد")
-      .replace(/\bStock bas\b/g, "مخزون منخفض")
-      .replace(/\bDLC\b/g, "الصلاحية")
-      .replace(/\bencaissé(?=\s|$)/g, "محصّلة")
-      .replace(/\ben moyenne\b/g, "في المتوسط")
-      .replace(/\bà lancer\b/g, "للإطلاق")
-      .replace(/\bprévues?\b/g, "مبرمجة")
-      .replace(/\bprévus\b/g, "مبرمجة")
-      .replace(/\bprévu\b/g, "مبرمج")
-      .replace(/\ben stock\b/g, "في المخزون")
-      .replace(/\bparts\b/g, "قطع")
-      .replace(/\bproduits?\b/g, "منتجات")
-      .replace(/\barticles?\b/g, "عناصر")
-      .replace(/\bfournées?\b/g, "دفعات")
-      .replace(/\btickets?\b/g, "تذاكر");
+    for (const [motif, remplacement] of REGLES_DYNAMIQUES) {
+      if (motif.test(cle)) {
+        out = cle.replace(motif, remplacement);
+        break;
+      }
+    }
   }
 
   // Unités, devise et dates : ces remplacements restent sûrs même après une

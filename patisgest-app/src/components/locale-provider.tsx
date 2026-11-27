@@ -28,6 +28,12 @@ const LocaleContext = createContext<{
 });
 
 const ARABE = /[\u0600-\u06FF]/u;
+const LATIN = /[A-Za-zÀ-ÿ]/u;
+
+/** Un texte mixte AR + donnée FR reste éligible à la traduction du libellé FR. */
+function estDejaArabe(texte: string): boolean {
+  return ARABE.test(texte) && !LATIN.test(texte);
+}
 const ATTRS_TRADUISIBLES = ["title", "placeholder", "aria-label", "alt"] as const;
 const BALISES_A_EXCLURE = "script,style,noscript,textarea,input,[data-i18n-skip]";
 
@@ -55,7 +61,7 @@ function useDomTranslation(locale: Locale) {
       const courant = noeud.nodeValue ?? "";
       const connu = textes.current.get(noeud);
       if (!connu) {
-        if (ARABE.test(courant)) return; // déjà traduit par React, ne pas mémoriser comme FR
+        if (estDejaArabe(courant)) return; // déjà traduit par React, ne pas mémoriser comme FR
         const entree = { fr: courant, ar: translateUI(courant, "ar") };
         textes.current.set(noeud, entree);
         if (locale === "ar" && entree.ar !== courant) noeud.nodeValue = entree.ar;
@@ -64,7 +70,7 @@ function useDomTranslation(locale: Locale) {
       if (courant === connu.fr || courant === connu.ar) {
         const attendu = cible(connu);
         if (courant !== attendu) noeud.nodeValue = attendu;
-      } else if (!ARABE.test(courant)) {
+      } else if (!estDejaArabe(courant)) {
         // Mise à jour naturelle d'un libellé français par l'application.
         connu.fr = courant;
         connu.ar = translateUI(courant, "ar");
@@ -84,7 +90,7 @@ function useDomTranslation(locale: Locale) {
         if (courant == null) continue;
         let entree = memoire[attr];
         if (!entree) {
-          if (ARABE.test(courant)) continue;
+          if (estDejaArabe(courant)) continue;
           entree = { fr: courant, ar: translateUI(courant, "ar") };
           memoire[attr] = entree;
         }

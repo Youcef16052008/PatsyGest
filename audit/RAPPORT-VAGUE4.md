@@ -1,6 +1,6 @@
 # Rapport d’exécution — VAGUE 4 et suite de la roadmap
 
-**Date** : 2026-11-26
+**Date** : 2026-11-27
 **Branche** : `arena/923a4433-patsygest`
 **PR** : #26 ouverte vers `main`, non fusionnée
 **Demande** : « Toute la suite de la roadmap » (`B.2`, `B.4`, migrations planifiées A–D, vérification live/mobile 360 px).

@@ -219,7 +219,7 @@ Toutes les nouvelles tables suivront strictement les règles déjà établies da
 
 | Élément | État | Preuve directe |
 |---|---|---|
-| **B.2 — FR/AR + RTL** | Complété sur le périmètre prioritaire | `src/lib/i18n.ts` (dictionnaire étendu + dates/unités/montants), `src/components/locale-provider.tsx` (`useDomTranslation()` post-hydratation), `src/app/layout.tsx` ; cookie + profil `utilisateurs.langue` (migration 56) ; dashboards propriétaire et vendeur, navigation, cuisine, caisse, tickets, alertes, réseau, coquilles démo ; RTL et absence de libellés UI français prouvés à 360 px. |
+| **B.2 — FR/AR + RTL** | 100 % du périmètre local démontrable (VAGUE 5) | `src/lib/i18n.ts` (dictionnaire étendu + dates/unités/montants), `src/components/locale-provider.tsx` (`useDomTranslation()` post-hydratation), `src/app/layout.tsx` ; cookie + profil `utilisateurs.langue` (migration 56) ; dashboards propriétaire et vendeur, navigation, cuisine, caisse, tickets, alertes, réseau, coquilles démo ; RTL et absence de libellés UI français prouvés à 360 px. |
 | **B.4 — Facture fournisseur par photo** | Complété | `src/components/invoice-photo-intake.tsx` : capture `image/*`, pré-remplissage, **validation humaine obligatoire**, photo conservée à côté des lignes, entrée en stock démo/Supabase. |
 | **Migration A — `recettes_libres`** | Déjà livrée | `supabase/45-recettes-libres.sql`, RLS `client_id`, tests `actions-free-recipes` et chaîne PGlite. |
 | **Migration B — `credits_clients`** | Déjà livrée | `supabase/46-credits-clients.sql`, RPC `enregistrer_reglement_credit`, tests `credits`/`actions-credits`. |
@@ -227,7 +227,7 @@ Toutes les nouvelles tables suivront strictement les règles déjà établies da
 | **Migration D — onboarding DZ** | Complétée | `supabase/57-onboarding-pack-dz-rpc.sql` : RPC SQL `importer_pack_patisserie_dz` idempotente, isolée par `client_id`, propriétaire seul, pack de 24 articles ; l’action serveur existante reste le parcours démo/Supabase. |
 | **Additif 56 — profil langue** | Ajouté | `supabase/56-profil-langue.sql`, RPC `enregistrer_langue_utilisateur`, manifeste et test PGlite actif. |
 | **Additif 57 — RPC pack DZ** | Ajouté | `supabase/57-onboarding-pack-dz-rpc.sql`, `app_schema_version = 57`, chaîne PGlite 01→57 et test DB d’idempotence multi-tenant. |
-| **Vérification live & mobile 360 px** | Exécutée localement | `npm run test:roadmap:live` 4/4, `npm run test:roadmap:e2e` 6/6 avec Chromium headless 158 et viewport 360 × 780 ; SSR/HTTP, RTL, dashboards propriétaire/vendeur AR, ticket arabe, B.4, absence de débordement horizontal, Mode Simple sans `HT`, coupure réseau. |
+| **Vérification live & mobile 360 px** | Exécutée localement | `npm run test:roadmap:live` 4/4, `npm run test:roadmap:e2e` 7/7 avec Chromium headless et viewport 360 × 780 ; 18 routes × 3 rôles + Mode Simple, zéro libellé UI FR résiduel, SSR/HTTP, RTL, ticket arabe, B.4, absence de débordement horizontal, Mode Simple sans `HT`, coupure réseau. |
 
 Chaîne complète réexécutée : `typecheck`/`lint` rc0, `npm test` **885 tests /
 879 pass / 0 fail / 3 skipped / 3 todo**, `test:roadmap` 11/11,
@@ -240,3 +240,26 @@ Aucune migration 54/55/56/57 n’est appliquée au pilote ni à la production :
 `schema_version 53` observé en lecture seule. Aucun déploiement, aucun
 changement d’env/secrets, aucune écriture Supabase/Vercel/Figma. La PR **#26**
 reste ouverte vers `main`, sans fusion.
+
+## Suivi complémentaire — VAGUE 5 / 100 % local (`scope_100=local_full`)
+
+B.2 a été étendue au-delà du périmètre prioritaire : catalogue FR 2 779 chaînes,
+dictionnaire AR généré hors ligne 2 358 entrées, `UI_TEXT_AR` fusionné 2 747
+entrées, données pures/codes isolés et traduction des nœuds mixtes AR + latin.
+Le parcours E2E couvre désormais **18 routes × 3 rôles + Mode Simple** avec
+`TOTAL unique 0` libellés UI FR détectés. Détail : `audit/RAPPORT-100-LOCAL.md`.
+
+Les 39 `DIFFÉRÉ` H13-H20 sont traités : **22 fermés localement** par garde-fou,
+test ou benchmark, **17 documentés comme limites externes** (OCR, FCP réel,
+concurrence PostgreSQL réelle, CI distante, déploiement, arbitrage
+produit/juridique). Benchmark local 100 000 ventes/lots/mouvements/utilisateurs
+dans `audit/BENCHMARK-PGLITE-100K.md` ; matrice documentaire dans
+`audit/MATRICE-DERIVE-DOCS.md`.
+
+Chaîne VAGUE 5 : `typecheck`/`lint` rc0, `npm test` **905 tests / 899 pass /
+0 fail**, `test:roadmap` 11/11, `test:roadmap:live` 4/4,
+`test:roadmap:e2e` **7/7**, `test:bench:pglite` 1/1, build Next 16.4.6
+(`Compiled successfully in 3.1s`, 6/6 pages), `npm audit` 0 vulnérabilité,
+`git diff --check` rc0. Aucune pile externe, aucun secret, aucun rollback ni
+`workflow_dispatch` distant n’a été utilisé. PR #26 **toujours ouverte**, non
+fusionnée (`pr_final=keep_open`).

@@ -19,7 +19,8 @@
     "test:e2e": "node --test tests/e2e/*.spec.mjs",
     "test:roadmap": "node --experimental-strip-types --experimental-test-module-mocks --import ./tests/mocks/register-hooks.mjs --test tests/roadmap-vague4.test.mjs tests/roadmap-vague4-db.test.mjs",
     "test:roadmap:live": "node --test tests/roadmap-live-http.mjs",
-    "test:roadmap:e2e": "node --test tests/e2e/roadmap-vague4.spec.mjs"
+    "test:roadmap:e2e": "node --test tests/e2e/roadmap-vague4.spec.mjs",
+    "test:bench:pglite": "node --experimental-strip-types --test tests/pglite-benchmark.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.0",

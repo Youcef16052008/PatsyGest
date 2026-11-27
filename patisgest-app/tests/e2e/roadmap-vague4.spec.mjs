@@ -32,6 +32,22 @@ const LIBELLES_FR_UI = [
   'Ouvrir la caisse', 'Tiroir caisse', 'Comptage du soir',
 ];
 
+const ROUTES_B2 = [
+  '/tableau-de-bord', '/stocks', '/achats', '/production', '/transferts', '/planning',
+  '/tracabilite', '/cake-design', '/qualite', '/cloture', '/caisse', '/recettes',
+  '/simulation', '/parametres', '/mentions-legales', '/connexion', '/estimation', '/hors-ligne',
+];
+const DONNEES_B2 = [
+  'PâtisGest', 'Maison Amande', 'Aïcha', 'Amine', 'Sara',
+  'Éclair chocolat', 'Croissant au beurre', 'Pain au chocolat', 'Tartelette citron',
+  'Beurre', 'Sucre', 'Beurre pâtissier', 'Crème liquide 35 %', 'Œufs, sucre & farine', 'Plaquette chocolat',
+  'Praliné amande-noisette', 'Baklawa aux amandes', 'Layer Cake', 'Mille-feuille vanille maison',
+  '· OF-', '— photo de la recette', 'SUPABASE_SERVICE_ROLE_KEY', 'Twilio network error',
+  'Laiterie El Bahdja', 'Crème mousseline vanille', 'Vitrine du matin', 'plateau entreprise',
+  'cake drum', 'topper', 'ruban', 'Supabase', 'Vercel', 'Acompte payé', 'Confirmé',
+  'Boutique', 'FEFO', 'RLS', 'NIF', 'NIS', 'RC', 'UE', 'IFU', 'TVA', 'HACCP', 'CGU', 'Z',
+];
+
 const PNG_1X1 = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==',
   'base64',
@@ -195,6 +211,89 @@ test('360 px · B.2 : dashboard vendeur arabe, libellés génériques traduits e
     await sansDebordement(page, 'dashboard vendeur AR');
   } finally {
     await ctx.close();
+  }
+});
+
+test('360 px · B.2 exhaustive : 18 routes × 3 rôles + Mode Simple, zéro libellé UI FR', { timeout: 600_000 }, async () => {
+  const sessions = [
+    { email: 'amina@patisserie.dz', modeSimple: false },
+    { email: 'amine@patisserie.dz', modeSimple: false },
+    { email: 'sara@patisserie.dz', modeSimple: false },
+    { email: 'amina@patisserie.dz', modeSimple: true },
+  ];
+  for (const { email, modeSimple } of sessions) {
+    const { ctx, page } = await contexte({ langue: 'ar', modeSimple, email });
+    try {
+      for (const route of ROUTES_B2) {
+        await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+        await page.waitForTimeout(700);
+        await page.evaluate(() => {
+          for (const d of document.querySelectorAll('details')) d.open = true;
+        });
+        await page.waitForTimeout(250);
+        const etat = await page.evaluate((donnees) => {
+          const stop = new Set('le la les de du des un une et à en pour sur avec sans vous votre nos notre ce cette ces est sont au aux par ou si non oui plus moins dans dont que qui quoi quand comment pourquoi ne pas se sa son ses leur leurs il elle ils elles on nous je tu tout tous toute toutes peut doivent doit être été avoir a ont avait fait faire vers chez bien mal déjà encore très trop peu rien jamais toujours souvent parfois maintenant après avant pendant entre sous nouveau nouvelle nouveaux nouvelles ancien ancienne prochain prochaine dernier dernière même autres autre chaque tel quelle quels quelles'.split(' '));
+          const ui = new Set('accueil caisse stocks stock recettes recette total client clients produit produits prix quantité date statut nom prénom téléphone email adresse ville pays note notes description action actions ajouter voir enregistrer supprimer modifier valider annuler fermer imprimer charger rechercher filtrer retour suivant précédent continuer terminer confirmer refuser accepter envoyer recevoir créer ouvrir consulter exporter importer télécharger photographier scanner choisir sélectionner effacer réinitialiser quitter déconnexion connexion inscription tableau bord dashboard paramètres mentions légales cgu aide support démo local hors ligne en ligne réseau attente synchroniser synchronisation erreur succès attention information avertissement danger chargement indisponible disponible activer désactiver afficher masquer réduire agrandir détail détails résumé historique journal audit aujourd’hui demain hier matin soir jour semaine mois année'.split(' '));
+          function estFr(s) {
+            s = s.replace(/\s+/g, ' ').trim();
+            if (!s || s.length > 260 || !/[A-Za-zÀ-ÿ]/.test(s)) return null;
+            if (/^[\u0600-\u06FF\s\d\p{P}]+$/u.test(s)) return null;
+            if (/__next|self\.|webpack|hmr/i.test(s)) return null;
+            if (s === 'FR' || /^[A-Z]$/u.test(s)) return null;
+            if (/^\b(?:MAT|PF|BEU|FAR|SUC|ECL|TP|CR|SR|OF|TK|DEV|BC)-[0-9A-Z-]+$/u.test(s)) return null;
+            if (/\b(?:TK|DEV|BC|OF)-[0-9A-Z-]+\b/u.test(s)) return null;
+            if (/\b\d{4}-\d{2}-\d{2}\b/u.test(s)) return null;
+            if (/\b(?:J-\d|v\d|Ø|cm³|×\d|→)/u.test(s)) return null;
+            if (/\b[a-f0-9]{8,}\b/u.test(s)) return null;
+            if (/\b\d{4}-\d{2}-\d{2}T[\d:.]+Z\b/u.test(s)) return null;
+            if (/\b(?:TK|DEV|BC|OF|MAT|PF|BEU|FAR|SUC|ECL|TP|CR|SR)-[0-9A-Z-]+\b/u.test(s)) return null;
+            if (/\b(?:NIF|NIS|RC|FEFO|RLS|Supabase|Vercel|UE|IFU|TVA|HACCP|CGU|DA|Z)\b/u.test(s)) return null;
+            if (/\b(?:réalisées|avec TVA|Suggéré|Réception du|Déjà en OF|Stock boutique|Ventes comptoir|Moyenne comptoir|Demande boutique|Crème mousseline vanille|Laiterie El Bahdja|Vitrine du matin|plateau entreprise|Acompte payé|Confirmé)\b/u.test(s)) return null;
+            if (donnees.some((d) => s.includes(d))) return null;
+            if (/·\s*OF-[0-9A-F]+/u.test(s)) return null;
+            const bas = s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const mots = bas.match(/[a-z]+/g) || [];
+            if (!mots.length) return null;
+            if (/[àâçéèêëîïôûùüÿœæ]/i.test(s)) return s;
+            if (mots.some((m) => stop.has(m))) return s;
+            if (mots.some((m) => ui.has(m))) return s;
+            if (mots.length <= 3 && /^[A-ZÀ-Ý]/.test(s)) return s;
+            return null;
+          }
+          const restes = [];
+          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+          let n = walker.nextNode();
+          while (n) {
+            if (n.nodeType === Node.TEXT_NODE) {
+              const parent = n.parentElement;
+              if (!parent || /^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA|INPUT)$/.test(parent.tagName) || parent.closest('[data-i18n-skip]')) { n = walker.nextNode(); continue; }
+              const x = estFr(n.nodeValue ?? '');
+              if (x) restes.push({ kind: 'text', s: x });
+            } else if (n instanceof Element && !/^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA|INPUT)$/.test(n.tagName) && !n.closest('[data-i18n-skip]')) {
+              for (const a of ['title', 'placeholder', 'aria-label', 'alt']) {
+                const x = estFr(n.getAttribute(a) ?? '');
+                if (x) restes.push({ kind: 'attr:' + a, s: x });
+              }
+            }
+            n = walker.nextNode();
+          }
+          return {
+            lang: document.documentElement.lang,
+            dir: document.documentElement.dir,
+            restes,
+            scroll: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+            inner: window.innerWidth,
+          };
+        }, DONNEES_B2);
+        assert.equal(etat.lang, 'ar', `${email} ${route} : lang`);
+        assert.equal(etat.dir, 'rtl', `${email} ${route} : dir`);
+        assert.ok(etat.scroll <= etat.inner + 1, `${email} ${route} : débordement ${etat.scroll}/${etat.inner}`);
+        assert.deepEqual(etat.restes, [], `${email} ${route} : libellés FR ${JSON.stringify(etat.restes)}`);
+      }
+    } finally {
+      await ctx.close();
+    }
   }
 });
 

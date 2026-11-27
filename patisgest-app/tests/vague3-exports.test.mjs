@@ -191,3 +191,16 @@ test('H12-11 : erreur générique de lecture des avoirs donne 500, sans CSV', as
   assert.equal(reponse.status, 500);
   assert.match((await reponse.json()).erreur, /Export impossible|opération impossible/);
 });
+
+test('H16-06 : une ligne PostgREST incomplète refuse l’export comptable sans CSV', async () => {
+  initialiser();
+  etat.sources.ventes = [
+    { id: 'v1', numero: 'V-1', date_vente: '2026-11-26', total_ht: 1000, total_ttc: 1190, lignes: [{ tva: 19 }] },
+    { id: 'v2', numero: 'V-2', date_vente: '2026-11-26', total_ht: 'NaN', lignes: [] },
+  ];
+  const reponse = await exportComptable(url('/api/export/comptable?debut=2026-11-01&fin=2026-11-30'));
+  assert.equal(reponse.status, 500);
+  const corps = await reponse.json();
+  assert.match(corps.erreur, /ligne de vente illisible|montant non numérique|identifiant, numéro ou date manquant/);
+  assert.equal(reponse.headers.get('content-type')?.includes('text/csv'), false);
+});
