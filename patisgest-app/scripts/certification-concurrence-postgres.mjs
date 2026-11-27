@@ -18,13 +18,12 @@ const SOURCE = URL_HOSTED ? "hosted" : "ci-service";
 
 function urlSecurisee() {
   if (!URL_HOSTED) return URL_PG;
-  const u = new URL(URL_PG);
-  // Le mode SSL est piloté par l'option `ssl` du client, pas par la chaîne :
-  // `sslmode=require` est interprété comme `verify-full` par pg v8 et rejette
-  // le certificat auto-signé du pooler Supabase.
-  u.searchParams.delete("sslmode");
-  u.searchParams.delete("uselibpqcompat");
-  return u.toString();
+  // Ne JAMAIS reconstruire l'URI avec `new URL` : le mot de passe du secret
+  // peut contenir des caractères réservés et serait réencodé. On ajoute
+  // seulement l'option de compatibilité libpq, qui évite la vérification du
+  // certificat auto-signé du pooler Supabase avec `sslmode=require`.
+  const separateur = URL_PG.includes("?") ? "&" : "?";
+  return `${URL_PG}${separateur}uselibpqcompat=true`;
 }
 
 function nouveauClient() {
