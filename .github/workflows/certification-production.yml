@@ -1,6 +1,12 @@
 name: Certification production · pile réelle
 
 on:
+  # Amorce temporaire : GitHub n'enregistre un workflow_dispatch qu'après une
+  # première exécution. Le déclencheur pull_request est retiré dès que le
+  # workflow est visible, puis la certification est lancée par dispatch sur la
+  # branche courante. Aucun contrôle externe n'est exécuté par cette amorce.
+  pull_request:
+    types: [synchronize]
   workflow_dispatch:
     inputs:
       base_url:
@@ -17,7 +23,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  amorce:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: echo "Enregistrement initial de certification-production.yml (aucun contrôle externe)."
+
   contrats-ocr:
+    if: github.event_name == 'workflow_dispatch'
     name: Contrats OCR, chaîne SQL, types et lint
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -37,6 +51,7 @@ jobs:
       - run: npm run test:cert:ocr
 
   postgres-reel:
+    if: github.event_name == 'workflow_dispatch'
     name: Concurrence sur PostgreSQL 17 réel (chaîne 01→57)
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -70,6 +85,7 @@ jobs:
         run: npm run test:cert:concurrency
 
   postgres-heberge:
+    if: github.event_name == 'workflow_dispatch'
     name: Concurrence PostgreSQL hébergé (verrous d’avis, sans écriture métier)
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -90,6 +106,7 @@ jobs:
       - run: npm run test:cert:concurrency
 
   pile-hebergee:
+    if: github.event_name == 'workflow_dispatch'
     name: Auth · PostgREST · Storage · Vercel production
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -101,7 +118,7 @@ jobs:
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-      CERT_BASE_URL: ${{ inputs.base_url }}
+      CERT_BASE_URL: ${{ inputs.base_url || 'https://patsy-gest.vercel.app' }}
       CERT_EXPECTED_SCHEMA_VERSION: '57'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
