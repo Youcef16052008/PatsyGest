@@ -13,12 +13,12 @@ import pg from "pg";
 const { Client } = pg;
 const URL_HOSTED = process.env.PATSYGEST_HOSTED_PG_URL ?? process.env.SUPABASE_DB_URL ?? "";
 const URL_CI = process.env.PATSYGEST_PG_URL ?? "";
-const URL = URL_HOSTED || URL_CI;
+const URL_PG = URL_HOSTED || URL_CI;
 const SOURCE = URL_HOSTED ? "hosted" : "ci-service";
 
 function urlSecurisee() {
-  if (!URL_HOSTED) return URL;
-  const u = new URL(URL);
+  if (!URL_HOSTED) return URL_PG;
+  const u = new URL(URL_PG);
   if (!u.searchParams.has("sslmode")) u.searchParams.set("sslmode", "require");
   return u.toString();
 }
@@ -31,37 +31,64 @@ function nouveauClient() {
   });
 }
 
+async function connecter(client) {
+  let minuterie;
+  const delai = new Promise((_, rejeter) => {
+    minuterie = setTimeout(() => rejeter(new Error("délai de connexion PostgreSQL dépassé (20 s)")), 20_000);
+  });
+  try {
+    await Promise.race([client.connect(), delai]);
+  } finally {
+    clearTimeout(minuterie);
+  }
+}
+
+async function avecDelai(promesse, ms) {
+  let minuterie;
+  const butoir = new Promise((_, rejeter) => {
+    minuterie = setTimeout(() => rejeter(new Error(`délai interne dépassé (${ms} ms)`)), ms);
+  });
+  try {
+    return await Promise.race([promesse, butoir]);
+  } finally {
+    clearTimeout(minuterie);
+  }
+}
+
 async function fermer(client) {
   if (!client) return;
-  try {
-    await client.query("rollback");
-  } catch {
-    /* transaction déjà terminée ou connexion cassée */
+  for (const requete of ["rollback", "select pg_advisory_unlock_all()"]) {
+    try {
+      await avecDelai(client.query(requete), 2_000);
+    } catch {
+      /* transaction terminée, verrous libérés ou connexion cassée */
+    }
   }
   try {
-    await client.query("select pg_advisory_unlock_all()");
-  } catch {
-    /* verrous déjà libérés */
-  }
-  try {
-    await client.end();
+    await avecDelai(client.end(), 2_000);
   } catch {
     /* connexion déjà fermée */
   }
 }
 
 async function principal() {
-  assert.ok(URL.length > 0, "Aucune URL PostgreSQL fournie (PATSYGEST_HOSTED_PG_URL / SUPABASE_DB_URL / PATSYGEST_PG_URL)");
+  assert.ok(URL_PG.length > 0, "Aucune URL PostgreSQL fournie (PATSYGEST_HOSTED_PG_URL / SUPABASE_DB_URL / PATSYGEST_PG_URL)");
 
   const admin = nouveauClient();
   const c1 = nouveauClient();
   const c2 = nouveauClient();
   const clients = [admin, c1, c2];
+  const connectes = [];
   const cleRendezVous = 1_700_000_000 + (Date.now() % 100_000);
   const cleVerrou = cleRendezVous + 100_000;
 
   try {
-    await Promise.all(clients.map((client) => client.connect()));
+    await Promise.all(
+      clients.map(async (client) => {
+        await connecter(client);
+        connectes.push(client);
+      }),
+    );
     // Verrou TRANSACTIONNEL exclusif : compatible avec un pooler en mode
     // transaction, contrairement à un verrou de session. Les deux workers
     // attendent derrière lui puis se disputent un second verrou exclusif.
@@ -90,7 +117,7 @@ async function principal() {
     assert.equal((await admin.query("select 1 as ok")).rows[0].ok, 1, "connexion administrative morte");
     console.log(`[cert-concurrence] OK source=${SOURCE} connexions=2 duree=${duree}ms verrou=advisory`);
   } finally {
-    for (const client of [c1, c2, admin]) await fermer(client);
+    for (const client of connectes.reverse()) await fermer(client);
   }
 }
 
