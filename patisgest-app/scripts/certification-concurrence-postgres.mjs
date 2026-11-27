@@ -19,7 +19,11 @@ const SOURCE = URL_HOSTED ? "hosted" : "ci-service";
 function urlSecurisee() {
   if (!URL_HOSTED) return URL_PG;
   const u = new URL(URL_PG);
-  if (!u.searchParams.has("sslmode")) u.searchParams.set("sslmode", "require");
+  // Le mode SSL est piloté par l'option `ssl` du client, pas par la chaîne :
+  // `sslmode=require` est interprété comme `verify-full` par pg v8 et rejette
+  // le certificat auto-signé du pooler Supabase.
+  u.searchParams.delete("sslmode");
+  u.searchParams.delete("uselibpqcompat");
   return u.toString();
 }
 
