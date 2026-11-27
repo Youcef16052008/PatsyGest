@@ -16,8 +16,19 @@ const URL_CI = process.env.PATSYGEST_PG_URL ?? "";
 const URL = URL_HOSTED || URL_CI;
 const SOURCE = URL_HOSTED ? "hosted" : "ci-service";
 
+function urlSecurisee() {
+  if (!URL_HOSTED) return URL;
+  const u = new URL(URL);
+  if (!u.searchParams.has("sslmode")) u.searchParams.set("sslmode", "require");
+  return u.toString();
+}
+
 function nouveauClient() {
-  return new Client({ connectionString: URL });
+  return new Client({
+    connectionString: urlSecurisee(),
+    connectionTimeoutMillis: 15_000,
+    ssl: URL_HOSTED ? { rejectUnauthorized: false } : undefined,
+  });
 }
 
 async function fermer(client) {
@@ -51,8 +62,11 @@ async function principal() {
 
   try {
     await Promise.all(clients.map((client) => client.connect()));
-    // Verrou de session exclusif : les deux connexions attendent derrière lui.
-    await admin.query("select pg_advisory_lock($1)", [cleRendezVous]);
+    // Verrou TRANSACTIONNEL exclusif : compatible avec un pooler en mode
+    // transaction, contrairement à un verrou de session. Les deux workers
+    // attendent derrière lui puis se disputent un second verrou exclusif.
+    await admin.query("begin");
+    await admin.query("select pg_advisory_xact_lock($1)", [cleRendezVous]);
 
     const parcours = async (client) => {
       await client.query("begin");
@@ -66,7 +80,7 @@ async function principal() {
     const p1 = parcours(c1);
     const p2 = parcours(c2);
     await new Promise((resolve) => setTimeout(resolve, 150));
-    await admin.query("select pg_advisory_unlock($1)", [cleRendezVous]);
+    await admin.query("commit");
     await Promise.all([p1, p2]);
     const duree = Date.now() - debut;
 

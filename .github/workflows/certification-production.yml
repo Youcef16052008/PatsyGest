@@ -103,8 +103,8 @@ jobs:
     env:
       NEXT_TELEMETRY_DISABLED: '1'
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       CERT_BASE_URL: ${{ inputs.base_url || 'https://patsy-gest.vercel.app' }}
       CERT_EXPECTED_SCHEMA_VERSION: '57'
     steps:
