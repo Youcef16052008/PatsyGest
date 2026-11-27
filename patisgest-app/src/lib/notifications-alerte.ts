@@ -24,6 +24,43 @@ export interface AlertDispatchSummary {
   results: AlertDeliveryResult[];
 }
 
+/** Borne réseau explicite : un webhook lent ne doit pas bloquer le cron. */
+export interface AlertNetworkOptions {
+  timeoutMs?: number;
+}
+
+export const DELAI_ALERTE_RESEAU_MS = 10_000;
+
+async function fetchAvecDelai(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const delai = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : DELAI_ALERTE_RESEAU_MS;
+  const controleur = new AbortController();
+  let expire = false;
+  let minuteur: ReturnType<typeof setTimeout> | undefined;
+  const limite = new Promise<never>((_, reject) => {
+    minuteur = setTimeout(() => {
+      expire = true;
+      controleur.abort();
+      reject(new Error(`Délai réseau dépassé (${delai} ms).`));
+    }, delai);
+  });
+  const requete = Promise.resolve().then(() => fetchImpl(url, { ...init, signal: controleur.signal }));
+  // Le fetch peut rejeter APRÈS l'expiration : on évite un rejet non traité.
+  void requete.catch(() => {});
+  try {
+    return await Promise.race([requete, limite]);
+  } catch (erreur) {
+    if (expire) throw new Error(`Délai réseau dépassé (${delai} ms).`);
+    throw erreur;
+  } finally {
+    if (minuteur !== undefined) clearTimeout(minuteur);
+  }
+}
+
 /**
  * Normalise un numéro en E.164 (support natif Algérie +213 et international).
  */
@@ -94,6 +131,7 @@ async function sendTwilioMessage(params: {
   body: string;
   channel: "sms" | "whatsapp";
   fetchImpl: typeof fetch;
+  timeoutMs?: number;
 }): Promise<AlertDeliveryResult> {
   const url = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(params.accountSid)}/Messages.json`;
   const fromAddr = params.channel === "whatsapp" && !params.from.startsWith("whatsapp:")
@@ -105,14 +143,14 @@ async function sendTwilioMessage(params: {
   const body = new URLSearchParams({ From: fromAddr, To: toAddr, Body: params.body });
 
   try {
-    const res = await params.fetchImpl(url, {
+    const res = await fetchAvecDelai(params.fetchImpl, url, {
       method: "POST",
       headers: {
         Authorization: `Basic ${auth}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: body.toString(),
-    });
+    }, params.timeoutMs ?? DELAI_ALERTE_RESEAU_MS);
     return {
       channel: params.channel,
       provider: "twilio",
@@ -140,11 +178,12 @@ async function sendWebhookMessage(params: {
   message: string;
   meta: Record<string, unknown>;
   fetchImpl: typeof fetch;
+  timeoutMs?: number;
 }): Promise<AlertDeliveryResult> {
   try {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (params.secret) headers.Authorization = `Bearer ${params.secret}`;
-    const res = await params.fetchImpl(params.webhookUrl, {
+    const res = await fetchAvecDelai(params.fetchImpl, params.webhookUrl, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -153,7 +192,7 @@ async function sendWebhookMessage(params: {
         message: params.message,
         meta: params.meta,
       }),
-    });
+    }, params.timeoutMs ?? DELAI_ALERTE_RESEAU_MS);
     return {
       channel: params.channel,
       provider: "webhook",
@@ -183,6 +222,7 @@ export async function sendSmsAndWhatsAppAlerts(
     meta?: Record<string, unknown>;
   },
   fetchImpl: typeof fetch = fetch,
+  options: AlertNetworkOptions = {},
 ): Promise<AlertDispatchSummary> {
   const twilioSid = process.env.TWILIO_ACCOUNT_SID ?? "";
   const twilioToken = process.env.TWILIO_AUTH_TOKEN ?? "";
@@ -211,6 +251,7 @@ export async function sendSmsAndWhatsAppAlerts(
           body: params.message,
           channel: "sms",
           fetchImpl,
+          timeoutMs: options.timeoutMs,
         }),
       );
     } else if (canWebhookSms) {
@@ -223,6 +264,7 @@ export async function sendSmsAndWhatsAppAlerts(
           message: params.message,
           meta,
           fetchImpl,
+          timeoutMs: options.timeoutMs,
         }),
       );
     }
@@ -237,6 +279,7 @@ export async function sendSmsAndWhatsAppAlerts(
           body: params.message,
           channel: "whatsapp",
           fetchImpl,
+          timeoutMs: options.timeoutMs,
         }),
       );
     } else if (canWebhookWa) {
@@ -249,6 +292,7 @@ export async function sendSmsAndWhatsAppAlerts(
           message: params.message,
           meta,
           fetchImpl,
+          timeoutMs: options.timeoutMs,
         }),
       );
     }

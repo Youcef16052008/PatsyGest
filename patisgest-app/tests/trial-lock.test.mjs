@@ -9,9 +9,10 @@ import assert from "node:assert/strict";
  * client dont l'essai était échu pouvait donc encore vendre, encaisser et
  * écrire en base en appelant l'action directement.
  *
- * Le garde est placé dans `getSessionContext()` : les 87 actions exportées
- * appellent déjà cette fonction et savent déjà traiter un `null`, donc elles
- * échouent fermées sans être modifiées.
+ * Le garde est placé dans `getSessionContext()` : les actions exportées qui
+ * lisent ce contexte savent déjà traiter un `null`, donc elles échouent
+ * fermées sans être modifiées. Le décompte réel est mesuré par
+ * `tests/inventaire-surface.mjs`, pas figé ici.
  *
  * Ces tests exercent le VRAI `auth.ts` et le VRAI `trial-server.ts` : seul le
  * client Supabase est remplacé. Un faux `getSessionContext` ne prouverait rien.

@@ -3,7 +3,6 @@
 /** Planning et réassort : tâches, demandes « Demain au labo ». */
 
 import { revalidatePath } from "next/cache";
-import { canWrite, getSessionContext } from "./auth";
 import { messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
 import { estProprietaireSeul } from "./permissions";
@@ -20,10 +19,10 @@ import {
   parseTaskToggleInput,
   parseTemperatureInput,
 } from "./journal-input";
-import { type JournalState, requireWriter, requireAnyRole, mapError } from "./journal-actions-communs";
+import { type JournalState, requireWriterContexte, requireAnyRoleContexte, mapError } from "./journal-actions-communs";
 
 export async function addTask(_prev: JournalState, formData: FormData): Promise<JournalState> {
-  const denied = await requireWriter();
+  const { ctx, denied } = await requireWriterContexte();
   if (denied) return denied;
   let input;
   try {
@@ -32,10 +31,9 @@ export async function addTask(_prev: JournalState, formData: FormData): Promise<
     return { erreur: e instanceof Error ? e.message : "Saisie invalide." };
   }
   try {
-    const ctx = await getSessionContext();
     const supabase = await createClient();
     const { error } = await supabase.from("taches_planning").insert({
-      client_id: ctx!.clientId,
+      client_id: ctx.clientId,
       date_tache: input.date,
       tache: input.tache,
       of_numero: input.ofNumero ?? "",
@@ -54,7 +52,7 @@ export async function addTask(_prev: JournalState, formData: FormData): Promise<
 /** Bascule d'une tâche (UPDATE politique tenant + rôle). */
 
 export async function toggleTask(_prev: JournalState, formData: FormData): Promise<JournalState> {
-  const denied = await requireWriter();
+  const { denied } = await requireWriterContexte();
   if (denied) return denied;
   let input;
   try {
@@ -76,7 +74,7 @@ export async function toggleTask(_prev: JournalState, formData: FormData): Promi
 /** Édition d'un devis (RPC editer_cake, statut devis uniquement) — propriétaire uniquement. */
 
 export async function createRestockRequestReal(_prev: JournalState, formData: FormData): Promise<JournalState> {
-  const denied = await requireAnyRole();
+  const { ctx, denied } = await requireAnyRoleContexte();
   if (denied) return denied;
   let input;
   try {
@@ -85,7 +83,6 @@ export async function createRestockRequestReal(_prev: JournalState, formData: Fo
     return { erreur: e instanceof Error ? e.message : "Saisie invalide." };
   }
   try {
-    const ctx = await getSessionContext();
     const supabase = await createClient();
     const { data, error } = await supabase.rpc("creer_demande_reassort", {
       p_site_id: input.siteId,
@@ -93,7 +90,7 @@ export async function createRestockRequestReal(_prev: JournalState, formData: Fo
       p_date_cible: input.dateCible,
       p_qte: input.qte,
       p_motif: input.motif,
-      p_demandeur: input.demandeur || ctx?.nom || ctx?.role || "",
+      p_demandeur: input.demandeur || ctx.nom || ctx.role || "",
     });
     if (error) {
       if (error.code === "PGRST202" || error.code === "42883") {
@@ -113,7 +110,7 @@ export async function createRestockRequestReal(_prev: JournalState, formData: Fo
 /** Validation chef d'une ligne « Demain au labo » : crée l'OF idempotent et marque les demandes liées. */
 
 export async function validateTomorrowLineReal(_prev: JournalState, formData: FormData): Promise<JournalState> {
-  const denied = await requireWriter();
+  const { denied } = await requireWriterContexte();
   if (denied) return denied;
   const versionId = String(formData.get("versionId") ?? "").trim();
   const siteId = String(formData.get("siteId") ?? "").trim();
@@ -175,7 +172,7 @@ export async function validateTomorrowLineReal(_prev: JournalState, formData: Fo
 /** Annule une demande de réassort ouverte (chef / propriétaire). */
 
 export async function cancelRestockRequestReal(_prev: JournalState, formData: FormData): Promise<JournalState> {
-  const denied = await requireWriter();
+  const { denied } = await requireWriterContexte();
   if (denied) return denied;
   const id = String(formData.get("id") ?? "").trim();
   if (!/^[0-9a-f-]{36}$/i.test(id)) return { erreur: "Demande invalide." };

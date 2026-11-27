@@ -48,10 +48,30 @@ export interface ClientTrialStatus {
  * même réponse) ; la requête suivante refait une lecture fraîche.
  */
 let statutEnVol: Promise<ClientTrialStatus | null> | null = null;
+const DELAI_RPC_ESSAI_MS = 5_000;
+let delaiRpcMs = DELAI_RPC_ESSAI_MS;
+
+/**
+ * Une promesse RPC sans réponse ne doit pas rester partagée par tous les rendus
+ * de la requête. Après la borne, on rend `null` (échec ouvert, comme toute
+ * panne de licence) et on libère `statutEnVol` pour la requête suivante.
+ */
+function lireStatutEssaiBorne(): Promise<ClientTrialStatus | null> {
+  let minuteur: ReturnType<typeof setTimeout> | undefined;
+  const rpc = Promise.resolve().then(() => lireStatutEssaiServeur());
+  // Le RPC peut rejeter après l'expiration : éviter un rejet non traité.
+  void rpc.catch(() => {});
+  const limite = new Promise<ClientTrialStatus | null>((resolve) => {
+    minuteur = setTimeout(() => resolve(null), delaiRpcMs);
+  });
+  return Promise.race([rpc, limite]).finally(() => {
+    if (minuteur !== undefined) clearTimeout(minuteur);
+  });
+}
 
 function lireStatutEssaiMemoise(): Promise<ClientTrialStatus | null> {
   if (!statutEnVol) {
-    statutEnVol = lireStatutEssaiServeur().finally(() => { statutEnVol = null; });
+    statutEnVol = lireStatutEssaiBorne().finally(() => { statutEnVol = null; });
   }
   return statutEnVol;
 }
@@ -60,9 +80,15 @@ function lireStatutEssaiMemoise(): Promise<ClientTrialStatus | null> {
 export const lireStatutEssaiPartage: () => Promise<ClientTrialStatus | null> =
   cache(lireStatutEssaiMemoise);
 
-/** Réinitialise la déduplication en vol (tests uniquement). */
-export function reinitialiserStatutEssaiPartage(): void {
+/**
+ * Réinitialise la déduplication en vol (tests uniquement). Le délai peut être
+ * réduit pour prouver la borne sans attendre cinq secondes en CI.
+ */
+export function reinitialiserStatutEssaiPartage(delaiTestMs?: number): void {
   statutEnVol = null;
+  delaiRpcMs = Number.isFinite(delaiTestMs) && (delaiTestMs ?? 0) > 0
+    ? Math.floor(delaiTestMs!)
+    : DELAI_RPC_ESSAI_MS;
 }
 
 export async function lireStatutEssaiServeur(): Promise<ClientTrialStatus | null> {
