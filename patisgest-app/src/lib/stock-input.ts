@@ -4,6 +4,8 @@
  * qui ne doivent jamais faire confiance aux données du navigateur.
  */
 
+import { dateIsoValide, jourLocal } from "./workspace-data.ts";
+
 export type ArticleInput = {
   code: string;
   nom: string;
@@ -56,7 +58,7 @@ function optionalUuid(value: unknown, label: string): string | null {
 function date(value: unknown, label: string): string | null {
   const s = String(value ?? "").trim();
   if (s === "") return null;
-  if (!DATE_RE.test(s) || Number.isNaN(Date.parse(s)) || new Date(s).toISOString().slice(0, 10) !== s) {
+  if (!dateIsoValide(s)) {
     throw new Error(`${label} : date invalide (format AAAA-MM-JJ).`);
   }
   return s;
@@ -97,12 +99,12 @@ export function parseArticleInput(formData: FormData): ArticleInput {
   };
 }
 
-function futureDate(value: FormDataEntryValue | null, label: string): string {
+function futureDate(value: FormDataEntryValue | null, label: string, maintenant?: Date): string {
   const s = String(value ?? "").trim();
-  if (!DATE_RE.test(s) || Number.isNaN(Date.parse(s)) || new Date(s).toISOString().slice(0, 10) !== s) {
+  if (!dateIsoValide(s)) {
     throw new Error(`${label} : date invalide (format AAAA-MM-JJ).`);
   }
-  const today = new Date().toISOString().slice(0, 10);
+  const today = jourLocal(maintenant);
   if (s < today) throw new Error(`${label} doit être aujourd'hui ou plus tard.`);
   return s;
 }
@@ -114,12 +116,12 @@ export type OfCreateInput = {
   datePrevue: string;
 };
 
-export function parseOfCreateInput(formData: FormData): OfCreateInput {
+export function parseOfCreateInput(formData: FormData, maintenant?: Date): OfCreateInput {
   return {
     versionId: uuid(formData.get("versionId"), "Version"),
     siteId: uuid(formData.get("siteId"), "Site"),
     qtePrevue: number(formData.get("qtePrevue"), "Quantité prévue", 0.0001, 100_000_000),
-    datePrevue: futureDate(formData.get("datePrevue"), "Date prévue"),
+    datePrevue: futureDate(formData.get("datePrevue"), "Date prévue", maintenant),
   };
 }
 
@@ -130,12 +132,12 @@ export type OfFinishInput = {
   dlc: string;
 };
 
-export function parseOfFinishInput(formData: FormData): OfFinishInput {
+export function parseOfFinishInput(formData: FormData, maintenant?: Date): OfFinishInput {
   return {
     ofId: uuid(formData.get("ofId"), "OF"),
     qte: number(formData.get("qte"), "Quantité réalisée", 0.0001, 100_000_000),
     numeroLot: text(formData.get("numeroLot"), "N° de lot", 80),
-    dlc: futureDate(formData.get("dlc"), "DLC"),
+    dlc: futureDate(formData.get("dlc"), "DLC", maintenant),
   };
 }
 

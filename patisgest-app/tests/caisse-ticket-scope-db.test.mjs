@@ -7,7 +7,7 @@ import { chaineDeploiement, cheminMigration } from './migrations-historique.mjs'
 /*
  * Migration 53 — portée du ticket d'idempotence.
  *
- * Ce test tourne sur la CHAÎNE DE DÉPLOIEMENT (01→23 puis 24→53), pas sur la
+ * Ce test tourne sur la CHAÎNE DE DÉPLOIEMENT (01→23 puis 24→57), pas sur la
  * chaîne de répétition : le défaut corrigé ici n'existait que dans la série
  * principale, où `vendre_panier` retrouvait un ticket par
  * `(client_id, ticket)` sans `site_id` ni `source`.
@@ -165,9 +165,10 @@ test('53 : rejouable, sans DROP ni chirurgie, gardes existantes préservées', a
     const final = await lire();
     assert.ok(final.includes('Ticket deja utilise pour une autre vente'), 'garde 53 perdue après rejeu de 36/44');
 
-    // Version de schéma avancée, jamais abaissée.
+    // Version de schéma avancée, jamais abaissée. La chaîne contient aussi 54/55/56 :
+    // rejouer 53 ne doit donc pas ramener le marqueur à 53.
     const v1 = (await db.query('select version from public.app_schema_version')).rows[0].version;
-    assert.equal(v1, 53);
+    assert.ok(v1 >= 57, `version ${v1} : rejouer 53 a abaissé une migration plus récente`);
   } finally {
     await db.close();
   }

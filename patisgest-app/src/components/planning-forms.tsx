@@ -3,13 +3,14 @@
 import { useActionState } from "react";
 import { addTask, toggleTask } from "@/lib/actions-planning";
 import { type JournalState } from "@/lib/journal-actions-communs";
+import { jourLocal } from "@/lib/workspace-data";
 
 export type TaskRow = { id: string; date: string; tache: string; ofNumero: string; fait: boolean };
 
 const field = "mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm";
 const label = "block text-xs font-semibold text-slate-600";
 const btn = "rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50";
-const today = new Date().toISOString().slice(0, 10);
+const aujourdhui = () => jourLocal();
 
 /** Planning : ajout de tâches et bascule fait (écritures réelles). */
 export default function PlanningForms({ tasks, ofNumeros }: { tasks: TaskRow[]; ofNumeros: string[] }) {
@@ -20,7 +21,7 @@ export default function PlanningForms({ tasks, ofNumeros }: { tasks: TaskRow[]; 
     <section className="mb-6 rounded-2xl border bg-white p-5">
       <h2 className="mb-3 font-bold">Planning de production</h2>
       <form action={createAction} className="mb-4 flex flex-wrap items-end gap-3 border-b pb-4">
-        <label className={`${label} w-36`}>Date<input name="date" type="date" required defaultValue={today} className={field} /></label>
+        <label className={`${label} w-36`}>Date<input name="date" type="date" required defaultValue={aujourdhui()} className={field} /></label>
         <label className={`${label} min-w-52 flex-1`}>Tâche<input name="tache" required maxLength={100} placeholder="Préparer la crème" className={field} /></label>
         <label className={`${label} w-36`}>OF (opt.)
           <input name="ofNumero" list="of-list" maxLength={80} placeholder="OF-002" className={field} />

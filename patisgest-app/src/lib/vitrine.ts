@@ -104,6 +104,23 @@ export async function lireVitrinePublique(sousDomaine: string): Promise<VitrineP
  * Extraite pour être testable sans base ni requête HTTP : c'est ici que se
  * joue la règle « un prix à 0 ne s'affiche jamais 0 DA ».
  */
+/**
+ * H16-05 — une ligne PostgREST malformée ne doit jamais devenir `undefined`
+ * dans le HTML public. La vue est censée être propre, mais un cast TypeScript
+ * n'est pas une validation runtime : on filtre explicitement.
+ */
+export function ligneVitrineValide(ligne: unknown): ligne is LigneVitrine {
+  if (!ligne || typeof ligne !== "object") return false;
+  const l = ligne as Record<string, unknown>;
+  const texte = (cle: string) => typeof l[cle] === "string" && (l[cle] as string).trim().length > 0;
+  const nombreOuNull = (cle: string) =>
+    l[cle] === null || (typeof l[cle] === "number" && Number.isFinite(l[cle] as number));
+  const texteOuNull = (cle: string) => l[cle] === null || typeof l[cle] === "string";
+  return texte("cle_nom") && texte("nom") && texte("etablissement") && texte("boutique") && texte("subdomain")
+    && nombreOuNull("prix_ht") && nombreOuNull("tva")
+    && texteOuNull("description") && texteOuNull("photo_vitrine") && texteOuNull("unite");
+}
+
 export function construireVitrine(domaine: string, lignes: LigneVitrine[]): VitrinePublique {
   const vide: VitrinePublique = {
     etablissement: "",
@@ -112,15 +129,16 @@ export function construireVitrine(domaine: string, lignes: LigneVitrine[]): Vitr
     articles: [],
   };
 
-  if (lignes.length === 0) {
+  const valides = lignes.filter(ligneVitrineValide);
+  if (valides.length === 0) {
     return { ...vide, indisponible: "Cette boutique n'a pas encore publié sa vitrine." };
   }
 
   return {
-    etablissement: lignes[0].etablissement,
-    boutique: lignes[0].boutique,
-    sousDomaine: lignes[0].subdomain,
-    articles: lignes.map((l) => ({
+    etablissement: valides[0].etablissement,
+    boutique: valides[0].boutique,
+    sousDomaine: valides[0].subdomain,
+    articles: valides.map((l) => ({
       cleNom: l.cle_nom,
       nom: l.nom,
       description: l.description,

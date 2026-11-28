@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { createCommandeReal, receiveCommandeReal, type AchatsState } from "@/lib/actions-achats";
 import type { PriceAlert } from "@/lib/price-alerts";
+import { jourLocal } from "@/lib/workspace-data";
 
 type Option = { id: string; label: string };
 export type CommandeRow = { id: string; numero: string; statut: string; fournisseur: string; lignes: { articleId: string; qte: number; pu?: number; recu: number }[] };
@@ -12,7 +13,7 @@ const field = "mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm";
 const label = "block text-xs font-semibold text-slate-600";
 const btn = "rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50";
 const btn2 = "rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold disabled:opacity-50";
-const today = new Date().toISOString().slice(0, 10);
+const aujourdhui = () => jourLocal();
 
 type Line = { articleId: string; qte: string; pu: string };
 
@@ -68,7 +69,7 @@ function CommandeCreate({ fournisseurs, articles, alerts }: { fournisseurs: Opti
 function ReceptionBlock({ commande, sites, articlesById, voirPrix }: { commande: CommandeRow; sites: Option[]; articlesById: Record<string, string>; voirPrix: boolean }) {
   const [state, action, pending] = useActionState(receiveCommandeReal, {});
   const [on, setOn] = useState<boolean[]>(() => commande.lignes.map(() => false));
-  const [vals, setVals] = useState(() => commande.lignes.map((l) => ({ qte: String(Math.max(0, l.qte - l.recu)), numero: "", dlc: today })));
+  const [vals, setVals] = useState(() => commande.lignes.map((l) => ({ qte: String(Math.max(0, l.qte - l.recu)), numero: "", dlc: aujourdhui() })));
   const active = on.map((v, i) => (v ? i : -1)).filter((i) => i >= 0);
   const upd = (i: number, patch: Partial<{ qte: string; numero: string; dlc: string }>) =>
     setVals((vs) => vs.map((v, j) => (j === i ? { ...v, ...patch } : v)));
@@ -110,7 +111,7 @@ function ReceptionBlock({ commande, sites, articlesById, voirPrix }: { commande:
                       onChange={(e) => upd(i, { numero: e.target.value })} className={`${field} mt-0`} />
                   </label>
                   <label className={`${label} w-40`}>DLC
-                    <input name={`rec${active.indexOf(i)}_dlc`} type="date" min={today} required value={vals[i].dlc}
+                    <input name={`rec${active.indexOf(i)}_dlc`} type="date" min={aujourdhui()} required value={vals[i].dlc}
                       onChange={(e) => upd(i, { dlc: e.target.value })} className={`${field} mt-0`} />
                   </label>
                 </>

@@ -27,7 +27,9 @@ test("Wave A : demo-workspace a un lot Labo demo-creme et sellCart refuse prix <
   const ws = createDemoWorkspace("2026-11-24");
   const recTarte = ws.recipes.find((r) => r.productId === "demo-tarte");
   assert.ok(recTarte, "recette demo-tarte absente");
-  const cost = recipeCost(ws, recTarte.id);
+  // Le jeu de démonstration est daté : on fige la date de référence du coût,
+  // sinon le test devient faux dès que la DLC réelle du beurre est dépassée.
+  const cost = recipeCost(ws, recTarte.id, undefined, "2026-11-24");
   assert.deepEqual(cost.missingPrices, [], "demo-tarte ne doit pas manquer de prix FEFO");
 
   // Prix nul refusé

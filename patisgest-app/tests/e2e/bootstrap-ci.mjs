@@ -1,6 +1,6 @@
 // Amorçage d'une pile Supabase CLI locale jetable pour les tests E2E Playwright.
 //
-// Applique la chaîne principale (01, 03..53) avec les mêmes garde-fous et
+// Applique la chaîne principale (01, 03..57) avec les mêmes garde-fous et
 // adaptateurs de rejeu que les tests d'intégration isolés, crée les comptes Auth
 // réels via l'API Admin GoTrue (indépendamment des colonnes internes `auth.users`),
 // insère le client pilote + sites, exécute `seed.mjs` et vérifie la connexion.
@@ -164,11 +164,11 @@ try {
   assert.ifError(me.error && new Error(`Lecture utilisateurs : ${me.error.message}`));
   const schemaVer = await anon.from('app_schema_version').select('version').maybeSingle();
   assert.ifError(schemaVer.error && new Error(`Lecture app_schema_version : ${schemaVer.error.message}`));
-  assert.equal(schemaVer.data?.version, 53);
+  assert.equal(schemaVer.data?.version, 57);
   const arts = await anon.from('articles').select('id').limit(1);
   assert.ifError(arts.error && new Error(`Lecture articles : ${arts.error.message}`));
 
-  console.log('Bootstrap E2E prêt (chaîne 01..53, comptes Auth réels, seed et PostgREST vérifiés).');
+  console.log('Bootstrap E2E prêt (chaîne 01..57, comptes Auth réels, seed et PostgREST vérifiés).');
 } finally {
   await sql.end();
 }

@@ -5,7 +5,11 @@ import Link from "next/link";
 import { validerComptageTiroir } from "@/lib/actions-clotures";
 import { whatsappDailyClosingUrl } from "@/lib/whatsapp";
 import { dinars } from "@/lib/workspace-data";
-import { compterVentesEnAttente, messageAttenteCloture } from "@/lib/file-attente-cloture";
+import {
+  ATTENTE_SERVEUR,
+  messageAttenteCloture,
+  snapshotAttenteClotureNavigateur,
+} from "@/lib/file-attente-cloture";
 
 export default function CashClosingQuickWidget({
   today,
@@ -94,15 +98,15 @@ export default function CashClosingQuickWidget({
         window.removeEventListener("patisgest-sale-queue", cb);
       };
     },
-    () => compterVentesEnAttente(window.localStorage),
-    () => ({ tickets: 0, illisible: false }),
+    snapshotAttenteClotureNavigateur,
+    () => ATTENTE_SERVEUR,
   );
   const avertissementFile = messageAttenteCloture(attente);
 
   function saveQuickCheck() {
     setSavedNotice(null);
-    if (attente.tickets > 0) {
-      setSavedNotice({ kind: "error", text: avertissementFile ?? "Ventes non synchronisées." });
+    if (attente.tickets > 0 || attente.illisible) {
+      setSavedNotice({ kind: "error", text: avertissementFile ?? "File de ventes à vérifier." });
       return;
     }
     try {
@@ -198,7 +202,7 @@ export default function CashClosingQuickWidget({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={!hasCount || pending || attente.tickets > 0}
+            disabled={!hasCount || pending || attente.tickets > 0 || attente.illisible}
             onClick={saveQuickCheck}
             className="pg-button"
           >

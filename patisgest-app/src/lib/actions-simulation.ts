@@ -5,6 +5,7 @@ import { messageUtilisateur } from "./erreurs-db";
 import { computeFefoCost } from "./fefo-cost";
 import { lireLotsPourArticles, type ClientLots } from "./lots-batch";
 import { createClient } from "./supabase/server";
+import { jourLocal } from "./workspace-data.ts";
 
 export type SimuBesoins = {
   articleId: string;
@@ -48,7 +49,7 @@ export async function simulerReal(_prev: SimulationState, formData: FormData): P
   if (!Number.isFinite(qte) || qte <= 0 || qte > 100_000_000) return { erreur: "Quantité invalide." };
   try {
     const supabase = await createClient();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = jourLocal();
     const { data, error } = await supabase.rpc("simuler_recette", {
       p_produit_id: produitId,
       p_qte: qte,

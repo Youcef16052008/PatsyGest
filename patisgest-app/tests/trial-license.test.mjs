@@ -254,3 +254,34 @@ test('essai serveur : une exception de transport ne remonte pas', async () => {
   rpcResult = { data: null, error: { message: 'réseau' } };
   assert.equal(await lireStatutEssaiServeur(), null);
 });
+
+test('production : aucune graine publique du dépôt ne signe une licence', () => {
+  // H01-05 : avant le correctif, supprimer tous les secrets en production
+  // retombait sur une graine connue de tous et signait quand même le bundle.
+  const cles = [
+    'NODE_ENV', 'VERCEL_ENV', 'PATISGEST_LICENSE_PRIVATE_JWK',
+    'PATISGEST_LICENSE_PRIVATE_KEY', 'PATISGEST_MASTER_KEY',
+    'VITRINE_SECRET_ANTI_ABUS', 'PATISGEST_DEMO_SECRET',
+  ];
+  const avant = Object.fromEntries(cles.map(k => [k, process.env[k]]));
+  try {
+    for (const k of cles) delete process.env[k];
+    process.env.NODE_ENV = 'production';
+    assert.throws(
+      () => signTrialLicense(payload()),
+      /Clé de licence absente en production/,
+      'une licence ne doit jamais être signée avec la graine publique en production',
+    );
+    // La vérification échoue fermé : aucune exception, aucun jeton accepté.
+    assert.equal(verifyTrialLicenseServer('corps.signature'), null);
+
+    // Avec un secret configuré, la signature redevient vérifiable.
+    process.env.PATISGEST_LICENSE_PRIVATE_KEY = 'graine-de-test-licence-deterministe';
+    assert.notEqual(verifyTrialLicenseServer(signTrialLicense(payload()).token), null);
+  } finally {
+    for (const k of cles) {
+      if (avant[k] === undefined) delete process.env[k];
+      else process.env[k] = avant[k];
+    }
+  }
+});

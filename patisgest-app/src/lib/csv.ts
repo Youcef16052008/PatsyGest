@@ -1,3 +1,5 @@
+import { jourLocal } from "./workspace-data.ts";
+
 /**
  * MOD-15 — Export CSV (US-15.2 « export complet, aucune donnée prisonnière »).
  *
@@ -36,7 +38,14 @@ export type ValeurCsv = string | number | boolean | null | undefined | Date | re
 
 function echapper(valeur: string): string {
   let s = valeur;
-  if (FORMULE.test(s)) s = "'" + s;
+  if (FORMULE.test(s)) {
+    // OWASP : l'apostrophe empêche Excel d'exécuter la formule. On double
+    // l'apostrophe d'une valeur qui en possédait déjà une : sinon `=1+1` et
+    // `'=1+1` produiraient exactement la même cellule (`'=1+1`).
+    s = "'" + s;
+  } else if (s.startsWith("'")) {
+    s = "'" + s;
+  }
   if (A_ESCAPER.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
   return s;
 }
@@ -79,7 +88,7 @@ export function versCsv(
 
 /** Nom de fichier sûr et horodaté : `patisgest-ventes-2026-11-17.csv`. */
 export function nomFichier(prefixe: string, date = new Date()): string {
-  const jour = date.toISOString().slice(0, 10);
+  const jour = jourLocal(date);
   const base = prefixe
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")

@@ -51,7 +51,20 @@ export interface ConnectivitySweepResult {
   thresholdMinutes: number;
   disconnectedFound: number;
   alertsDispatched: number;
+  alertsFailed: number;
   error?: string;
+}
+
+/**
+ * Une seule horloge de référence pour le balayage : `checkedAt` sert à la fois
+ * au filtre DB et au calcul des minutes. Une seconde lecture de l'horloge
+ * système pouvait produire une borne différente de `cutoffIso` si le temps avançait pendant le
+ * balayage ou si l'horloge serveur dérivait.
+ */
+export function borneConnectivite(checkedAt: string, thresholdMin: number) {
+  const checkedAtMs = Date.parse(checkedAt);
+  const cutoffMs = checkedAtMs - thresholdMin * 60_000;
+  return { checkedAtMs, cutoffMs, cutoffIso: new Date(cutoffMs).toISOString() };
 }
 
 export async function runOfflineDisconnectAlerts(): Promise<ConnectivitySweepResult> {
@@ -68,15 +81,17 @@ export async function runOfflineDisconnectAlerts(): Promise<ConnectivitySweepRes
       thresholdMinutes: thresholdMin,
       disconnectedFound: 0,
       alertsDispatched: 0,
+      alertsFailed: 0,
       error: "SUPABASE_SERVICE_ROLE_KEY manquant pour la surveillance de connectivité.",
     };
   }
 
-  const cutoffIso = new Date(Date.now() - thresholdMin * 60_000).toISOString();
+  const { checkedAtMs, cutoffMs, cutoffIso } = borneConnectivite(checkedAt, thresholdMin);
   const { data: users, error } = await admin
     .from("utilisateurs")
     .select("id, client_id, nom, email, role, telephone, last_seen_at, offline_alert_sent_at, offline_alert_count, clients ( id, nom )")
-    .in("role", ["proprietaire", "labo", "vendeur"]);
+    .in("role", ["proprietaire", "labo", "vendeur"])
+    .lt("last_seen_at", cutoffIso);
 
   if (error || !users) {
     return {
@@ -85,6 +100,7 @@ export async function runOfflineDisconnectAlerts(): Promise<ConnectivitySweepRes
       thresholdMinutes: thresholdMin,
       disconnectedFound: 0,
       alertsDispatched: 0,
+      alertsFailed: 0,
       error: error?.message ?? "Lecture utilisateurs impossible.",
     };
   }
@@ -110,6 +126,7 @@ export async function runOfflineDisconnectAlerts(): Promise<ConnectivitySweepRes
       thresholdMinutes: thresholdMin,
       disconnectedFound: 0,
       alertsDispatched: 0,
+      alertsFailed: 0,
       error: `Aucune ligne utilisateur exploitable (${lignesIgnorees} ignorée(s)).`,
     };
   }
@@ -120,9 +137,9 @@ export async function runOfflineDisconnectAlerts(): Promise<ConnectivitySweepRes
     byClient.set(r.client_id, arr);
   }
 
-  const cutoffMs = Date.parse(cutoffIso);
   let disconnectedFound = 0;
   let alertsDispatched = 0;
+  let alertsFailed = 0;
 
   for (const u of rows) {
     if (!u.last_seen_at) continue;
@@ -142,7 +159,7 @@ export async function runOfflineDisconnectAlerts(): Promise<ConnectivitySweepRes
       teamUsers: team.map((m) => ({ role: m.role, telephone: m.telephone })),
     });
 
-    const disconnectedMinutes = Math.round((Date.now() - lastSeenMs) / 60_000);
+    const disconnectedMinutes = Math.round((checkedAtMs - lastSeenMs) / 60_000);
     // PostgREST rend la jointure en objet OU en tableau. `u.clients?.nom`
     // ne couvrait que l'objet : en forme tableau, TOUTES les alertes
     // affichaient « Établissement » au lieu du vrai nom (mesuré).
@@ -183,6 +200,17 @@ export async function runOfflineDisconnectAlerts(): Promise<ConnectivitySweepRes
       },
     });
 
+    // « Simulation », « partiel » et « echec » ne sont PAS une livraison :
+    // marquer `offline_alert_sent_at` supprimerait la prochaine tentative et
+    // ferait croire au Master qu'une alerte est partie.
+    const livree = dispatch.statut === "envoye"
+      && dispatch.results.length > 0
+      && dispatch.results.every((r) => r.ok);
+    if (!livree) {
+      alertsFailed += 1;
+      continue;
+    }
+
     await admin
       .from("utilisateurs")
       .update({
@@ -195,10 +223,14 @@ export async function runOfflineDisconnectAlerts(): Promise<ConnectivitySweepRes
   }
 
   return {
-    ok: true,
+    ok: alertsFailed === 0,
     checkedAt,
     thresholdMinutes: thresholdMin,
     disconnectedFound,
     alertsDispatched,
+    alertsFailed,
+    ...(alertsFailed > 0
+      ? { error: `${alertsFailed} alerte(s) non livrée(s) : aucune confirmation d'envoi n'a été obtenue.` }
+      : {}),
   };
 }

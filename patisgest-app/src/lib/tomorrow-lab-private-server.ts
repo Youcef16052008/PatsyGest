@@ -5,6 +5,22 @@ import { computeTomorrowLabPlan, type RestockRequestItem, type TomorrowExistingO
 import { lireArticlesQuantites, lireLots, lirePages, lireSites, type WorkspaceDB } from './workspace-read';
 import { jourLocal, plusJours } from './workspace-data';
 
+/**
+ * H16-09 — sélection de la version active de numéro maximal par produit.
+ * Extraite pour être testable sans base : une version inactive est ignorée,
+ * une version sans produit lié est ignorée, et le numéro maximal gagne même
+ * si l'ordre d'arrivée est inversé.
+ */
+export function choisirVersionsActives(versions: ImpactRecipeVersion[]): Map<string, ImpactRecipeVersion> {
+ const active = new Map<string, ImpactRecipeVersion>();
+ for (const v of versions) {
+  if (!v.active || !v.produitId) continue;
+  const courante = active.get(v.produitId);
+  if (!courante || courante.version < v.version) active.set(v.produitId, v);
+ }
+ return active;
+}
+
 /** Une erreur ou une limite de pagination ne doit jamais devenir un stock nul. */
 export async function lirePlanLaboPrive(db: WorkspaceDB, clientId: string, requestedDate?: string) {
  const today=jourLocal();
@@ -29,8 +45,7 @@ export async function lirePlanLaboPrive(db: WorkspaceDB, clientId: string, reque
  if(allVersions.length!==versions.length) return {error:'Une famille de recette manque : le plan n’a pas été calculé.'} as const;
  if(!recettesPlanValides(allVersions,impactArticles)) return {error:'Une recette comporte des références manquantes, invalides ou cycliques : le plan n’a pas été calculé.'} as const;
  const conv:UnitConversion[]=conversions.map(c=>({uniteFrom:c.unite_from,uniteTo:c.unite_to,facteur:Number(c.facteur)}));
- const active=new Map<string,ImpactRecipeVersion>();
- for(const v of allVersions) if(v.active&&v.produitId&&(!active.has(v.produitId)||active.get(v.produitId)!.version<v.version)) active.set(v.produitId,v);
+ const active=choisirVersionsActives(allVersions);
  let conversionIncomplete=false;
  const products:TomorrowProduct[]=articles.filter(a=>a.niveau==='produit').map(a=>{
   const v=active.get(a.id);if(!v)return {...a,seuil:Number(a.seuil),recipe:null};

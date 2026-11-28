@@ -12,17 +12,37 @@ import { messageUtilisateur } from "./erreurs-db";
 
 export type JournalState = { erreur?: string; succes?: string };
 
-export async function requireWriter(): Promise<{ erreur: string } | null> {
+export type ContexteJournal = NonNullable<Awaited<ReturnType<typeof getSessionContext>>>;
+export type GardeContexteJournal =
+  | { ctx: ContexteJournal; denied: null }
+  | { ctx: null; denied: { erreur: string } };
+
+/**
+ * Une seule lecture de session par action : le contexte vérifié est celui qui
+ * sert à l'écriture. Une session expirée entre une garde et un second
+ * `getSessionContext()` ne peut plus produire `ctx!.clientId === undefined`.
+ */
+export async function requireWriterContexte(): Promise<GardeContexteJournal> {
   const ctx = await getSessionContext();
-  if (!ctx) return { erreur: "Session requise." };
-  if (!canWrite(ctx.role)) return { erreur: "Réservé aux rôles propriétaire et labo." };
-  return null;
+  if (!ctx) return { ctx: null, denied: { erreur: "Session requise." } };
+  if (!canWrite(ctx.role)) return { ctx: null, denied: { erreur: "Réservé aux rôles propriétaire et labo." } };
+  return { ctx, denied: null };
+}
+
+export async function requireAnyRoleContexte(): Promise<GardeContexteJournal> {
+  const ctx = await getSessionContext();
+  if (!ctx) return { ctx: null, denied: { erreur: "Session requise." } };
+  return { ctx, denied: null };
+}
+
+export async function requireWriter(): Promise<{ erreur: string } | null> {
+  const { denied } = await requireWriterContexte();
+  return denied;
 }
 
 export async function requireAnyRole(): Promise<{ erreur: string } | null> {
-  const ctx = await getSessionContext();
-  if (!ctx) return { erreur: "Session requise." };
-  return null;
+  const { denied } = await requireAnyRoleContexte();
+  return denied;
 }
 
 export function mapError(error: { code?: string; message: string }): string {

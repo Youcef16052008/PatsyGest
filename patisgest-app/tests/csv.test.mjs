@@ -126,3 +126,13 @@ test('CSV : les caractères invisibles avant une formule sont neutralisés (W2-D
   assert.equal(cellule(-42), '-42');
   assert.equal(cellule(-0.5), '-0,5');
 });
+
+test('H12-02 : apostrophe initiale et formule ne peuvent pas produire la même cellule', () => {
+  // Avant correction, cellule('=1+1') et cellule("'=1+1") sortaient toutes
+  // deux "'=1+1" : l'export n'était pas injectif et l'apostrophe ajoutée par
+  // le garde-fou OWASP devenait ambiguë.
+  assert.equal(cellule('=1+1'), "'=1+1");
+  assert.equal(cellule("'=1+1"), "''=1+1");
+  assert.notEqual(cellule('=A1"B1'), cellule("'=A1\"B1"));
+  assert.equal(cellule('=A1"B1'), '"\'=A1""B1"');
+});

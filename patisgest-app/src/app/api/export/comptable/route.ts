@@ -12,6 +12,10 @@ import {
 import { lirePages } from "@/lib/pagination";
 import { messageUtilisateur } from "@/lib/erreurs-db";
 import { estProprietaireSeul } from "@/lib/permissions";
+import {
+  validerLignesAvoirsComptables,
+  validerLignesVentesComptables,
+} from "@/lib/export-comptable-lignes";
 
 export const dynamic = "force-dynamic";
 
@@ -74,55 +78,87 @@ export async function GET(request: Request) {
 
     let avoirs: AvoirComptable[] = [];
     {
-      let q = supabase
-        .from("avoirs")
-        .select("id, numero, cree_le, site_id, total_ht, total_ttc, tva_pct")
-        .eq("client_id", ctx.clientId);
-      if (periode.du) q = q.gte("cree_le", `${periode.du}T00:00:00`);
-      if (periode.au) q = q.lte("cree_le", `${periode.au}T23:59:59`);
-      const { data, error } = await q.limit(20000);
-      if (error) {
-        const absente = error.code === "42P01" || error.code === "PGRST205";
+      // H12-11 : un `.limit(20000)` sans sonde livrait silencieusement un
+      // fichier avec les 20 000 premiers avoirs. La même pagination sûre que
+      // les ventes refuse désormais tout dépassement avant le premier octet
+      // CSV ; une lecture en erreur ne produit aucun fichier partiel.
+      const avoirsLecture = await lirePages<{
+        id: string; numero: string; cree_le: string; total_ht: number; total_ttc: number; tva_pct: number;
+      }>(
+        async (offset, limite) => {
+          let q = supabase
+            .from("avoirs")
+            .select("id, numero, cree_le, site_id, total_ht, total_ttc, tva_pct")
+            .eq("client_id", ctx.clientId);
+          if (periode.du) q = q.gte("cree_le", `${periode.du}T00:00:00`);
+          if (periode.au) q = q.lte("cree_le", `${periode.au}T23:59:59`);
+          const { data, error } = await q.order("id").range(offset, offset + limite - 1);
+          return { data: (data ?? null) as {
+            id: string; numero: string; cree_le: string; total_ht: number; total_ttc: number; tva_pct: number;
+          }[] | null, error };
+        },
+        20000,
+      );
+      if (!avoirsLecture.ok) {
+        if (avoirsLecture.raison === "limite") {
+          return NextResponse.json(
+            { erreur: "Export refusé : plus de 20 000 avoirs. Limitez la période d'export." },
+            { status: 413 },
+          );
+        }
+        const erreur = avoirsLecture.error as { code?: string | null; message?: string | null } | null | undefined;
+        const absente = erreur?.code === "42P01" || erreur?.code === "PGRST205";
         return NextResponse.json(
           {
             erreur: absente
               ? "L'export comptable sera exact une fois la migration 41 (avoirs) appliquée. Sans elle, le chiffre d'affaires exporté ignorerait les retours."
-              : messageUtilisateur(error, "Export impossible"),
+              : erreur ? messageUtilisateur(erreur, "Export impossible") : "Export impossible",
           },
           { status: absente ? 409 : 500 },
         );
       }
-      avoirs = ((data ?? []) as {
-        id: string; numero: string; cree_le: string; total_ht: number; total_ttc: number; tva_pct: number;
-      }[]).map((a) => ({
+      const avoirsValides = validerLignesAvoirsComptables(avoirsLecture.lignes);
+      if (!avoirsValides.ok) {
+        return NextResponse.json(
+          { erreur: `Export refusé : ligne d'avoir illisible (${avoirsValides.raison}).` },
+          { status: 500 },
+        );
+      }
+      avoirs = avoirsValides.lignes.map((a) => ({
         id: a.id,
         numero: a.numero,
         date: String(a.cree_le).slice(0, 10),
         site: ctx.clientNom,
-        totalHT: Number(a.total_ht),
-        totalTTC: Number(a.total_ttc),
-        tva: Number(a.tva_pct),
+        totalHT: a.total_ht,
+        totalTTC: a.total_ttc,
+        tva: a.tva_pct,
       }));
     }
 
     // Les lignes de vente portent la TVA par ligne (RG-06.3 : TVA par nature et
     // par ligne). On agrège le taux effectif du ticket pour le contrôle.
-    const ventes: VenteComptable[] = (ventesLecture.lignes as unknown as {
-      id: string; numero: string; date_vente: string; total_ht: number; total_ttc: number;
-      lignes: { tva?: number }[] | null;
-    }[]).map((v) => {
-      const lignes = Array.isArray(v.lignes) ? v.lignes : [];
+    // H16-06 : aucune ligne PostgREST incomplète ne doit produire un NaN dans
+    // le CSV ; le validateur pure refuse l'export avant toute écriture.
+    const ventesValides = validerLignesVentesComptables(ventesLecture.lignes);
+    if (!ventesValides.ok) {
+      return NextResponse.json(
+        { erreur: `Export refusé : ligne de vente illisible (${ventesValides.raison}).` },
+        { status: 500 },
+      );
+    }
+    const ventes: VenteComptable[] = ventesValides.lignes.map((v) => {
+      const lignes = v.lignes ?? [];
       const taux = lignes
-        .map((l) => Number(l?.tva))
-        .filter((t) => Number.isFinite(t));
+        .map((l) => l.tva)
+        .filter((t): t is number => typeof t === "number" && Number.isFinite(t));
       const tva = taux.length ? Math.max(...taux) : 0;
       return {
         id: v.id,
         numero: v.numero,
         date: String(v.date_vente).slice(0, 10),
         site: ctx.clientNom,
-        totalHT: Number(v.total_ht),
-        totalTTC: Number(v.total_ttc),
+        totalHT: v.total_ht,
+        totalTTC: v.total_ttc,
         tva,
       };
     });

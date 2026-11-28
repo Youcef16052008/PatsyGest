@@ -13,6 +13,7 @@ import { PlanningOperations } from './planning-operations';
 import { SimulationOperations } from './simulation-operations';
 import DemoCaisse from './demo-caisse';
 import { useDemoWorkspace } from './demo-workspace';
+import { useTranslator } from './locale-provider';
 import StockList from './stock-list';
 import FreeRecipesWorkspace from './free-recipes-workspace';
 import KitchenLabScreen from './kitchen-lab-screen';
@@ -35,13 +36,14 @@ const btn='pg-button';
 const box='pg-card pg-card-pad';
 export default function DemoModule({ module, role, filtre, shop }: { module: Module; role: Role; filtre?: string; shop?: string }) {
   const { data, save: persist } = useDemoWorkspace();
+  const tx = useTranslator();
   const [message, setMessage] = useState('');
   function save(next: State) {
     if (persist(next)) return true;
     setMessage('Enregistrement local impossible.');
     return false;
   }
-  if (!data) return <p role="status">Chargement de la démo…</p>;
+  if (!data) return <p role="status">{tx("Chargement de la démo…")}</p>;
   if (!canAccessModule(role, module)) {
     return (
       <Notice kind="warning">

@@ -46,3 +46,11 @@ for (const [nom, source] of [['cloture-form.tsx', cloture], ['cash-closing-quick
     );
   });
 }
+
+test('VAGUE 3 : clôture bloque aussi une file illisible et utilise un snapshot stable', () => {
+  for (const [nom, source] of [['cloture-form.tsx', cloture], ['cash-closing-quick.tsx', rapide]]) {
+    assert.match(source, /snapshotAttenteClotureNavigateur/, `${nom} : snapshot React instable`);
+    assert.match(source, /attente\.illisible/, `${nom} : une file corrompue laisse le bouton actif`);
+  }
+  assert.match(file, /categorieCleFileVente/, 'la reconnaissance des clés v1/v2 doit être partagée');
+});

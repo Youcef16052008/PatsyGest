@@ -1,0 +1,82 @@
+name: Rollback à chaud Vercel · préparation
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_id:
+        description: 'Déploiement READY à promouvoir'
+        required: true
+        type: string
+        default: 'dpl_5Adbh8YbYDYjUyYP1fzy26jfsdy3'
+      dry_run:
+        description: 'Plan seul (true) ou promotion réelle (false)'
+        required: true
+        type: boolean
+        default: true
+      confirm:
+        description: 'Taper exactement ROLLBACK pour autoriser la promotion'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rollback-chaud
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan de retour arrière (aucune mutation)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Afficher la cible sans jamais promouvoir
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOYMENT_ID"
+          echo "Cible de rollback : $DEPLOYMENT_ID"
+          echo "dry_run=$DRY_RUN"
+          echo "Aucune promotion exécutée dans ce job. Voir audit/RUNBOOK-ROLLBACK.md."
+
+  promote:
+    name: Promotion réelle (jamais déclenchée en plan seul)
+    if: ${{ inputs.dry_run == false && inputs.confirm == 'ROLLBACK' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID || 'prj_UpFyCGQfqxP4BsO5JPAmWboeBp1z' }}
+      VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID || 'team_Zs0MWAYqYN2fjolkybUsUqbK' }}
+      DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Promouvoir le déploiement READY cible
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::VERCEL_TOKEN absent : aucune promotion possible."
+            exit 1
+          fi
+          tmp=$(mktemp)
+          trap 'rm -f "$tmp"' EXIT
+          code=$(curl -sS -o "$tmp" -w '%{http_code}' --max-time 30 \
+            -X POST \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d "{\"deploymentId\":\"$DEPLOYMENT_ID\"}" \
+            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID/promote?teamId=$VERCEL_TEAM_ID")
+          echo "HTTP $code pour la promotion de $DEPLOYMENT_ID"
+          python3 - "$code" <<'PY'
+          import sys
+          code = int(sys.argv[1])
+          if code not in (200, 201, 202):
+              raise SystemExit(f"::error::Promotion refusée (HTTP {code})")
+          PY

@@ -3,6 +3,8 @@
  * et compression photo caméra côté navigateur.
  */
 
+import { sanitizeImageDataUrl } from "./recipe-photo";
+
 export const PRODUCT_PHOTOS_KEY_PREFIX = "patisgest.product_photos.v1.";
 
 type VisualPreset = {
@@ -92,13 +94,30 @@ export function defaultRecipePhoto(nom: string): string | null {
   return found?.src ?? null;
 }
 
+/** Ne garde que des data-URL image vérifiées ; le localStorage n'est pas sûr. */
+export function sanitizeProductPhotosSnapshot(raw: string | null): Record<string, string> {
+  if (!raw) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return {};
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+  const propre: Record<string, string> = {};
+  for (const [id, source] of Object.entries(parsed as Record<string, unknown>)) {
+    const image = sanitizeImageDataUrl(source);
+    if (image) propre[id] = image;
+  }
+  return propre;
+}
+
 export function readProductPhotosMap(scopeKey: string): Record<string, string> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(`${PRODUCT_PHOTOS_KEY_PREFIX}${scopeKey}`);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
+    return sanitizeProductPhotosSnapshot(
+      window.localStorage.getItem(`${PRODUCT_PHOTOS_KEY_PREFIX}${scopeKey}`),
+    );
   } catch {
     return {};
   }
@@ -106,9 +125,13 @@ export function readProductPhotosMap(scopeKey: string): Record<string, string> {
 
 export function saveProductPhotoLocal(scopeKey: string, articleId: string, dataUrl: string | null) {
   if (typeof window === "undefined") return;
+  const image = dataUrl === null ? null : sanitizeImageDataUrl(dataUrl);
+  if (dataUrl !== null && image === null) {
+    throw new Error("Photo invalide : compressez une image JPEG, PNG ou WebP.");
+  }
   try {
     const current = readProductPhotosMap(scopeKey);
-    if (dataUrl) current[articleId] = dataUrl;
+    if (image) current[articleId] = image;
     else delete current[articleId];
     window.localStorage.setItem(`${PRODUCT_PHOTOS_KEY_PREFIX}${scopeKey}`, JSON.stringify(current));
     window.dispatchEvent(new Event("patisgest-product-photos"));

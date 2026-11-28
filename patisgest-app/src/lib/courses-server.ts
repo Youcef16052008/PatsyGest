@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { listeCourses, type BesoinArticle, type ResultatCourses } from "@/lib/liste-courses";
+import { jourLocal } from "@/lib/workspace-data";
 
 /**
  * US-03.3 — lecture serveur de la liste de courses.
@@ -30,6 +31,24 @@ type OfRow = { id: string; besoins: BesoinArticle[] | null };
 type LotRow = { article_id: string | null; qte_rest: number | null };
 type BcRow = { lignes: { articleId?: string; qte?: number; recu?: number }[] | null };
 
+/**
+ * Une liste de courses tronquée ferait sous-commander des ingrédients. Chaque
+ * requête demande donc une ligne de plus que la limite métier : si cette sonde
+ * revient, on refuse le calcul au lieu de présenter des besoins incomplets.
+ */
+const LIMITES_LECTURE = {
+  ordres_fabrication: 500,
+  lots: 5000,
+  bons_commande: 500,
+  articles: 5000,
+} as const;
+
+type ResultatLecture = { data: unknown[] | null; error: unknown };
+
+function lectureComplete(res: ResultatLecture, table: keyof typeof LIMITES_LECTURE): boolean {
+  return !res.error && (res.data?.length ?? 0) <= LIMITES_LECTURE[table];
+}
+
 export async function lireListeCourses(clientId: string): Promise<DonneesCourses> {
   const vide: DonneesCourses = {
     resultat: { lignes: [], aAcheter: [], ignores: 0 },
@@ -39,7 +58,7 @@ export async function lireListeCourses(clientId: string): Promise<DonneesCourses
 
   try {
     const db = await createClient();
-    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const aujourdhui = jourLocal();
 
     // Un OF terminé ou annulé n'a plus besoin d'ingrédients : on ne commande
     // que pour ce qui reste à produire.
@@ -49,7 +68,7 @@ export async function lireListeCourses(clientId: string): Promise<DonneesCourses
         .select("id, besoins")
         .eq("client_id", clientId)
         .in("statut", ["planifie", "en_cours"])
-        .limit(500),
+        .limit(LIMITES_LECTURE.ordres_fabrication + 1),
       db
         .from("lots")
         .select("article_id, qte_rest")
@@ -57,17 +76,22 @@ export async function lireListeCourses(clientId: string): Promise<DonneesCourses
         .gt("qte_rest", 0)
         .eq("bloque", false)
         .or(`dlc.is.null,dlc.gte.${aujourdhui}`)
-        .limit(5000),
+        .limit(LIMITES_LECTURE.lots + 1),
       db
         .from("bons_commande")
         .select("lignes")
         .eq("client_id", clientId)
         .in("statut", ["commande", "partiel"])
-        .limit(500),
-      db.from("articles").select("id, unite").eq("client_id", clientId).limit(5000),
+        .limit(LIMITES_LECTURE.bons_commande + 1),
+      db.from("articles").select("id, unite").eq("client_id", clientId).limit(LIMITES_LECTURE.articles + 1),
     ]);
 
-    if (ofRes.error || lotsRes.error || bcRes.error || artRes.error) {
+    if (
+      !lectureComplete(ofRes, "ordres_fabrication") ||
+      !lectureComplete(lotsRes, "lots") ||
+      !lectureComplete(bcRes, "bons_commande") ||
+      !lectureComplete(artRes, "articles")
+    ) {
       return { ...vide, erreur: true };
     }
 

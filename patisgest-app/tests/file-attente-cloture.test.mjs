@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { compterVentesEnAttente, messageAttenteCloture, PREFIXE_FILE } from '../src/lib/file-attente-cloture.ts';
+import {
+  compterVentesEnAttente,
+  messageAttenteCloture,
+  PREFIXE_FILE,
+  snapshotAttenteCloture,
+} from '../src/lib/file-attente-cloture.ts';
+import { scopedQueueKey } from '../src/lib/sale-queue.ts';
 
 /** Faux Storage minimal, comme un vrai : length / key(i) / getItem. */
 function fauxStorage(entrees) {
@@ -50,11 +56,29 @@ test('storage inaccessible : pas de crash, signalement prudent', () => {
   assert.deepEqual(compterVentesEnAttente(casse), { tickets: 0, illisible: true });
 });
 
-test('les autres clés du site ne sont jamais comptées', () => {
+test('H11-12 : la file active v2 est comptée, une clé v2 inconnue est signalée', () => {
+  const cleV2 = scopedQueueKey({ clientId: 'c1', authUserId: 'u1' });
   const s = fauxStorage({
     'patisgest-credits.v1': JSON.stringify([{ ticket: 'faux' }]),
     'patisgest.saleQueue.v2.old': JSON.stringify([{ ticket: 'faux2' }]),
+    [cleV2]: JSON.stringify([{ ticket: 'a' }, { ticket: 'b' }]),
     [`${PREFIXE_FILE}.c1.u1`]: JSON.stringify([{ ticket: 'vrai' }]),
   });
-  assert.deepEqual(compterVentesEnAttente(s), { tickets: 1, illisible: false });
+  assert.deepEqual(compterVentesEnAttente(s), { tickets: 3, illisible: true });
+  const msg = messageAttenteCloture(compterVentesEnAttente(s));
+  assert.match(msg, /3 ventes ne sont pas encore synchronisées/);
+  assert.match(msg, /illisible/);
+});
+
+test('H10-06/H11-09 : snapshot stable et file illisible jamais confondue avec zéro', () => {
+  const cleV2 = scopedQueueKey({ clientId: 'c1', authUserId: 'u1' });
+  const s = fauxStorage({ [cleV2]: JSON.stringify([{ ticket: 'a' }]) });
+  const a = snapshotAttenteCloture(s);
+  const b = snapshotAttenteCloture(s);
+  assert.strictEqual(a, b, 'useSyncExternalStore exige une référence stable');
+  assert.deepEqual(a, { tickets: 1, illisible: false });
+
+  const corrompu = fauxStorage({ [cleV2]: '{pas du json' });
+  assert.deepEqual(snapshotAttenteCloture(corrompu), { tickets: 0, illisible: true });
+  assert.match(messageAttenteCloture({ tickets: 0, illisible: true }), /illisible/);
 });

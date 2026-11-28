@@ -18,12 +18,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   cataloguePourIdentite,
+  enregistrerIdentite,
   identiteCourante,
   FRAICHEUR_MAX_JOURS,
 } from '../src/lib/catalogue-cache.ts';
 
 const CATALOGUE = {
   version: 1,
+  clientId: 'c1',
   enregistreLe: '2026-11-23T08:00:00.000Z',
   clientNom: 'Pâtisserie ELA',
   articles: [{ id: 'a1', label: 'Mille-feuille', prixHT: '900' }],
@@ -118,4 +120,18 @@ test('D5 : l’identité courante est relue sans exposer d’autres comptes', ()
 test('D5 : l’identité illisible ne fait pas croire à une session valide', () => {
   const s = stockage({ 'patisgest.session.v1': 'null' });
   assert.equal(identiteCourante(s), null);
+});
+
+// ------------------------------------------------------------------ VAGUE 3
+
+test('H10-05 : l’échec d’écriture de l’identité ne laisse pas servir le catalogue du compte A au compte B', () => {
+  const s = stockage({
+    'patisgest.catalogue.v1': JSON.stringify(CATALOGUE),
+    'patisgest.session.v1': JSON.stringify({ clientId: 'c1', authUserId: 'u1' }),
+  });
+  s.setItem = () => { throw new Error('QuotaError'); };
+  enregistrerIdentite({ clientId: 'c2', authUserId: 'u2' }, s);
+  const r = cataloguePourIdentite(s, 'c2', MAINTENANT);
+  assert.equal(r.ok, false);
+  assert.equal(r.raison, 'autre-compte', 'le cache ne doit jamais être considéré comme celui de c2');
 });

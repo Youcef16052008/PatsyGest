@@ -2,7 +2,12 @@
 
 import { useActionState, useState, useSyncExternalStore } from "react";
 import { saisirCloture } from "@/lib/actions-clotures";
-import { compterVentesEnAttente, messageAttenteCloture } from "@/lib/file-attente-cloture";
+import {
+  ATTENTE_SERVEUR,
+  messageAttenteCloture,
+  snapshotAttenteClotureNavigateur,
+} from "@/lib/file-attente-cloture";
+import { jourLocal } from "@/lib/workspace-data";
 
 type Option = { id: string; label: string };
 type Row = {
@@ -60,8 +65,8 @@ export default function ClotureForm({ sites, articles }: { sites: Option[]; arti
         window.removeEventListener("patisgest-sale-queue", cb);
       };
     },
-    () => compterVentesEnAttente(window.localStorage),
-    () => ({ tickets: 0, illisible: false }),
+    snapshotAttenteClotureNavigateur,
+    () => ATTENTE_SERVEUR,
   );
   const avertissementFile = messageAttenteCloture(attente);
 
@@ -81,7 +86,7 @@ export default function ClotureForm({ sites, articles }: { sites: Option[]; arti
               name="date"
               type="date"
               required
-              defaultValue={new Date().toISOString().slice(0, 10)}
+              defaultValue={jourLocal()}
               className={field}
             />
           </label>
@@ -218,7 +223,7 @@ export default function ClotureForm({ sites, articles }: { sites: Option[]; arti
           </p>
         )}
         <button
-          disabled={pending || articles.length === 0 || attente.tickets > 0}
+          disabled={pending || articles.length === 0 || attente.tickets > 0 || attente.illisible}
           className={btn}
         >
           {pending ? "Enregistrement…" : "Enregistrer la clôture"}

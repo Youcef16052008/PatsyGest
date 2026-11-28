@@ -2,23 +2,10 @@
 
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
-
-function readQueueLength(): number {
-  try {
-    let total = 0;
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const k = window.localStorage.key(i);
-      if (!k || !k.startsWith("patisgest.saleQueue.v1")) continue;
-      const raw = window.localStorage.getItem(k);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) total += parsed.length;
-    }
-    return total;
-  } catch {
-    return 0;
-  }
-}
+import {
+  ATTENTE_SERVEUR,
+  snapshotAttenteClotureNavigateur,
+} from "@/lib/file-attente-cloture";
 
 export default function NetworkStatusPill({ inline = false }: { inline?: boolean }) {
   const online = useSyncExternalStore(
@@ -34,7 +21,9 @@ export default function NetworkStatusPill({ inline = false }: { inline?: boolean
     () => true,
   );
 
-  const queuedCount = useSyncExternalStore(
+  // H10-06/H11-09 : plus de balayage JSON maison qui renvoyait 0 sur une
+  // valeur corrompue. Le snapshot est stable et signale toute file illisible.
+  const attente = useSyncExternalStore(
     (cb) => {
       window.addEventListener("storage", cb);
       window.addEventListener("online", cb);
@@ -45,11 +34,13 @@ export default function NetworkStatusPill({ inline = false }: { inline?: boolean
         window.removeEventListener("patisgest-sale-queue", cb);
       };
     },
-    readQueueLength,
-    () => 0,
+    snapshotAttenteClotureNavigateur,
+    () => ATTENTE_SERVEUR,
   );
+  const queuedCount = attente.tickets;
+  const fileAVerifier = attente.illisible;
 
-  if (online && queuedCount === 0) {
+  if (online && queuedCount === 0 && !fileAVerifier) {
     if (!inline) return null;
     return (
       <span className="pg-badge" data-tone="success" title="Connexion Internet active">
@@ -68,6 +59,7 @@ export default function NetworkStatusPill({ inline = false }: { inline?: boolean
         <span>
           <strong>Mode hors-ligne actif</strong> · Pas d’inquiétude : vos ventes continuent d’être
           sauvegardées sur cet appareil{queuedCount > 0 ? ` (${queuedCount} ticket${queuedCount > 1 ? "s" : ""} en attente)` : ""}.
+          {fileAVerifier ? " Une file locale est illisible : ne l’effacez pas, faites-la vérifier." : ""}
         </span>
         <Link href="/hors-ligne" className="pg-text-link text-xs">
           Voir l’espace hors-ligne →
@@ -80,11 +72,16 @@ export default function NetworkStatusPill({ inline = false }: { inline?: boolean
     <div
       role="status"
       className="pg-notice flex flex-wrap items-center justify-between gap-2"
-      data-kind="success"
+      data-kind={fileAVerifier ? "warning" : "success"}
     >
       <span>
-        <strong>Connexion rétablie</strong> · {queuedCount} ticket{queuedCount > 1 ? "s" : ""} enregistré
-        {queuedCount > 1 ? "s" : ""} hors-ligne prêt{queuedCount > 1 ? "s" : ""} à synchroniser.
+        <strong>Connexion rétablie</strong> ·{" "}
+        {queuedCount > 0
+          ? `${queuedCount} ticket${queuedCount > 1 ? "s" : ""} enregistré${queuedCount > 1 ? "s" : ""} hors-ligne prêt${queuedCount > 1 ? "s" : ""} à synchroniser.`
+          : "une file locale est illisible. Ne l’effacez pas : faites-la vérifier avant de synchroniser."}
+        {fileAVerifier && queuedCount > 0
+          ? " Une autre file locale est illisible : ne l’effacez pas, faites-la vérifier."
+          : ""}
       </span>
       <Link href="/caisse" className="pg-button text-xs">
         Synchroniser maintenant →

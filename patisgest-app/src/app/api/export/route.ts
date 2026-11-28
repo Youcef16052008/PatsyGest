@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TABLES_EXPORT, interpreterPeriode, nomFichier, tableExportable, versCsv, type ValeurCsv } from "@/lib/csv";
 import { lireModulesDesactives } from "@/lib/modules-access";
 import { messageUtilisateur } from "@/lib/erreurs-db";
+import { journalErreurRoute } from "@/lib/observabilite-route";
 import { lirePages } from "@/lib/pagination";
 import { estProprietaireSeul } from "@/lib/permissions";
 
@@ -43,8 +44,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ erreur: "Filtre de période non applicable à cette table." }, { status: 400 });
   }
 
+  let etape = "client";
   try {
     const supabase = await createClient();
+    etape = `lecture:${cle}`;
     const lecture = await lirePages<Record<string, ValeurCsv>>(
       async (offset, limite) => {
         let requete = supabase.from(def.table).select("*").eq("client_id", ctx.clientId);
@@ -61,6 +64,7 @@ export async function GET(request: Request) {
       }
       return NextResponse.json({ erreur: lecture.error ? messageUtilisateur(lecture.error, "Export impossible") : "Export impossible" }, { status: 500 });
     }
+    etape = "csv";
     const lignes = lecture.lignes;
     // Colonnes = union des clés rencontrées, ordre stable (alphabétique) pour
     // que deux exports successifs soient comparables au diff.
@@ -76,7 +80,8 @@ export async function GET(request: Request) {
         "Cache-Control": "no-store",
       },
     });
-  } catch {
+  } catch (erreur) {
+    journalErreurRoute("api/export", etape, erreur);
     return NextResponse.json({ erreur: "Supabase est inaccessible depuis ce serveur." }, { status: 503 });
   }
 }

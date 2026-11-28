@@ -10,6 +10,17 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_PATISGEST_MODE_GRATUIT: process.env.PATISGEST_MODE_GRATUIT ?? "1",
   },
   devIndicators: false,
+  // Tesseract.js doit rester un paquet Node externe : le worker WASM et les
+  // modèles sont chargés depuis des chemins de fichiers explicites.
+  serverExternalPackages: ["tesseract.js", "tesseract.js-core"],
+  outputFileTracingIncludes: {
+    "/api/invoice-ocr": [
+      "./node_modules/tesseract.js/**/*",
+      "./node_modules/tesseract.js/src/worker-script/**/*",
+      "./node_modules/tesseract.js-core/**/*",
+      "./public/tessdata/**/*",
+    ],
+  },
   experimental: {
     // Sauvegarde : 4 Mio de fichier + l'enveloppe du formulaire, sous la
     // limite de 4,5 Mo du corps de requête sur l'hébergement de production.

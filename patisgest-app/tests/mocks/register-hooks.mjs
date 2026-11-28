@@ -28,6 +28,15 @@ registerHooks({
     if (specifier === 'server-only') {
       return { url: 'data:text/javascript,export default undefined;', shortCircuit: true };
     }
+    // Alias TypeScript/Next `@/…` : les tests Node ne lisent pas tsconfig.
+    // Seuls les fichiers réellement présents sous src/ sont résolus ; un alias
+    // inconnu continue de lever au lieu d'être remplacé par un faux module.
+    if (specifier.startsWith('@/')) {
+      const base = new URL(`../../src/${specifier.slice(2)}`, import.meta.url).href;
+      for (const suffixe of ['', '.ts', '.tsx', '/index.ts', '/index.tsx']) {
+        try { return nextResolve(base + suffixe, context); } catch { /* essai suivant */ }
+      }
+    }
     try {
       return nextResolve(specifier, context);
     } catch (erreur) {

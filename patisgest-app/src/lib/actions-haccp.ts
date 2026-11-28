@@ -3,7 +3,6 @@
 /** Traçabilité HACCP : températures, nettoyage, non-conformités. */
 
 import { revalidatePath } from "next/cache";
-import { canWrite, getSessionContext } from "./auth";
 import { messageUtilisateur } from "./erreurs-db";
 import { createClient } from "./supabase/server";
 import { estProprietaireSeul } from "./permissions";
@@ -20,10 +19,10 @@ import {
   parseTaskToggleInput,
   parseTemperatureInput,
 } from "./journal-input";
-import { type JournalState, requireWriter, requireAnyRole, mapError } from "./journal-actions-communs";
+import { type JournalState, requireWriterContexte, mapError } from "./journal-actions-communs";
 
 export async function addTemperature(_prev: JournalState, formData: FormData): Promise<JournalState> {
-  const denied = await requireWriter();
+  const { ctx, denied } = await requireWriterContexte();
   if (denied) return denied;
   let input;
   try {
@@ -32,10 +31,9 @@ export async function addTemperature(_prev: JournalState, formData: FormData): P
     return { erreur: e instanceof Error ? e.message : "Saisie invalide." };
   }
   try {
-    const ctx = await getSessionContext();
     const supabase = await createClient();
     const { error } = await supabase.from("releve_temperatures").insert({
-      client_id: ctx!.clientId,
+      client_id: ctx.clientId,
       date_releve: input.date,
       frigo_id: input.frigoId,
       frigo_nom: input.frigoNom,
@@ -52,7 +50,7 @@ export async function addTemperature(_prev: JournalState, formData: FormData): P
 }
 
 export async function addCleaning(_prev: JournalState, formData: FormData): Promise<JournalState> {
-  const denied = await requireWriter();
+  const { ctx, denied } = await requireWriterContexte();
   if (denied) return denied;
   let input;
   try {
@@ -61,10 +59,9 @@ export async function addCleaning(_prev: JournalState, formData: FormData): Prom
     return { erreur: e instanceof Error ? e.message : "Saisie invalide." };
   }
   try {
-    const ctx = await getSessionContext();
     const supabase = await createClient();
     const { error } = await supabase.from("nettoyages").insert({
-      client_id: ctx!.clientId,
+      client_id: ctx.clientId,
       date_nettoyage: input.date,
       zone: input.zone,
       fait: input.fait,
@@ -79,7 +76,7 @@ export async function addCleaning(_prev: JournalState, formData: FormData): Prom
 }
 
 export async function addNc(_prev: JournalState, formData: FormData): Promise<JournalState> {
-  const denied = await requireWriter();
+  const { ctx, denied } = await requireWriterContexte();
   if (denied) return denied;
   let input;
   try {
@@ -88,10 +85,9 @@ export async function addNc(_prev: JournalState, formData: FormData): Promise<Jo
     return { erreur: e instanceof Error ? e.message : "Saisie invalide." };
   }
   try {
-    const ctx = await getSessionContext();
     const supabase = await createClient();
     const { error } = await supabase.from("non_conformites").insert({
-      client_id: ctx!.clientId,
+      client_id: ctx.clientId,
       date_nc: input.date,
       type: input.type,
       description: input.description,
@@ -111,7 +107,7 @@ export async function addNc(_prev: JournalState, formData: FormData): Promise<Jo
 /** Clôture/réouverture d'une NC (RPC maj_non_conformite) avec historique. */
 
 export async function updateNc(_prev: JournalState, formData: FormData): Promise<JournalState> {
-  const denied = await requireWriter();
+  const { denied } = await requireWriterContexte();
   if (denied) return denied;
   let input;
   try {

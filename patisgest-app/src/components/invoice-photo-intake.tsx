@@ -10,6 +10,14 @@ import {
 } from "@/lib/invoice-photo-parser";
 import { compressImageFileToDataUrl } from "@/lib/pastry-visuals";
 import { dinars } from "@/lib/workspace-data";
+import { useLocale } from "./locale-provider";
+
+type ReponseOcr = {
+  ok?: boolean;
+  text?: string;
+  code?: string;
+  erreur?: string;
+};
 
 export default function InvoicePhotoIntake({
   mode,
@@ -25,35 +33,96 @@ export default function InvoicePhotoIntake({
   onDemoReceiveLines?: (lines: { articleId: string; site: string; numero: string; qte: number; pu: number }[]) => void;
 }) {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [rawText, setRawText] = useState<string>("");
   const [numeroBon, setNumeroBon] = useState<string>(() => `BON-${new Date().toISOString().slice(5, 10).replace("-", "")}`);
   const [siteId, setSiteId] = useState<string>(sites[0]?.id ?? "Labo");
   const [lines, setLines] = useState<InvoiceDraftLine[]>([]);
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [ocrPending, setOcrPending] = useState(false);
   const [pending, startTransition] = useTransition();
+  const { t } = useLocale();
 
-  async function onPickPhoto(file: File | undefined) {
-    if (!file) return;
+  function ligneVide(): InvoiceDraftLine | null {
+    if (articles.length === 0) return null;
+    return {
+      id: `line-${Date.now()}`,
+      rawText: "",
+      designation: articles[0].nom,
+      articleId: articles[0].id,
+      qte: 1,
+      puDa: 0,
+      matched: true,
+    };
+  }
+
+  function messagesErreurOcr(): Record<string, string> {
+    return {
+      missing: t.invoiceOcrError,
+      "bad-format": t.invoiceOcrBadFormat,
+      "too-large": t.invoiceOcrTooLarge,
+      unauthorized: t.invoiceOcrError,
+      "no-text": t.invoiceOcrEmpty,
+      "ocr-error": t.invoiceOcrError,
+    };
+  }
+
+  async function lirePhoto(file: File) {
     setFeedback(null);
+    setOcrPending(true);
     try {
       const compressed = await compressImageFileToDataUrl(file, 960, 0.82);
       setPhotoPreview(compressed);
-      if (lines.length === 0 && articles.length > 0) {
-        setLines([
-          {
-            id: `line-${Date.now()}`,
-            rawText: "",
-            designation: articles[0].nom,
-            articleId: articles[0].id,
-            qte: 1,
-            puDa: 0,
-            matched: true,
-          },
-        ]);
+      const blob = await (await fetch(compressed)).blob();
+      const formData = new FormData();
+      formData.set("image", blob, file.name || "bon-fournisseur.jpg");
+
+      const reponse = await fetch("/api/invoice-ocr", {
+        method: "POST",
+        body: formData,
+        cache: "no-store",
+      });
+      const donnees = (await reponse.json().catch(() => ({}))) as ReponseOcr;
+      if (!reponse.ok || donnees.ok !== true) {
+        const code = typeof donnees.code === "string" ? donnees.code : "ocr-error";
+        setFeedback({
+          kind: "error",
+          text: messagesErreurOcr()[code] ?? t.invoiceOcrError,
+        });
+        return;
       }
-    } catch (err) {
-      setFeedback({ kind: "error", text: err instanceof Error ? err.message : "Photo illisible." });
+
+      const texte = typeof donnees.text === "string" ? donnees.text : "";
+      if (!texte.trim()) {
+        setFeedback({ kind: "error", text: t.invoiceOcrEmpty });
+        return;
+      }
+      setRawText(texte);
+      const parsed = parseSupplierInvoiceText(texte, articles, { ocr: true });
+      if (parsed.length > 0) setLines(parsed);
+      setFeedback({
+        kind: "success",
+        text: t.invoiceOcrSuccess.replace(/\{n\}|\{عدد\}/u, String(parsed.length)),
+      });
+    } catch {
+      setFeedback({ kind: "error", text: t.invoiceOcrError });
+    } finally {
+      setOcrPending(false);
     }
+  }
+
+  async function onPickPhoto(file: File | undefined) {
+    if (!file) return;
+    setPhotoFile(file);
+    if (lines.length === 0 && articles.length > 0) {
+      const vide = ligneVide();
+      if (vide) setLines([vide]);
+    }
+    await lirePhoto(file);
+  }
+
+  function relancerLecture() {
+    if (photoFile && !ocrPending) void lirePhoto(photoFile);
   }
 
   function analyzeText() {
@@ -68,18 +137,10 @@ export default function InvoicePhotoIntake({
 
   function addEmptyLine() {
     if (articles.length === 0) return;
-    setLines((prev) => [
-      ...prev,
-      {
-        id: `line-${Date.now()}-${prev.length}`,
-        rawText: "",
-        designation: articles[0].nom,
-        articleId: articles[0].id,
-        qte: 1,
-        puDa: 0,
-        matched: true,
-      },
-    ]);
+    setLines((prev) => {
+      const vide = ligneVide();
+      return vide ? [...prev, { ...vide, id: `line-${Date.now()}-${prev.length}` }] : prev;
+    });
   }
 
   function validateAllIntoStock() {
@@ -145,25 +206,45 @@ export default function InvoicePhotoIntake({
     <section className="pg-card pg-card-pad pg-stack">
       <div className="pg-card-head">
         <div>
-          <h3>Facture / Bon fournisseur par photo (Saisie rapide)</h3>
+          <h3>{t.invoiceTitle}</h3>
           <p className="text-xs pg-muted">
-            Photographiez le bon papier du grossiste pour l’avoir sous les yeux, collez ou saisissez vos lignes, puis validez l’entrée en stock.
+            {t.invoiceSubtitle}
           </p>
         </div>
-        <label className="pg-button cursor-pointer text-xs">
-          📷 Photographier un bon
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="sr-only"
-            onChange={(e) => void onPickPhoto(e.target.files?.[0])}
-          />
-        </label>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {photoFile && photoPreview && (
+            <button
+              type="button"
+              onClick={relancerLecture}
+              disabled={ocrPending}
+              className="pg-button pg-button-secondary text-xs"
+            >
+              {t.invoiceOcrRetry}
+            </button>
+          )}
+          <label className="pg-button cursor-pointer text-xs" aria-busy={ocrPending}>
+            {t.invoicePhoto}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              disabled={ocrPending}
+              onChange={(e) => void onPickPhoto(e.target.files?.[0])}
+            />
+          </label>
+        </div>
       </div>
 
+      <p className="text-xs pg-muted">{t.invoiceOcrOffline}</p>
+      {ocrPending && (
+        <div className="pg-notice" data-kind="success" aria-live="polite">
+          {t.invoiceOcrReading}
+        </div>
+      )}
+
       {feedback && (
-        <div className="pg-notice" data-kind={feedback.kind}>
+        <div className="pg-notice" data-kind={feedback.kind} aria-live="polite">
           {feedback.text}
         </div>
       )}
@@ -186,7 +267,7 @@ export default function InvoicePhotoIntake({
               onClick={() => setPhotoPreview(null)}
               className="pg-button pg-button-secondary w-full text-xs"
             >
-              Retirer la photo
+              {t.invoiceRemovePhoto}
             </button>
           </div>
         )}
@@ -194,11 +275,11 @@ export default function InvoicePhotoIntake({
         <div className="pg-stack">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="pg-field">
-              N° Bon / Facture
+              {t.invoiceBon}
               <input value={numeroBon} onChange={(e) => setNumeroBon(e.target.value)} className="pg-input" />
             </label>
             <label className="pg-field">
-              Site de réception
+              {t.invoiceSite}
               <select value={siteId} onChange={(e) => setSiteId(e.target.value)} className="pg-input">
                 {sites.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -211,21 +292,21 @@ export default function InvoicePhotoIntake({
 
           <div className="space-y-2">
             <label className="pg-field">
-              Saisie / dictée rapide (1 ligne = Produit + Qté + Prix unitaire DA)
+              {t.invoiceSaisie}
               <textarea
                 rows={3}
                 value={rawText}
                 onChange={(e) => setRawText(e.target.value)}
-                placeholder={"Exemple :\nFarine 25 95\nBeurre 10 950\nAmandes 5 1900"}
+                placeholder={t.invoicePlaceholder}
                 className="pg-input"
               />
             </label>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={analyzeText} className="pg-button pg-button-secondary text-xs">
-                Pré-remplir les lignes →
+                {t.invoicePrefill}
               </button>
               <button type="button" onClick={addEmptyLine} className="pg-button pg-button-secondary text-xs">
-                + Ajouter une ligne manuelle
+                {t.invoiceAddLine}
               </button>
             </div>
           </div>
@@ -233,7 +314,7 @@ export default function InvoicePhotoIntake({
           {lines.length > 0 && (
             <div className="space-y-3">
               <div className="text-xs font-bold pg-muted">
-                Vérification humaine obligatoire avant mise en stock{canReadCosts ? ` · Total estimé : ${dinars(totalBon, false)}` : ""}
+                {t.invoiceCheck}{canReadCosts ? ` · ${t.invoiceTotal} : ${dinars(totalBon, false)}` : ""}
               </div>
               {lines.map((line, idx) => (
                 <div
@@ -242,7 +323,7 @@ export default function InvoicePhotoIntake({
                   style={{ background: "var(--pg-subtle)" }}
                 >
                   <label className="pg-field">
-                    Article ({line.matched ? "reconnu ✓" : "à vérifier"})
+                    {t.invoiceArticle} ({line.matched ? t.invoiceRecognized : t.invoiceToCheck})
                     <select
                       value={line.articleId}
                       onChange={(e) =>
@@ -260,7 +341,7 @@ export default function InvoicePhotoIntake({
                     </select>
                   </label>
                   <label className="pg-field">
-                    Quantité
+                    {t.invoiceQte}
                     <input
                       type="number"
                       min={0.001}
@@ -276,7 +357,7 @@ export default function InvoicePhotoIntake({
                   </label>
                   {canReadCosts && (
                     <label className="pg-field">
-                      Prix unit. (DA)
+                      {t.invoicePu}
                       <input
                         type="number"
                         min={0}
@@ -296,7 +377,7 @@ export default function InvoicePhotoIntake({
                     onClick={() => setLines((prev) => prev.filter((_, j) => j !== idx))}
                     className="pg-button pg-button-secondary text-xs"
                   >
-                    Retirer
+                    {t.invoiceRemove}
                   </button>
                 </div>
               ))}
@@ -306,7 +387,7 @@ export default function InvoicePhotoIntake({
                 onClick={validateAllIntoStock}
                 className="pg-button"
               >
-                {pending ? "Enregistrement…" : `Valider & entrer ${lines.length} ligne(s) en stock ✓`}
+                {pending ? t.invoiceSaving : t.invoiceValidate.replace("{n}", String(lines.length))}
               </button>
             </div>
           )}

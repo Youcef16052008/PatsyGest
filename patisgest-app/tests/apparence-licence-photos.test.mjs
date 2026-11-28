@@ -49,10 +49,15 @@ test('Photos de recette : seules les images locales et les data-URL compressées
     assert.equal(sanitizeRecipePhoto(refusé), null, `doit être refusé : ${String(refusé)}`);
   }
 
-  const petite = `data:image/jpeg;base64,${'A'.repeat(64)}`;
-  assert.equal(sanitizeRecipePhoto(petite), petite);
-  const enorme = `data:image/jpeg;base64,${'A'.repeat(230_000)}`;
+  // H12-04 : des octets magiques réels, pas seulement un préfixe base64.
+  const jpeg = `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00]).toString('base64')}`;
+  const png = `data:image/png;base64,${Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).toString('base64')}`;
+  const webp = `data:image/webp;base64,${Buffer.from([0x52, 0x49, 0x46, 0x46, 0x0c, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50]).toString('base64')}`;
+  for (const image of [jpeg, png, webp]) assert.equal(sanitizeRecipePhoto(image), image);
+  assert.equal(sanitizeRecipePhoto(`data:image/jpeg;base64,${'A'.repeat(64)}`), null, 'base64 valide mais pas une image');
+  const enorme = `data:image/jpeg;base64,${Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(230_000)]).toString('base64')}`;
   assert.equal(sanitizeRecipePhoto(enorme), null, 'une photo non compressée est refusée');
+  assert.equal(sanitizeRecipePhoto('/appearance/croissant.webp'), '/appearance/croissant.webp');
 });
 
 test('Photos de recette : les fichiers livrés existent et restent légers', () => {
