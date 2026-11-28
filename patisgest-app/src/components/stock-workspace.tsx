@@ -1,7 +1,7 @@
 import "server-only";
 import { canReadCosts, canWrite, type SessionContext } from "@/lib/auth";
 import { articleAffiche, lireArticles, lireLots, lireSites, type WorkspaceDB } from "@/lib/workspace-read";
-import { jourLocal, indexLots, stockArticle } from "@/lib/workspace-data";
+import { jourLocal } from "@/lib/workspace-data";
 import { allergenesDerives, verifierDeclaration } from "@/lib/allergenes";
 import type { LabelIngredient, LabelLot } from "@/lib/label-model";
 import StockWriteForms from "./stock-write-forms";
@@ -43,21 +43,35 @@ export default async function StockWorkspace({ ctx, db, filtre }: { ctx: Session
 
   const today = jourLocal();
   const mappedArticles = articles?.map(articleAffiche) ?? null;
-  const lotsByArt = indexLots(lots ?? []);
-  const lowItems = mappedArticles && lots
-    ? mappedArticles.map((a) => ({ a, ...stockArticle(a, lotsByArt.get(a.id) ?? [], today) })).filter((x) => x.signals.length > 0)
-    : [];
 
   return <>
-    <PageIntro title={ctx.role === "vendeur" ? "Stocks boutique & Réassort" : "Stocks & Achats"} label="Inventaire" description={ctx.role === "vendeur" ? "Consultez les quantités disponibles en boutique et demandez un réassort au laboratoire." : "Voyez ce qui manque en un coup d’œil et enregistrez vos réceptions de marchandise."}
-      actions={peutEcrire && <a className="pg-button pg-button-secondary" href="#gerer-stocks">Achat / Nouvel article</a>}/>
+    <PageIntro title={ctx.role === "vendeur" ? "Ce qu’il y a en boutique" : "Mes stocks"} label="Inventaire" description={ctx.role === "vendeur" ? "Regardez ce qui reste, et demandez au labo ce qui manque." : "Ce qui reste, ce qui manque, et ce qui vient d’arriver. Trois choses, rien de plus."}/>
     <div className="pg-stack">
-      {lowItems.length > 0 && (
-        <Notice kind="warning">
-          <b>{lowItems.length} article{lowItems.length > 1 ? "s" : ""} à surveiller / commander :</b>{" "}
-          {lowItems.slice(0, 5).map((x) => `${x.a.nom} (${x.quantity} ${x.a.unite})`).join(" · ")}
-        </Notice>
-      )}
+      {peutEcrire && <div id="gerer-stocks" className="pg-stack">
+        <Disclosure title="J’ai une facture du fournisseur" description="Prenez-la en photo : les lignes sont recopiées, vous vérifiez, puis ça entre en stock." icon="store">
+          <InvoicePhotoIntake
+            mode="supabase"
+            articles={(articles ?? []).map((a) => ({ id: a.id, nom: a.nom, unite: a.unite }))}
+            sites={(sites ?? []).map((s) => ({ id: s.id, label: s.label }))}
+          />
+        </Disclosure>
+        <StockWriteForms role={ctx.role} articles={(articles ?? []).map(a => ({ id: a.id, label: `${a.nom} · ${a.code}`, unite: a.unite }))}
+          sites={sites ?? []} fournisseurs={(fournisseurs?.data ?? []).map(f => ({ id: f.id, label: f.nom }))}/>
+        {produits.length > 0 && (
+          <Disclosure title="Photos des gâteaux" description="Une photo par gâteau : elle s’affiche sur la caisse tactile." icon="cake">
+            <ProductPhotoPicker
+              mode="supabase"
+              scopeKey={clientId}
+              products={(articles ?? []).filter((a) => a.niveau === "produit").map((a) => ({ id: a.id, nom: a.nom }))}
+            />
+          </Disclosure>
+        )}
+        {produits.length > 0 && ctx.role !== "labo" && <Disclosure title="Étiquettes des produits" description="Ingrédients, allergènes, numéro de lot et date." icon="print">
+          {recettes?.error || !lots ? <Notice kind="warning">Les recettes ou les lots n’ont pas pu être chargés. Vérifiez la connexion avant de préparer des étiquettes.</Notice> :
+            <LabelMaker produits={produits} recipes={ingredients} lots={lotsParProduit} allergenes={allergenes}/>}
+        </Disclosure>}
+        {ctx.role === "labo" && <Notice kind="warning">Les étiquettes avec ingrédients ne sont pas encore disponibles en vue laboratoire.</Notice>}
+      </div>}
       {ctx.role === "labo" && !articles
         ? <Notice kind="error">Le stock n&apos;est pas disponible sur cette installation : le module de confidentialité par rôle n&apos;a pas été appliqué en base. Le propriétaire peut lire les articles et les lots normalement.</Notice>
         : <StockList key={filtre ?? "tous"} articles={mappedArticles} lots={lots} sites={sites} today={today} filtre={filtre}/>}
@@ -68,31 +82,6 @@ export default async function StockWorkspace({ ctx, db, filtre }: { ctx: Session
           sites={(sites ?? []).filter((s) => s.type === "boutique").map((s) => ({ id: s.id, label: s.label }))}
         />
       )}
-      {peutEcrire && <div id="gerer-stocks" className="pg-stack">
-        <Disclosure title="Importer une facture / bon fournisseur (photo)" description="Prenez en photo ou dictez les lignes du bon, vérifiez, puis entrez en stock." icon="store">
-          <InvoicePhotoIntake
-            mode="supabase"
-            articles={(articles ?? []).map((a) => ({ id: a.id, nom: a.nom, unite: a.unite }))}
-            sites={(sites ?? []).map((s) => ({ id: s.id, label: s.label }))}
-          />
-        </Disclosure>
-        <StockWriteForms role={ctx.role} articles={(articles ?? []).map(a => ({ id: a.id, label: `${a.nom} · ${a.code}` }))}
-          sites={sites ?? []} fournisseurs={(fournisseurs?.data ?? []).map(f => ({ id: f.id, label: f.nom }))}/>
-        {produits.length > 0 && (
-          <Disclosure title="Photos des produits (Caisse tactile)" description="Prenez ou choisissez une photo réelle pour chaque gâteau en boutique." icon="cake">
-            <ProductPhotoPicker
-              mode="supabase"
-              scopeKey={clientId}
-              products={(articles ?? []).filter((a) => a.niveau === "produit").map((a) => ({ id: a.id, nom: a.nom }))}
-            />
-          </Disclosure>
-        )}
-        {produits.length > 0 && ctx.role !== "labo" && <Disclosure title="Étiquettes produit" description="Ingrédients, allergènes, lot et DLC." icon="print">
-          {recettes?.error || !lots ? <Notice kind="warning">Les recettes ou les lots n’ont pas pu être chargés. Vérifiez la connexion avant de préparer des étiquettes.</Notice> :
-            <LabelMaker produits={produits} recipes={ingredients} lots={lotsParProduit} allergenes={allergenes}/>}
-        </Disclosure>}
-        {ctx.role === "labo" && <Notice kind="warning">Les étiquettes avec ingrédients ne sont pas encore disponibles en vue laboratoire.</Notice>}
-      </div>}
     </div>
   </>;
 }

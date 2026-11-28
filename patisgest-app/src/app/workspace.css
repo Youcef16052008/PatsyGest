@@ -1033,3 +1033,96 @@
 
 /* Les repères du laboratoire ne sont pas des états synchronisés. */
 .pg-kitchen-local-note { color: var(--pg-muted); border-inline-start: 3px solid var(--pg-tint-border); padding: 8px 12px; background: var(--pg-subtle); border-radius: 0 9px 9px 0; font-size: .82rem; line-height: 1.5; }
+
+/* ——— Recettes : un chemin court (nom → ingrédients → prix), le reste replié.
+   Constat terrain : l'ancien formulaire alignait 6 champs par ingrédient et
+   5 réglages rares. Seuls trois nombres servent à chaque recette : la
+   quantité, le prix d'achat et le prix de vente. Le reste est derrière
+   « Plus d'options ». ——— */
+.pg-recipe-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.pg-recipe-essentiel { display: grid; gap: 12px; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+.pg-recipe-essentiel .pg-field-wide { grid-column: auto; }
+@media (max-width: 720px) { .pg-recipe-essentiel { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .pg-recipe-essentiel > :first-child { grid-column: 1 / -1; } }
+.pg-recipe-line { border: 1px solid var(--pg-line); border-radius: 12px; background: var(--pg-subtle); padding: 11px 12px; }
+.pg-recipe-line-fields { display: grid; gap: 9px; grid-template-columns: minmax(0, 2.1fr) minmax(0, .8fr) minmax(0, .8fr) minmax(0, 1fr) auto; align-items: end; }
+.pg-recipe-line-name { min-width: 0; }
+.pg-recipe-line-end { display: flex; align-items: center; gap: 6px; padding-bottom: 3px; }
+@media (max-width: 760px) {
+  .pg-recipe-line-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .pg-recipe-line-name { grid-column: 1 / -1; }
+  .pg-recipe-line-end { grid-column: 1 / -1; justify-content: flex-end; padding-bottom: 0; }
+}
+.pg-recipe-resume { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); border: 1px solid var(--pg-tint-border); border-radius: 13px; background: var(--pg-tint); padding: 14px; }
+.pg-recipe-resume span { display: block; color: var(--pg-muted); font-size: .76rem; font-weight: 800; }
+.pg-recipe-resume b { display: block; margin-top: 3px; font-size: 1.24rem; font-weight: 800; letter-spacing: -.03em; }
+.pg-recipe-resume small { display: block; margin-top: 3px; color: var(--pg-muted); font-size: .76rem; line-height: 1.4; }
+.pg-recipe-suggestions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.pg-recipe-suggestions .pg-filter { background: var(--pg-surface); border-color: var(--pg-control); font-variant-numeric: tabular-nums; }
+.pg-money-ok { color: var(--pg-ok-ink); }
+.pg-money-bad { color: var(--pg-bad-ink); }
+.pg-recipe-more { border-top: 1px dashed var(--pg-line); padding-top: 12px; }
+.pg-recipe-more > .pg-text-link { gap: .4rem; }
+.pg-recipe-more > .pg-text-link[aria-expanded='true'] > .pg-icon:last-child { transform: rotate(180deg); }
+.pg-recipe-more-body { margin-top: 13px; }
+.pg-recipe-actions { display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--pg-line); padding-top: 13px; }
+.pg-recipe-actions .pg-button { flex: 0 1 auto; }
+@media (max-width: 560px) { .pg-recipe-actions .pg-button { flex: 1 1 100%; } }
+.pg-recipe-card { align-content: start; }
+.pg-recipe-card-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.pg-recipe-figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; border: 1px solid var(--pg-line); border-radius: 11px; background: var(--pg-subtle); padding: 10px 12px; }
+.pg-recipe-figs span { display: block; color: var(--pg-muted); font-size: .73rem; font-weight: 700; }
+.pg-recipe-figs b { display: block; margin-top: 2px; font-size: .92rem; font-weight: 800; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.pg-recipe-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; color: var(--pg-link); font-size: .82rem; font-weight: 800; cursor: pointer; list-style: none; }
+.pg-recipe-details > summary::-webkit-details-marker { display: none; }
+.pg-recipe-details[open] > summary > .pg-icon { transform: rotate(180deg); }
+.pg-recipe-details ul { border-top: 1px solid var(--pg-line); font-size: .84rem; }
+
+/* ——— Stocks : deux gestes en clair (ce qui arrive / nouvel article).
+   Les formulaires longs restent disponibles mais repliés : sur une tablette de
+   comptoir, un écran qui demande dix champs n'est pas rempli. ——— */
+.pg-stock-action-buttons { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.pg-stock-action { display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 12px 14px; text-align: start; border: 1px solid var(--pg-control); border-radius: 13px; background: var(--pg-surface); color: var(--pg-ink); cursor: pointer; }
+.pg-stock-action:hover { background: var(--pg-tint); border-color: var(--pg-tint-border); }
+.pg-stock-action[aria-pressed='true'] { background: var(--pg-tint); border-color: var(--pg-link); box-shadow: inset 0 0 0 1px var(--pg-link); }
+.pg-stock-action > span:last-child { min-width: 0; }
+.pg-stock-action b { display: block; font-size: 1rem; font-weight: 800; letter-spacing: -.02em; }
+.pg-stock-action small { display: block; margin-top: 2px; color: var(--pg-muted); font-size: .8rem; line-height: 1.35; }
+.pg-stock-form { display: grid; gap: 12px; margin-top: 14px; padding: 14px; border: 1px solid var(--pg-tint-border); border-radius: 13px; background: var(--pg-tint); }
+.pg-stock-form-title { font-weight: 800; font-size: 1rem; }
+.pg-stock-form-row { display: grid; gap: 11px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); align-items: start; }
+.pg-stock-form-wide { grid-column: 1 / -1; }
+@media (min-width: 700px) { .pg-stock-form-wide { grid-column: span 2; } }
+.pg-stock-form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 560px) { .pg-stock-form-actions .pg-button { flex: 1 1 100%; } }
+.pg-stock-plus { color: var(--pg-link); font-size: .82rem; justify-content: flex-start; min-height: 38px; }
+.pg-stock-plus[aria-expanded='true'] { text-decoration: underline; }
+.pg-hint { color: var(--pg-muted); font-size: .72rem; font-weight: 650; }
+
+/* Démo : les deux gestes de stock sont des blocs dépliables (pas de JavaScript
+   d'état) — même promesse que l'écran réel, sans Server Action. */
+details.pg-stock-action { display: block; }
+details.pg-stock-action > summary { display: flex; align-items: center; gap: 12px; min-height: 72px; cursor: pointer; list-style: none; padding: 12px 14px; }
+details.pg-stock-action > summary::-webkit-details-marker { display: none; }
+details.pg-stock-action[open] { border-color: var(--pg-link); background: var(--pg-tint); }
+details.pg-stock-action > .pg-stock-form { margin: 0 12px 12px; background: var(--pg-surface); }
+
+/* « Plus d’options » de la démo : même rendu que le dépliant de recette. */
+details.pg-recipe-more > summary.pg-stock-plus { display: flex; align-items: center; gap: 6px; min-height: 40px; cursor: pointer; list-style: none; }
+details.pg-recipe-more > summary.pg-stock-plus::-webkit-details-marker { display: none; }
+details.pg-recipe-more[open] > summary.pg-stock-plus { text-decoration: underline; }
+
+/* Sur un téléphone, quatre onglets ne tiennent pas : on garde l'onglet actif en
+   tête et la barre défile horizontalement. Aucun libellé n'est tronqué. */
+@media (max-width: 720px) {
+  .pg-recipe-top { flex-direction: column; align-items: stretch; }
+  .pg-recipe-top > .pg-segment { display: flex; overflow-x: auto; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; max-width: 100%; }
+  .pg-recipe-top > .pg-segment > button { flex: 0 0 auto; scroll-snap-align: start; }
+  .pg-recipe-top > .pg-button { width: 100%; }
+}
+
+/* Un panneau qui s'ouvre (article/réception) doit être vu : sans cela, sur une
+   page longue, le clic semble ne rien faire. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes pg-panel-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .pg-stock-form { animation: pg-panel-in .18s ease-out; }
+}
