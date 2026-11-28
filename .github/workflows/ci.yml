@@ -179,6 +179,7 @@ jobs:
           export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
           export NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY"
           export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+          export VITRINE_SECRET_ANTI_ABUS="ci-e2e-disposable-vitrine-anti-abus-secret-32chars"
           nohup npm run start -- -p 3416 > "$RUNNER_TEMP/app.log" 2>&1 &
           for _ in $(seq 1 60); do
             if curl -fsS "$PATSYGEST_E2E_BASE/api/health" > /dev/null; then exit 0; fi
@@ -216,3 +217,54 @@ jobs:
         run: |
           cd "$RUNNER_TEMP/patsygest-e2e" 2>/dev/null || exit 0
           supabase stop --no-backup || true
+
+  b2-mesures:
+    name: Mesures B.2 (Chromium FCP, AR/RTL, Accessibilité, Charge, Sondes)
+    if: github.event_name == 'workflow_dispatch'
+    needs: [quality]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: patisgest-app
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      B2_LOCAL_BASE: http://127.0.0.1:3419
+      B2_PROD_BASE: https://patsy-gest.vercel.app
+      B2_DEMO_SECRET: ci-b2-audit-demo-secret-0123456789abcdef
+      B2_RUN_LOAD: '1'
+      B2_CONCURRENCY: '5'
+      B2_HEALTH_REQUESTS: '50'
+      B2_PAGE_REQUESTS: '20'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.22.3'
+          cache: npm
+          cache-dependency-path: patisgest-app/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Démarrer le serveur démo local et mesurer (local + production)
+        shell: bash
+        run: |
+          set -euo pipefail
+          PATISGEST_DEMO_MODE=true \
+          PATISGEST_DEMO_SECRET="$B2_DEMO_SECRET" \
+          NEXT_PUBLIC_SUPABASE_URL='' \
+          NEXT_PUBLIC_SUPABASE_ANON_KEY='' \
+          nohup npx next dev -p 3419 -H 127.0.0.1 > "$RUNNER_TEMP/b2-app.log" 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 90); do
+            if curl -fsS "$B2_LOCAL_BASE/api/health" > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/audit-b2-reel.mjs
+      - name: Vérifier les sondes d'observabilité sur la production
+        if: ${{ always() }}
+        env:
+          APP_URL: https://patsy-gest.vercel.app
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          CERT_EXPECTED_SCHEMA_VERSION: '57'
+        run: node scripts/observabilite-sondes.mjs

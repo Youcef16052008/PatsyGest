@@ -1,44 +1,40 @@
-# Runbook — rollback à chaud Vercel (préparation seule)
+# Runbook — rollback à chaud Vercel (préparation et vérification dry-run)
 
-**Branche** : `arena/923a4433-patsygest`  
-**Décision utilisateur** : `rollback = plan_only`  
-**Statut de cette passe** : **NON EXÉCUTÉ**. Le workflow et ce runbook existent ; aucun alias de production n'a été promu, aucun rollback à chaud n'a été déclenché.
+**Branche courante** : `arena/81a8dfab-patsygest` (post-merge PR #26 sur `main` @ `1b87f853b021655c5858ff34ff59b3362145697a`)
+**Statut de promotion** : **NON EXÉCUTÉ**. Le workflow et ce runbook sont prêts ; le `dry_run=true` a été vérifié sur GitHub Actions (run `46112343902`), mais aucun alias de production n'a été promu en arrière.
 
-## 1. Cible figée
+## 1. Cible figée et état vérifié au 28/11/2026
 
 | Élément | Valeur |
 |---|---|
 | Projet | `prj_UpFyCGQfqxP4BsO5JPAmWboeBp1z` / `patsy-gest` |
 | Team | `team_Zs0MWAYqYN2fjolkybUsUqbK` |
-| Déploiement cible | `dpl_5Adbh8YbYDYjUyYP1fzy26jfsdy3` |
-| État constaté | `READY`, `readySubstate=PROMOTED`, `isRollbackCandidate=true` |
-| Commit cible | `da5857dddab46842e5029d1c745f93e89265a013` |
+| Production active | `dpl_FuYBGdL1SYFQJUByzs4Lbhr2abkn` (`1b87f853b021655c5858ff34ff59b3362145697a`, `main`, `READY`, `isRollbackCandidate=true`) |
+| Cible de rollback active (`isRollbackCandidate=true`) | `dpl_AnuNYMvMJ4mTEkYN9PmRtHeC5uC7` (`e26596fc56947c7b77df8a21b9931ed5968f7f67`, `READY`) |
+| Cible historique pré-Vague 6 (référence archivée) | `dpl_5Adbh8YbYDYjUyYP1fzy26jfsdy3` (`da5857dddab46842e5029d1c745f93e89265a013`, désormais `isRollbackCandidate=false`) |
 | Alias | `patsy-gest.vercel.app`, `patsy-gest-all-intelligence.vercel.app`, `patsy-gest-git-main-all-intelligence.vercel.app` |
 
-Le déploiement VAGUE 6 est créé depuis un nouveau commit de la branche courante avec un `git_source` étroit (`type=github`, `repoId`, `ref` de branche et `sha` exact) et `project_settings:null`. Le rollback, lui, promeut un déploiement déjà `READY` : il ne reconstruit pas le code.
+Tout déploiement programmatique reste créé avec un `git_source` étroit (`type=github`, `repoId`, `ref`, `sha` exact) et `project_settings:null`. Le rollback, lui, promeut un déploiement déjà `READY` : il ne reconstruit pas le code.
 
-### 1bis. Déploiement VAGUE 6 effectivement promu
+### 1bis. Chaîne de déploiements constatée
 
-| Élément | Valeur constatée |
-|---|---|
-| Déploiement | `dpl_AAB6vX2CNHBSBG8s4YVebyX1uL43` |
-| Commit | `31fa43b2d50d35edb89ea00e6773f682458b83ac` (branche courante) |
-| État | `READY`, `readySubstate=PROMOTED`, `aliasAssigned=true` |
-| Alias | `patsy-gest.vercel.app`, `patsy-gest-all-intelligence.vercel.app`, `patsy-gest-git-arena-923a4433-patsygest-all-intelligence.vercel.app` |
-| Cible de rollback conservée | `dpl_5Adbh8YbYDYjUyYP1fzy26jfsdy3` (ancienne production `main`/`da5857d`) |
+| Déploiement | Commit / Branche | État Vercel |
+|---|---|---|
+| `dpl_FuYBGdL1SYFQJUByzs4Lbhr2abkn` | `1b87f85` (`main`, merge PR #26) | `READY`, `PROMOTED`, `aliasAssigned=true` |
+| `dpl_AnuNYMvMJ4mTEkYN9PmRtHeC5uC7` | `e26596f` (`arena/923a4433-patsygest`) | `READY`, `isRollbackCandidate=true` |
+| `dpl_AAB6vX2CNHBSBG8s4YVebyX1uL43` | `31fa43b` (Vague 6) | `READY`, historique |
+| `dpl_5Adbh8YbYDYjUyYP1fzy26jfsdy3` | `da5857d` (`main` pré-Vague 6) | `READY`, `isRollbackCandidate=false` |
 
-Les commits postérieurs à `31fa43b` ne modifient que des scripts de certification, des tests et des workflows ; aucun code d'exécution Next n'a changé. Le runbook garde `dpl_5Adbh8YbYDYjUyYP1fzy26jfsdy3` comme cible de retour arrière, conformément à `rollback=plan_only`.
+## 2. Workflow préparé et vérification dry-run
 
-## 2. Workflow préparé, non dispatché
+`.github/workflows/rollback-chaud.yml` est `workflow_dispatch` uniquement. Son input `dry_run` vaut `true` par défaut ; le job `promote` exige en plus `confirm=ROLLBACK`. Le 28/11/2026, le run `46112343902` (`dry_run=true`, `deployment_id=dpl_AnuNYMvMJ4mTEkYN9PmRtHeC5uC7`) s'est terminé en `success` sans aucune promotion.
 
-`.github/workflows/rollback-chaud.yml` est `workflow_dispatch` uniquement. Son input `dry_run` vaut `true` par défaut ; le job `promote` exige en plus `confirm=ROLLBACK`. Dans cette passe, aucun `workflow_dispatch` de rollback n'a été envoyé.
-
-Plan seul :
+Plan seul (`dry_run=true`) :
 
 ```bash
 gh workflow run rollback-chaud.yml \
-  --ref arena/923a4433-patsygest \
-  -f deployment_id=dpl_5Adbh8YbYDYjUyYP1fzy26jfsdy3 \
+  --ref main \
+  -f deployment_id=dpl_AnuNYMvMJ4mTEkYN9PmRtHeC5uC7 \
   -f dry_run=true
 ```
 
@@ -46,8 +42,8 @@ Promotion réelle, **uniquement sur incident et décision humaine explicite** :
 
 ```bash
 gh workflow run rollback-chaud.yml \
-  --ref arena/923a4433-patsygest \
-  -f deployment_id=dpl_5Adbh8YbYDYjUyYP1fzy26jfsdy3 \
+  --ref main \
+  -f deployment_id=dpl_AnuNYMvMJ4mTEkYN9PmRtHeC5uC7 \
   -f dry_run=false \
   -f confirm=ROLLBACK
 ```
@@ -60,7 +56,7 @@ Le secret `VERCEL_TOKEN` doit rester dans GitHub Actions Secrets ; aucune valeur
 curl -sS -X POST \
   -H "Authorization: Bearer $VERCEL_TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"deploymentId":"dpl_5Adbh8YbYDYjUyYP1fzy26jfsdy3"}' \
+  -d '{"deploymentId":"dpl_AnuNYMvMJ4mTEkYN9PmRtHeC5uC7"}' \
   "https://api.vercel.com/v9/projects/prj_UpFyCGQfqxP4BsO5JPAmWboeBp1z/promote?teamId=team_Zs0MWAYqYN2fjolkybUsUqbK"
 ```
 
@@ -69,14 +65,11 @@ Accepter uniquement `200`, `201` ou `202`, puis vérifier les alias et la sonde 
 ## 4. Contrôles après une promotion réelle
 
 1. `GET https://patsy-gest.vercel.app/api/health` → `200`, `ok=true`.
-2. `npm run test:cert:hosted` avec `CRON_SECRET`, `SUPABASE_URL` et `SUPABASE_ANON_KEY` existants → Auth/PostgREST/Storage/schema `57`.
-3. `vercel.get_deployment(dpl_5Adbh8YbYDYjUyYP1fzy26jfsdy3)` → alias de production de nouveau attachés.
-4. Dispatcher uniquement `certification-production.yml`, jamais `cron-connectivite.yml` ni `sauvegarde-free.yml` pour valider un rollback.
-5. Laisser la PR #26 **OPEN** tant qu'aucune fusion n'est explicitement demandée.
+2. `npm run test:cert:hosted` et `node scripts/observabilite-sondes.mjs` avec `CRON_SECRET`, `SUPABASE_URL` et `SUPABASE_ANON_KEY` → Auth/PostgREST/Storage/`app_schema_version=57`.
+3. `vercel.get_deployment(dpl_AnuNYMvMJ4mTEkYN9PmRtHeC5uC7)` → alias de production de nouveau attachés.
+4. Dispatcher `certification-production.yml` pour vérifier l'ensemble des sondes.
 
 ## 5. Ce que ce runbook ne prouve pas
 
-- Aucun rollback à chaud exécuté : pas de preuve de restauration d'alias en conditions réelles.
-- Aucune modification des secrets Vercel/GitHub ; `secrets=existing`.
-- Aucun write Figma/Drive ; `b2_figma_drive=skip`.
-- Aucune validation humaine exhaustive B.2 ; la traduction AR reste machine + curations locales.
+- Aucun rollback à chaud réel exécuté : seul le chemin `dry_run=true` (`46112343902`) a été vérifié ; le chemin `promote` (`dry_run=false`, `confirm=ROLLBACK`) reste non exécuté pour ne pas perturber la production.
+- La cible historique `dpl_5Adbh8YbYDYjUyYP1fzy26jfsdy3` n'est plus éligible au rollback Vercel (`isRollbackCandidate=false`) ; toute promotion réelle doit utiliser `dpl_AnuNYMvMJ4mTEkYN9PmRtHeC5uC7`.
