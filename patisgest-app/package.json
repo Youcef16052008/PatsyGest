@@ -26,7 +26,8 @@
     "test:cert:postgresql": "node --experimental-strip-types --test tests/concurrence-transfert-reel.test.mjs",
     "test:cert:concurrency": "node scripts/certification-concurrence-postgres.mjs",
     "test:cert:hosted": "node scripts/certification-production.mjs",
-    "test:cert:production": "npm run test:cert:ocr && npm run test:cert:postgresql && npm run test:cert:concurrency && npm run test:cert:hosted"
+    "test:cert:production": "npm run test:cert:ocr && npm run test:cert:postgresql && npm run test:cert:concurrency && npm run test:cert:hosted",
+    "test:obs:sondes": "node scripts/observabilite-sondes.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.0",

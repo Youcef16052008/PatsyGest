@@ -91,9 +91,12 @@ export default function MentionsLegales() {
           anonymisation : ce serait promettre autre chose que ce qui est fait.
         </p>
         <p className="mt-2">
-          <b>Hébergement :</b> les données sont hébergées dans l&apos;Union européenne
-          (région <code>eu-west-1</code>, Irlande) chez Supabase et Vercel. Aucun transfert hors
-          UE n&apos;est réalisé.
+          <b>Hébergement :</b> la base de données et les fichiers sont hébergés dans l&apos;Union
+          européenne (région <code>eu-west-1</code>, Irlande) chez Supabase. Les fonctions
+          applicatives déployées sur Vercel (offre Hobby) s&apos;exécutent actuellement dans la
+          région <code>iad1</code> (États-Unis, côte Est), ce qui implique un transit applicatif
+          hors UE et Algérie tant que la région Vercel n&apos;est pas basculée en Europe et
+          encadrée par un DPA.
         </p>
         <p className="mt-2">
           <b>Durées de conservation :</b> les pièces comptables et les commandes sont conservées

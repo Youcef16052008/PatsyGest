@@ -1,0 +1,43 @@
+name: Observabilité · sondes /api/health et /api/health/stack
+
+on:
+  schedule:
+    # Toutes les 30 minutes (décalé de cron-connectivite à :07 et :37).
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'URL à sonder'
+        required: false
+        type: string
+        default: 'https://patsy-gest.vercel.app'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: observabilite-sondes
+  cancel-in-progress: true
+
+jobs:
+  sondes:
+    name: Sondes santé, pile Supabase et alerte sur échec
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: patisgest-app
+    env:
+      APP_URL: ${{ inputs.base_url || vars.PATISGEST_APP_URL || 'https://patsy-gest.vercel.app' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      CERT_EXPECTED_SCHEMA_VERSION: '57'
+      OBS_WARN_MS: '3000'
+      PATISGEST_ALERT_WEBHOOK_URL: ${{ secrets.PATISGEST_ALERT_WEBHOOK_URL || secrets.PATISGEST_WHATSAPP_WEBHOOK_URL }}
+      PATISGEST_WEBHOOK_SECRET: ${{ secrets.PATISGEST_WEBHOOK_SECRET }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.22.3'
+      - name: Vérifier /api/health, /api/health/stack et pages publiques
+        run: node scripts/observabilite-sondes.mjs
