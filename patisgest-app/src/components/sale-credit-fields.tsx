@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale } from "./locale-provider";
+
+/** Seulement le nécessaire pour retrouver le client qui doit payer. */
 export default function SaleCreditFields({
   creditNom,
   creditTelephone,
@@ -15,23 +18,24 @@ export default function SaleCreditFields({
   onChangeTelephone: (v: string) => void;
   onChangeType: (v: "particulier" | "cafe_entreprise") => void;
 }) {
+  const { t } = useLocale();
   return (
-    <div className="mt-2 grid gap-2 rounded-xl border p-3 sm:grid-cols-3" style={{ background: "var(--pg-subtle)" }}>
+    <div className="pg-credit-fields">
       <input type="hidden" name="creditMode" value="1" />
       <label className="pg-field">
-        Nom du client / Café *
+        {t.posCreditName}
         <input
           type="text"
           name="creditNom"
           required
-          placeholder="Ex : Café El Bahdja"
+          placeholder="Café El Bahdja"
           value={creditNom}
           onChange={(e) => onChangeNom(e.target.value)}
           className="pg-input"
         />
       </label>
       <label className="pg-field">
-        Téléphone WhatsApp
+        {t.posCreditPhone}
         <input
           type="tel"
           name="creditTelephone"
@@ -42,15 +46,15 @@ export default function SaleCreditFields({
         />
       </label>
       <label className="pg-field">
-        Type
+        {t.posCreditType}
         <select
           name="creditType"
           value={creditType}
           onChange={(e) => onChangeType(e.target.value === "cafe_entreprise" ? "cafe_entreprise" : "particulier")}
           className="pg-input"
         >
-          <option value="particulier">Client régulier</option>
-          <option value="cafe_entreprise">Café / Entreprise</option>
+          <option value="particulier">{t.posCreditRegular}</option>
+          <option value="cafe_entreprise">{t.posCreditCafe}</option>
         </select>
       </label>
     </div>

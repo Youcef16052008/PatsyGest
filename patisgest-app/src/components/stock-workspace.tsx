@@ -48,7 +48,7 @@ export default async function StockWorkspace({ ctx, db, filtre }: { ctx: Session
     <PageIntro title={ctx.role === "vendeur" ? "Ce qu’il y a en boutique" : "Mes stocks"} label="Inventaire" description={ctx.role === "vendeur" ? "Regardez ce qui reste, et demandez au labo ce qui manque." : "Ce qui reste, ce qui manque, et ce qui vient d’arriver. Trois choses, rien de plus."}/>
     <div className="pg-stack">
       {peutEcrire && <div id="gerer-stocks" className="pg-stack">
-        <Disclosure title="J’ai une facture du fournisseur" description="Prenez-la en photo : les lignes sont recopiées, vous vérifiez, puis ça entre en stock." icon="store">
+        <Disclosure title="Importer une facture / bon fournisseur (photo)" description="Prenez-la en photo : les lignes sont recopiées, vous vérifiez, puis ça entre en stock." icon="store">
           <InvoicePhotoIntake
             mode="supabase"
             articles={(articles ?? []).map((a) => ({ id: a.id, nom: a.nom, unite: a.unite }))}

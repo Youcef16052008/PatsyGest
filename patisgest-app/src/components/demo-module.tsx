@@ -198,7 +198,7 @@ export default function DemoModule({ module, role, filtre, shop }: { module: Mod
             </details>
           </div>
         </section>
-        <Disclosure title="J’ai une facture du fournisseur" description="Prenez-la en photo : les lignes sont recopiées, vous vérifiez, puis ça entre en stock." icon="store">
+        <Disclosure title="Importer une facture / bon fournisseur (photo)" description="Prenez-la en photo : les lignes sont recopiées, vous vérifiez, puis ça entre en stock." icon="store">
           <InvoicePhotoIntake
             mode="demo"
             canReadCosts={isOwner}

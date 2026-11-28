@@ -547,7 +547,7 @@ export default function FreeRecipesWorkspace({
                     <span>Coût des ingrédients</span>
                     <b>{money(activeSummary.coutTotal)}</b>
                     <small>
-                      soit {money(activeSummary.coutParPart)} la {unitsLabel(editing.unitePortion)}
+                      soit {money(activeSummary.coutParPart)} / {unitsLabel(editing.unitePortion)}
                     </small>
                   </div>
                   <div>
@@ -809,7 +809,7 @@ export default function FreeRecipesWorkspace({
                           <div className="text-right">
                             {canReadCosts ? (
                               <span className="pg-badge" data-tone="success">
-                                {money(s.coutParPart)} la {unitsLabel(r.unitePortion)}
+                                {money(s.coutParPart)} / {unitsLabel(r.unitePortion)}
                               </span>
                             ) : r.prixVenteDa > 0 ? (
                               <span className="pg-badge" data-tone="planned">
