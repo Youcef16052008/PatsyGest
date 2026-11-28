@@ -119,6 +119,13 @@ Pour la démo locale sans réseau : `PATISGEST_DEMO_MODE=true` et un
 `PATISGEST_DEMO_SECRET` aléatoire d'au moins 32 caractères.
 Le mode démo est **désactivé en production** (`NODE_ENV`).
 
+L'inventaire **complet** des variables — application, scripts, tests, workflows
+GitHub Actions, prototype — avec portée, caractère obligatoire ou sensible et
+valeur par défaut, est tenu dans [`ENV-VARIABLES-COMPLET.md`](./ENV-VARIABLES-COMPLET.md).
+Le fichier unique à remplir sur un poste reste `patisgest-app/.env.local`
+(ignoré par Git) ; en production les valeurs vivent dans Vercel, et
+`npx vercel env pull .env.local --environment=production` les rapatrie.
+
 ### 4. Lancer et vérifier
 
 ```bash
