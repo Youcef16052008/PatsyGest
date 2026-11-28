@@ -1,0 +1,79 @@
+name: Cron connectivité · alertes > 1 h
+
+on:
+  schedule:
+    # Toutes les 30 minutes : déclenche le balayage sans limite cron Vercel Hobby.
+    # `/api/cron/connectivite` déduplique les alertes tant que l'utilisateur
+    # ne s'est pas reconnecté (`offline_alert_sent_at >= last_seen_at`).
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cron-connectivite
+  cancel-in-progress: true
+
+jobs:
+  ping-connectivite:
+    name: Balayage /api/cron/connectivite
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Appeler /api/cron/connectivite
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.PATISGEST_APP_URL || 'https://patsy-gest.vercel.app' }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CRON_SECRET" ] || [ "${#CRON_SECRET}" -lt 12 ]; then
+            echo "::error::CRON_SECRET absent ou trop court (< 12 car.) dans GitHub Actions Secrets. Copier la valeur de CRON_SECRET depuis Vercel Production."
+            exit 1
+          fi
+
+          base="${APP_URL%/}"
+          tmp=$(mktemp)
+          trap 'rm -f "$tmp"' EXIT
+
+          code=$(curl -sS -o "$tmp" -w '%{http_code}' --max-time 30 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$base/api/cron/connectivite")
+
+          echo "HTTP $code sur $base/api/cron/connectivite"
+
+          python3 - "$code" "$tmp" <<'PY'
+          import json, os, sys
+          code = int(sys.argv[1])
+          path = sys.argv[2]
+          raw = open(path, "r", encoding="utf-8", errors="replace").read()
+          try:
+              data = json.loads(raw)
+          except Exception:
+              print(f"::error::Réponse non JSON (HTTP {code}): {raw[:300]}")
+              sys.exit(1)
+
+          ok = data.get("ok") is True
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as f:
+                  f.write("## Balayage connectivité PâtisGest\n\n")
+                  f.write(f"- Statut HTTP : `{code}` (`ok={data.get('ok')}`)\n")
+                  f.write(f"- Vérifié à : `{data.get('checkedAt', 'n/a')}`\n")
+                  f.write(f"- Seuil (min) : `{data.get('thresholdMinutes', 'n/a')}`\n")
+                  f.write(f"- Comptes déconnectés trouvés : `{data.get('disconnectedFound', 'n/a')}`\n")
+                  f.write(f"- Alertes envoyées : `{data.get('alertsDispatched', 'n/a')}`\n")
+                  if data.get("error"):
+                      f.write(f"- Erreur : `{data.get('error')}`\n")
+
+          if code != 200 or not ok:
+              err = data.get("error") or data.get("erreur") or raw[:300]
+              print(f"::error::Échec du cron connectivité (HTTP {code}) : {err}")
+              sys.exit(1)
+
+          print(
+              f"OK — threshold={data.get('thresholdMinutes')}m, "
+              f"disconnected={data.get('disconnectedFound')}, "
+              f"dispatched={data.get('alertsDispatched')}"
+          )
+          PY

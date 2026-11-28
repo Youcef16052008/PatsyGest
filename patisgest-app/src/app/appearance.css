@@ -54,6 +54,14 @@
   --pg-violet-ink: #5f4281;
   --pg-shadow: 0 1px 2px rgba(22, 28, 24, .045), 0 4px 14px rgba(22, 28, 24, .035);
 }
+:root[data-design='atelier'] {
+  --pg-bg: #f5f3ec; --pg-surface: #fffefa; --pg-subtle: #f1efe7; --pg-line: #e0ddd1; --pg-control: #aaa99d;
+  --pg-ink: #242c25; --pg-muted: #565e55; --pg-accent: #305c47; --pg-accent-hover: #214734; --pg-link: #284e3b;
+  --pg-tint: #e5efe5; --pg-tint-border: #b9cfc0; --pg-radius: 16px;
+  --pg-dark-bg: #141d18; --pg-dark-surface: #1d2821; --pg-dark-subtle: #252f28; --pg-dark-line: #3a4940;
+  --pg-dark-ink: #f2f5ec; --pg-dark-muted: #bdc8bb; --pg-dark-link: #b4ddc1; --pg-dark-tint: #2a4235; --pg-dark-accent: #336d52;
+  --pg-title-font: Fraunces, Georgia, serif;
+}
 :root[data-design='pilotage'] {
   --pg-bg: #f0f4fa; --pg-surface: #fff; --pg-subtle: #edf2f8; --pg-line: #d9e2ef; --pg-control: #a4b2c7;
   --pg-ink: #17263e; --pg-muted: #4d6080; --pg-accent: #2a51a4; --pg-accent-hover: #1d3c86; --pg-link: #264a97;
@@ -100,6 +108,9 @@
 }
 :root[data-mode='dark'][data-design='pilotage'] { --pg-nav: #141e32; --pg-nav-active: #2a416a; }
 :root[data-mode='dark'][data-design='comptoir'] { --pg-nav: #142e24; --pg-nav-active: #2b5141; }
+:root[data-mode='dark'][data-design='atelier'] { --pg-nav: #18211b; --pg-nav-active: #2c4234; }
+:root[data-mode='dark'][data-design='essentiel'] { --pg-nav: #211a2c; --pg-nav-active: #3b3051; }
+:root[data-design='atelier'] :is(.pg-page-intro h1, .pg-dashboard-lead h1, .pg-section-head h2) { font-family: Fraunces, Georgia, serif; font-weight: 650; }
 
 /* Palette partagée par les formulaires existants et les nouveaux écrans. Les
    surfaces sont indépendantes de text-white (boutons, ticket, identité). */

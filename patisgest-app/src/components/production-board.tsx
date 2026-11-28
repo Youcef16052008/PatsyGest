@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useId, useState, type ReactNode } from "react";
 import { colonneProduction, dateLisible, ETAPES_PRODUCTION, quantite, type ProductionItem } from "@/lib/workspace-data";
-import { useAppearance } from "./appearance";
 import { Icon } from "./workspace-icons";
 import { Notice } from "./workspace-ui";
 
@@ -11,9 +10,8 @@ export default function ProductionBoard({ orders, preview = false, renderAction 
   orders: ProductionItem[] | null; preview?: boolean; renderAction?: (order: ProductionItem) => ReactNode;
 }) {
   const id = useId();
-  const { design } = useAppearance();
   const [chosen, setChosen] = useState<"board" | "list" | null>(null);
-  const presentation = chosen ?? (preview || design === "fabrication" ? "board" : "list");
+  const presentation = chosen ?? (preview ? "board" : "list");
   const [limit, setLimit] = useState(preview ? 2 : 12);
   const ordered = (orders ?? []).slice().sort((a,b) => a.statut === "termine" && b.statut === "termine" ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date));
   const groups = ETAPES_PRODUCTION.map(step => ({ ...step, orders: ordered.filter(o => colonneProduction(o.statut) === step.id) }))

@@ -1,0 +1,83 @@
+{
+  "fichiers": 57,
+  "marqueurs": 57,
+  "bytes": 474904,
+  "parts": 12,
+  "replay_patches": 5,
+  "sha256": "c7a2acd6e4e4e039e6aefddc9f5cc2a530ede2d87a62292ddb7812e9347e681f",
+  "md5": "305b65ba561b253edca04b888914c534",
+  "chunks": [
+    {
+      "part": 1,
+      "file": "chunks/part-01.sql",
+      "bytes": 39584,
+      "sha256": "31cb2752833e5ed18c002e418a27c078612ec70d960034d28ecc009c16a96f90"
+    },
+    {
+      "part": 2,
+      "file": "chunks/part-02.sql",
+      "bytes": 39617,
+      "sha256": "a666a18531d9d56607ebebc2a95c3e985a605ef7af93a3d84bdaa6937ec25577"
+    },
+    {
+      "part": 3,
+      "file": "chunks/part-03.sql",
+      "bytes": 39581,
+      "sha256": "3b463e3f8034a7183b4eaff5718cab4d51f5251136d88c6c4290500a426be264"
+    },
+    {
+      "part": 4,
+      "file": "chunks/part-04.sql",
+      "bytes": 39523,
+      "sha256": "8132a7b5cad16696814accc673b5dfd1c418f5f4a53b4c522518fa5b877ea363"
+    },
+    {
+      "part": 5,
+      "file": "chunks/part-05.sql",
+      "bytes": 39665,
+      "sha256": "904bf77e83537bd1e656c7108854d3a66deda5329446c16a063b15152b395438"
+    },
+    {
+      "part": 6,
+      "file": "chunks/part-06.sql",
+      "bytes": 39492,
+      "sha256": "1d46828dc2b288df66d129090b4a30743ddbc0b7369b6b0bd927c878c1d727e9"
+    },
+    {
+      "part": 7,
+      "file": "chunks/part-07.sql",
+      "bytes": 39624,
+      "sha256": "7776a670ce250457d82fc537af1d2410f56892337050020691ce22c9031622d9"
+    },
+    {
+      "part": 8,
+      "file": "chunks/part-08.sql",
+      "bytes": 39527,
+      "sha256": "ff234d1f84ec51368354e5745b56be1d2f82b6b89897f9811923a1c3c0146c63"
+    },
+    {
+      "part": 9,
+      "file": "chunks/part-09.sql",
+      "bytes": 39566,
+      "sha256": "cdc9ce655587a7d0ef90307872964eceb51c6c8947569820f51c11375fecabcd"
+    },
+    {
+      "part": 10,
+      "file": "chunks/part-10.sql",
+      "bytes": 39588,
+      "sha256": "a82721a1058cd4a3288738c346e19d74b04a62aa95ca8f12968824670f1c8a64"
+    },
+    {
+      "part": 11,
+      "file": "chunks/part-11.sql",
+      "bytes": 39580,
+      "sha256": "84e233c93d3ad885aaa71d3c701c85e0c1c7271975dd938b41ba16109454228e"
+    },
+    {
+      "part": 12,
+      "file": "chunks/part-12.sql",
+      "bytes": 39557,
+      "sha256": "4c5b1bd48caaa4439d58159f14216004f36020130ed61775fcfa7dfc8d74793e"
+    }
+  ]
+}

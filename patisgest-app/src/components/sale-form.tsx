@@ -2,8 +2,10 @@
 
 import { useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { sellCart, type SaleState } from "@/lib/actions-caisse";
+import { createCreditCloud } from "@/lib/actions-credits";
+import type { CreditAccountType } from "@/lib/credits";
 import type { Etablissement } from "@/lib/etablissement";
-import { isPaymentMode, isValidCartQty, PAYMENT_MODE_LABELS, type PaymentMode } from "@/lib/pos-cart";
+import { isPaymentMode, isValidCartQty, libelleModePaiement, PAYMENT_MODE_LABELS, type PaymentMode } from "@/lib/pos-cart";
 import {
   createQueuedCartSale,
   enqueueSale,
@@ -20,18 +22,20 @@ import SaleTicket, { type SaleTicketLine } from "./sale-ticket";
 import FormulaireGuide, { champGuide } from "./guide-form";
 import SaleComposer from "./sale-composer";
 import { Notice } from "./workspace-ui";
+import { useEffect } from "react";
+import { enregistrerCatalogue, enregistrerIdentite, type CatalogueHorsLigne } from "@/lib/catalogue-cache";
 import { quantite, siteCaisse, type CatalogProduct, type SiteStock, type WorkspaceSite } from "@/lib/workspace-data";
 
 const label = "block text-xs font-semibold text-slate-600";
 
 type Msg = { kind: "err" | "ok" | "info"; text: string };
 
-type VenteAffichee = SaleState & {
+type VenteAffichee = Omit<SaleState, "modePaiement"> & {
   articleLabel: string;
   siteLabel: string;
   qte: number;
   lines: SaleTicketLine[];
-  modePaiement: PaymentMode;
+  modePaiement: PaymentMode | string;
   at: string;
   etablissement: Etablissement | null;
 };
@@ -51,6 +55,7 @@ export default function SaleForm({
   etablissement,
   guide = false,
   guideTermine = false,
+  catalogueHorsLigne,
 }: {
   articles: CatalogProduct[];
   sites: WorkspaceSite[];
@@ -60,9 +65,17 @@ export default function SaleForm({
   etablissement?: Etablissement | null;
   guide?: boolean;
   guideTermine?: boolean;
+  /** NF-02/D5 : de quoi alimenter l'ouverture hors-ligne, étiqueté par compte. */
+  catalogueHorsLigne?: {
+    clientId: string;
+    produits: CatalogProduct[];
+    sites: WorkspaceSite[];
+    identite: CatalogueHorsLigne["identite"];
+  };
 }) {
   const [msg, setMsg] = useState<Msg | null>(null);
   const [lastSale, setLastSale] = useState<VenteAffichee | null>(null);
+  const [cartResetKey, setCartResetKey] = useState(0);
   const [pending, startTransition] = useTransition();
   const lock = useRef(false);
 
@@ -78,6 +91,32 @@ export default function SaleForm({
     () => navigator.onLine,
     () => true,
   );
+
+  // NF-02/D5 — réserve l'identité et le catalogue pour /hors-ligne. Placé ici
+  // et non dans un écran séparé : c'est au moment où la caisse est réellement
+  // utilisée que les prix affichés sont les bons. Une réserve alimentée depuis
+  // un autre écran figerait un catalogue que personne n'a validé.
+  useEffect(() => {
+    if (!catalogueHorsLigne) return;
+    enregistrerIdentite({
+      clientId: catalogueHorsLigne.clientId,
+      authUserId: queueIdentity.authUserId,
+    });
+    enregistrerCatalogue({
+      clientId: catalogueHorsLigne.clientId,
+      clientNom: etablissement?.nom ?? "",
+      articles: catalogueHorsLigne.produits.map((p) => ({
+        id: p.id,
+        label: p.label,
+        code: p.code,
+        unit: p.unit,
+        prixHT: p.prixHT,
+        tva: p.tva,
+      })),
+      sites: catalogueHorsLigne.sites.map((s) => ({ id: s.id, label: s.label, type: s.type })),
+      identite: catalogueHorsLigne.identite,
+    });
+  }, [catalogueHorsLigne, queueIdentity.authUserId, etablissement?.nom]);
 
   const { clientId, authUserId } = queueIdentity;
   const store = useMemo(() => createSaleQueueStore({ clientId, authUserId }), [clientId, authUserId]);
@@ -147,8 +186,18 @@ export default function SaleForm({
     const siteLabel = sites.find((s) => s.id === siteId)?.label;
     const modeRaw = String(fd.get("modePaiement") ?? "especes");
     const modePaiement: PaymentMode = isPaymentMode(modeRaw) ? modeRaw : "especes";
+    const creditMode = String(fd.get("creditMode") ?? "0") === "1";
+    const creditNom = String(fd.get("creditNom") ?? "").trim();
+    const creditTelephone = String(fd.get("creditTelephone") ?? "").trim();
+    const creditType = (String(fd.get("creditType") ?? "particulier") === "cafe_entreprise"
+      ? "cafe_entreprise"
+      : "particulier") as CreditAccountType;
     if (!siteLabel) {
       setMsg({ kind: "err", text: "Choisissez un site de vente valide." });
+      return;
+    }
+    if (creditMode && !creditNom) {
+      setMsg({ kind: "err", text: "Indiquez le nom du client ou du café pour le carnet." });
       return;
     }
 
@@ -205,11 +254,25 @@ export default function SaleForm({
             // Chaque retrait est persistant immédiatement, sous le même verrou.
             queue.write(removeSale(queue.read(), sale.ticket));
             const ticket = ticketVente(state, sale);
-            if (ticket) setLastSale(ticket);
+            if (ticket) {
+              if (creditMode) ticket.modePaiement = "À crédit (Carnet)";
+              setLastSale(ticket);
+            }
+            if (creditMode && status === "ok" && (state.totalTTC ?? 0) > 0) {
+              await createCreditCloud({
+                nomDebiteur: creditNom,
+                telephone: creditTelephone,
+                typeCompte: creditType,
+                montantTotalDa: state.totalTTC ?? 0,
+                note: `Caisse ${state.numero ?? ""} · ${lignes.map((l) => `${l.articleLabel} × ${l.qte}`).join(", ")}`.slice(0, 280),
+              });
+            }
             setMsg({ kind: "ok", text: status === "dup" ? "Ticket déjà enregistré." :
-              (state.manquant ?? 0) > 0
-                ? `Ticket enregistré (${lignes.length} produit(s), ${PAYMENT_MODE_LABELS[modePaiement]}). Stock manquant : ${quantite(state.manquant ?? 0)}.`
-                : `Ticket enregistré (${lignes.length} produit(s), ${PAYMENT_MODE_LABELS[modePaiement]}).` });
+              creditMode
+                ? `Ticket noté au carnet de ${creditNom} (${Math.round(state.totalTTC ?? 0)} DA à encaisser).`
+                : (state.manquant ?? 0) > 0
+                  ? `Ticket enregistré (${lignes.length} produit(s), ${PAYMENT_MODE_LABELS[modePaiement]}). Stock manquant : ${quantite(state.manquant ?? 0)}.`
+                  : `Ticket enregistré (${lignes.length} produit(s), ${PAYMENT_MODE_LABELS[modePaiement]}).` });
           } else if (status === "network") {
             setMsg({ kind: "info", text: "Résultat inconnu : ticket conservé localement. Vérifiez puis synchronisez avec le même compte au retour du réseau." });
           } else {
@@ -223,7 +286,10 @@ export default function SaleForm({
       } finally {
         // Dès qu'un ticket est durable, ne pas conserver le panier prérempli :
         // une nouvelle soumission générerait un autre UUID pour la même vente.
-        if (stored) formulaire.reset();
+        if (stored) {
+          formulaire.reset();
+          setCartResetKey((k) => k + 1);
+        }
         lock.current = false;
       }
     });
@@ -346,10 +412,12 @@ export default function SaleForm({
           />
         ) : (
           <SaleComposer
+            key={`${queueIdentity.clientId}:${queueIdentity.authUserId}:${cartResetKey}`}
             articles={articles}
             sites={sites}
             stock={stock}
             expiredStock={expiredStock}
+            scopeKey={queueIdentity.clientId}
             onSubmit={onSubmit}
             busy={pending || !!queueState.error}
             status={
@@ -391,7 +459,7 @@ export default function SaleForm({
               <li key={s.ticket} className="pg-list-between">
                 <span>
                   <strong>{queuedSaleSummary(s)}</strong> · {s.siteLabel} · réf. {s.ticket}
-                  {s.modePaiement && ` · ${PAYMENT_MODE_LABELS[s.modePaiement]}`}
+                  {s.modePaiement && ` · ${libelleModePaiement(s.modePaiement)}`}
                 </span>
                 <span className="pg-muted">
                   {new Date(s.queuedAt).toLocaleTimeString("fr-FR", {

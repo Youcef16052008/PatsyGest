@@ -9,7 +9,7 @@ import { createOf, finishOf, startOf, type OfState } from "@/lib/actions-of";
 import FormulaireGuide, { champGuide } from "./guide-form";
 import ProductionBoard from "./production-board";
 import { Disclosure, Notice } from "./workspace-ui";
-import { type ProductionItem } from "@/lib/workspace-data";
+import { jourLocal, type ProductionItem } from "@/lib/workspace-data";
 import { Icon } from "./workspace-icons";
 
 type Option = { id: string; label: string };
@@ -144,7 +144,7 @@ export function CreateOfForm({ versions, sites, guide = false, guideTermine = fa
     <input name="qtePrevue" type="number" min={0.0001} step="any" required defaultValue={12} className={styleChamp} />
   </label>;
   const date = <label className={`${label} ${guide ? "min-w-0" : "w-40"}`}>Date prévue
-    <input name="datePrevue" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} className={styleChamp} />
+    <input name="datePrevue" type="date" required defaultValue={jourLocal()} className={styleChamp} />
   </label>;
 
   return (

@@ -1,33 +1,490 @@
-import Link from 'next/link';
-import { dashboardInsights, productVelocity, type DashboardSale } from '@/lib/dashboard-insights';
-import { dateLisible, dinars, indexLots, quantite, stockArticle, type ProductionItem, type StockArticle, type StockLot, type VentesJour } from '@/lib/workspace-data';
-import ProductionBoard from './production-board';
-import SalesChart from './sales-chart';
-import { Notice } from './workspace-ui';
+import Link from "next/link";
+import {
+  computeCashSummary,
+  dashboardInsights,
+  productVelocity,
+  topSellingProducts,
+  type DashboardSale,
+} from "@/lib/dashboard-insights";
+import {
+  dateLisible,
+  dinars,
+  indexLots,
+  quantite,
+  stockArticle,
+  type ProductionItem,
+  type StockArticle,
+  type StockLot,
+  type VentesJour,
+} from "@/lib/workspace-data";
+import { whatsappOrderUrl } from "@/lib/whatsapp";
+import { sumOpenCreditsDa, type CreditEntry } from "@/lib/credits";
+import type { OwnerPriceAlert } from "@/lib/owner-price-guard";
+import ProductionBoard from "./production-board";
+import SalesChart from "./sales-chart";
+import CashClosingQuickWidget from "./cash-closing-quick";
+import CreditsWorkspace from "./credits-workspace";
+import ExpressOnboarding from "./express-onboarding";
+import OwnerPriceAlerts from "./owner-price-alerts";
+import KitchenLabScreen from "./kitchen-lab-screen";
+import ShopAdvisorPanel from "./shop-advisor-panel";
+import { Tr } from "./locale-provider";
+import { Icon } from "./workspace-icons";
+import { Disclosure, Notice } from "./workspace-ui";
+import OwnerDayOverview from "./owner-day-overview";
+
+export type DashboardUpcomingCake = {
+  id: string;
+  numero: string;
+  client: string;
+  telephone: string | null;
+  eventDate: string;
+  portions: number;
+  prixTotalDa: number;
+  acompteDa: number;
+  resteDa: number;
+  statut: string;
+  notes?: string | null;
+};
 
 type CloseStatus = { id: string; site: string; closed: boolean; cashDeclared: boolean }[] | null;
-export default function PilotDashboard({nom,shop,today,owner,articles,lots,orders,series,closing,sales,shopIds}:{
-  nom:string;shop:string;today:string;owner:boolean;articles:StockArticle[]|null;lots:StockLot[]|null;orders:ProductionItem[]|null;series:VentesJour[]|null;closing:CloseStatus;sales:DashboardSale[]|null;shopIds:string[]|null;
+
+export default function PilotDashboard({
+  nom,
+  shop,
+  today,
+  owner,
+  articles,
+  lots,
+  orders,
+  series,
+  closing,
+  sales,
+  shopIds,
+  estimatedMarginDa = null,
+  estimatedMarginPct = null,
+  upcomingCakes = [],
+  cakesAvailable = true,
+  mode = "demo",
+  scopeKey = "demo",
+  ownerPhoneDefault = "",
+  initialCredits = [],
+  creditsTableAvailable = true,
+  initialOwnerAlerts = [],
+  onDemoImportPack,
+}: {
+  nom: string;
+  shop: string;
+  today: string;
+  owner: boolean;
+  articles: (StockArticle & { prixTTC?: number })[] | null;
+  lots: StockLot[] | null;
+  orders: ProductionItem[] | null;
+  series: VentesJour[] | null;
+  closing: CloseStatus;
+  sales: DashboardSale[] | null;
+  shopIds: string[] | null;
+  estimatedMarginDa?: number | null;
+  estimatedMarginPct?: number | null;
+  upcomingCakes?: DashboardUpcomingCake[];
+  cakesAvailable?: boolean;
+  mode?: "demo" | "supabase";
+  scopeKey?: string;
+  ownerPhoneDefault?: string;
+  initialCredits?: CreditEntry[];
+  creditsTableAvailable?: boolean;
+  initialOwnerAlerts?: OwnerPriceAlert[];
+  onDemoImportPack?: (activity: import("@/lib/pack-patisserie-dz").StarterDzActivity, tvaRegime: import("@/lib/pack-patisserie-dz").StarterVatRegime) => void;
 }) {
-  const insight=dashboardInsights(series,articles,lots,today);
-  const products=productVelocity(sales,articles,lots,today,shopIds);
-  const todaySales=series?.at(-1);
-  const byArticle=indexLots(lots??[]);
-  const low=articles&&lots ? articles.map(a=>({a,...stockArticle(a,byArticle.get(a.id)??[],today)})).filter(x=>x.signals.some(s=>s.label==='Rupture'||s.label==='Stock bas')) : null;
-  const planned=orders?.filter(o=>o.statut==='planifie').length;
-  const inProgress=orders?.filter(o=>o.statut==='encours'||o.statut==='partiel').length;
-  return <div className="pg-dashboard pg-pilot-home">
-    <header className="pg-dashboard-lead"><div className="pg-dash-copy"><p className="pg-kicker">{shop} · {owner?'PILOTAGE PROPRIÉTAIRE':'LABORATOIRE'}</p><h1>Bonjour {nom}.</h1><p className="pg-page-description">{owner?'Ventes, stocks et journée : des indicateurs pour décider, pas une décision automatique.':'Quantités disponibles et fournées à préparer, sans indicateurs financiers.'}</p><div className="pg-dash-hero-actions"><Link className="pg-button" href="/stocks">Voir les stocks</Link><Link className="pg-button pg-button-secondary" href="/production">Voir la production</Link></div></div><span className="pg-dash-date">{dateLisible(today,'full')}</span><div className="pg-dash-photo" aria-hidden="true"/></header>
-    {owner && <>
-      <div className="pg-pilot-section-title"><div><span>01 / VUE D’ENSEMBLE</span><h2>Votre activité, en un regard</h2></div><small>Données enregistrées · heure d’Alger</small></div><section className="pg-home-kpis" aria-label="Indicateurs commerciaux"><Metric label="Ventes aujourd’hui" value={series ? dinars(series.at(-1)?.ttc??0) : '—'} detail={series ? `${series.at(-1)?.tickets??0} tickets · TTC` : 'Lecture indisponible'}/><Metric label="7 derniers jours" value={insight.thisWeek===null?'—':dinars(insight.thisWeek)} detail="Chiffre d’affaires TTC enregistré"/><Metric label="Évolution des ventes" value={insight.variation===null?'—':`${insight.variation>=0?'+':''}${insight.variation.toFixed(1)} %`} detail={insight.lastWeek===null?'Lecture indisponible':insight.lastWeek===0?'Pas de base de comparaison':'Par rapport aux 7 jours précédents'}/><Metric label="Produits à surveiller" value={insight.shortages?.length??'—'} detail="Stock éligible au seuil ou en dessous"/></section>
-      <div className="pg-pilot-brief"><div><span className="pg-pilot-eyebrow">POINT DU JOUR</span><h2>{closing===null ? "Données de clôture indisponibles" : closing.some(c=>!c.closed||!c.cashDeclared) ? "Des vérifications restent à faire" : closing.length ? "Déclarations du jour enregistrées" : "Configurez une boutique"}</h2><p>{todaySales ? `${todaySales.tickets} ticket(s) enregistré(s) aujourd’hui. ` : ""}Une déclaration ne remplace pas le rapprochement de caisse.</p></div><Link href="/cloture" className="pg-button">Préparer la clôture →</Link></div>
-      <div className="pg-home-panels"><SalesChart series={series}/><section className="pg-card pg-card-pad"><h2>Fermeture de la journée</h2><p className="text-sm">Contrôlez chaque boutique et rapprochez la caisse. Un bilan saisi ne prouve pas que la caisse est juste ou que toutes les opérations sont terminées.</p>{closing===null?<Notice kind="warning">État de clôture indisponible.</Notice>:closing.length===0?<p>Aucune boutique configurée.</p>:<ul className="pg-home-rows">{closing.map(c=><li key={c.id}><b>{c.site}</b><span className="pg-badge">{!c.closed?'Clôture à saisir':c.cashDeclared?'Clôture et déclaration saisies':'Clôture saisie · caisse à vérifier'}</span></li>)}</ul>}<Link className="pg-text-link" href="/cloture">Vérifier les clôtures →</Link></section>
-      <section className="pg-card pg-card-pad"><h2>Santé économique</h2><p className="text-sm">Les ventes seules ne suffisent pas à calculer le bénéfice ou à recommander la fermeture de l’établissement. Les charges, dettes et autres dépenses ne sont pas toutes disponibles ici.</p><p className="mt-2 text-sm">{insight.variation===null?'Tendance insuffisante : comparaison impossible.':insight.variation<0?'Les ventes TTC ont diminué par rapport aux sept jours précédents. Vérifiez aussi les coûts et les jours d’ouverture.':'Les ventes TTC sont stables ou en hausse par rapport aux sept jours précédents. Vérifiez aussi les coûts et les jours d’ouverture.'}</p></section>
-      <section className="pg-card pg-card-pad"><h2>Produits à renforcer</h2><p className="text-sm">Écart au seuil configuré, tous sites confondus. Ce n’est pas une prévision de demande.</p>{insight.shortages===null?<Notice kind="warning">Stock indisponible.</Notice>:insight.shortages.length===0?<p>Aucun produit au-dessous de son seuil.</p>:<ul className="pg-home-rows">{insight.shortages.slice(0,5).map(a=><li key={a.id}><b>{a.nom}</b><span>{quantite(a.qty,a.unite)} disponibles · seuil {quantite(a.seuil,a.unite)}{a.manque>0?` · manque ${quantite(a.manque,a.unite)}`:''}</span></li>)}</ul>}</section>
-      <section className="pg-card pg-card-pad pg-pilot-top"><div className="pg-card-head"><div><span className="pg-pilot-eyebrow">RÉASSORT · DEMANDE OBSERVÉE</span><h2>Couverture des produits vendus</h2><p>Priorité aux produits dont la couverture indicative est la plus courte · 7 jours</p></div><Link className="pg-text-link" href="/caisse">Détail des ventes →</Link></div>{products===null?<Notice kind="warning">Ventes ou stocks indisponibles.</Notice>:products.length===0?<p>Aucune ligne de vente exploitable sur la période.</p>:<div className="pg-pilot-table"><table><thead><tr><th>Produit</th><th>Vendus · 7 j</th><th>En boutique</th><th>Couverture indicative</th></tr></thead><tbody>{products.slice(0,6).map(p=><tr key={p.id}><td><strong>{p.nom}</strong></td><td>{quantite(p.sold,p.unite)}</td><td>{quantite(p.stock,p.unite)}</td><td><span className="pg-pilot-status" data-risk={p.days<1?'high':p.days<3?'medium':'low'}>{p.days<1?'Moins d’un jour':`${p.days.toFixed(1)} jours`}</span></td></tr>)}</tbody></table><p className="pg-pilot-footnote">Stock boutique ÷ ventes moyennes par jour calendaire. Indicatif uniquement : jours fermés, commandes futures et réassort non pris en compte.</p></div>}</section></div>
-    </>}
-    {!owner && <><div className="pg-pilot-section-title"><div><span>01 / LABORATOIRE</span><h2>La production du jour</h2></div><small>Quantités et organisation</small></div><section className="pg-home-kpis" aria-label="Quantités et production"><Metric label="Articles à surveiller" value={low?.length??'—'} detail="Rupture ou seuil bas"/><Metric label="Fournées à lancer" value={planned??'—'} detail="Production planifiée"/><Metric label="Fournées en cours" value={inProgress??'—'} detail="À terminer"/></section><section className="pg-card pg-card-pad"><h2>Stocks à vérifier</h2>{low===null?<Notice kind="warning">Stock indisponible.</Notice>:low.length===0?<p>Aucune rupture ou alerte de seuil.</p>:<ul className="pg-home-rows">{low.slice(0,6).map(x=><li key={x.a.id}><b>{x.a.nom}</b><span>{quantite(x.quantity,x.a.unite)} · seuil {quantite(x.a.seuil,x.a.unite)}</span></li>)}</ul>}</section></>}
-    <ProductionBoard orders={orders} preview/>
-  </div>;
+  const insight = dashboardInsights(series, articles, lots, today);
+  const topProducts = topSellingProducts(sales, articles, today, 7);
+  const velocityList = productVelocity(sales, articles, lots, today, shopIds) ?? [];
+  const velocityById = new Map(velocityList.map((v) => [v.id, v]));
+  const cashToday = computeCashSummary(sales, today);
+  const todaySales = series?.at(-1);
+  const avgTicketToday =
+    (todaySales?.tickets ?? 0) > 0 && (todaySales?.ttc ?? 0) > 0
+      ? Math.round((todaySales?.ttc ?? 0) / (todaySales?.tickets ?? 1))
+      : null;
+  const byArticle = indexLots(lots ?? []);
+  const low =
+    articles && lots
+      ? articles
+          .map((a) => ({ a, ...stockArticle(a, byArticle.get(a.id) ?? [], today) }))
+          .filter((x) => x.signals.some((s) => s.label === "Rupture" || s.label === "Stock bas"))
+      : null;
+
+  const activeCakes = upcomingCakes.filter((c) => c.statut !== "livre" && c.statut !== "annule");
+  const totalResteCakes = Math.round(activeCakes.reduce((sum, c) => sum + Math.max(0, c.resteDa), 0));
+  const todayCakesCount = activeCakes.filter((c) => c.eventDate === today).length;
+  const todayRevenue = todaySales?.ttc ?? 0;
+
+  const displayedMarginDa = estimatedMarginDa;
+  const displayedMarginPct = estimatedMarginPct;
+
+  const alreadyClosed = Boolean(closing && closing.length > 0 && closing.every((c) => c.closed));
+  const openCreditsTotal = sumOpenCreditsDa(initialCredits);
+  const showExpressOnboarding = owner && articles !== null && articles.length === 0;
+
+  return (
+    <div className="pg-dashboard pg-pilot-home pg-stack">
+      {!owner && <header className="pg-dashboard-lead">
+        <div className="pg-dash-copy">
+          <p className="pg-kicker">
+            {shop} · {owner ? "TABLEAU DE BORD PATRON" : "LABORATOIRE"}
+          </p>
+          <h1>Bonjour {nom}.</h1>
+          <p className="pg-page-description">
+            {owner
+              ? "Pilotage complet Boulangerie, Viennoiserie, Pâtisserie & Cake Shop : seuil de rentabilité, alertes robot anti-perte, caisse et commandes."
+              : "Vos fournées à préparer et les quantités disponibles en stock."}
+          </p>
+          <div className="pg-dash-hero-actions">
+            {owner ? (
+              <>
+                <Link className="pg-button" href="/caisse">
+                  <Icon name="receipt" size={17} /> Ouvrir la caisse
+                </Link>
+                <Link className="pg-button pg-button-secondary" href="/cake-design">
+                  <Icon name="cake" size={17} /> Nouvelle commande gâteau
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link className="pg-button" href="/production">
+                  Voir la production
+                </Link>
+                <Link className="pg-button pg-button-secondary" href="/stocks">
+                  Voir les stocks
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+        <span className="pg-dash-date">
+          <Icon name="calendar" size={16} /> {dateLisible(today, "full")}
+        </span>
+      </header>}
+
+      {owner && (
+        <>
+          <OwnerDayOverview nom={nom} shop={shop} today={today} articles={articles} lots={lots}
+            cakes={cakesAvailable ? upcomingCakes : null} orders={orders} series={series}
+            creditsDa={openCreditsTotal} creditsAvailable={mode === "demo" || creditsTableAvailable}/>
+          <OwnerPriceAlerts
+            mode={mode}
+            scopeKey={scopeKey}
+            initialAlerts={initialOwnerAlerts}
+          />
+          {showExpressOnboarding && (
+            <ExpressOnboarding
+              initialShopName={shop}
+              mode={mode}
+              onDemoImportPack={onDemoImportPack}
+            />
+          )}
+          <Disclosure title="Conseils financiers" description="Charges et objectif de ventes indicatif" icon="trend">
+          <ShopAdvisorPanel
+            scopeKey={scopeKey}
+            today={today}
+            series={series}
+            sales={sales}
+            articles={articles}
+            lots={lots}
+            shopIds={shopIds}
+            openCreditsDa={openCreditsTotal}
+            pendingPriceAlertsCount={initialOwnerAlerts.filter((a) => a.traiteStatut === "en_attente").length}
+            estimatedMarginPct={displayedMarginPct}
+          />
+          </Disclosure>
+          <Disclosure title="Analyse des ventes" description="Indicateurs et produits vendus" icon="trend">
+          <div className="pg-stack">
+          {/* 4 cartes KPI fortes */}
+          <section className="pg-home-kpis" aria-label="Indicateurs clés du jour">
+            <Link href="/caisse" className="pg-card pg-metric">
+              <div>
+                <span><Tr fr="Ventes du jour" ar="مبيعات اليوم" /></span>
+                <span className="pg-emblem">
+                  <Icon name="trend" size={18} />
+                </span>
+              </div>
+              <strong>{series ? dinars(todayRevenue, false) : "—"}</strong>
+              <small>
+                {series
+                  ? `${todaySales?.tickets ?? 0} ticket${(todaySales?.tickets ?? 0) > 1 ? "s" : ""}${
+                      avgTicketToday ? ` · Moy. ${dinars(avgTicketToday, false)}` : ""
+                    }${
+                      insight.variation !== null
+                        ? ` · ${insight.variation >= 0 ? "+" : ""}${insight.variation.toFixed(0)} % vs sem.`
+                        : ""
+                    }`
+                  : "Lecture indisponible"}
+              </small>
+            </Link>
+
+            <Link href="/recettes" className="pg-card pg-metric">
+              <div>
+                <span><Tr fr="Ventes moins coût des recettes (estim.)" ar="المبيعات ناقص تكلفة الوصفات (تقديري)" /></span>
+                <span className="pg-emblem" style={{ background: "var(--pg-ok-bg)", color: "var(--pg-ok-ink)" }}>
+                  <Icon name="check" size={18} />
+                </span>
+              </div>
+              <strong>{series && displayedMarginDa !== null ? dinars(displayedMarginDa, false) : "—"}</strong>
+              <small>
+                {displayedMarginPct !== null
+                  ? `Estimation ~${displayedMarginPct.toFixed(0)} % · hors charges fixes`
+                  : "Coûts insuffisants pour une estimation fiable"}
+              </small>
+            </Link>
+
+            <Link href="/cake-design" className="pg-card pg-metric">
+              <div>
+                <span><Tr fr="Commandes & gâteaux" ar="الطلبيات والحلويات" /></span>
+                <span className="pg-emblem" style={{ background: "var(--pg-violet-bg)", color: "var(--pg-violet-ink)" }}>
+                  <Icon name="cake" size={18} />
+                </span>
+              </div>
+              <strong>{activeCakes.length} à livrer</strong>
+              <small>
+                {todayCakesCount > 0 ? `${todayCakesCount} aujourd’hui · ` : ""}
+                Reste à encaisser : {dinars(totalResteCakes, false)}
+              </small>
+            </Link>
+
+            <Link href="/stocks?filtre=alerte" className="pg-card pg-metric">
+              <div>
+                <span><Tr fr="Alertes stock" ar="تنبيهات المخزون" /></span>
+                <span
+                  className="pg-emblem"
+                  style={
+                    (low?.length ?? 0) > 0
+                      ? { background: "var(--pg-warn-bg)", color: "var(--pg-warn-ink)" }
+                      : { background: "var(--pg-ok-bg)", color: "var(--pg-ok-ink)" }
+                  }
+                >
+                  <Icon name="alert" size={18} />
+                </span>
+              </div>
+              <strong>{low === null ? "—" : `${low.length} alerte${low.length > 1 ? "s" : ""}`}</strong>
+              <small>
+                {low === null
+                  ? "Stock indisponible"
+                  : low.length === 0
+                    ? "Tous les stocks sont bons ✓"
+                    : `${low
+                        .slice(0, 2)
+                        .map((x) => x.a.nom)
+                        .join(", ")}`}
+              </small>
+            </Link>
+          </section>
+
+          {/* 2 visuels clairs côte à côte */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <SalesChart series={series} />
+
+            <section className="pg-card pg-card-pad pg-stack">
+              <div className="pg-card-head">
+                <div>
+                  <h2>Top 5 des produits les plus vendus</h2>
+                  <p>Sur les 7 derniers jours · ce qui fait votre chiffre</p>
+                </div>
+                <Link className="pg-text-link" href="/caisse">
+                  Voir les ventes →
+                </Link>
+              </div>
+              {topProducts === null ? (
+                <Notice kind="warning">Détail des ventes par produit indisponible.</Notice>
+              ) : topProducts.length === 0 ? (
+                <p className="pg-muted text-sm">Aucune vente enregistrée sur les 7 derniers jours.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {topProducts.map((p, idx) => {
+                    const vel = velocityById.get(p.id);
+                    return (
+                      <li key={p.id} className="space-y-1">
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                          <span className="font-bold">
+                            <span className="pg-muted mr-1.5">#{idx + 1}</span>
+                            {p.nom}
+                            {vel && (
+                              <span
+                                className="ml-2 pg-badge"
+                                data-tone={vel.days < 1.5 ? "danger" : vel.days < 3 ? "warning" : "neutral"}
+                              >
+                                {vel.days < 0.5 ? "Stock épuisé" : `~${vel.days.toFixed(1)}j stock`}
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-right font-bold">
+                            {quantite(p.qty, p.unite)}
+                            {p.revenueDa > 0 ? ` · ${dinars(p.revenueDa, false)}` : ""}
+                          </span>
+                        </div>
+                        <div className="h-2.5 w-full overflow-hidden rounded-full" style={{ background: "var(--pg-subtle)" }}>
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${Math.max(8, p.sharePct)}%`,
+                              background: "var(--pg-accent)",
+                            }}
+                          />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          </div>
+
+          </div>
+          </Disclosure>
+          <Disclosure title="Caisse et commandes" description="Livraisons à venir et comptage du soir" icon="receipt">
+          {/* 2 blocs opérationnels simples */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <section className="pg-card pg-card-pad pg-stack">
+              <div className="pg-card-head">
+                <div>
+                  <h2>Prochaines commandes à livrer</h2>
+                  <p>Mariages, anniversaires · acomptes &amp; WhatsApp client</p>
+                </div>
+                <Link className="pg-text-link" href="/cake-design">
+                  Tout voir →
+                </Link>
+              </div>
+              {!cakesAvailable ? (
+                <Notice kind="warning">La liste des commandes est indisponible ou incomplète. Consultez le module Commandes &amp; Gâteaux.</Notice>
+              ) : activeCakes.length === 0 ? (
+                <div className="pg-empty">
+                  <b>Aucune commande en attente</b>
+                  <p>Enregistrez vos commandes spéciales (mariage, anniversaire) avec acompte.</p>
+                  <Link href="/cake-design" className="pg-button pg-button-secondary mt-2">
+                    + Ajouter une commande
+                  </Link>
+                </div>
+              ) : (
+                <ul className="space-y-3">
+                  {activeCakes.slice(0, 4).map((c) => {
+                    const wa = whatsappOrderUrl({
+                      phone: c.telephone,
+                      client: c.client,
+                      numero: c.numero,
+                      eventDate: c.eventDate,
+                      parts: c.portions,
+                      resteDa: c.resteDa,
+                    });
+                    return (
+                      <li key={c.id} className="rounded-xl border p-3 text-sm space-y-2" style={{ background: "var(--pg-subtle)" }}>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <b>{c.client}</b> · <span className="pg-muted">{c.portions} parts</span>
+                            <div className="text-xs pg-muted">
+                              Retrait : <b>{dateLisible(c.eventDate, "full")}</b>
+                              {c.notes ? ` · ${c.notes}` : ""}
+                            </div>
+                          </div>
+                          {wa && (
+                            <a
+                              href={wa}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-800"
+                            >
+                              WhatsApp
+                            </a>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <span className="pg-badge" data-tone="success">
+                            Acompte : {dinars(c.acompteDa, false)}
+                          </span>
+                          <span className="pg-badge" data-tone={c.resteDa > 0 ? "warning" : "success"}>
+                            Reste : {dinars(c.resteDa, false)}
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+
+            <CashClosingQuickWidget
+              today={today}
+              shop={shop}
+              mode={mode}
+              siteId={shopIds?.[0] ?? ""}
+              expectedCashDa={cashToday?.cashDa ?? todayRevenue}
+              cardDa={cashToday?.cardDa ?? 0}
+              transferDa={cashToday?.transferDa ?? 0}
+              totalVentesDa={todayRevenue}
+              resteEncaisserDa={totalResteCakes + openCreditsTotal}
+              tickets={cashToday?.tickets ?? todaySales?.tickets ?? 0}
+              alreadyClosed={alreadyClosed}
+              ownerPhoneDefault={ownerPhoneDefault}
+            />
+          </div>
+
+          </Disclosure>
+          {(mode === "demo" || creditsTableAvailable) && (
+            <Disclosure title="Carnet de crédits" description="Suivre et encaisser les montants dus" icon="book">
+            <CreditsWorkspace
+              mode={mode}
+              scopeKey={scopeKey}
+              shop={shop}
+              today={today}
+              initialCredits={initialCredits}
+              compact
+              canManageAdmin={owner}
+            />
+            </Disclosure>
+          )}
+        </>
+      )}
+
+      {!owner && (
+        <>
+          <KitchenLabScreen
+            mode={mode}
+            scopeKey={scopeKey}
+            today={today}
+            auteurNom={nom}
+            auteurRole="labo"
+            orders={orders}
+            cakes={cakesAvailable ? upcomingCakes.map((c) => ({
+              id: c.id,
+              numero: c.numero,
+              client: c.client,
+              eventDate: c.eventDate,
+              portions: c.portions,
+              statut: c.statut,
+              notes: c.notes,
+            })) : null}
+          />
+          <section className="pg-card pg-card-pad">
+            <h2>Stocks à vérifier</h2>
+            {low === null ? (
+              <Notice kind="warning">Stock indisponible.</Notice>
+            ) : low.length === 0 ? (
+              <p>Aucune rupture ou alerte de seuil.</p>
+            ) : (
+              <ul className="pg-home-rows">
+                {low.slice(0, 6).map((x) => (
+                  <li key={x.a.id}>
+                    <b>{x.a.nom}</b>
+                    <span>
+                      {quantite(x.quantity, x.a.unite)} · seuil {quantite(x.a.seuil, x.a.unite)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
+
+      {!owner && <ProductionBoard orders={orders} preview />}
+    </div>
+  );
 }
-function Metric({label,value,detail}:{label:string;value:string|number;detail:string}){return <div className="pg-card pg-metric"><div><span>{label}</span></div><strong>{value}</strong><small>{detail}</small></div>;}

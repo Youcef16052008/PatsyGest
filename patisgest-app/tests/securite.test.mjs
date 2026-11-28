@@ -218,13 +218,29 @@ test('sécu : un seul traducteur d’erreurs, utilisé partout', () => {
   assert.ok(/CODE_METIER\s*=\s*"P0001"/.test(erreursDb));
 });
 
+// Une garde citée en commentaire ne doit pas suffire à valider le test :
+// on retire les commentaires de ligne avant d'inspecter le source.
+const sansCommentaires = (src) => src.replace(/^\s*\/\/.*$/gm, '');
+
+// Vrai si le fichier contient une garde propriétaire RÉELLE (hors commentaire),
+// sous forme centralisée ou littérale.
+const gardeProprietaire = (src) =>
+  /estProprietaireSeul\(\s*ctx\.role\s*\)/.test(sansCommentaires(src)) ||
+  /ctx\.role\s*!==\s*["']proprietaire["']/.test(sansCommentaires(src));
+
 // --- US-15.2 : la restauration est un point d'écriture massive -------------
 test('sécu : la restauration passe par la RPC, jamais par des INSERT directs', () => {
   const src = read('src/lib/actions-restauration.ts');
   // Un INSERT direct échouerait sur les 11 tables sans policy INSERT.
   assert.ok(/rpc\(\s*["']restaurer_sauvegarde["']/.test(src), 'la restauration doit appeler la RPC dédiée');
   assert.equal(/\.from\([^)]*\)\s*\.insert\(/.test(src), false, 'aucun INSERT direct depuis le client');
-  assert.ok(/proprietaire/.test(src), 'la garde de rôle doit être côté serveur aussi');
+  // La garde de rôle doit être côté serveur. Elle passe désormais par le
+  // helper centralisé : accepter l'une OU l'autre forme, et exiger un vrai
+  // appel de garde (pas la simple présence du mot dans un commentaire).
+  assert.ok(
+    gardeProprietaire(src),
+    'la garde de rôle doit être côté serveur aussi (estProprietaireSeul ou comparaison littérale)',
+  );
   assert.ok(/confirmation/.test(src) && /RESTAURER/.test(src), 'confirmation explicite obligatoire');
 });
 
@@ -248,7 +264,10 @@ test('sécu : une sauvegarde ne contient aucun secret', () => {
   // Le dump exporte les tables métier, pas les comptes Auth.
   assert.ok(/utilisateurs/.test(dump), 'l’exclusion des utilisateurs doit être documentée');
   const route = read('src/app/api/sauvegarde/route.ts');
-  assert.ok(/proprietaire/.test(route), 'export complet réservé au propriétaire');
+  assert.ok(
+    gardeProprietaire(route),
+    'export complet réservé au propriétaire (estProprietaireSeul ou comparaison littérale)',
+  );
   assert.ok(/no-store/.test(route));
 });
 

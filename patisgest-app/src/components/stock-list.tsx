@@ -4,6 +4,7 @@ import { useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { correspond, dateLisible, indexLots, ordreLots, quantite, stockArticle, type StockArticle, type StockLot, type WorkspaceSite } from "@/lib/workspace-data";
 import { EmptyState, Notice } from "./workspace-ui";
+import { stockAlertRank, stockOverview } from "@/lib/stock-overview";
 import { Icon } from "./workspace-icons";
 
 const filters = [
@@ -26,10 +27,12 @@ export default function StockList({ articles, lots, sites, today, filtre }: {
     const items = indexed.get(article.id) ?? [];
     return { article, items, stock: lots ? stockArticle(article, items, today) : null };
   }), [articles, indexed, lots, today]);
-  const alertes = lots ? rows.filter(({ stock }) => stock?.signals.length).length : null;
+  const summary = articles && lots ? stockOverview(rows.map(({ stock }) => ({ signals: stock?.signals ?? [] }))) : null;
+  const alertes = summary?.alertes ?? null;
   const nomsSites = new Map(sites?.map(s => [s.id, s.label]));
   const visible = rows.filter(({ article, items, stock }) => (selection === "tous" || selection === article.niveau || (selection === "alerte" && (stock?.signals.length ?? 0) > 0)) &&
-    correspond(`${article.nom} ${article.code} ${items.map((l) => l.numero).join(" ")}`, recherche));
+    correspond(`${article.nom} ${article.code} ${items.map((l) => l.numero).join(" ")}`, recherche))
+    .sort((a, b) => selection === "alerte" ? stockAlertRank(a.stock?.signals ?? []) - stockAlertRank(b.stock?.signals ?? []) : 0);
   return <section className="pg-stock pg-card pg-card-pad" aria-labelledby={id}>
     <div className="pg-card-head"><div><h2 id={id}>Quantités par article</h2><p>Stock non bloqué. Ouvrez un article pour voir ses lots.</p></div>
       {!!sites?.length && <label className="pg-field pg-site-filter">Site
@@ -40,6 +43,12 @@ export default function StockList({ articles, lots, sites, today, filtre }: {
     {articles === null ? <Notice kind="error">Impossible de charger les articles. Rechargez la page.</Notice> : <>
       {lots === null && <Notice kind="warning">Les quantités et les lots sont temporairement indisponibles.</Notice>}
       {sites === null && <Notice kind="warning">Les noms des sites ne sont pas disponibles.</Notice>}
+      {summary && articles.length > 0 && <div className="pg-stock-overview">
+        <span className="pg-stock-overview-icon"><Icon name={summary.alertes ? "alert" : "check"} size={20}/></span>
+        <div><strong>{summary.alertes ? `${summary.alertes} article${summary.alertes > 1 ? "s" : ""} à surveiller` : "Aucune alerte de stock détectée"}</strong>
+          <p>{summary.alertes ? [summary.quantites ? `${summary.quantites} quantité${summary.quantites > 1 ? "s" : ""} basse${summary.quantites > 1 ? "s" : ""}` : "", summary.dates ? `${summary.dates} date${summary.dates > 1 ? "s" : ""} à vérifier` : "", summary.bloques ? `${summary.bloques} avec lot bloqué` : ""].filter(Boolean).join(" · ") : "Quantités, dates et lots bloqués pour le site sélectionné."}</p></div>
+        {summary.alertes > 0 && selection !== "alerte" && <button type="button" className="pg-button pg-button-secondary" onClick={() => { setSelection("alerte"); setRecherche(""); setLimit(LIMIT); }}>Voir les articles <Icon name="arrow" size={16}/></button>}
+      </div>}
       <div className="pg-stock-toolbar">
         <div className="pg-filter-row" role="group" aria-label="Filtrer les articles">{filters.map(f =>
           <button type="button" key={f.id} className="pg-filter" aria-pressed={selection === f.id} disabled={f.id === "alerte" && lots === null}

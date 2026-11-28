@@ -77,11 +77,10 @@ export type CashReconEntry = {
   revision: number;
   fondInitial: number;
   ventesEspecesTTC: number;
-  ventesCarteTTC: number;
   ventesAutreTTC: number;
   /** Ventes caisse antérieures au suivi du mode de règlement (non ajoutées d'office au tiroir). */
   ventesModeNonPreciseTTC: number;
-  /** Imports Z externes (présentés à part : leur répartition espèces/carte n'est pas dans le CSV). */
+  /** Imports Z externes (présentés à part : leur répartition espèces/chèque n'est pas dans le CSV). */
   ventesImportZTTC: number;
   /** F-10 : tickets à 0 DA, comptés pour alerte (ils n'entrent pas dans les montants). */
   ticketsZero: number;
@@ -180,7 +179,6 @@ export function computeCashReconciliation(
   const latest = latestClosings(clotures);
   type Bucket = {
     especes: number;
-    carte: number;
     autre: number;
     inconnu: number;
     importZ: number;
@@ -192,7 +190,7 @@ export function computeCashReconciliation(
   for (const s of sales) {
     const ttc = Number(s.totalTTC ?? 0);
     const key = `${s.date}|${s.siteId}`;
-    const b = byKey.get(key) ?? { especes: 0, carte: 0, autre: 0, inconnu: 0, importZ: 0, tickets: 0, zero: 0 };
+    const b = byKey.get(key) ?? { especes: 0, autre: 0, inconnu: 0, importZ: 0, tickets: 0, zero: 0 };
     if (!Number.isFinite(ttc) || ttc === 0) {
       b.zero += 1;
       byKey.set(key, b);
@@ -204,7 +202,6 @@ export function computeCashReconciliation(
     } else {
       b.tickets += 1;
       if (s.modePaiement === "especes") b.especes += cents;
-      else if (s.modePaiement === "carte") b.carte += cents;
       else if (s.modePaiement === "cheque_virement") b.autre += cents;
       else b.inconnu += cents;
     }
@@ -217,7 +214,6 @@ export function computeCashReconciliation(
     const d = c.caisseBilan;
     const b = byKey.get(`${c.date}|${c.siteId}`) ?? {
       especes: 0,
-      carte: 0,
       autre: 0,
       inconnu: 0,
       importZ: 0,
@@ -237,7 +233,6 @@ export function computeCashReconciliation(
       revision: c.revision,
       fondInitial: fondCents / 100,
       ventesEspecesTTC: b.especes / 100,
-      ventesCarteTTC: b.carte / 100,
       ventesAutreTTC: b.autre / 100,
       ventesModeNonPreciseTTC: b.inconnu / 100,
       ventesImportZTTC: b.importZ / 100,

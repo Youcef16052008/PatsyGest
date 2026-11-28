@@ -1,22 +1,243 @@
 "use client";
+import { useSyncExternalStore } from "react";
+import { DEMO_CREDITS_KEY_PREFIX, starterDemoCredits, type CreditEntry } from "@/lib/credits";
+import { DEMO_OWNER_ALERTS_KEY_PREFIX, type OwnerPriceAlert } from "@/lib/owner-price-guard";
 import { demoLots, demoOrders, DEMO_SITES } from "@/lib/demo-workspace";
+import { cakeTotals, recipeCost } from "@/lib/patisgest-store";
 import { serieVentes } from "@/lib/workspace-data";
-import PilotDashboard from "./pilot-dashboard";
+import PilotDashboard, { type DashboardUpcomingCake } from "./pilot-dashboard";
+import {
+  filterPackByActivityAndVat,
+  type StarterDzActivity,
+  type StarterVatRegime,
+} from "@/lib/pack-patisserie-dz";
 import type { Role } from "@/lib/permissions";
 import DashboardWorkspace from "./dashboard-workspace";
 import DemoCaisse from "./demo-caisse";
 import { useDemoWorkspace } from "./demo-workspace";
+import { useTranslator } from "./locale-provider";
 
 export default function DemoDashboard({ nom, shop, role }: { nom: string; shop: string; role: Role }) {
-  const { data } = useDemoWorkspace();
+  const { data, save } = useDemoWorkspace();
+  const tx = useTranslator();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Algiers", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  if (role !== "vendeur") {
-    const owner=role === "proprietaire";
-    const closing=owner && data ? DEMO_SITES.filter(s=>s.type==='boutique').map(s=>{const items=data.closings.filter(c=>c.date===today&&c.site===s.id).sort((a,b)=>b.revision-a.revision);return {id:s.id,site:s.label,closed:items.length>0,cashDeclared:items[0]?.caisseBilan!=null};}) : null;
-    return <PilotDashboard nom={nom} shop={shop} today={today} owner={owner} articles={data?.articles.map(a=>({id:a.id,nom:a.nom,code:a.code,niveau:a.niveau,unite:a.unite,seuil:a.seuil}))??null} lots={data?demoLots(data):null} orders={data?demoOrders(data):null} series={owner&&data?serieVentes(data.sales,today):null} sales={owner&&data?data.sales.map(s=>({date:s.date,lignes:s.lines?.map(l=>({articleId:l.articleId,qty:l.qty}))??[{articleId:s.articleId,qty:s.qty}]})):null} shopIds={DEMO_SITES.filter(s=>s.type==='boutique').map(s=>s.id)} closing={closing}/>;
+
+  const demoCreditsSnapshot = useSyncExternalStore(
+    (cb) => {
+      window.addEventListener("storage", cb);
+      window.addEventListener("patisgest-credits-updated", cb);
+      return () => {
+        window.removeEventListener("storage", cb);
+        window.removeEventListener("patisgest-credits-updated", cb);
+      };
+    },
+    () => {
+      try {
+        return window.localStorage.getItem(`${DEMO_CREDITS_KEY_PREFIX}demo`) ?? "__SEED__";
+      } catch {
+        return "__SEED__";
+      }
+    },
+    () => "",
+  );
+
+  const demoAlertsSnapshot = useSyncExternalStore(
+    (cb) => {
+      window.addEventListener("storage", cb);
+      window.addEventListener("patisgest-owner-alerts", cb);
+      return () => {
+        window.removeEventListener("storage", cb);
+        window.removeEventListener("patisgest-owner-alerts", cb);
+      };
+    },
+    () => {
+      try {
+        return window.localStorage.getItem(`${DEMO_OWNER_ALERTS_KEY_PREFIX}demo`) ?? "[]";
+      } catch {
+        return "[]";
+      }
+    },
+    () => "[]",
+  );
+
+  const initialCredits: CreditEntry[] = (() => {
+    if (!demoCreditsSnapshot) return [];
+    if (demoCreditsSnapshot === "__SEED__") return starterDemoCredits(today);
+    try {
+      const parsed = JSON.parse(demoCreditsSnapshot);
+      return Array.isArray(parsed) ? parsed : starterDemoCredits(today);
+    } catch {
+      return starterDemoCredits(today);
+    }
+  })();
+
+  const initialOwnerAlerts: OwnerPriceAlert[] = (() => {
+    try {
+      const parsed = JSON.parse(demoAlertsSnapshot);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  })();
+
+  function importPackIntoDemo(activity: StarterDzActivity = "mixte", tvaRegime: StarterVatRegime = "ifu_0") {
+    if (!data) return;
+    const existingCodes = new Set(data.articles.map((a) => a.code.toLowerCase()));
+    const selected = filterPackByActivityAndVat(activity, tvaRegime);
+    const added = selected.filter((item) => !existingCodes.has(item.code.toLowerCase())).map((item) => ({
+      id: crypto.randomUUID(),
+      code: item.code,
+      nom: item.nom,
+      niveau: item.niveau,
+      unite: item.unite,
+      seuil: item.seuil,
+      prix: item.pvHt,
+      tva: item.tva,
+    }));
+    if (added.length > 0) {
+      save({ ...data, articles: [...data.articles, ...added] });
+    }
   }
-  const seller=true;
-  return <DashboardWorkspace nom={nom} shop={shop} today={today} seller={seller} canReadRecipes={!seller}
-    series={data ? serieVentes(data.sales, today) : null} articles={data?.articles ?? null} lots={data ? demoLots(data) : null}
-    orders={data ? demoOrders(data) : null} caisse={<DemoCaisse dashboard shop={shop}/>}/>;
+  if (!data) return <p role="status">{tx("Chargement de la démo…")}</p>;
+  if (role !== "vendeur") {
+    const owner = role === "proprietaire";
+    const closing =
+      owner && data
+        ? DEMO_SITES.filter((s) => s.type === "boutique").map((s) => {
+            const items = data.closings
+              .filter((c) => c.date === today && c.site === s.id)
+              .sort((a, b) => b.revision - a.revision);
+            return {
+              id: s.id,
+              site: s.label,
+              closed: items.length > 0,
+              cashDeclared: items[0]?.caisseBilan != null,
+            };
+          })
+        : null;
+
+    // Calcul du bénéfice estimé du jour à partir des recettes réelles
+    let estimatedMarginDa: number | null = null;
+    let estimatedMarginPct: number | null = null;
+    if (owner && data) {
+      const unitCostByProduct = new Map<string, number>();
+      for (const r of data.recipes) {
+        try {
+          const c = recipeCost(data, r.id);
+          if (c.missingPrices.length === 0 && Number.isFinite(c.perUnit)) {
+            unitCostByProduct.set(r.productId, c.perUnit);
+          }
+        } catch {
+          /* ignore incomplete recipe */
+        }
+      }
+      const todaySales = data.sales.filter((s) => s.date.slice(0, 10) === today);
+      if (todaySales.length > 0) {
+        let rev = 0;
+        let cost = 0;
+        let missingCost = false;
+        for (const s of todaySales) {
+          rev += s.totalTTC;
+          const lines = s.lines && s.lines.length > 0 ? s.lines : [{ articleId: s.articleId, qty: s.qty }];
+          for (const l of lines) {
+            const uc = unitCostByProduct.get(l.articleId);
+            if (uc != null) cost += uc * l.qty;
+            else missingCost = true;
+          }
+        }
+        estimatedMarginDa = missingCost ? null : Math.round(rev - cost);
+        estimatedMarginPct = !missingCost && rev > 0 ? Math.round(((rev - cost) / rev) * 1000) / 10 : null;
+      } else {
+        estimatedMarginDa = 0;
+        estimatedMarginPct = null;
+      }
+    }
+
+    const upcomingCakes: DashboardUpcomingCake[] =
+      data
+        ? data.cakes
+            .slice()
+            .sort((a, b) => a.eventDate.localeCompare(b.eventDate))
+            .map((c) => {
+              const t = cakeTotals(c);
+              return {
+                id: c.id,
+                numero: c.numero,
+                client: c.client,
+                telephone: owner ? c.telephone || null : null,
+                eventDate: c.eventDate,
+                portions: c.portions,
+                prixTotalDa: owner ? c.priceCents / 100 : 0,
+                acompteDa: owner ? t.paid / 100 : 0,
+                resteDa: owner ? t.balance / 100 : 0,
+                statut: c.status,
+                notes: c.notes || null,
+              };
+            })
+        : [];
+
+    const mappedSales =
+      owner && data
+        ? data.sales.map((s) => ({
+            date: s.date,
+            totalTTC: s.totalTTC,
+            modePaiement: s.modePaiement ?? "especes",
+            lignes:
+              s.lines?.map((l) => ({
+                articleId: l.articleId,
+                qty: l.qty,
+                totalTTC: l.totalTTC,
+              })) ?? [{ articleId: s.articleId, qty: s.qty, totalTTC: s.totalTTC }],
+          }))
+        : null;
+
+    return (
+      <PilotDashboard
+        nom={nom}
+        shop={shop}
+        today={today}
+        owner={owner}
+        articles={
+          data?.articles.map((a) => ({
+            id: a.id,
+            nom: a.nom,
+            code: a.code,
+            niveau: a.niveau,
+            unite: a.unite,
+            seuil: a.seuil,
+            prixTTC: owner ? Math.round(a.prix * (1 + a.tva / 100) * 100) / 100 : 0,
+          })) ?? null
+        }
+        lots={data ? demoLots(data) : null}
+        orders={data ? demoOrders(data) : null}
+        series={owner && data ? serieVentes(data.sales, today, 30) : null}
+        sales={mappedSales}
+        shopIds={DEMO_SITES.filter((s) => s.type === "boutique").map((s) => s.id)}
+        closing={closing}
+        estimatedMarginDa={estimatedMarginDa}
+        estimatedMarginPct={estimatedMarginPct}
+        upcomingCakes={upcomingCakes}
+        mode="demo"
+        scopeKey="demo"
+        initialCredits={owner ? initialCredits : []}
+        initialOwnerAlerts={owner ? initialOwnerAlerts : []}
+        onDemoImportPack={importPackIntoDemo}
+      />
+    );
+  }
+  const seller = true;
+  return (
+    <DashboardWorkspace
+      nom={nom}
+      shop={shop}
+      today={today}
+      seller={seller}
+      canReadRecipes={false}
+      series={null}
+      articles={data?.articles.map((a) => ({ ...a, prix: 0, tva: 0 })) ?? null}
+      lots={data ? demoLots(data) : null}
+      orders={null}
+      caisse={<DemoCaisse dashboard shop={shop} canEdit={false} canManageCreditsAdmin={false} />}
+    />
+  );
 }

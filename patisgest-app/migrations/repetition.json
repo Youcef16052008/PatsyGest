@@ -339,9 +339,122 @@
     },
     {
       "file": "39-limites-tenant-restauration-sites-vitrine.sql",
-      "sha256": "69023679e9c81543a35d17ee03285f17793c24918299d781c3d934c6d9026b09",
+      "sha256": "a3529a8dc58c639e7fb2dbf219fe2da5bb30a1e444912f14ae67f71f1f7ff448",
       "hors_fixture_pilote": true,
-      "note": "D2/D4/D7/D9 : projection publique minimale, droits directs des sites/offre et prévalidation des références inter-tenant à la restauration. Non appliquée au pilote; revue obligatoire."
+      "note": "D2/D4/D7/D9 : projection publique minimale, droits directs des sites/offre et prévalidation des références inter-tenant à la restauration. APPLIQUÉE au pilote le 23/11/2026 (version 39). Constat d'application : la révocation UPDATE sur clients était trop large — elle bloquait l'enregistrement des mentions légales (NIF/NIS/RC) donc les tickets NF-06. Corrigée en grant par colonne ; `offre` reste non modifiable."
+    },
+    {
+      "file": "40-journal-audit.sql",
+      "sha256": "2617bee74042d134a795369fffa4c12facfd1623ffd5235005d499c237d7196c",
+      "hors_fixture_pilote": true,
+      "note": "NF-10/RI-06 : journal d'audit immuable, isolation par tenant, conservation 10 ans. APPLIQUÉE au pilote le 23/11/2026 (version 40). Immuabilité vérifiée en base : un UPDATE sur journal_audit est refusé (SQLSTATE 42501)."
+    },
+    {
+      "file": "41-avoirs-retours.sql",
+      "sha256": "d8b7e0941bbd3ba5e08c9a2c11f1ecbd706002f191c6123a4d8854642c8a7b77",
+      "hors_fixture_pilote": true,
+      "note": "US-06.4 : retours/avoirs avec motif obligatoire, plafond de quantité rendue, remise en stock tracée ou destruction mesurée. APPLIQUÉE au pilote le 23/11/2026 (version 41). Avoir réel et refus de dépassement vérifiés en base."
+    },
+    {
+      "file": "42-donnees-personnelles.sql",
+      "sha256": "ba84ed07f420ca3ef35853b2051379134451941bc46e1348db5dc1590d69e0ed",
+      "hors_fixture_pilote": true,
+      "note": "Loi 18-07 : export et anonymisation des données personnelles. Anonymise, ne supprime pas les écritures comptables. APPLIQUÉE au pilote le 23/11/2026. Constat d'application : référence d'export basée sur now() (figé par transaction) → collision 23505 au 2e export ; corrigée par suffixe aléatoire + on conflict, et test de non-régression ajouté."
+    },
+    {
+      "file": "43-unicite-lot.sql",
+      "sha256": "9a455807af95cd69762e75ef586439cdbcd21b725bd9ce85f25c03bca0bc6126",
+      "hors_fixture_pilote": true,
+      "note": "RI-04 : identité du lot = (client, article, site, numéro), en clé PARTIELLE. Une contrainte pleine (client, numéro) casserait les miroirs de transfert (migration 08, MOD-11). N'interdit que la double réception directe."
+    },
+    {
+      "file": "44-retrait-mode-carte.sql",
+      "sha256": "a23f01237b1fd93239b812ec44b0e083cc0a36bc69c2e7985f8e8effa378fefb",
+      "hors_fixture_pilote": true,
+      "note": "Retrait du mode carte (décision utilisateur 20/11/2026) : ventes carte en NULL, contrainte resserrée, vendre_panier refuse carte. Non appliquée au pilote; validation humaine requise."
+    },
+    {
+      "file": "45-recettes-libres.sql",
+      "sha256": "6db12c1229918c3fd0a8a3bfaea1721db582a3ae1bf1d68d0cf2af554706f92d",
+      "hors_fixture_pilote": true,
+      "note": "Wave 1 (A.1) : recettes libres multi-appareils en DA avec RLS par client."
+    },
+    {
+      "file": "46-credits-clients.sql",
+      "sha256": "35aba4d47c529af68463dd40acb285d8f6bb05564196a07627f876402f0975b0",
+      "hors_fixture_pilote": true,
+      "note": "Wave 1 (A.3) : carnet de crédits clients/cafés et RPC enregistrer_reglement_credit."
+    },
+    {
+      "file": "47-onboarding-pack-dz.sql",
+      "sha256": "8aebb6b22231d4817cd1a032c306df96c58a30b2ab39fdcb3eaa3962e226eb0a",
+      "hors_fixture_pilote": true,
+      "note": "Wave 1 (A.4/A.6) : RPC valider_tiroir_jour pour validation rapide de caisse depuis le tableau de bord."
+    },
+    {
+      "file": "48-notifications-patron.sql",
+      "sha256": "251d7fac0c7d43ccad5d1fd9298022ccdd0625b429d27630a6aa835c801e3e85",
+      "hors_fixture_pilote": true,
+      "note": "Wave 2 (B.6) : alertes prix employés vers le propriétaire et RPC traiter_alerte_prix_patron."
+    },
+    {
+      "file": "49-wave3-wave4.sql",
+      "sha256": "527417d7a7a7a98bad7cce16e10e081ca491d54381a04121f0a410f1f5177065",
+      "hors_fixture_pilote": true,
+      "note": "Waves 3 & 4 (B.1/B.4) : photos articles (photo_url), justificatifs bons (facture_photo_url) et RPC sauver_photo_article."
+    },
+    {
+      "file": "50-roles-permissions-vues.sql",
+      "sha256": "e5bd5d39779d7dd09d2774b1eb12777ee0f3508fe03865e036d0bed9067171ce",
+      "hors_fixture_pilote": true,
+      "note": "Activation stricte des 3 rôles (propriétaire, labo, vendeur), promotion des 9 vues sans coûts et verrouillages SQL métier."
+    },
+    {
+      "file": "51-essai-abonnement-connectivite.sql",
+      "sha256": "ea68d5167d1d8bae64ae42e1cac65988f682c95ab034a04bf3cc88aecb692e45",
+      "hors_fixture_pilote": true,
+      "note": "Mode d'essai configurable 60-90 jours (défaut 90), verrouillage permanent, espace Master, présence et alertes >1h."
+    },
+    {
+      "file": "52-recettes-photos.sql",
+      "sha256": "6a926010bf0032a749ddfc20bc1cdf3e24d41e30f96dbd1598b579db5856d60e",
+      "hors_fixture_pilote": true
+    },
+    {
+      "file": "53-caisse-ticket-scope.sql",
+      "sha256": "eb53b6915c8743c77f36a3b47813c335a4ff167ba950748bbaf3ffdda4604658",
+      "hors_fixture_pilote": true,
+      "note": "Caisse : portée du ticket (site, source, contenu). Corrige le seul corps de vendre_panier ; vendre_article y délègue. Non présent dans tests/fixtures/pilote-vitrine (pilote non réconcilié)."
+    },
+    {
+      "file": "54-anti-abus-vitrine-verrou.sql",
+      "sha256": "8f46e4d92a282d3372b8a58ff1490d41ac28751dabf03b1df6c54986cfb08929",
+      "hors_fixture_pilote": true,
+      "note": "H04-06 : verrou advisory transactionnel avant insertion/comptage dans patisgest_verifier_source_vitrine. Nouvelle migration, 38 non réécrite."
+    },
+    {
+      "file": "55-dates-algiers-rattrapage.sql",
+      "sha256": "7b65a87d079697f58a8082319e7f1bcc5672a9e6dfd3d103f9618c6bd453e4b3",
+      "hors_fixture_pilote": true,
+      "note": "H08-03 : rattrapage current_date -> date Africa/Algiers dans les fonctions créées après 36 (41, 47/50). Nouvelle migration, aucune réécriture."
+    },
+    {
+      "file": "56-profil-langue.sql",
+      "sha256": "2c68399dab39e49c7b178b16ab61fcbd39199f31a34a8391b708f71e128461b1",
+      "hors_fixture_pilote": true,
+      "note": "VAGUE 4 B.2 : langue FR/AR du profil utilisateur, RPC enregistrer_langue_utilisateur et version 56."
+    },
+    {
+      "file": "57-onboarding-pack-dz-rpc.sql",
+      "sha256": "885745d7e2d10c6636882dbf577700663e05270645ca729af40a0df4f05bb38d",
+      "hors_fixture_pilote": true,
+      "note": "VAGUE 4 D : RPC idempotente importer_pack_patisserie_dz, pack DZ isolé par client_id et version 57."
+    },
+    {
+      "file": "58-durcissement-forensique-prod.sql",
+      "sha256": "47583d1e7001065240ecaf888e93a014ac9a266c9b67bd7ecaa914933308461b",
+      "hors_fixture_pilote": true,
+      "note": "Durcissement forensique prod : verrou FOR UPDATE sur avoirs + multi-articles + TTC aligné, verrou advisory + avoirs espèces sur valider_tiroir_jour, gardes modules caisse/cloture, intégrité/audit/Loi 18-07 credits_clients & transferts, RPCs atomiques provisionnement/master et version 58."
     }
   ],
   "exclus": [

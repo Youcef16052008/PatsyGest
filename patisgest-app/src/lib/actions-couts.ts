@@ -15,6 +15,7 @@ import {
   type GardeFou,
 } from "./cost-sheet";
 import { computeFefoCost, type FefoLot } from "./fefo-cost";
+import { jourLocal, plusJours } from "./workspace-data.ts";
 import { lireLotsPourArticles, type ClientLots } from "./lots-batch";
 import {
   buildPriceMercuriale,
@@ -25,14 +26,17 @@ import {
   type IngredientImpactReport,
   type UnitConversion,
 } from "./ingredient-impact";
+import { HEURES_PAYEES_PAR_JOUR_DEFAUT, tauxHoraireDepuisJournee } from "./main-oeuvre";
 import { createClient } from "./supabase/server";
 
 export type CoutsState = {
   erreur?: string;
   succes?: string;
-  // Paramètres RC-04
+  // Paramètres RC-04 (saisie à la journée ; tauxHoraire = salaire ÷ heures)
   tauxHoraire?: number;
   chargesPct?: number;
+  salaireJournalier?: number;
+  heuresParJour?: number;
   // Fiche
   produit?: string;
   famille?: string;
@@ -70,14 +74,22 @@ export type ImpactActionState = {
   rapport?: IngredientImpactReport;
 };
 
-/** Enregistre les paramètres de coûts (RC-04 : taux horaire + charges). */
+/** Enregistre les paramètres de coûts (RC-04 : taux horaire + charges) — propriétaire uniquement. */
 export async function sauverParamsCoutsReal(_prev: CoutsState, formData: FormData): Promise<CoutsState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
-  if (!canWrite(ctx.role)) return { erreur: "Réservé aux rôles propriétaire et labo." };
-  const taux = Number(formData.get("tauxHoraire"));
+  if (!canReadCosts(ctx.role)) return { erreur: "Réservé au propriétaire." };
+  // Saisie à la journée : le taux horaire RC-04 est dérivé (salaire ÷ heures payées).
+  const salaire = Number(formData.get("salaireJournalier"));
+  const heures = Number(formData.get("heuresParJour") ?? HEURES_PAYEES_PAR_JOUR_DEFAUT);
+  let taux: number;
+  try {
+    taux = tauxHoraireDepuisJournee(salaire, heures);
+  } catch (e) {
+    return { erreur: e instanceof RangeError ? e.message : "Salaire journalier invalide." };
+  }
+  if (taux > 1_000_000) return { erreur: "Salaire journalier trop élevé." };
   const charges = Number(formData.get("chargesPct"));
-  if (!Number.isFinite(taux) || taux < 0 || taux > 1_000_000) return { erreur: "Taux horaire invalide." };
   if (!Number.isFinite(charges) || charges < 0 || charges > 1000) return { erreur: "Charges invalides (0-1000 %)." };
   try {
     const supabase = await createClient();
@@ -89,7 +101,13 @@ export async function sauverParamsCoutsReal(_prev: CoutsState, formData: FormDat
       );
     if (error) return { erreur: messageUtilisateur(error, "Sauvegarde refusée") };
     revalidatePath("/simulation");
-    return { succes: "Paramètres de coûts enregistrés.", tauxHoraire: taux, chargesPct: charges };
+    return {
+      succes: "Paramètres de coûts enregistrés.",
+      tauxHoraire: taux,
+      chargesPct: charges,
+      salaireJournalier: salaire,
+      heuresParJour: heures,
+    };
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur." };
   }
@@ -118,8 +136,8 @@ export async function ficheCoutReal(_prev: CoutsState, formData: FormData): Prom
 
   try {
     const supabase = await createClient();
-    const today = new Date().toISOString().slice(0, 10);
-    const trenteJours = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+    const today = jourLocal();
+    const trenteJours = plusJours(today, -30);
 
     const [simRes, verRes, paramsRes, artRes, cloRes] = await Promise.all([
       supabase.rpc("simuler_recette", { p_produit_id: produitId, p_qte: qte }),
@@ -331,7 +349,7 @@ export async function analyserHausseMatiereReal(
 
   try {
     const supabase = await createClient();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = jourLocal();
 
     const [artsRes, versRes, paramsRes, lotsRes, convRes, histRes, fournRes] = await Promise.all([
       supabase.from("articles").select("id, code, nom, unite, niveau, pv_ht").eq("client_id", ctx.clientId).limit(1000),
@@ -427,10 +445,10 @@ export async function analyserHausseMatiereReal(
     const ancienPu = ancienRaw !== "" ? Number(ancienRaw) : (merc.defaultAncien?.pu ?? Number.NaN);
     const nouveauPu = nouveauRaw !== "" ? Number(nouveauRaw) : (merc.defaultNouveau?.pu ?? Number.NaN);
     if (!Number.isFinite(ancienPu) || ancienPu < 0 || ancienPu > 100_000_000) {
-      return { erreur: "Renseignez l’ancien prix unitaire HT (DA)." };
+      return { erreur: "Renseignez l’ancien prix unitaire (DA)." };
     }
     if (!Number.isFinite(nouveauPu) || nouveauPu < 0 || nouveauPu > 100_000_000) {
-      return { erreur: "Renseignez le nouveau prix unitaire HT (DA)." };
+      return { erreur: "Renseignez le nouveau prix unitaire (DA)." };
     }
     const sourceAncien =
       sourceAncienRaw ||

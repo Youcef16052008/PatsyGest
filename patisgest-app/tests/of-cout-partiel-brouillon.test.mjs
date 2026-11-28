@@ -9,7 +9,7 @@ import { creerFixtureOfCout } from './support/fixture-of-cout.mjs';
 async function baseAvecBrouillons() {
   const db = await baseMain();
   try {
-    for (const file of ['101-confidentialite-labo.sql', '102-cout-of-partiel.sql']) {
+    for (const file of ['102-cout-of-partiel.sql']) {
       await db.exec(await readFile(new URL(`../supabase/brouillons/${file}`, import.meta.url), 'utf8'));
     }
     await creerFixtureOfCout(db);

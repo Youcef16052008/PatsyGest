@@ -744,7 +744,7 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    assert.equal(results[0].sale_id,results[1].sale_id);
    assert.equal((await sql`select count(*)::int n from ventes where ticket=${concurrentTicket}`)[0].n,1);
    denied(await owner.rpc('vendre_panier',{...args,p_lignes:[{articleId:product,qte:2}]}),'Ticket deja utilise pour une autre vente');
-   denied(await owner.rpc('vendre_panier',{...args,p_mode_paiement:'carte'}),'Ticket deja utilise pour une autre vente');
+   denied(await owner.rpc('vendre_panier',{...args,p_mode_paiement:'cheque_virement'}),'Ticket deja utilise pour une autre vente');
    const interSite=await owner.rpc('vendre_panier',{...args,p_site_id:newSite.id});
    denied(interSite,'Ticket deja utilise pour une autre vente');
    assert.ok(!JSON.stringify(interSite).includes(results[0].sale_id),'Pas de fuite de la vente d’un autre site');
@@ -772,10 +772,8 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    const labSession=ok(await client().auth.signInWithPassword({email:emails[1],password}),'Session HTTP labo').session;
    const labCookie=`${cookieName}=base64-${Buffer.from(JSON.stringify(labSession)).toString('base64url')}`;
    const labSettings=await fetch('http://127.0.0.1:3414/parametres',{headers:{cookie:labCookie},redirect:'manual'});
-   // F-19 : ROLES_LABO_VENDEUR_ACTIFS = false ; le layout (app) masque les pages du rôle labo.
    assert.equal(labSettings.status,200);
    const labSettingsHtml=await labSettings.text();
-   assert.match(labSettingsHtml,/n’est pas disponible/,'Rôle labo masqué sur cette version');
    assert.ok(!labSettingsHtml.includes('Équipe · expérimental'),'Interface propriétaire cachée au labo');
    const applicantEmail='ui-candidat@example.test';
    ok(await admin.auth.admin.createUser({email:applicantEmail,password,email_confirm:true}),'Compte fictif sans adhésion pour interface');
@@ -789,12 +787,7 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    // Soumission HTTP des formulaires réels avec sessions Auth et SMTP fictif.
    const requestForm=trouverFormulaire(joiningHtml,f=>f.some(x=>x.name==='code') && f.some(x=>x.name==='role'));
    const requestResponse=await soumettreFormulaire('/rejoindre',applicantCookie,requestForm,{code:newCode,nom:'Candidat formulaire',role:'vendeur'});
-   // F-19 : l'action refuse le rôle vendeur (roleDisponible) ; le formulaire ne crée aucune demande.
-   assert.equal(requestResponse.status,200); assert.match(await requestResponse.text(),/Ce rôle n’est pas disponible/);
-   assert.ok(!ok(await owner.rpc('equipe_lister_demandes'),'Après refus du formulaire').some(d=>d.email===applicantEmail),'Aucune demande créée par le formulaire');
-   // La demande est créée par la RPC, identique à ce que le formulaire enverrait.
-   const applicant=client(); ok(await applicant.auth.signInWithPassword({email:applicantEmail,password}),'Session RPC candidat');
-   ok(await applicant.rpc('equipe_demander',{p_code:newCode,p_nom:'Candidat formulaire',p_role:'vendeur'}),'Demande candidate (RPC)');
+   assert.equal(requestResponse.status,200); assert.match(await requestResponse.text(),/Demande transmise/);
    const demandesUi=ok(await owner.rpc('equipe_lister_demandes'),'Demande candidate');
    const demandeUi=demandesUi.find(d=>d.email===applicantEmail); assert.ok(demandeUi);
    let ownerHtml=await (await fetch('http://127.0.0.1:3414/parametres',{headers:{cookie:renewed}})).text();
@@ -835,26 +828,22 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
    assert.equal(forbiddenInvite.status,200); assert.ok(!(await forbiddenInvite.text()).includes('Invitation enregistrée'),'Invitation labo refusée');
    assert.ok(!ok(await owner.rpc('equipe_lister_invitations'),'Invitation labo absente').some(i=>i.email==='interdit@example.test'),'Aucune invitation par le labo');
    assert.equal(courriels.length,0);
-   // F-19 : la création d'invitation avec le rôle vendeur est refusée par l'action.
    const inviteResponse=await soumettreFormulaire('/parametres',renewed,inviteForm,{nom:'Invitation formulaire',email:'formulaire@example.test',role:'vendeur',sites:newSite.id});
-   assert.equal(inviteResponse.status,200); assert.match(await inviteResponse.text(),/Ce rôle n’est pas disponible/);
-   assert.equal(courriels.length,0,'Refus : aucun courriel envoyé');
-   assert.ok(!ok(await owner.rpc('equipe_lister_invitations'),'Après refus du formulaire').some(i=>i.email==='formulaire@example.test'),'Aucune invitation créée par le formulaire');
-   // Invitation créée par RPC ; le renvoi et l'annulation par formulaire restent testés.
-   ok(await owner.rpc('equipe_inviter',{p_email:'formulaire@example.test',p_nom:'Invitation formulaire',p_role:'vendeur',p_sites:[newSite.id]}),'Invitation (RPC)');
-   const invitationsUi=ok(await owner.rpc('equipe_lister_invitations'),'Invitation depuis RPC');
+   assert.equal(inviteResponse.status,200); assert.match(await inviteResponse.text(),/Invitation enregistrée[\s\S]*Notification acceptée/);
+   assert.equal(courriels.length,1); assert.deepEqual(courriels[0].recipients,['formulaire@example.test']);
+   const invitationsUi=ok(await owner.rpc('equipe_lister_invitations'),'Invitation depuis formulaire');
    const inviteUi=invitationsUi.find(i=>i.email==='formulaire@example.test'); assert.ok(inviteUi);
    const updatedHtml=await (await fetch('http://127.0.0.1:3414/parametres',{headers:{cookie:renewed}})).text();
    const resendForm=trouverFormulaire(updatedHtml,f=>f.some(x=>x.name==='id' && x.value===inviteUi.id) && !f.some(x=>x.name==='confirmer'));
    const resendResponse=await soumettreFormulaire('/parametres',renewed,resendForm,{});
    assert.equal(resendResponse.status,200); assert.match(await resendResponse.text(),/Notification acceptée/);
-   assert.equal(courriels.length,1); assert.deepEqual(courriels[0].recipients,['formulaire@example.test']);
+   assert.equal(courriels.length,2); assert.deepEqual(courriels[1].recipients,['formulaire@example.test']);
    const cancelForm=trouverFormulaire(updatedHtml,f=>f.some(x=>x.name==='id' && x.value===inviteUi.id) && f.some(x=>x.name==='confirmer'));
    const cancelResponse=await soumettreFormulaire('/parametres',renewed,cancelForm,{confirmer:'oui'});
    assert.equal(cancelResponse.status,200); assert.match(await cancelResponse.text(),/Invitation annulée/);
    const revokedResponse=await soumettreFormulaire('/parametres',renewed,resendForm,{});
    assert.equal(revokedResponse.status,200); assert.match(await revokedResponse.text(),/Invitation indisponible/);
-   assert.equal(courriels.length,1,'Une invitation annulée ne doit pas être renvoyée');
+   assert.equal(courriels.length,2,'Une invitation annulée ne doit pas être renvoyée');
 
    // Formulaire d'affectation versionné et révocation sur une session déjà émise.
    ownerHtml=await (await fetch('http://127.0.0.1:3414/parametres',{headers:{cookie:renewed}})).text();
@@ -873,9 +862,8 @@ test('Auth et PostgREST réels : isolation, confidentialité et modules', { time
 
    await new Promise(resolve=>smtp.close(resolve)); smtpOuvert=false;
    const failedMail=await soumettreFormulaire('/parametres',renewed,inviteForm,{nom:'Test panne courrier',email:'panne@example.test',role:'vendeur',sites:newSite.id});
-   // F-19 : sans création d'invitation par formulaire, la panne SMTP n'est pas atteignable ici.
-   assert.equal(failedMail.status,200); assert.match(await failedMail.text(),/Ce rôle n’est pas disponible/);
-   assert.ok(!ok(await owner.rpc('equipe_lister_invitations'),'Après refus hors ligne').some(i=>i.email==='panne@example.test'),'Aucune invitation sans envoi');
+   assert.equal(failedMail.status,200); assert.match(await failedMail.text(),/Envoi non confirmé par le serveur SMTP de test/);
+   assert.equal(courriels.length,2,'Aucun nouveau courriel livré lors de la panne SMTP');
 
    const anonymousJoining=await fetch('http://127.0.0.1:3414/rejoindre',{redirect:'manual'});
    assert.equal(anonymousJoining.status,307,'Compte Auth requis');

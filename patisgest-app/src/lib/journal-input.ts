@@ -5,6 +5,7 @@
  */
 
 import { parseCashDrawerDeclaration, type CashDrawerDeclaration } from "./reconciliation.ts";
+import { dateIsoValide, jourLocal } from "./workspace-data.ts";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -35,12 +36,12 @@ function uuid(value: unknown, label: string): string {
   return s;
 }
 
-function day(value: unknown, label: string, opts: { notFuture?: boolean; min?: string } = {}): string {
+function day(value: unknown, label: string, opts: { notFuture?: boolean; min?: string; maintenant?: Date } = {}): string {
   const s = String(value ?? "").trim();
-  if (!DATE_RE.test(s) || Number.isNaN(Date.parse(s)) || new Date(s).toISOString().slice(0, 10) !== s) {
+  if (!dateIsoValide(s)) {
     throw new Error(`${label} : date invalide (format AAAA-MM-JJ).`);
   }
-  const today = new Date().toISOString().slice(0, 10);
+  const today = jourLocal(opts.maintenant);
   if (opts.notFuture && s > today) throw new Error(`${label} ne peut pas être dans le futur.`);
   if (opts.min && s < opts.min) throw new Error(`${label} invalide.`);
   return s;
@@ -80,8 +81,8 @@ export type ClosingInput = {
 
 const CLOSING_FLOWS = ["produit", "vendu", "reporte", "jete", "casse", "offert"] as const;
 
-export function parseClosingInput(formData: FormData): ClosingInput {
-  const date = day(formData.get("date"), "Date", { notFuture: true });
+export function parseClosingInput(formData: FormData, maintenant?: Date): ClosingInput {
+  const date = day(formData.get("date"), "Date", { notFuture: true, maintenant });
   const siteId = uuid(formData.get("siteId"), "Site");
   const revise = bool(formData.get("revise"), "Correction");
   const count = int(formData.get("lineCount"), "Nombre de lignes", 1, 100);

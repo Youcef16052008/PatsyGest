@@ -5,7 +5,11 @@ name: Sauvegarde Supabase + garde-veille
 # n'est pas démontrée. Il ne couvre pas les fichiers Storage, les rôles globaux,
 # ni les réglages des services. Ne pas utiliser comme condition suffisante
 # d'application des migrations ; cf. patisgest-app/migrations/ETAT-RESTAURATION.md.
-# SUPABASE_DB_URL et BACKUP_PASSPHRASE sont nécessaires dans GitHub Actions.
+# SUPABASE_DB_URL et BACKUP_PASSPHRASE sont nécessaires dans GitHub Actions
+# pour le dump chiffré. Note connue : si SUPABASE_DB_URL échoue côté pooler
+# (FATAL: password authentication failed for user "postgres"), le propriétaire
+# doit renouveler le secret avec l'identifiant pooler `postgres.<project_ref>`
+# et le mot de passe courant (le workflow ne masque jamais cet échec).
 
 on:
   schedule:
@@ -50,27 +54,49 @@ jobs:
         if: always() && (steps.config.outputs.dump == 'false' || steps.config.outcome == 'failure')
         id: health
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.PATISGEST_APP_URL || 'https://patsy-gest.vercel.app' }}
         run: |
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
-            echo "::notice::SUPABASE_URL / SUPABASE_ANON_KEY absents — garde-veille ignoré."
-            exit 0
-          fi
-          # /auth/v1/health est public, sans jeton, et réveille PostgREST.
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
-            "$SUPABASE_URL/auth/v1/health")
-          echo "Santé Supabase : HTTP $code"
-          # Une table RLS refusée renvoie 401/403 : c'est une requête valide
-          # du point de vue de l'activité, le projet n'est donc pas en pause.
-          code2=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
-            -H "apikey: $SUPABASE_ANON_KEY" \
-            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
-            "$SUPABASE_URL/rest/v1/articles?select=id&limit=1")
-          echo "PostgREST : HTTP $code2 (401 attendu : anon ne lit rien, par conception)"
-          if [ "$code" -ge 500 ] 2>/dev/null; then
-            echo "::error::Le projet ne répond pas (HTTP $code). Vérifier s'il est en pause."
-            exit 1
+          set -euo pipefail
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            # /auth/v1/health est public, sans jeton, et réveille PostgREST.
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+              "$SUPABASE_URL/auth/v1/health")
+            echo "Santé Supabase : HTTP $code"
+            # Une table RLS refusée renvoie 401/403 : c'est une requête valide
+            # du point de vue de l'activité, le projet n'est donc pas en pause.
+            code2=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+              -H "apikey: $SUPABASE_ANON_KEY" \
+              -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+              "$SUPABASE_URL/rest/v1/articles?select=id&limit=1")
+            echo "PostgREST : HTTP $code2 (401 attendu : anon ne lit rien, par conception)"
+            if [ "$code" -ge 500 ] 2>/dev/null; then
+              echo "::error::Le projet ne répond pas (HTTP $code). Vérifier s'il est en pause."
+              exit 1
+            fi
+          elif [ -n "$CRON_SECRET" ]; then
+            # Repli via la sonde authentifiée Vercel -> Supabase (Auth + PostgREST + Storage)
+            base="${APP_URL%/}"
+            tmp=$(mktemp)
+            trap 'rm -f "$tmp"' EXIT
+            code=$(curl -sS -o "$tmp" -w '%{http_code}' --max-time 30 \
+              -H "x-cron-secret: $CRON_SECRET" \
+              "$base/api/health/stack")
+            echo "Sonde pile hébergée ($base/api/health/stack) : HTTP $code"
+            python3 - "$code" "$tmp" <<'PY'
+          import json, sys
+          code = int(sys.argv[1])
+          raw = open(sys.argv[2], "r", encoding="utf-8", errors="replace").read()
+          data = json.loads(raw) if raw.strip().startswith("{") else {}
+          if code != 200 or data.get("ok") is not True:
+              print(f"::error::Garde-veille /api/health/stack en échec (HTTP {code})")
+              sys.exit(1)
+          print(f"OK — auth={data.get('checks',{}).get('auth',{}).get('ok')}, postgrest={data.get('checks',{}).get('postgrest',{}).get('ok')}, schema={data.get('checks',{}).get('postgrest',{}).get('detail')}")
+          PY
+          else
+            echo "::notice::SUPABASE_URL / SUPABASE_ANON_KEY et CRON_SECRET absents — garde-veille ignoré."
           fi
 
       # --------------------------------------------------------- pg_dump
@@ -114,9 +140,27 @@ jobs:
           relu=$(mktemp -p /dev/shm patisgest-relu.XXXXXX)
           PATSYGEST_BACKUP_PASSPHRASE="$PASSPHRASE" \
             node patisgest-app/scripts/coffre-sauvegarde.mjs dechiffrer "$fichier" "$relu"
-          gzip -dc "$relu" | docker run --rm -i postgres:17-alpine pg_restore --file=/dev/null
+          # CONTENU, pas seulement lisibilité. `pg_restore --file=/dev/null`
+          # ne prouve que la validité de l'archive : un projet Supabase en PAUSE
+          # (ou une base vidée) produit un dump parfaitement lisible et …
+          # absolument vide, qui était ensuite publié comme « sauvegarde
+          # réussie ». C'est exactement le scénario « échec silencieux ».
+          toc=$([ -n "$relu" ] && gzip -dc "$relu" | docker run --rm -i postgres:17-alpine pg_restore -l)
           rm -f "$relu"
-          echo "Lecture du dump vérifiée ; ceci ne certifie pas une restauration."
+          # Les tables du schéma public (hors tables du système/extensions).
+          nb_tables=$(printf '%s\n' "$toc" | grep -cE '^[0-9]+; [0-9]+ [0-9]+ TABLE public ' || true)
+          echo "Tables du schéma public dans le dump : $nb_tables"
+          if [ "$nb_tables" -lt 10 ]; then
+            echo "::error::Sauvegarde suspecte : $nb_tables table(s) public seulement. Le projet Supabase est peut-être en pause, ou la source est vide. Aucune sauvegarde n'est publiée."
+            exit 1
+          fi
+          # Témoin : la table des utilisateurs prouve qu'on a bien dumpé la
+          # base métier et non une base voisine.
+          if ! printf '%s\n' "$toc" | grep -qE '^[0-9]+; [0-9]+ [0-9]+ TABLE public utilisateurs '; then
+            echo "::error::Sauvegarde suspecte : table « utilisateurs » absente du dump. Source probablement incorrecte."
+            exit 1
+          fi
+          echo "Contenu du dump vérifié ($nb_tables tables) ; ceci ne certifie pas une restauration."
           echo "FICHIER=$fichier" >> "$GITHUB_ENV"
 
       - name: Conserver la sauvegarde (artefact GitHub, 30 jours)

@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
-import { addCleaning, addNc, addTemperature, updateNc, type JournalState } from "@/lib/actions-journaux";
+import { addCleaning, addNc, addTemperature, updateNc } from "@/lib/actions-haccp";
+import { type JournalState } from "@/lib/journal-actions-communs";
+import { jourLocal } from "@/lib/workspace-data";
 
 type Option = { id: string; label: string };
 export type NcRow = { id: string; statut: string; type: string; description: string; action: string };
@@ -9,7 +11,7 @@ export type NcRow = { id: string; statut: string; type: string; description: str
 const field = "mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm";
 const label = "block text-xs font-semibold text-slate-600";
 const btn = "rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50";
-const today = new Date().toISOString().slice(0, 10);
+const aujourdhui = () => jourLocal();
 
 function Feedback({ state }: { state: JournalState }) {
   return (
@@ -24,7 +26,7 @@ function TemperatureForm() {
   const [state, action, pending] = useActionState(addTemperature, {});
   return (
     <form action={action} className="flex flex-wrap items-end gap-3">
-      <label className={`${label} w-36`}>Date<input name="date" type="date" required defaultValue={today} className={field} /></label>
+      <label className={`${label} w-36`}>Date<input name="date" type="date" required defaultValue={aujourdhui()} className={field} /></label>
       <label className={`${label} w-28`}>Frigo (id)<input name="frigoId" maxLength={40} placeholder="F1" className={field} /></label>
       <label className={`${label} min-w-40 flex-1`}>Équipement<input name="frigoNom" required maxLength={80} placeholder="Frigo laboratoire" className={field} /></label>
       <label className={`${label} w-28`}>Seuil max °C<input name="seuilMax" type="number" step="any" required defaultValue={4} className={field} /></label>
@@ -40,7 +42,7 @@ function CleaningForm() {
   const [state, action, pending] = useActionState(addCleaning, {});
   return (
     <form action={action} className="flex flex-wrap items-end gap-3">
-      <label className={`${label} w-36`}>Date<input name="date" type="date" required defaultValue={today} className={field} /></label>
+      <label className={`${label} w-36`}>Date<input name="date" type="date" required defaultValue={aujourdhui()} className={field} /></label>
       <label className={`${label} min-w-40 flex-1`}>Zone<input name="zone" required maxLength={80} placeholder="Plan de travail" className={field} /></label>
       <label className={`${label} flex items-center gap-2 py-2`}><input name="fait" type="checkbox" defaultChecked className="h-4 w-4" /> Fait</label>
       <label className={`${label} w-36`}>Agent<input name="agent" maxLength={80} className={field} /></label>
@@ -54,7 +56,7 @@ function NcForm() {
   const [state, action, pending] = useActionState(addNc, {});
   return (
     <form action={action} className="flex flex-wrap items-end gap-3">
-      <label className={`${label} w-36`}>Date<input name="date" type="date" required defaultValue={today} className={field} /></label>
+      <label className={`${label} w-36`}>Date<input name="date" type="date" required defaultValue={aujourdhui()} className={field} /></label>
       <label className={`${label} w-40`}>Type<input name="type" required maxLength={80} placeholder="T°, hygiene…" className={field} /></label>
       <label className={`${label} min-w-52 flex-1`}>Description<input name="description" required maxLength={500} className={field} /></label>
       <label className={`${label} w-36`}>N° lot (opt.)<input name="lotNumero" maxLength={80} className={field} /></label>

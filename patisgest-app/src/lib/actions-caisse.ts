@@ -1,13 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { canWrite, getSessionContext } from "./auth";
+import { canSellAtPos, getSessionContext } from "./auth";
 import { echecHttpReessayable, messageUtilisateur } from "./erreurs-db";
 import { parseCartSaleInput, PAYMENT_MODE_LABELS, type PaymentMode } from "./pos-cart";
 import { createClient } from "./supabase/server";
 import { parseSaleInput } from "./stock-input";
 import { parseZCsv } from "./z-input";
 import { sameSaleReplay, sameSaleSession } from "./sale-session";
+import { estProprietaireSeul } from "./permissions";
+import { dateMetierPasFuture } from "./workspace-data.ts";
 
 export type SaleReceiptLine = {
   articleId: string;
@@ -83,6 +85,9 @@ function readTicketLines(raw: unknown): SaleReceiptLine[] {
 export async function sellCart(_prev: SaleState, formData: FormData): Promise<SaleState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise.", reessayer: true };
+  if (!canSellAtPos(ctx.role)) {
+    return { erreur: "La caisse est réservée au comptoir (propriétaire et vendeur)." };
+  }
   // Empêche un ancien onglet d'envoyer sa file après changement de session.
   // Ces valeurs ne sont pas une autorisation : la session et la RLS restent
   // contrôlées côté serveur, et les identifiants déclarés doivent correspondre.
@@ -116,6 +121,14 @@ export async function sellCart(_prev: SaleState, formData: FormData): Promise<Sa
         return {
           erreur:
             "Le panier multiproduit nécessite l’application de la migration SQL 21 sur la base Supabase.",
+        };
+      }
+      // `vendre_article` (signature 4 args, migration pré-21) force « especes ».
+      // Un autre mode ne peut donc pas être rejoué sans être silencieusement
+      // transformé : on refuse explicitement plutôt que d'encaisser un faux tiroir.
+      if (input.modePaiement !== "especes") {
+        return {
+          erreur: "Migration SQL 21 requise pour enregistrer ce mode de règlement.",
         };
       }
       rpcRes = await supabase.rpc("vendre_article", {
@@ -189,7 +202,7 @@ export async function sellCart(_prev: SaleState, formData: FormData): Promise<Sa
     const modeLabel = PAYMENT_MODE_LABELS[input.modePaiement];
     return {
       succes:
-        `Vente enregistrée (${input.lignes.length} produit${input.lignes.length > 1 ? "s" : ""}, ${modeLabel}) — ${result?.totalHT} HT / ${result?.totalTTC} TTC.` +
+        `Vente enregistrée (${input.lignes.length} produit${input.lignes.length > 1 ? "s" : ""}, ${modeLabel}) — ${result?.totalTTC} DA.` +
         (lotsText ? ` Lots : ${lotsText}.` : "") +
         (missing > 0 ? ` Manquant : ${missing} (signalé, stock jamais négatif).` : ""),
       ticket: pTicket,
@@ -207,25 +220,6 @@ export async function sellCart(_prev: SaleState, formData: FormData): Promise<Sa
   }
 }
 
-/** Compatibilité mono-produit : délègue au même flux sécurisé et idempotent. */
-export async function sellProduct(prev: SaleState, formData: FormData): Promise<SaleState> {
-  try {
-    const input = parseSaleInput(formData);
-    const cartData = new FormData();
-    cartData.set("siteId", input.siteId);
-    cartData.set("expectedClientId", String(formData.get("expectedClientId") ?? ""));
-    cartData.set("expectedAuthUserId", String(formData.get("expectedAuthUserId") ?? ""));
-    cartData.set("lignesJson", JSON.stringify([{ articleId: input.articleId, qte: input.qte }]));
-    const ticket = String(formData.get("ticket") ?? "").trim();
-    if (ticket) cartData.set("ticket", ticket);
-    const mode = String(formData.get("modePaiement") ?? "especes").trim();
-    if (mode) cartData.set("modePaiement", mode);
-    return sellCart(prev, cartData);
-  } catch (e) {
-    return { erreur: e instanceof Error ? e.message : "Saisie invalide." };
-  }
-}
-
 export type ZImportResult = {
   z_import_id: string;
   sale_id: string | null;
@@ -240,12 +234,12 @@ export type ZImportResult = {
  * Import de Z sécurisé : format strict revérifié côté serveur, codes articles
  * résolus et validés par la RPC `importer_z` (aucune ligne ignorée), FEFO éligible,
  * idempotence par (date, caisse, n° Z), confirmation exigée si un autre Z du
- * jour a le même total HT. Rôles propriétaire + labo.
+ * jour a le même total HT. Rôle propriétaire uniquement.
  */
 export async function importZReal(_prev: SaleState, formData: FormData): Promise<SaleState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
-  if (!canWrite(ctx.role)) return { erreur: "Réservé aux rôles propriétaire et labo." };
+  if (!estProprietaireSeul(ctx.role)) return { erreur: "L’import de Z est réservé au propriétaire." };
 
   const date = String(formData.get("date") ?? "").trim();
   const siteId = String(formData.get("siteId") ?? "").trim();
@@ -254,7 +248,7 @@ export async function importZReal(_prev: SaleState, formData: FormData): Promise
   const csv = String(formData.get("csv") ?? "");
   const confirm = formData.get("confirm") === "on";
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > new Date().toISOString().slice(0, 10)) {
+  if (!dateMetierPasFuture(date)) {
     return { erreur: "Date de Z invalide." };
   }
   if (!/^[0-9a-f-]{36}$/i.test(siteId)) return { erreur: "Site invalide." };
@@ -289,10 +283,112 @@ export async function importZReal(_prev: SaleState, formData: FormData): Promise
     revalidatePath("/stocks");
     return {
       succes:
-        `Z importé — ${r?.lines} ligne(s), ${r?.totalHT} HT / ${r?.totalTTC} TTC.` +
+        `Z importé — ${r?.lines} ligne(s), ${r?.totalTTC} DA.` +
         (Number(r?.missing ?? 0) > 0 ? ` Manquant : ${r?.missing} (signalé, stock jamais négatif).` : ""),
     };
   } catch {
     return { erreur: "Supabase est inaccessible depuis ce serveur." };
+  }
+}
+
+// ---------------------------------------------------------------- avoirs
+
+export type AvoirState = {
+  erreur?: string;
+  succes?: string;
+  numero?: string;
+  mode?: string;
+  qte?: number;
+};
+
+export type AvoirResult = {
+  avoir_id: string;
+  numero: string;
+  mode: string;
+  qte: number;
+  article: string;
+  lot_retour_cree: boolean;
+};
+
+/**
+ * US-06.4 — enregistrer un retour/avoir.
+ *
+ * Deux modes seulement, choisis explicitement par le vendeur :
+ * `remise_en_stock` (la marchandise redevient vendable) ou `destruction`
+ * (perte tracée). Le serveur refuse le reste, et refuse de rendre plus que ce
+ * qui a été vendu, avoirs précédents inclus.
+ */
+export async function createAvoir(_prev: AvoirState, formData: FormData): Promise<AvoirState> {
+  const ctx = await getSessionContext();
+  if (!ctx) return { erreur: "Session expirée. Reconnectez-vous." };
+  if (!estProprietaireSeul(ctx.role)) return { erreur: "Seul le propriétaire peut enregistrer un avoir ou retour." };
+
+  const venteId = String(formData.get("venteId") ?? "").trim();
+  const articleId = String(formData.get("articleId") ?? "").trim();
+  const mode = String(formData.get("mode") ?? "").trim();
+  const motif = String(formData.get("motif") ?? "").trim();
+  const qte = Number(String(formData.get("qte") ?? "").replace(",", "."));
+
+  if (!venteId) return { erreur: "Choisissez la vente concernée." };
+  if (articleId && !/^[0-9a-f-]{36}$/i.test(articleId)) {
+    return { erreur: "Article de retour invalide." };
+  }
+  if (!Number.isFinite(qte) || qte <= 0) return { erreur: "Quantité rendue invalide." };
+  if (motif.length < 3) return { erreur: "Indiquez le motif du retour (au moins 3 caractères)." };
+  if (mode !== "remise_en_stock" && mode !== "destruction") {
+    return { erreur: "Précisez ce que devient la marchandise : remise en stock ou destruction." };
+  }
+
+  try {
+    const supabase = await createClient();
+    let rpcRes = articleId
+      ? await supabase.rpc("enregistrer_avoir_article", {
+          p_vente_id: venteId,
+          p_mode: mode,
+          p_motif: motif,
+          p_qte: qte,
+          p_article_id: articleId,
+        })
+      : await supabase.rpc("enregistrer_avoir", {
+          p_vente_id: venteId,
+          p_mode: mode,
+          p_motif: motif,
+          p_qte: qte,
+        });
+    if (articleId && rpcRes.error && (rpcRes.error.code === "PGRST202" || rpcRes.error.code === "42883")) {
+      rpcRes = await supabase.rpc("enregistrer_avoir", {
+        p_vente_id: venteId,
+        p_mode: mode,
+        p_motif: motif,
+        p_qte: qte,
+      });
+    }
+    const { data, error } = rpcRes;
+    if (error) {
+      if (error.code === "P0001") return { erreur: error.message };
+      if (error.code === "42501") return { erreur: "Votre rôle n'autorise pas cette opération." };
+      return { erreur: messageUtilisateur(error, "Avoir refusé") };
+    }
+    const r = data as AvoirResult | null;
+    if (!r?.avoir_id) return { erreur: "Avoir non confirmé. Vérifiez avant de recommencer." };
+
+    revalidatePath("/caisse");
+    revalidatePath("/stocks");
+    revalidatePath("/cloture");
+    revalidatePath("/tracabilite");
+    return {
+      succes:
+        `Avoir ${r.numero} enregistré — ${r.qte} × ${r.article}. ` +
+        (r.mode === "remise_en_stock"
+          ? r.lot_retour_cree
+            ? "Remis en stock dans un lot de retour dédié."
+            : "Remis en stock dans son lot d’origine."
+          : "Destruction consignée ; la perte reste comptée."),
+      numero: r.numero,
+      mode: r.mode,
+      qte: r.qte,
+    };
+  } catch {
+    return { erreur: "Supabase est inaccessible depuis ce serveur. L’avoir n’a pas été enregistré." };
   }
 }

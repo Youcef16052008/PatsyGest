@@ -2,6 +2,14 @@
 
 **Cible : Algérie · Solo-développeur + IA · Hybride cloud + hors-ligne**
 **Statut :** VALIDÉ pour démarrage · **Date :** novembre 2026
+**Révision du 23 novembre 2026 :** ce document décrit désormais l'état **réel** du
+dépôt, pas seulement la cible. Les écarts entre la cible et le code sont marqués
+« non implémenté » ou « écart connu » à l'endroit où ils se produisent, pour qu'on
+ne puisse plus coder en croyant qu'une brique existe. Ce qui a changé : la
+couche d'accès aux données (plus de Drizzle : SQL versionné), le mode de test du
+schéma (Postgres jetable par test), l'état réel de l'hors-ligne, du chiffrement
+local et de la politique de mot de passe, et la règle RI-05 (décimal exact, pas
+centimes entiers).
 
 ## 1. Vision & principes
 
@@ -39,7 +47,7 @@ le serveur valide, applique les règles (FEFO, coûts, TVA) et renvoie l'état.
 | Langage unique | **TypeScript** | 1 seul langage à maîtriser, erreurs détectées tôt |
 | App + API | **Next.js 16 (monolithe)** | Déjà en place ; pages + API dans un seul projet ; PWA native |
 | Base cloud | **Supabase (Postgres managé)** | 0 administration, sauvegardes incluses, Auth + temps réel inclus, offre gratuite puis ~1 500 DA/mois |
-| Accès données | **Drizzle ORM** | Déjà en place, léger, typé, migrations simples |
+| Accès données | **`@supabase/supabase-js` + SQL écrit à la main** | Le schéma est du SQL versionné dans `supabase/`, pas un ORM. Choisi pour que les règles métier (FEFO, coûts, TVA, RLS) vivent dans la base et restent testables sans le code applicatif |
 | Hébergement app | **Vercel** | Déploiement en 1 clic depuis Git, HTTPS auto, gratuit puis ~3 000 DA/mois |
 | Hors-ligne | **PWA + base locale chiffrée + file outbox** | Quotidien sans internet (exigence H2 du CDC) |
 | Impression | Navigateur + imprimantes ticket/étiquette réseau | Aucun pilote spécifique en V1 |
@@ -53,8 +61,22 @@ métier exigent du relationnel strict), Electron en V1 (lourd).
 
 ## 4. Modèle de données (référence)
 
-> Descriptions métier — le SQL de création sera généré depuis Drizzle au démarrage.
-> Règle d'or : **`client_id` partout + isolation stricte** (un client ne voit que ses données).
+**Le schéma est du SQL versionné, pas du code généré.** Les 41 migrations de
+`patisgest-app/supabase/` (`01-…` à `41-…`) sont la seule source de vérité du
+schéma, appliquées dans l'ordre par `migrations/repetition.json` (manifeste avec
+empreinte SHA-256 de chaque fichier). Aucun ORM n'intervient : les fonctions
+métier (`vendre_article`, `creer_of`, `enregistrer_avoir`, …) sont des fonctions
+Postgres qui portent elles-mêmes les règles et l'isolation.
+
+> **Ne pas régénérer ces tables depuis un ORM.** Trois tentatives de génération
+> automatique ont produit des applications qui ne compilaient pas : elles
+> inventaient un schéma au lieu de lire celui qui existe. Toute modification de
+> schéma passe par une nouvelle migration numérotée, jamais par un outil qui
+> déduit le schéma depuis le code applicatif.
+
+Règle d'or : **`client_id` partout + isolation stricte** (un client ne voit que
+ses données). Elle est appliquée par RLS *et* revérifiée dans chaque fonction
+`security definer`.
 
 ### 4.1 Tables principales (par module)
 
@@ -74,7 +96,7 @@ métier exigent du relationnel strict), Electron en V1 (lourd).
 | ordres_fabrication | N°, recette+version, quantités prévue/réalisée, site, dates, statut, **snapshot**, besoins, consommations, manquants, lots produits, coûts prévu/réel | → versions, sites |
 | ventes | N°, ticket, date, site, source (caisse/Z), lignes (article, qté, PU HT, TVA, lots), totaux HT/TTC, manquants | → sites |
 | imports_z | Date, site, caisse, lignes mappées, total, doublon oui/non | → sites, ventes |
-| retours_avoirs | Date, client, motif, lignes, remise en stock oui/non | → sites |
+| **avoirs** | Vente d'origine, article, quantité rendue, **mode** (`remise_en_stock` ou `destruction`), motif obligatoire, montants figés (PU HT, TVA, HT, TTC), lot d'origine ou lot de retour, acteur | → ventes, sites, articles, lots |
 | clotures | Date, site, lignes 6 flux par produit | → sites |
 | cakes_devis | Client, événement, parts, options (coût+temps), prix, acompte, statut, CGV, rétroplanning | → clients |
 | temperatures | Date, équipement, valeur, seuil, conforme, agent | → sites |
@@ -84,15 +106,15 @@ métier exigent du relationnel strict), Electron en V1 (lourd).
 | transferts | Date, origine, destination, motif, lignes | → sites |
 | taches_planning | Date, tâche, OF, durée, responsable, fait | → sites |
 | file_synchro | Commandes hors-ligne (UUID client, type, charge, statut, tentatives) | → clients |
-| journal_audit | Qui, quoi, quand, avant/après (ventes, stocks, clôtures) | → clients |
+| **journal_audit** | Qui (`acteur_id` = `auth.uid()`, + email figé), quoi (action, table, ligne), quand ; `details` volontairement pauvre (opération seule, aucun montant) pour que le journal ne devienne pas une seconde base financière. Immuable (UPDATE refusé, DELETE refusé avant 10 ans), lecture propriétaire seule | → clients |
 
 ### 4.2 Règles d'intégrité (non négociables)
 
 - RI-01 : `client_id` NOT NULL sur toutes les tables + **filtrage systématique** (test auto).
 - RI-02 : mouvements et snapshots **jamais modifiés ni supprimés** (correction = contre-écriture).
 - RI-03 : recette_version figée dès qu'un OF la référence (verrou applicatif + test).
-- RI-04 : unicité (client, code article), (client, n° lot), (client, n° ticket), (client, date, site, total Z).
-- RI-05 : montants en centimes (entiers) — **jamais de flottants** pour l'argent.
+- RI-04 : unicité (client, code article) ✅, (client, n° ticket) ✅ — c'est elle qui rend le rejeu d'un ticket sûr —, (client, n° avoir) ✅. **(client, n° lot) n'est PAS unique** : il n'y a qu'un index de recherche (`24-index-exploitation.sql`), pas de contrainte. C'est un écart à trancher : soit on impose l'unicité (et on gère la collision de numérotation entre sites), soit on assume des numéros de lot répétés et on retire la promesse du document. Tant que ce n'est pas tranché, ne pas afficher un n° de lot comme identifiant unique. (client, date, site, total Z) : contrainte d'import présente via la clé d'idempotence des imports.
+- RI-05 : montants en `numeric(12,2)` — **décimal exact, jamais de flottant** (`float`/`double`/`real` interdits pour l'argent). La v4.0 disait « centimes entiers » : ce n'est pas ce qui est implémenté. `numeric` est exact et arrondit explicitement (`round(x, 2)`), ce qui remplit l'intention ; écrire « entiers » alors que la base stocke des décimales aurait induit en erreur quiconque relit le schéma.
 - RI-06 : conservation 10 ans (archivage annuel, purge interdite avant).
 
 ### 4.3 Volumes cibles (dimensionnement)
@@ -127,7 +149,43 @@ Principes : pagination partout, horodatage serveur faisant foi, erreurs en fran�
 1. Chaque action hors-ligne crée une **commande** locale avec **UUID client unique**.
 2. Au retour réseau, la file est poussée **dans l'ordre** ; le serveur ignore les UUID déjà vus
    (rejouer 2 fois = appliqué 1 fois → **zéro doublon**, même si l'utilisateur réessaie).
-3. Le serveur renvoie les deltas (nouveaux lots, prix, recettes) depuis le dernier point connu.
+   C'est implémenté : `src/lib/sale-queue.ts` (cœur pur testé) + le ticket comme clé
+   d'idempotence côté serveur (`vendre_article` retourne `duplicate: true` sur rejeu).
+3. ~~Le serveur renvoie les deltas depuis le dernier point connu.~~ **Non implémenté à ce
+   jour.** Il n'existe pas de synchronisation incrémentale : après une période hors-ligne,
+   l'application relit les données normalement au chargement de la page. Ne pas écrire de
+   code qui suppose ce mécanisme tant qu'il n'existe pas.
+
+**État réel de l'adaptateur local (à ne pas confondre avec la cible) :**
+la file est stockée en `localStorage` (voir §7, ligne « Base locale » : le chiffrement
+n'est pas fait). Le service worker (`public/sw.js`) **ne met en cache aucune page
+authentifiée** : garder du HTML d'un compte sur un appareil partagé le rendrait lisible
+après changement de compte.
+
+**Ouverture hors-ligne — fait (NF-02, D5).** La conception isolée que réclamait le
+service worker est en place : une **coquille publique** `/hors-ligne`, dont le HTML ne
+contient aucune donnée client, est la seule page mise en cache. Tout ce qu'elle
+personnalise est lu côté navigateur après vérification que le catalogue appartient bien
+au compte connecté sur cet appareil :
+
+| Contrôle (dans cet ordre) | Refus servi |
+|---|---|
+| identité locale présente | « Aucun compte connu sur cet appareil » |
+| cache étiqueté par le **même** `clientId` | « Les données appartiennent à un autre compte » |
+| cache lisible et non corrompu | « Données illisibles, ne les effacez pas » |
+| cache de moins de 14 jours | « Prix trop anciens » + âge exact |
+
+L'ordre est délibéré : un cache périmé d'un autre compte est signalé comme *autre
+compte*, jamais comme *périmé* — sinon le message suggère de rafraîchir un cache qui
+n'appartient pas à l'utilisateur. Le catalogue est alimenté par la caisse elle-même, au
+moment où les prix affichés sont ceux réellement utilisés ; il n'était jusqu'ici **lu par
+personne** (`enregistrerCatalogue` n'avait aucun appelant, et son test passait quand
+même — leçon retenue : un module testé mais non branché n'existe pas).
+
+Limite assumée : cette coquille permet de rouvrir l'app, consulter les produits et
+encaisser (la file fonctionne) ; ce n'est pas une caisse complète hors-ligne. Les écrans
+authentifiés, eux, restent inaccessibles hors réseau — c'est la contrepartie de ne
+jamais écrire de HTML de compte sur le disque.
 
 ### 6.2 Périmètre (rappel décision D5)
 
@@ -151,15 +209,15 @@ Bouton « état de synchro » permanent (à jour / X en attente / erreur) ; file
 
 | Couche | Mesures V1 |
 |---|---|
-| Comptes | E-mail + mot de passe fort (12 car. min), verrouillage après 5 essais, sessions 12 h |
+| Comptes | E-mail + mot de passe. La politique n'est **pas dans le code** : elle est dans le projet Supabase (console), donc elle ne peut pas être vérifiée en lisant le dépôt. Elle est désormais **écrite et versionnée** dans `patisgest-app/SECURITE-COMPTES.md` : 12 caractères minimum, majuscules/minuscules/chiffres, JWT 12 h, rotation des jetons, inscriptions publiques fermées — avec la procédure d'application et le relevé de vérification. **Statut : à appliquer sur la console, relevé encore vide.** Verrouillage après 5 essais : non fait. Ne pas lire cette ligne comme « configuré » |
 | Rôles | Propriétaire / labo / vendeur (matrice MOD-15) ; vendeur = caisse + lecture |
 | Isolement | `client_id` injecté côté serveur depuis la session (jamais depuis le client) + tests auto |
 | Transport | HTTPS partout (TLS managé Vercel/Supabase) |
 | Secrets | Variables d'environnement, jamais dans le code ni dans Git |
-| Base locale | Chiffrée (clé par appareil), effaçable à distance (V2) |
+| Base locale | **Aujourd'hui : `localStorage` non chiffré** (file de tickets). Cible v4.0 : chiffrement par appareil + effacement à distance (V2). Écart connu, à ne pas présenter comme fait au pilote |
 | Sauvegarde | Quotidienne auto cloud (30 j) + export client ; restauration testée mensuellement |
-| Journal | Audit 10 ans (ventes, stocks, clôtures, connexions) |
-| Conformité | Minimisation (loi 18-07), export/suppression sur demande, registre des traitements (V2) |
+| Journal | Audit 10 ans **fait** (migration 40) : ventes, mouvements, clôtures, ordres de fabrication, articles, lots, comptes/rôles. Lignes immuables, lecture propriétaire seule, écriture non bloquante (une panne du journal n'annule pas une vente, elle produit un avertissement PostgreSQL) |
+| Conformité | Minimisation (loi 18-07). **Export et anonymisation sur demande : faits** (migration 42 : `exporter_donnees_personnelles`, `anonymiser_client`, registre `demandes_donnees`, panneau Paramètres). On anonymise, on ne supprime pas : les écritures comptables sont conservées 10 ans, seule l'identité disparaît. Registre des traitements : V2 |
 
 **Avant la V1 commerciale :** revue de sécurité (check-list 25 points fournie en Roadmap),
 test d'intrusion léger externe si budget, mentions légales + CGU rédigées.
@@ -213,6 +271,32 @@ arbitrage : [`NOTE-HEBERGEMENT.md`](../NOTE-HEBERGEMENT.md).
   direct un vendredi soir avant une démo pilote. ☺
 - **Qualité :** tests auto sur RC-01..RC-10 + FEFO + synchro (bloquants) ;
   recette manuelle sur tablette réelle avant chaque mise en prod.
+
+### 9.1 Comment le schéma est réellement testé
+
+Point qui manquait dans la v4.0 et qui a coûté cher : **le SQL est exécuté pour
+de vrai dans les tests**, pas seulement relu.
+
+- `patisgest-app/tests/*-db.test.mjs` (16 fichiers) montent une base Postgres
+  jetable (**PGlite**, Postgres compilé en WebAssembly), appliquent la chaîne
+  complète de migrations, puis exercent les fonctions métier sous les rôles
+  réels (`anon`, `authenticated`) avec un `auth.uid()` simulé. Les tests RLS et
+  de privilèges ne prouvent quelque chose que sous un rôle non-superuser :
+  PGlite démarre en superutilisateur, chaque test bascule donc explicitement de
+  rôle avant de vérifier.
+- Deux adaptations historiques sont nécessaires pour rejouer la chaîne sur une
+  base vierge (le dépôt n'a jamais été un historique vierge rejouable) : un
+  bouchon `creer_of(...)` avant la migration `07-`, et l'ajout de
+  `clotures.revision` avant la `09-`. Elles sont documentées dans les tests.
+- `tests/migrations-repetition.test.mjs` vérifie que `migrations/repetition.json`
+  liste **exactement** les fichiers présents, dans l'ordre, avec l'empreinte
+  SHA-256 correcte. Ajouter un `.sql` sans mettre à jour le manifeste fait
+  échouer la suite — c'est voulu : un fichier oublié en production est plus
+  grave qu'un test rouge.
+- `tests/matrice-app-schema.test.mjs` relit tous les `.from("…")` et `.rpc("…")`
+  du code applicatif et vérifie que chaque objet existe dans la chaîne déployée.
+  C'est le garde-fou qui empêche de livrer une page qui interroge une table
+  inexistante.
 
 ## 10. Observabilité & support (version solo)
 

@@ -1,13 +1,24 @@
+import { cookies } from "next/headers";
 import { requireSession, ROLE_LABELS } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import ModulesSettings, { type ModulesCompte } from "@/components/modules-settings";
 import SitesSettings, { type SiteCompte } from "@/components/sites-settings";
 import EquipeSettings, { type EquipeDonnees } from "@/components/equipe-settings";
 import EtablissementForm from "@/components/etablissement-form";
+import TelephoneAlerteForm from "@/components/telephone-alerte-form";
 import SauvegardePanel from "@/components/sauvegarde-panel";
-import AppearancePicker from "@/components/appearance";
-import { PageIntro } from "@/components/workspace-ui";
+import { lireStatutEssaiServeur } from "@/lib/trial-server";
+import { paiementActif } from "@/lib/licence-mode";
+import { AppearanceSettings } from "@/components/appearance";
+import { LanguageToggle } from "@/components/locale-provider";
+import AdvancedModeToggle from "@/components/advanced-mode-toggle";
+import { ADVANCED_MODE_COOKIE, readAdvancedMode } from "@/lib/appearance";
+import { Disclosure, PageIntro } from "@/components/workspace-ui";
 import VitrineForm, { type RecetteVitrine, type SiteVitrine } from "@/components/vitrine-form";
+import JournalAuditPanel from "@/components/journal-audit-panel";
+import DonneesPersonnellesPanel from "@/components/donnees-personnelles-panel";
+import { canReadAudit } from "@/lib/permissions";
+import type { LigneAudit } from "@/lib/journal-audit";
 import type { Etablissement } from "@/lib/etablissement";
 import { equipeExperimentaleActive } from "@/lib/equipe-experimental";
 import { DOMAINE_SERVICE_PAR_DEFAUT } from "@/lib/domaines";
@@ -85,6 +96,60 @@ export default async function Parametres() {
         if (!equipeError) equipe = { demandes: demandes.data, approbations: approbations.data, invitations: invitations.data, membres: membres.data } as EquipeDonnees;
       }
     } catch { modulesError=true; sitesError=true; equipeError=true; }
+  }
+
+  // NF-10 — journal d'audit : lecture réservée au propriétaire (RLS migration 40).
+  // `migrationAbsente` distingue une base pas encore migrée (message d'action,
+  // pas d'alarme) d'une vraie erreur de lecture.
+  let lignesAudit: LigneAudit[] = [];
+  let auditError = false;
+  let auditMigrationAbsente = false;
+  if (canReadAudit(ctx.role) && ctx.mode === "supabase") {
+    try {
+      const db = await createClient();
+      const { data, error } = await db
+        .from("journal_audit")
+        .select("id, cree_le, acteur_email, acteur_id, action, table_cible, ligne_id, details")
+        .eq("client_id", ctx.clientId)
+        .order("cree_le", { ascending: false })
+        .limit(200);
+      if (error) {
+        // 42P01 = relation absente ; PGRST205 = table inconnue du cache PostgREST.
+        auditMigrationAbsente = error.code === "42P01" || error.code === "PGRST205";
+        auditError = !auditMigrationAbsente;
+      } else {
+        lignesAudit = (data ?? []) as LigneAudit[];
+      }
+    } catch {
+      auditError = true;
+    }
+  }
+
+  // Loi 18-07 — commandes portant des données personnelles (nom, téléphone).
+  // `cakes` sert le comptoir comme la vitrine : c'est la seule table à nettoyer.
+  let commandesPerso: { numero: string; nom: string; date: string }[] = [];
+  let migrationPersoActive = true;
+  if (canReadAudit(ctx.role) && ctx.mode === "supabase") {
+    try {
+      const db = await createClient();
+      const { data, error } = await db
+        .from("cakes")
+        .select("numero, client_nom, date_event")
+        .eq("client_id", ctx.clientId)
+        .not("client_nom", "ilike", "Client anonymise%")
+        .order("date_event", { ascending: false })
+        .limit(200);
+      if (!error) {
+        commandesPerso = ((data ?? []) as { numero: string; client_nom: string; date_event: string }[])
+          .map((c) => ({ numero: c.numero, nom: c.client_nom, date: c.date_event }));
+      }
+      // La sonde porte sur la table apportée par la migration 42 : interroger
+      // `cakes` (migration 03) ne dirait rien de l'état de la 42.
+      const sonde = await db.from("demandes_donnees").select("id", { head: true, count: "exact" }).limit(1);
+      migrationPersoActive = !sonde.error;
+    } catch {
+      migrationPersoActive = false;
+    }
   }
 
   // Vitrine : sites + recettes du catalogue. Lecture réservée au personnel
@@ -166,44 +231,107 @@ export default async function Parametres() {
     }
   }
 
+  const advancedMode = readAdvancedMode((await cookies()).get(ADVANCED_MODE_COOKIE)?.value);
+  // Lecture utilisée pour le numéro d'alerte : sans objet en mode « tout
+  // gratuit » côté verrouillage, mais le téléphone reste utile aux alertes de
+  // coupure Internet, donc on interroge quand même la base.
+  const essaiStatut = ctx.mode === "supabase" ? await lireStatutEssaiServeur() : null;
+  const paiementOuvert = paiementActif();
+
   return (
-    <div>
+    <div className="pg-stack">
       <PageIntro title="Paramètres" description={`${ctx.clientNom} · ${ROLE_LABELS[ctx.role]}`}/>
+      <TelephoneAlerteForm
+        initialPhone={essaiStatut?.utilisateurTelephone ?? null}
+        roleLabel={ROLE_LABELS[ctx.role]}
+      />
       <section className="pg-card pg-card-pad">
-        <div className="pg-card-head"><div><h2>Apparence</h2><p>Cinq interfaces, chacune en clair ou en sombre. Ce choix ne change que ce navigateur.</p></div><AppearancePicker/></div>
+        <div className="pg-card-head">
+          <div>
+            <h2>Mode de navigation</h2>
+            <p>Gardez les 6 onglets essentiels au quotidien, ou affichez tous les modules atelier.</p>
+          </div>
+          <AdvancedModeToggle initial={advancedMode} />
+        </div>
+        <div className="pg-card-head border-t pt-4 mt-4 mb-0">
+          <div>
+            <h2>Langue de l’interface / اللغة</h2>
+            <p>Basculez entre Français et Arabe (avec mise en page RTL automatique).</p>
+          </div>
+          <LanguageToggle />
+        </div>
       </section>
 
-      <div className="mt-6">
-        {ctx.mode === "supabase" && sitesVitrine.length > 0 && (
-          <VitrineForm
-            role={ctx.role}
-            sites={sitesVitrine}
-            recettes={recettes}
-            domaine={process.env.PATISGEST_DOMAINE ?? DOMAINE_SERVICE_PAR_DEFAUT}
-          />
-        )}
+      <section className="pg-card pg-card-pad">
+        <div className="pg-card-head">
+          <div>
+            <h2>Licence &amp; abonnement</h2>
+            <p>
+              {paiementOuvert
+                ? "Votre abonnement est géré par l’administrateur Master ; aucun paiement n’est demandé dans l’application."
+                : "Cette version est entièrement gratuite : pas d’essai daté, pas de paiement dans l’application, aucun écran de verrouillage."}
+            </p>
+          </div>
+          <span className="pg-badge" data-tone={paiementOuvert ? "warning" : "success"}>
+            {paiementOuvert ? "Abonnement" : "Gratuit · illimité"}
+          </span>
+        </div>
+      </section>
+
+      <section className="pg-card pg-card-pad">
+        <h2>Apparence</h2>
+        <div className="mt-4">
+          <AppearanceSettings />
+        </div>
+      </section>
+
+      <div className="pg-stack">
         {ctx.role === "proprietaire" ? (
           <>
-            <EtablissementForm etablissement={etablissement} />
+            <EtablissementForm
+              etablissement={etablissement}
+              mode={ctx.mode === "pilote-local" ? "demo" : "supabase"}
+            />
             {ctx.mode === 'supabase' && <SitesSettings sites={sites} error={sitesError}/>}
             {ctx.mode === 'supabase' && equipeExperimentale && <EquipeSettings data={equipe} sites={sites} error={equipeError}/>}
-            {ctx.mode==='supabase' ? <ModulesSettings accounts={accounts} error={modulesError}/> : <section className="pg-card pg-card-pad mt-6"><h2>Accès aux modules</h2><p>Disponible en établissement connecté. La démo locale ne protège pas les données par compte.</p></section>}
             {ctx.mode === "supabase" ? (
               <SauvegardePanel />
             ) : (
-              <section className="rounded-2xl border bg-white p-5 text-sm text-slate-500">
-                <h2 className="font-bold text-slate-800">Sauvegarde &amp; restauration</h2>
-                <p className="mt-1">
-                  Disponible en mode pilote connecté : en démo locale il n’y a pas de base à sauvegarder.
+              <section className="pg-card pg-card-pad text-sm">
+                <h2 className="font-bold">Sauvegarde &amp; restauration</h2>
+                <p className="mt-1 pg-muted">
+                  Disponible avec un compte connecté : en démo locale, vos essais sont enregistrés dans ce navigateur.
                 </p>
               </section>
             )}
+            <Disclosure title="Options avancées & conformité" description="Vitrine publique, droits par employé, journal d’audit et données clients." icon="settings">
+              <div className="pg-stack">
+                {ctx.mode === "supabase" && sitesVitrine.length > 0 && (
+                  <VitrineForm
+                    role={ctx.role}
+                    sites={sitesVitrine}
+                    recettes={recettes}
+                    domaine={process.env.PATISGEST_DOMAINE ?? DOMAINE_SERVICE_PAR_DEFAUT}
+                  />
+                )}
+                {ctx.mode==='supabase' ? <ModulesSettings accounts={accounts} error={modulesError}/> : <section className="pg-card pg-card-pad"><h2>Accès aux modules</h2><p className="pg-muted">Disponible avec un établissement connecté.</p></section>}
+                <JournalAuditPanel
+                  lignes={lignesAudit}
+                  erreur={auditError}
+                  migrationAbsente={auditMigrationAbsente}
+                />
+                <DonneesPersonnellesPanel
+                  commandes={commandesPerso}
+                  migrationActive={migrationPersoActive}
+                />
+              </div>
+            </Disclosure>
           </>
         ) : (
-          <section className="rounded-2xl border bg-white p-5 text-sm">
+          <section className="pg-card pg-card-pad text-sm">
             <h2 className="font-bold">Identité de l’établissement</h2>
-            <p className="mt-1 text-slate-500">
-              Seul le propriétaire peut modifier ces mentions. Valeurs actuelles :
+            <p className="mt-1 pg-muted">
+              Seul le propriétaire peut modifier ces informations.
             </p>
             <ul className="mt-3 space-y-1 font-mono text-xs">
               <li>Nom : {etablissement.nom}</li>

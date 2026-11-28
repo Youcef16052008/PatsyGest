@@ -5,7 +5,7 @@ import { dinars, quantite } from "@/lib/workspace-data";
  * Rapprochement de fin de journée (lecture seule) en deux bilans séparés :
  * 1) Bilan PRODUITS (quantités : vendu déclaré vs sorties de caisse du jour/site).
  * 2) Bilan TIROIR-CAISSE (DA TTC : fond initial + ventes espèces − sorties justifiées
- *    = espèces attendues vs espèces comptées ; carte, chèque/virement et imports Z à part).
+ *    = espèces attendues vs espèces comptées ; chèque/virement et imports Z à part).
  */
 export default function ReconPanel({
   entries,
@@ -45,8 +45,7 @@ export default function ReconPanel({
           const cb = cashByCloture.get(e.clotureId);
           const hasHorsEspeces =
             cb != null &&
-            (cb.ventesCarteTTC > 0 ||
-              cb.ventesAutreTTC > 0 ||
+            (cb.ventesAutreTTC > 0 ||
               cb.ventesImportZTTC > 0 ||
               cb.ventesModeNonPreciseTTC > 0);
           return (
@@ -108,7 +107,7 @@ export default function ReconPanel({
 
               <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-600">
-                  2. Bilan tiroir-caisse (DA TTC · séparé des quantités)
+                  2. Bilan tiroir-caisse (en DA · séparé des quantités)
                 </h3>
                 {!cb ? (
                   <p className="text-xs text-slate-500">
@@ -161,7 +160,6 @@ export default function ReconPanel({
                     {hasHorsEspeces && (
                       <p className="mt-2 text-xs text-slate-600">
                         <strong>Encaissements hors tiroir espèces :</strong>
-                        {cb.ventesCarteTTC > 0 && ` Carte / CIB ${dinars(cb.ventesCarteTTC)} ·`}
                         {cb.ventesAutreTTC > 0 && ` Chèque / virement ${dinars(cb.ventesAutreTTC)} ·`}
                         {cb.ventesImportZTTC > 0 && ` Import Z externe ${dinars(cb.ventesImportZTTC)} ·`}
                         {cb.ventesModeNonPreciseTTC > 0 &&

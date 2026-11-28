@@ -1,31 +1,74 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
+import { DEMO_CREDITS_KEY_PREFIX, starterDemoCredits, type CreditAccountType, type CreditEntry } from "@/lib/credits";
 import { DEMO_SITES, demoLots, demoProducts, demoSales } from "@/lib/demo-workspace";
 import { sellCart } from "@/lib/patisgest-store";
 import { isPaymentMode, PAYMENT_MODE_LABELS, type PaymentMode } from "@/lib/pos-cart";
 import { jourLocal, quantite, stockParSite, stockPerimeParSite } from "@/lib/workspace-data";
 import { useDemoWorkspace } from "./demo-workspace";
+import CreditsWorkspace from "./credits-workspace";
 import SaleComposer from "./sale-composer";
 import SaleHistory from "./sale-history";
 import SaleTicket, { type SaleTicketData } from "./sale-ticket";
 import { ZImportOperations } from "./z-import-operations";
 import { Disclosure, Notice } from "./workspace-ui";
+import type { Etablissement } from "@/lib/etablissement";
+
+const DEMO_ETABLISSEMENT_KEY = "patisgest.demo_etablissement.v1";
 
 const boutique = DEMO_SITES.filter((s) => s.id === "Boutique");
 
 export default function DemoCaisse({
   dashboard = false,
   canEdit = false,
+  canManageCreditsAdmin = true,
   shop = "Maison Amande",
 }: {
   dashboard?: boolean;
   canEdit?: boolean;
+  canManageCreditsAdmin?: boolean;
   shop?: string;
 }) {
   const { data, save } = useDemoWorkspace();
   const [feedback, setFeedback] = useState<{ message: string; kind: "error" | "success" | "warning" } | null>(null);
   const [ticket, setTicket] = useState<SaleTicketData | null>(null);
+  const [cartResetKey, setCartResetKey] = useState(0);
+  const etabRaw = useSyncExternalStore(
+    (cb) => {
+      window.addEventListener("storage", cb);
+      window.addEventListener("patisgest-demo-etablissement", cb);
+      return () => {
+        window.removeEventListener("storage", cb);
+        window.removeEventListener("patisgest-demo-etablissement", cb);
+      };
+    },
+    () => {
+      try {
+        return window.localStorage.getItem(DEMO_ETABLISSEMENT_KEY) ?? "";
+      } catch {
+        return "";
+      }
+    },
+    () => "",
+  );
+  const demoEtab: Etablissement = (() => {
+    const fallback: Etablissement = { nom: shop, adresse: null, telephone: null, nif: null, nis: null, rc: null };
+    if (!etabRaw) return fallback;
+    try {
+      const parsed = JSON.parse(etabRaw) as Partial<Etablissement>;
+      return {
+        nom: parsed.nom?.trim() || shop,
+        adresse: parsed.adresse ?? null,
+        telephone: parsed.telephone ?? null,
+        nif: parsed.nif ?? null,
+        nis: parsed.nis ?? null,
+        rc: parsed.rc ?? null,
+      };
+    } catch {
+      return fallback;
+    }
+  })();
   if (!data) return <p role="status" className="pg-muted">Chargement des produits…</p>;
 
   const articles = demoProducts(data);
@@ -39,6 +82,16 @@ export default function DemoCaisse({
     const fields = new FormData(form);
     const modeRaw = String(fields.get("modePaiement") ?? "especes");
     const modePaiement: PaymentMode = isPaymentMode(modeRaw) ? modeRaw : "especes";
+    const creditMode = String(fields.get("creditMode") ?? "0") === "1";
+    const creditNom = String(fields.get("creditNom") ?? "").trim();
+    const creditTelephone = String(fields.get("creditTelephone") ?? "").trim();
+    const creditType = (String(fields.get("creditType") ?? "particulier") === "cafe_entreprise"
+      ? "cafe_entreprise"
+      : "particulier") as CreditAccountType;
+    if (creditMode && !creditNom) {
+      setFeedback({ kind: "error", message: "Entrez le nom du client ou du café pour noter au carnet." });
+      return;
+    }
     try {
       const rawJson = String(fields.get("lignesJson") ?? "").trim();
       const parsed = rawJson
@@ -64,26 +117,56 @@ export default function DemoCaisse({
         siteLabel: "Boutique",
         qte: sale.qty,
         lines,
-        modePaiement,
+        modePaiement: creditMode ? "À crédit (Carnet)" : modePaiement,
         totalHT: sale.totalHT,
         totalTTC: sale.totalTTC,
         lots: sale.lots,
         at: new Date().toISOString(),
         demo: true,
-        etablissement: { nom: shop, adresse: null, telephone: null, nif: null, nis: null, rc: null },
+        etablissement: demoEtab,
       });
+      if (creditMode) {
+        try {
+          const key = `${DEMO_CREDITS_KEY_PREFIX}demo`;
+          const raw = window.localStorage.getItem(key);
+          const list: CreditEntry[] = raw ? JSON.parse(raw) : starterDemoCredits(today);
+          const entry: CreditEntry = {
+            id: crypto.randomUUID(),
+            nomDebiteur: creditNom,
+            telephone: creditTelephone,
+            typeCompte: creditType,
+            montantTotalDa: sale.totalTTC,
+            montantRegleDa: 0,
+            dateEcheance: null,
+            note: `Caisse ${sale.numero ?? ""} · ${lines.map((l) => `${l.label} × ${l.qty}`).join(", ")}`.slice(0, 280),
+            statut: "ouvert",
+            reglements: [],
+            createdAt: new Date().toISOString(),
+          };
+          window.localStorage.setItem(key, JSON.stringify([entry, ...(Array.isArray(list) ? list : [])]));
+          window.dispatchEvent(new Event("patisgest-credits-updated"));
+        } catch {
+          /* ignore localStorage error */
+        }
+      }
       setFeedback(
-        sale.missing > 0
+        creditMode
           ? {
-              kind: "warning",
-              message: `Ticket d’essai enregistré (${lines.length} produit${lines.length > 1 ? "s" : ""}, ${PAYMENT_MODE_LABELS[modePaiement]}) · ${quantite(sale.missing)} manquant(s) sur stock éligible.`,
-            }
-          : {
               kind: "success",
-              message: `Ticket d’essai enregistré (${lines.length} produit${lines.length > 1 ? "s" : ""}, ${PAYMENT_MODE_LABELS[modePaiement]}).`,
-            },
+              message: `Ticket noté au carnet de ${creditNom} (${Math.round(sale.totalTTC)} DA à encaisser).`,
+            }
+          : sale.missing > 0
+            ? {
+                kind: "warning",
+                message: `Ticket d’essai enregistré (${lines.length} produit${lines.length > 1 ? "s" : ""}, ${PAYMENT_MODE_LABELS[modePaiement]}) · ${quantite(sale.missing)} manquant(s) sur stock éligible.`,
+              }
+            : {
+                kind: "success",
+                message: `Ticket d’essai enregistré (${lines.length} produit${lines.length > 1 ? "s" : ""}, ${PAYMENT_MODE_LABELS[modePaiement]}).`,
+              },
       );
       form.reset();
+      setCartResetKey((k) => k + 1);
     } catch (err) {
       setFeedback({ kind: "error", message: err instanceof Error ? err.message : "Vente non enregistrée." });
     }
@@ -92,6 +175,7 @@ export default function DemoCaisse({
   return (
     <div className="pg-stack">
       <SaleComposer
+        key={cartResetKey}
         articles={articles}
         sites={boutique}
         stock={stockParSite(lots, today)}
@@ -101,6 +185,7 @@ export default function DemoCaisse({
       />
       {feedback && <Notice kind={feedback.kind}>{feedback.message}</Notice>}
       {ticket && <SaleTicket data={ticket} />}
+      {!dashboard && <CreditsWorkspace mode="demo" scopeKey="demo" shop={shop} today={today} canManageAdmin={canManageCreditsAdmin} />}
       {!dashboard && <SaleHistory sales={demoSales(data)} demo />}
       {!dashboard && canEdit && (
         <Disclosure title="Importer un Z de caisse" icon="list">

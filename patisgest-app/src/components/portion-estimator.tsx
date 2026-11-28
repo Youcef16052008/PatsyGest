@@ -21,6 +21,7 @@ import {
   type PortionSizeKey,
 } from "@/lib/portion-estimator";
 import { dateLisible, dinars, quantite } from "@/lib/workspace-data";
+import { HEURES_PAYEES_PAR_JOUR_DEFAUT, SALAIRE_JOURNALIER_MAX, tauxHoraireDepuisJournee } from "@/lib/main-oeuvre";
 
 type Props = {
   /** Rôle courant si l'utilisateur a déjà une session ouverte (null sans compte). */
@@ -555,12 +556,12 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
           <section className="pg-card pg-card-pad" aria-labelledby="est-ing-title">
             <div className="pg-card-head">
               <div>
-                <h2 id="est-ing-title">2. Ingrédients &amp; éléments de décor (DA HT)</h2>
+                <h2 id="est-ing-title">2. Ingrédients &amp; éléments de décor (DA)</h2>
                 <p className="pg-help">
                   Les lignes « Proportionnel » suivent automatiquement la taille du moule ; les lignes « Fixe » (cake drum, topper, ruban) restent comptées une seule fois par commande.
                 </p>
               </div>
-              <label className="pg-field" style={{ minWidth: 220 }}>
+              <label className="pg-field" style={{ minWidth: "min(100%, 220px)" }}>
                 <span className="pg-label">Intitulé de la création</span>
                 <input
                   className="pg-input"
@@ -572,7 +573,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
             </div>
 
             <div className="pg-table-wrap">
-              <table className="pg-table">
+              <table className="pg-table pg-est-table">
                 <thead>
                   <tr>
                     <th scope="col">Ingrédient / élément</th>
@@ -580,7 +581,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                     <th scope="col" className="pg-num">Qté base</th>
                     <th scope="col">Unité</th>
                     <th scope="col" className="pg-num">Parage %</th>
-                    <th scope="col" className="pg-num">Prix unit. HT (DA)</th>
+                    <th scope="col" className="pg-num">Prix unit. (DA)</th>
                     <th scope="col" className="pg-num">Coût ajusté</th>
                     <th scope="col"><span className="sr-only">Retirer</span></th>
                   </tr>
@@ -609,7 +610,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                             <option value="fixe">Fixe / commande</option>
                           </select>
                         </td>
-                        <td className="pg-num">
+                        <td className="pg-num" data-label="Qté base">
                           <input
                             aria-label={`Quantité base ${l.nom}`}
                             type="number"
@@ -621,7 +622,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                             onChange={(e) => updateLine(l.id, { qteBase: Number(e.target.value) })}
                           />
                         </td>
-                        <td>
+                        <td data-label="Unité">
                           <input
                             aria-label={`Unité ${l.nom}`}
                             className="pg-input pg-input-sm"
@@ -631,7 +632,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                             onChange={(e) => updateLine(l.id, { unite: e.target.value })}
                           />
                         </td>
-                        <td className="pg-num">
+                        <td className="pg-num" data-label="Parage %">
                           <input
                             aria-label={`Parage ${l.nom}`}
                             type="number"
@@ -644,9 +645,9 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                             onChange={(e) => updateLine(l.id, { paragePct: Number(e.target.value) })}
                           />
                         </td>
-                        <td className="pg-num">
+                        <td className="pg-num" data-label="Prix unit. (DA)">
                           <input
-                            aria-label={`Prix unitaire HT ${l.nom}`}
+                            aria-label={`Prix unitaire ${l.nom}`}
                             type="number"
                             min={0}
                             step="any"
@@ -660,7 +661,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                             }}
                           />
                         </td>
-                        <td className="pg-num">
+                        <td className="pg-num" data-label="Coût ajusté">
                           {computed?.prixManquant ? (
                             <span className="pg-badge" data-tone="warning">Prix manquant</span>
                           ) : computed ? (
@@ -736,14 +737,14 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                 />
               </label>
               <label className="pg-field">
-                <span className="pg-label">Taux horaire (DA/h)</span>
+                <span className="pg-label">Salaire par journée de travail (DA)</span>
                 <input
                   type="number"
                   min={0}
-                  step={10}
+                  step={100}
                   className="pg-input"
-                  value={tauxHoraire}
-                  onChange={(e) => setTauxHoraire(Number(e.target.value))}
+                  value={Math.round(tauxHoraire * HEURES_PAYEES_PAR_JOUR_DEFAUT * 100) / 100}
+                  onChange={(e) => setTauxHoraire(tauxHoraireDepuisJournee(Math.min(SALAIRE_JOURNALIER_MAX, Math.max(0, Number(e.target.value) || 0))))}
                 />
               </label>
               <label className="pg-field">
@@ -804,7 +805,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                 />
               </label>
               <label className="pg-field">
-                <span className="pg-label">Tester un prix HT fixe (DA, optionnel)</span>
+                <span className="pg-label">Tester un prix fixe (DA, optionnel)</span>
                 <input
                   type="number"
                   min={0}
@@ -847,7 +848,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
               {res.coutIncomplet && (
                 <div role="alert" className="pg-alert pg-alert-warning">
                   <strong>Coût partiel — aucun prix plancher proposé.</strong>{" "}
-                  Renseignez le prix unitaire HT de : {res.lignesSansPrix.join(", ")}. Un coût incomplet ne doit jamais servir de base de vente.
+                  Renseignez le prix unitaire de : {res.lignesSansPrix.join(", ")}. Un coût incomplet ne doit jamais servir de base de vente.
                 </div>
               )}
 
@@ -870,7 +871,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                 </div>
                 <div className="pg-est-total-row">
                   <dt>
-                    {res.coutIncomplet ? "Coût partiel connu (incomplet)" : "Coût de revient complet HT (RC-03)"}
+                    {res.coutIncomplet ? "Coût partiel connu (incomplet)" : "Coût de revient complet (RC-03)"}
                   </dt>
                   <dd className="pg-num">{dinars(res.coutComplet)}</dd>
                 </div>
@@ -879,7 +880,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                   <dd className="pg-num">{quantite(res.rendementNet)}</dd>
                 </div>
                 <div>
-                  <dt>Coût par part vendable HT (RC-05)</dt>
+                  <dt>Coût par part vendable (RC-05)</dt>
                   <dd className="pg-num">
                     {dinars(res.coutParPartVendable)}
                     {res.coutIncomplet ? " (partiel)" : ""}
@@ -890,16 +891,16 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
               {!res.coutIncomplet && res.prixHtPropose != null && (
                 <div className="pg-est-price-box">
                   <span className="pg-kpi-label">
-                    {prixHtSaisi.trim() !== "" ? "Prix de vente HT testé" : `Prix de vente HT proposé (×${quantite(coefficientCible)})`}
+                    {prixHtSaisi.trim() !== "" ? "Prix de vente testé" : `Prix de vente proposé (×${quantite(coefficientCible)})`}
                   </span>
                   <strong className="pg-est-price-main pg-num">{dinars(prixRetenuHt ?? res.prixHtPropose)}</strong>
                   <p className="pg-help pg-num">
-                    Soit <strong>{dinars(Math.round(((prixRetenuHt ?? res.prixHtPropose) / res.rendementNet) * 100) / 100)}</strong> HT / part vendable
-                    {prixRetenuTtc != null && ` · ${dinars(prixRetenuTtc)} TTC (TVA ${tvaIndicative} %)`}
+                    Soit <strong>{dinars(Math.round(((prixRetenuHt ?? res.prixHtPropose) / res.rendementNet) * 100) / 100)}</strong> / part vendable
+                    {prixRetenuTtc != null && tvaIndicative > 0 && ` · ${dinars(prixRetenuTtc)} avec TVA ${tvaIndicative} %`}
                   </p>
                   {res.margeCommandeHt != null && res.tauxMargePct != null && (
                     <p className="pg-help pg-num" data-tone={res.margeCommandeHt < 0 ? "danger" : undefined}>
-                      Marge brute HT (RC-06) : <strong>{dinars(res.margeCommandeHt)}</strong> ({quantite(Math.round(res.tauxMargePct * 10) / 10)} % du HT)
+                      Marge brute (RC-06) : <strong>{dinars(res.margeCommandeHt)}</strong> ({quantite(Math.round(res.tauxMargePct * 10) / 10)} %)
                     </p>
                   )}
                 </div>
@@ -953,7 +954,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                     <p className="pg-help">
                       {savedDraft.modeleNom} · {savedDraft.parts} parts
                       {savedDraft.prixHtPropose != null
-                        ? ` · ${dinars(savedDraft.prixHtPropose)} HT`
+                        ? ` · ${dinars(savedDraft.prixHtPropose)}`
                         : " · coût partiel (prix à compléter)"}{" "}
                       ({dateLisible(savedDraft.savedAt, "short")})
                     </p>

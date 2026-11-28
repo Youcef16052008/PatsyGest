@@ -1,7 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { saisirCloture } from "@/lib/actions-journaux";
+import { useActionState, useState, useSyncExternalStore } from "react";
+import { saisirCloture } from "@/lib/actions-clotures";
+import {
+  ATTENTE_SERVEUR,
+  messageAttenteCloture,
+  snapshotAttenteClotureNavigateur,
+} from "@/lib/file-attente-cloture";
+import { jourLocal } from "@/lib/workspace-data";
 
 type Option = { id: string; label: string };
 type Row = {
@@ -46,6 +52,24 @@ export default function ClotureForm({ sites, articles }: { sites: Option[]; arti
   const update = (i: number, patch: Partial<Row>) =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
 
+  /**
+   * Ventes encore en file locale (coupure réseau). On ne clôture pas un tiroir
+   * qui contient leur argent sans le dire explicitement.
+   */
+  const attente = useSyncExternalStore(
+    (cb) => {
+      window.addEventListener("storage", cb);
+      window.addEventListener("patisgest-sale-queue", cb);
+      return () => {
+        window.removeEventListener("storage", cb);
+        window.removeEventListener("patisgest-sale-queue", cb);
+      };
+    },
+    snapshotAttenteClotureNavigateur,
+    () => ATTENTE_SERVEUR,
+  );
+  const avertissementFile = messageAttenteCloture(attente);
+
   return (
     <section className="mb-6 rounded-2xl border bg-white p-5">
       <h2 className="mb-1 font-bold">Clôture du jour · produits &amp; tiroir</h2>
@@ -62,7 +86,7 @@ export default function ClotureForm({ sites, articles }: { sites: Option[]; arti
               name="date"
               type="date"
               required
-              defaultValue={new Date().toISOString().slice(0, 10)}
+              defaultValue={jourLocal()}
               className={field}
             />
           </label>
@@ -140,11 +164,11 @@ export default function ClotureForm({ sites, articles }: { sites: Option[]; arti
 
         <fieldset className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
           <legend className="px-1 text-xs font-bold uppercase tracking-wide text-slate-600">
-            2. Comptage tiroir-caisse (DA TTC · facultatif, séparé des produits)
+            2. Comptage tiroir-caisse (en DA · facultatif, séparé des produits)
           </legend>
           <p className="mb-2 text-xs text-slate-500">
-            Espèces attendues = fond initial + ventes espèces − sorties justifiées. Les règlements carte/CIB,
-            chèque/virement et imports Z sont affichés à part dans le rapprochement.
+            Espèces attendues = fond initial + ventes espèces − sorties justifiées. Les règlements chèque/virement,
+            et imports Z sont affichés à part dans le rapprochement.
           </p>
           <div className="grid gap-3 sm:grid-cols-4">
             <label className={label}>
@@ -193,7 +217,15 @@ export default function ClotureForm({ sites, articles }: { sites: Option[]; arti
           </div>
         </fieldset>
 
-        <button disabled={pending || articles.length === 0} className={btn}>
+        {avertissementFile && (
+          <p role="alert" data-testid="file-attente" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            {avertissementFile}
+          </p>
+        )}
+        <button
+          disabled={pending || articles.length === 0 || attente.tickets > 0 || attente.illisible}
+          className={btn}
+        >
           {pending ? "Enregistrement…" : "Enregistrer la clôture"}
         </button>
         {state.erreur && <p role="alert" className="text-sm text-red-700">{state.erreur}</p>}

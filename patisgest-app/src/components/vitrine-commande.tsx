@@ -2,6 +2,7 @@
 
 import { useActionState, useId, useMemo, useState } from "react";
 import { demanderCommande, type CommandeState } from "@/app/(vitrine)/vitrine/[slug]/commander/actions";
+import { jourLocal, plusJours } from "@/lib/workspace-data";
 
 const field = "mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm";
 const label = "block text-xs font-semibold text-slate-600";
@@ -38,12 +39,8 @@ export default function VitrineCommande({
     return `${Date.now().toString(36)}-${idRef}`;
   });
 
-  const aujourdhui = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const max = useMemo(() => {
-    const d = new Date();
-    d.setFullYear(d.getFullYear() + 1);
-    return d.toISOString().slice(0, 10);
-  }, []);
+  const aujourdhui = useMemo(() => jourLocal(), []);
+  const max = useMemo(() => plusJours(jourLocal(), 365), []);
 
   if (state.succes) {
     return (

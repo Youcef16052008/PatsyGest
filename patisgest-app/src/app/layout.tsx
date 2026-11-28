@@ -1,14 +1,17 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
-import { APPEARANCE_COOKIE, readAppearance } from "@/lib/appearance";
+import { APPEARANCE_COOKIE, modeActif, readAppearance } from "@/lib/appearance";
+import { LOCALE_COOKIE, readLocale } from "@/lib/i18n";
+import { lireLangueProfil } from "@/lib/locale-profil";
 import { AppearanceProvider } from "@/components/appearance";
+import { LocaleProvider } from "@/components/locale-provider";
 import ServiceWorkerSetup from "@/components/service-worker";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PâtisGest — Gestion pâtisserie",
-  description: "Gérez vos stocks, recettes, fabrications et ventes dans le même espace, du laboratoire à la boutique.",
+  title: "PâtisGest — Boulangerie, Viennoiserie, Pâtisserie & Cake Shop",
+  description: "Gérez votre boulangerie, viennoiserie, pâtisserie ou cake shop : stocks, recettes, production, commandes, caisse et rentabilité.",
   applicationName: "PâtisGest",
   // NF-06 : installation sur tablette Android / PC.
   manifest: "/manifest.webmanifest",
@@ -31,8 +34,12 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const initial = readAppearance((await cookies()).get(APPEARANCE_COOKIE)?.value);
-  return <html lang="fr" data-design={initial.design} data-mode={initial.modes[initial.design]}>
-    <body className="antialiased"><AppearanceProvider initial={initial}>{children}</AppearanceProvider><ServiceWorkerSetup/></body>
+  const cookieStore = await cookies();
+  const initial = readAppearance(cookieStore.get(APPEARANCE_COOKIE)?.value);
+  const cookieLocale = readLocale(cookieStore.get(LOCALE_COOKIE)?.value);
+  const profilLocale = await lireLangueProfil();
+  const locale = profilLocale ?? cookieLocale;
+  return <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"} data-design={initial.design} data-mode={modeActif(initial)}>
+    <body className="antialiased"><LocaleProvider initialLocale={locale}><AppearanceProvider initial={initial}>{children}</AppearanceProvider></LocaleProvider><ServiceWorkerSetup/></body>
   </html>;
 }

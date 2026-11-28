@@ -72,3 +72,26 @@ test('erreurs : un retour réseau incertain n’efface pas une opération en att
   for (const statut of [0, 401, 429, 500, 502, 503, 504]) assert.equal(echecHttpReessayable(statut), true);
   for (const statut of [200, 400, 403, 409, 422]) assert.equal(echecHttpReessayable(statut), false);
 });
+
+test('lot : une double réception dit quoi corriger, pas « vérifiez la saisie »', () => {
+  // RI-04 a posé une clé unique sur les réceptions directes. Sans ce cas nommé,
+  // l'utilisateur qui saisit deux fois le même bon recevait un message générique
+  // alors que la correction est évidente et unique.
+  const msg = messageUtilisateur(
+    { code: '23505', message: 'duplicate key value violates unique constraint "lots_reception_unique"' },
+    'Réception refusée',
+  );
+  assert.match(msg, /numéro de lot existe déjà/);
+  assert.match(msg, /Corrigez la quantité du lot existant/);
+  // Le détail technique ne doit pas fuir dans le message utilisateur.
+  assert.doesNotMatch(msg, /lots_reception_unique/);
+});
+
+test('lot : une autre violation d’unicité reste générique', () => {
+  const msg = messageUtilisateur(
+    { code: '23505', message: 'duplicate key value violates unique constraint "autre_contrainte"' },
+    'Création refusée',
+  );
+  assert.doesNotMatch(msg, /numéro de lot/);
+  assert.match(msg, /existe déjà ou viole une règle/);
+});

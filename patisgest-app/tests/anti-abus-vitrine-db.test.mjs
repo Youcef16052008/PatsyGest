@@ -94,6 +94,27 @@ test('B-008 : plafond global relevé à 300 ; migration rejouable', async () => 
     assert.match(def, /if v_flux >= 300 then/);
     assert.doesNotMatch(def, /if v_flux >= 30 then/);
     await db.exec(await readFile(new URL(`../supabase/${cheminMigration('38-anti-abus-vitrine-source.sql')}`, import.meta.url), 'utf8'));
-    assert.equal((await db.query('select version from app_schema_version where id=1')).rows[0].version, 38);
+    // Intention du test : la 38 est rejouable sur son propre périmètre. La version
+    // de schéma ne doit donc jamais redescendre en dessous de 38 — elle vaut 57
+    // depuis la migration 57 (pack DZ VAGUE 4), qui la relève aussi.
+    const version = (await db.query('select version from app_schema_version where id=1')).rows[0].version;
+    assert.ok(version >= 38, `version ${version} : la 38 a abaissé le marqueur de schéma`);
+  } finally { await db.close(); }
+});
+
+test('H04-06 : la vérification par source verrouille avant l’insertion', async () => {
+  const db = await chargerTout();
+  try {
+    const def = (await db.query(`select pg_get_functiondef('public.patisgest_verifier_source_vitrine(text,text)'::regprocedure) as d`)).rows[0].d;
+    // Échoue sur la version 38 d'origine : aucun verrou, insertion avant comptage.
+    assert.match(def, /pg_catalog\.pg_advisory_xact_lock/, 'un verrou de transaction est requis');
+    assert.ok(
+      def.indexOf('pg_advisory_xact_lock') < def.indexOf('insert into public.vitrine_sources_recentes'),
+      'le verrou doit précéder l’insertion et le comptage',
+    );
+    // Le correctif ne change pas le plafond métier observé séquentiellement.
+    for (let i = 0; i < 10; i++) await verifier(db, SRC_A);
+    await assert.rejects(verifier(db, SRC_A), /Trop de demandes depuis votre connexion/);
+    await verifier(db, SRC_B);
   } finally { await db.close(); }
 });

@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '22.22.3'
           cache: npm
           cache-dependency-path: patisgest-app/package-lock.json
       - run: npm ci
@@ -69,7 +69,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: '22.22.3'
           cache: npm
           cache-dependency-path: patisgest-app/package-lock.json
       - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
@@ -105,3 +105,166 @@ jobs:
         run: |
           cd "$RUNNER_TEMP/patsygest-ci" 2>/dev/null || exit 0
           supabase stop --no-backup
+
+  parcours-e2e:
+    name: Parcours Playwright · ${{ matrix.spec }}
+    # Déclenchement manuel (`workflow_dispatch`) sur pile Supabase CLI jetable :
+    # démarre Auth + PostgREST + PostgreSQL locaux, applique la chaîne 01..53,
+    # crée les comptes Auth de test + seed E2E, construit et démarre `next start`,
+    # puis exécute les 4 parcours Playwright dans Chromium headless.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        spec: [caisse, stock, transfert, vitrine]
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      PATSYGEST_E2E_BASE: http://127.0.0.1:3416
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.22.3'
+          cache: npm
+          cache-dependency-path: patisgest-app/package-lock.json
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
+        with:
+          version: 2.75.0
+      - run: npm ci
+        working-directory: patisgest-app
+      - name: Installer Chromium
+        working-directory: patisgest-app
+        run: npx playwright install --with-deps chromium
+      - name: Démarrer une pile Supabase locale jetable
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/patsygest-e2e"
+          cd "$RUNNER_TEMP/patsygest-e2e"
+          supabase init
+          supabase start -x studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta,inbucket
+          umask 077
+          supabase status -o env > "$RUNNER_TEMP/supabase-e2e.env"
+      - name: Amorcer le schéma, les comptes Auth et le seed E2E
+        shell: bash
+        working-directory: patisgest-app
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNNER_TEMP/supabase-e2e.env"
+          set +a
+          export PATSYGEST_DISPOSABLE=yes
+          node tests/e2e/bootstrap-ci.mjs
+      - name: Construire l'application
+        shell: bash
+        working-directory: patisgest-app
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNNER_TEMP/supabase-e2e.env"
+          set +a
+          export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
+          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY"
+          npm run build
+      - name: Démarrer l'application
+        shell: bash
+        working-directory: patisgest-app
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNNER_TEMP/supabase-e2e.env"
+          set +a
+          export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
+          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY"
+          export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+          export VITRINE_SECRET_ANTI_ABUS="ci-e2e-disposable-vitrine-anti-abus-secret-32chars"
+          nohup npm run start -- -p 3416 > "$RUNNER_TEMP/app.log" 2>&1 &
+          for _ in $(seq 1 60); do
+            if curl -fsS "$PATSYGEST_E2E_BASE/api/health" > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "::error::L'application n'a pas répondu sur $PATSYGEST_E2E_BASE après 120 s"
+          tail -50 "$RUNNER_TEMP/app.log"
+          exit 1
+      - name: Parcours ${{ matrix.spec }}
+        shell: bash
+        working-directory: patisgest-app
+        run: |
+          set -euo pipefail
+          set -a
+          source "$RUNNER_TEMP/supabase-e2e.env"
+          set +a
+          export PATSYGEST_PG_URL="$DB_URL"
+          set +e
+          node --test "tests/e2e/${{ matrix.spec }}.spec.mjs" 2>&1 | tee "$RUNNER_TEMP/e2e-result.txt"
+          result=${PIPESTATUS[0]}
+          set -e
+          if [ "$result" -ne 0 ]; then
+            while IFS= read -r line; do
+              line=${line//'%'/'%25'}; line=${line//$'\r'/'%0D'}; line=${line//$'\n'/'%0A'}
+              echo "::error::$line"
+            done < <(grep -E '(^not ok|error:|Error:|TimeoutError:|AssertionError:|operator:|expected:|actual:|waiting for|locator|spec\.mjs|helpers\.mjs)' "$RUNNER_TEMP/e2e-result.txt" | head -25)
+          fi
+          exit "$result"
+      - name: Journal de l'application
+        if: failure()
+        run: tail -100 "$RUNNER_TEMP/app.log" || true
+      - name: Détruire la pile locale
+        if: always()
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/patsygest-e2e" 2>/dev/null || exit 0
+          supabase stop --no-backup || true
+
+  b2-mesures:
+    name: Mesures B.2 (Chromium FCP, AR/RTL, Accessibilité, Charge, Sondes)
+    if: github.event_name == 'workflow_dispatch'
+    needs: [quality]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: patisgest-app
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      B2_LOCAL_BASE: http://127.0.0.1:3419
+      B2_PROD_BASE: https://patsy-gest.vercel.app
+      B2_DEMO_SECRET: ci-b2-audit-demo-secret-0123456789abcdef
+      B2_RUN_LOAD: '1'
+      B2_CONCURRENCY: '5'
+      B2_HEALTH_REQUESTS: '50'
+      B2_PAGE_REQUESTS: '20'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.22.3'
+          cache: npm
+          cache-dependency-path: patisgest-app/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Démarrer le serveur démo local et mesurer (local + production)
+        shell: bash
+        run: |
+          set -euo pipefail
+          PATISGEST_DEMO_MODE=true \
+          PATISGEST_DEMO_SECRET="$B2_DEMO_SECRET" \
+          NEXT_PUBLIC_SUPABASE_URL='' \
+          NEXT_PUBLIC_SUPABASE_ANON_KEY='' \
+          nohup npx next dev -p 3419 -H 127.0.0.1 > "$RUNNER_TEMP/b2-app.log" 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 90); do
+            if curl -fsS "$B2_LOCAL_BASE/api/health" > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/audit-b2-reel.mjs
+      - name: Vérifier les sondes d'observabilité sur la production
+        if: ${{ always() }}
+        env:
+          APP_URL: https://patsy-gest.vercel.app
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          CERT_EXPECTED_SCHEMA_VERSION: '57'
+        run: node scripts/observabilite-sondes.mjs

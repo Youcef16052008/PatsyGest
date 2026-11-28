@@ -2,19 +2,20 @@
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { planningOverview, createPlanningTask, markPlanningTask, removePlanningTask, setDailyCapacity, rescheduleProduction, type State } from '@/lib/patisgest-store';
+import { jourLocal } from '@/lib/workspace-data';
 import { TomorrowLabDemo } from './tomorrow-lab-panel';
 
-const box='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
-const field='w-full rounded-lg border border-slate-300 bg-white p-2 text-sm';
-const btn='rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white hover:bg-violet-800';
+const box='pg-card pg-card-pad';
+const field='pg-input';
+const btn='pg-button';
 type Props={data:State; canEdit:boolean; save:(state:State)=>boolean; notify:(message:string)=>void};
-function act(fn:()=>State, props:Props, msg:string) {try {if(props.save(fn())) props.notify(msg);} catch(err){props.notify(err instanceof Error?err.message:'Opération impossible.');}}
+function act(fn:()=>State, props:Props, msg:string):boolean {try {if(props.save(fn())) {props.notify(msg); return true;} return false;} catch(err){props.notify(err instanceof Error?err.message:'Opération impossible.'); return false;}}
 const fmt=(value:number)=>new Intl.NumberFormat('fr-DZ',{maximumFractionDigits:4}).format(value);
 export function PlanningOperations(props:Props) {
   const {data,canEdit}=props;
-  const [date,setDate]=useState(()=>new Date().toISOString().slice(0,10));
+  const [date,setDate]=useState(()=>jourLocal());
   const overview=planningOverview(data,date);
-  function addTask(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);act(()=>createPlanningTask(data,{date,name:String(f.get('name')),duration:Number(f.get('duration')),responsible:String(f.get('responsible')),orderId:String(f.get('order'))}),props,'Tâche ajoutée à la démo.');}
+  function addTask(e:FormEvent<HTMLFormElement>){e.preventDefault();const form=e.currentTarget;const f=new FormData(form);if(act(()=>createPlanningTask(data,{date,name:String(f.get('name')),duration:Number(f.get('duration')),responsible:String(f.get('responsible')),orderId:String(f.get('order'))}),props,'Tâche ajoutée à la démo.')) form.reset();}
   function setCapacity(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);act(()=>setDailyCapacity(data,Number(f.get('capacity'))),props,'Capacité journalière mise à jour.');}
   function reschedule(e:FormEvent<HTMLFormElement>,id:string){e.preventDefault();const f=new FormData(e.currentTarget);act(()=>rescheduleProduction(data,id,String(f.get('date'))),props,'Date de l’ordre mise à jour.');}
   return <><TomorrowLabDemo state={data} canValidate={canEdit} apply={(fn, ok) => { try { if (props.save(fn(data))) { props.notify(ok); return true; } return false; } catch (err) { props.notify(err instanceof Error ? err.message : 'Opération impossible.'); return false; } }}/>

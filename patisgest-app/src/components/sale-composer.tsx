@@ -1,22 +1,28 @@
 "use client";
 
 import Image from "next/image";
-import { useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useId, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import {
   addToCart,
   checkCartStock,
   computeCartTotals,
   MAX_CART_QTE,
   PAYMENT_MODE_LABELS,
+  PAYMENT_MODES_SAISIE,
   removeFromCart,
   setCartLineQty,
   stepCartLine,
   type CartItem,
   type PaymentMode,
 } from "@/lib/pos-cart";
+import { defaultPastryVisual, PRODUCT_PHOTOS_KEY_PREFIX, sanitizeProductPhotosSnapshot } from "@/lib/pastry-visuals";
+import { sanitizePhotoSource } from "@/lib/recipe-photo";
 import { correspond, dinars, quantite, siteCaisse, type CatalogProduct, type SiteStock, type WorkspaceSite } from "@/lib/workspace-data";
 import { EmptyState } from "./workspace-ui";
 import { Icon } from "./workspace-icons";
+import { useLocale } from "./locale-provider";
+import NetworkStatusPill from "./network-status-pill";
+import SaleCreditFields from "./sale-credit-fields";
 
 const PAGE_SIZE = 12;
 
@@ -28,6 +34,7 @@ export default function SaleComposer({
   onSubmit,
   busy = false,
   demo = false,
+  scopeKey = "demo",
   status,
 }: {
   articles: CatalogProduct[];
@@ -36,13 +43,38 @@ export default function SaleComposer({
   expiredStock?: SiteStock | null;
   busy?: boolean;
   demo?: boolean;
+  scopeKey?: string;
   status?: ReactNode;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const id = useId();
+  const { locale, t } = useLocale();
+  const photosSnapshot = useSyncExternalStore(
+    (cb) => {
+      window.addEventListener("storage", cb);
+      window.addEventListener("patisgest-product-photos", cb);
+      return () => {
+        window.removeEventListener("storage", cb);
+        window.removeEventListener("patisgest-product-photos", cb);
+      };
+    },
+    () => {
+      try {
+        return window.localStorage.getItem(`${PRODUCT_PHOTOS_KEY_PREFIX}${scopeKey}`) ?? "{}";
+      } catch {
+        return "{}";
+      }
+    },
+    () => "{}",
+  );
+  const customPhotoMap = sanitizeProductPhotosSnapshot(photosSnapshot);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({});
   const [modePaiement, setModePaiement] = useState<PaymentMode>("especes");
+  const [isCredit, setIsCredit] = useState(false);
+  const [creditNom, setCreditNom] = useState("");
+  const [creditTelephone, setCreditTelephone] = useState("");
+  const [creditType, setCreditType] = useState<"particulier" | "cafe_entreprise">("particulier");
   const [chosenSite, chooseSite] = useState(() => siteCaisse(sites));
   const [search, setSearch] = useState("");
   const [limit, setLimit] = useState(PAGE_SIZE);
@@ -71,7 +103,7 @@ export default function SaleComposer({
   );
 
   const rows = articles.filter((p) => correspond(`${p.label} ${p.code ?? ""}`, search));
-  const canSell = Boolean(site && totals.valide) && !busy;
+  const canSell = Boolean(site && totals.valide) && !busy && (!isCredit || creditNom.trim().length > 0);
 
   const serializedLines = useMemo(
     () =>
@@ -84,6 +116,11 @@ export default function SaleComposer({
   );
 
   function ajouterProduit(product: CatalogProduct) {
+    const unitPrice = prixUnitaire(product);
+    if (unitPrice === null || unitPrice <= 0) {
+      setCartError(`« ${product.label} » attend la validation de son prix par le propriétaire.`);
+      return;
+    }
     try {
       setCartError(null);
       setCart((prev) => {
@@ -132,6 +169,9 @@ export default function SaleComposer({
     setCart([]);
     setQtyDrafts({});
     setCartError(null);
+    setIsCredit(false);
+    setCreditNom("");
+    setCreditTelephone("");
   }
 
   return (
@@ -139,8 +179,8 @@ export default function SaleComposer({
       <section className="pg-card pg-card-pad pg-catalog" aria-labelledby={`${id}-catalog`}>
         <div className="pg-card-head">
           <div>
-            <h2 id={`${id}-catalog`}>Produits à vendre</h2>
-            <p>Touchez un ou plusieurs produits pour composer le panier client (stocks éligibles FEFO).</p>
+            <h2 id={`${id}-catalog`}>{t.posProducts}</h2>
+            <p>Touchez un produit pour l’ajouter au panier. Les quantités vendables tiennent compte des dates limites.</p>
           </div>
           {status}
         </div>
@@ -210,6 +250,7 @@ export default function SaleComposer({
               const dispo = currentStock(a);
               const perime = currentExpired(a);
               const price = prixUnitaire(a);
+              const unpriced = price === null || price <= 0;
               const inCart = qtyInCart.get(a.id) ?? 0;
               return (
                 <button
@@ -217,7 +258,8 @@ export default function SaleComposer({
                   key={a.id}
                   className="pg-product"
                   aria-pressed={inCart > 0}
-                  disabled={busy}
+                  disabled={busy || unpriced}
+                  title={unpriced ? "Prix à valider par le patron avant mise en vente" : undefined}
                   onClick={() => ajouterProduit(a)}
                 >
                   <span className="pg-product-body">
@@ -232,7 +274,11 @@ export default function SaleComposer({
                           : `${quantite(dispo, a.unit)} utilisable${dispo > 1 ? "s" : ""}`}
                         {perime > 0 ? ` · ${quantite(perime)} DLC dépassée` : ""}
                       </span>
-                      {price !== null && <small>{dinars(price)} TTC</small>}
+                      {unpriced ? (
+                        <small className="text-amber-700 font-semibold">Prix à valider par le patron</small>
+                      ) : (
+                        <small>{dinars(price)}</small>
+                      )}
                       {(noms.get(a.label) ?? 0) > 1 && a.code && <small>{a.code}</small>}
                     </span>
                     <span className="pg-product-select" data-count={inCart > 0 || undefined}>
@@ -243,17 +289,15 @@ export default function SaleComposer({
                       )}
                     </span>
                   </span>
-                  {a.photo && (
-                    <Image
-                      className="pg-product-photo"
-                      src={a.photo}
-                      alt=""
-                      width={480}
-                      height={336}
-                      loading={index < 2 ? "eager" : "lazy"}
-                      unoptimized
-                    />
-                  )}
+                  <Image
+                    className="pg-product-photo"
+                    src={customPhotoMap[a.id] ?? sanitizePhotoSource(a.photo) ?? defaultPastryVisual(a.label)}
+                    alt=""
+                    width={480}
+                    height={336}
+                    loading={index < 2 ? "eager" : "lazy"}
+                    unoptimized
+                  />
                 </button>
               );
             })}
@@ -293,19 +337,22 @@ export default function SaleComposer({
           <div style={{ flex: 1 }}>
             <p className="pg-kicker">{demo ? "Simulation panier" : "Panier client"}</p>
             <h2 id={`${id}-draft`}>
-              Ticket en cours{cart.length > 0 ? ` (${cart.length})` : ""}
+              {t.posCartTitle}{cart.length > 0 ? ` (${cart.length})` : ""}
             </h2>
           </div>
-          {cart.length > 0 && (
-            <button
-              type="button"
-              className="pg-btn pg-btn-sec pg-btn-xs"
-              disabled={busy}
-              onClick={viderPanier}
-            >
-              Vider
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <NetworkStatusPill inline />
+            {cart.length > 0 && (
+              <button
+                type="button"
+                className="pg-btn pg-btn-sec pg-btn-xs"
+                disabled={busy}
+                onClick={viderPanier}
+              >
+                Vider
+              </button>
+            )}
+          </div>
         </div>
 
         {!sites.length ? (
@@ -320,7 +367,7 @@ export default function SaleComposer({
           <form onSubmit={onSubmit} onReset={viderPanier} className="pg-sale-draft-form">
             <input type="hidden" name="siteId" value={site?.id ?? ""} />
             <input type="hidden" name="lignesJson" value={serializedLines} />
-            <input type="hidden" name="modePaiement" value={modePaiement} />
+            <input type="hidden" name="modePaiement" value={isCredit ? "cheque_virement" : modePaiement} />
             {/* Compatibilité premier article */}
             <input type="hidden" name="articleId" value={cart[0].articleId} />
 
@@ -334,7 +381,7 @@ export default function SaleComposer({
                         <strong>{line.label}</strong>
                         <small className="pg-cart-unit">
                           {line.unitTTC !== null
-                            ? `${dinars(line.unitTTC)} TTC${line.unit ? ` / ${line.unit}` : ""}`
+                            ? `${dinars(line.unitTTC)}${line.unit ? ` / ${line.unit}` : ""}`
                             : "Tarif à vérifier"}
                         </small>
                       </div>
@@ -405,34 +452,56 @@ export default function SaleComposer({
             ))}
 
             <fieldset className="pg-pay-modes" disabled={busy}>
-              <legend className="pg-label">Règlement encaissé au comptoir</legend>
+              <legend className="pg-label">Mode de règlement</legend>
               <div className="pg-pay-grid">
-                {(Object.keys(PAYMENT_MODE_LABELS) as PaymentMode[]).map((mode) => (
+                {PAYMENT_MODES_SAISIE.map((mode) => (
                   <button
                     key={mode}
                     type="button"
                     className="pg-pay-chip"
-                    data-active={modePaiement === mode || undefined}
-                    aria-pressed={modePaiement === mode}
-                    onClick={() => setModePaiement(mode)}
+                    data-active={(!isCredit && modePaiement === mode) || undefined}
+                    aria-pressed={!isCredit && modePaiement === mode}
+                    onClick={() => {
+                      setIsCredit(false);
+                      setModePaiement(mode);
+                    }}
                   >
                     {PAYMENT_MODE_LABELS[mode]}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  className="pg-pay-chip"
+                  data-active={isCredit || undefined}
+                  aria-pressed={isCredit}
+                  onClick={() => setIsCredit((v) => !v)}
+                >
+                  {isCredit ? t.posCreditToggle : "À crédit (Carnet)"}
+                </button>
               </div>
+              {isCredit && (
+                <SaleCreditFields
+                  creditNom={creditNom}
+                  creditTelephone={creditTelephone}
+                  creditType={creditType}
+                  onChangeNom={setCreditNom}
+                  onChangeTelephone={setCreditTelephone}
+                  onChangeType={setCreditType}
+                />
+              )}
             </fieldset>
 
             <div className="pg-sale-totals">
               <div>
                 <span>
-                  Total TTC{" "}
+                  {isCredit ? "Total à noter au carnet" : "Total à payer"}{" "}
                   <small>
                     {site?.label} · {cart.length} {cart.length > 1 ? "produits" : "produit"}
                   </small>
                 </span>
-                {totals.totalHT !== null && totals.totalTVA !== null && (
+                {totals.totalTVA !== null && totals.totalTVA > 0.01 && (
                   <small className="pg-num">
-                    HT {dinars(totals.totalHT)} · TVA {dinars(totals.totalTVA)}
+                    Dont TVA incluse : {dinars(totals.totalTVA)}
                   </small>
                 )}
               </div>
@@ -448,7 +517,7 @@ export default function SaleComposer({
             )}
 
             <button className="pg-button pg-sale-submit" type="submit" disabled={!canSell}>
-              {busy ? "Enregistrement…" : demo ? "Simuler la vente" : "Encaisser"}
+              {busy ? "Enregistrement…" : demo ? t.posSimPay : locale === "ar" ? t.posPay : "Encaisser"}
               <Icon name="arrow" size={17} />
             </button>
             <p className="pg-sale-note">

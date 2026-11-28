@@ -3,7 +3,8 @@
 import { headers } from "next/headers";
 import { messageUtilisateur } from "@/lib/erreurs-db";
 import { createClient } from "@/lib/supabase/server";
-import { CODES_FONCTION_ABSENTE, sourceVisiteur } from "@/lib/vitrine-anti-abus";
+import { dateCommandeVitrineValide } from "@/lib/workspace-data";
+import { productionSansSecretAntiAbus, sourceVisiteur } from "@/lib/vitrine-anti-abus";
 
 export type CommandeState = {
   erreur?: string;
@@ -50,8 +51,11 @@ export async function demanderCommande(
   if (telephone.replace(/\D/g, "").length < 6 || telephone.length > 40) {
     return { erreur: "Indiquez un numéro de téléphone où vous joindre." };
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateEvent)) {
-    return { erreur: "Choisissez une date pour votre commande." };
+  // H09-09 : la forme AAAA-MM-JJ ne suffit pas (2026-02-30 ni une date
+  // passée ne sont pas des dates). On applique ici les mêmes bornes calendrier
+  // que le RPC 27, avec le jour métier d'Alger, avant tout appel réseau.
+  if (!dateCommandeVitrineValide(dateEvent)) {
+    return { erreur: "Choisissez une date valide, aujourd’hui ou dans l’année à venir." };
   }
   if (!Number.isInteger(parts) || parts < 1 || parts > 10000) {
     return { erreur: "Indiquez un nombre de parts entre 1 et 10000." };
@@ -61,16 +65,30 @@ export async function demanderCommande(
     return { erreur: "Référence de demande invalide. Rechargez la page." };
   }
 
+  const secretAntiAbus = process.env.VITRINE_SECRET_ANTI_ABUS;
+  // H04-01 : en production, l'absence de secret désactiverait le plafond par
+  // source sans que l'utilisateur le sache. On refuse alors la commande plutôt
+  // que de replier silencieusement sur le seul plafond global.
+  if (productionSansSecretAntiAbus(secretAntiAbus)) {
+    return {
+      erreur:
+        "Envoi impossible pour le moment. Réessayez dans un instant ou appelez la boutique.",
+    };
+  }
+
   try {
     const supabase = await createClient();
-    // B-008 : plafond par source (migration 38). Sans secret, ou avant 38, seul le plafond global s'applique.
-    const source = sourceVisiteur(await headers(), process.env.VITRINE_SECRET_ANTI_ABUS);
+    // B-008 : plafond par source (migration 38). Hors production, un secret
+    // absent laisse encore le plafond global seul ; en production c'est refusé
+    // plus haut. Une vérification absente ou en erreur n'est JAMAIS ignorée :
+    // H04-03 transformait une migration 38 manquante en contournement.
+    const source = sourceVisiteur(await headers(), secretAntiAbus);
     if (source) {
       const verif = await supabase.rpc("patisgest_verifier_source_vitrine", {
         p_sous_domaine: sousDomaine,
         p_source: source,
       });
-      if (verif.error && !(CODES_FONCTION_ABSENTE as readonly string[]).includes(verif.error.code ?? "")) {
+      if (verif.error) {
         return { erreur: messageUtilisateur(verif.error, "Commande impossible") };
       }
     }

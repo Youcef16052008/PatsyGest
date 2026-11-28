@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState, type FormEvent } from "react";
 import { sauverEtablissement, type EtablissementState } from "@/lib/actions-etablissement";
 import { LIBELLES_LEGAUX, enteteTicket, avertissementsTicket, type Etablissement } from "@/lib/etablissement";
 
+const DEMO_ETABLISSEMENT_KEY = "patisgest.demo_etablissement.v1";
 const field = "mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm";
 const label = "block text-xs font-semibold text-slate-600";
 const btn = "rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50";
@@ -13,10 +14,71 @@ const btn = "rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white dis
  * obligatoires sur le ticket (§5). Un aperçu montre exactement ce qui sera
  * imprimé, et les manques sont annoncés avant l'enregistrement.
  */
-export default function EtablissementForm({ etablissement }: { etablissement: Etablissement }) {
+export default function EtablissementForm({
+  etablissement,
+  mode = "supabase",
+}: {
+  etablissement: Etablissement;
+  mode?: "demo" | "supabase";
+}) {
   const [state, action, pending] = useActionState(sauverEtablissement, {} as EtablissementState);
-  const avertissements = avertissementsTicket(etablissement);
-  const apercu = enteteTicket(etablissement);
+  const [demoLocal, setDemoLocal] = useState<Etablissement>(() => {
+    if (mode !== "demo" || typeof window === "undefined") return etablissement;
+    try {
+      const raw = window.localStorage.getItem(DEMO_ETABLISSEMENT_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<Etablissement>;
+        return {
+          nom: parsed.nom?.trim() || etablissement.nom,
+          adresse: parsed.adresse ?? etablissement.adresse,
+          telephone: parsed.telephone ?? etablissement.telephone,
+          nif: parsed.nif ?? etablissement.nif,
+          nis: parsed.nis ?? etablissement.nis,
+          rc: parsed.rc ?? etablissement.rc,
+        };
+      }
+    } catch {
+      /* ignore */
+    }
+    return etablissement;
+  });
+  const [demoState, setDemoState] = useState<EtablissementState>({});
+
+  const courant = mode === "demo" ? demoLocal : etablissement;
+  const avertissements = avertissementsTicket(courant);
+  const apercu = enteteTicket(courant);
+  const displayState = mode === "demo" ? demoState : state;
+
+  function onDemoSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const nom = String(fd.get("nom") ?? "").trim();
+    const adresse = String(fd.get("adresse") ?? "").trim();
+    const telephone = String(fd.get("telephone") ?? "").trim();
+    const nif = String(fd.get("nif") ?? "").trim();
+    const nis = String(fd.get("nis") ?? "").trim();
+    const rc = String(fd.get("rc") ?? "").trim();
+    if (!nom) {
+      setDemoState({ erreur: "Nom de l’établissement requis." });
+      return;
+    }
+    const next: Etablissement = {
+      nom,
+      adresse: adresse || null,
+      telephone: telephone || null,
+      nif: nif || null,
+      nis: nis || null,
+      rc: rc || null,
+    };
+    try {
+      window.localStorage.setItem(DEMO_ETABLISSEMENT_KEY, JSON.stringify(next));
+      window.dispatchEvent(new Event("patisgest-demo-etablissement"));
+      setDemoLocal(next);
+      setDemoState({ succes: "Identité enregistrée localement pour vos tickets de démonstration." });
+    } catch {
+      setDemoState({ erreur: "Enregistrement local impossible." });
+    }
+  }
 
   return (
     <section className="mb-6 rounded-2xl border bg-white p-5">
@@ -36,29 +98,33 @@ export default function EtablissementForm({ etablissement }: { etablissement: Et
         </div>
       )}
 
-      <form action={action} className="grid gap-3 sm:grid-cols-2">
+      <form
+        action={mode === "demo" ? undefined : action}
+        onSubmit={mode === "demo" ? onDemoSubmit : undefined}
+        className="grid gap-3 sm:grid-cols-2"
+      >
         <label className={`${label} sm:col-span-2`}>Nom de l’établissement
-          <input name="nom" required maxLength={100} defaultValue={etablissement.nom} className={field} />
+          <input name="nom" required maxLength={100} defaultValue={courant.nom} className={field} />
         </label>
         <label className={`${label} sm:col-span-2`}>Adresse (exigée par le décret 13-378)
-          <input name="adresse" required maxLength={200} defaultValue={etablissement.adresse ?? ""} className={field} />
+          <input name="adresse" required maxLength={200} defaultValue={courant.adresse ?? ""} className={field} />
         </label>
         <label className={label}>Téléphone
-          <input name="telephone" maxLength={40} defaultValue={etablissement.telephone ?? ""} className={field} />
+          <input name="telephone" maxLength={40} defaultValue={courant.telephone ?? ""} className={field} />
         </label>
         <label className={label}>{LIBELLES_LEGAUX.nif}
-          <input name="nif" required inputMode="numeric" placeholder="15 chiffres" defaultValue={etablissement.nif ?? ""} className={field} />
+          <input name="nif" required inputMode="numeric" placeholder="15 chiffres" defaultValue={courant.nif ?? ""} className={field} />
         </label>
         <label className={label}>{LIBELLES_LEGAUX.nis}
-          <input name="nis" required inputMode="numeric" placeholder="15 chiffres" defaultValue={etablissement.nis ?? ""} className={field} />
+          <input name="nis" required inputMode="numeric" placeholder="15 chiffres" defaultValue={courant.nis ?? ""} className={field} />
         </label>
         <label className={label}>{LIBELLES_LEGAUX.rc}
-          <input name="rc" required maxLength={40} placeholder="31/00-123456B26" defaultValue={etablissement.rc ?? ""} className={field} />
+          <input name="rc" required maxLength={40} placeholder="31/00-123456B26" defaultValue={courant.rc ?? ""} className={field} />
         </label>
         <div className="sm:col-span-2">
           <button disabled={pending} className={btn}>{pending ? "Enregistrement…" : "Enregistrer l’identité"}</button>
-          {state.erreur && <p role="alert" className="mt-2 text-sm text-red-700">{state.erreur}</p>}
-          {state.succes && <p role="status" className="mt-2 text-sm text-emerald-700">{state.succes}</p>}
+          {displayState.erreur && <p role="alert" className="mt-2 text-sm text-red-700">{displayState.erreur}</p>}
+          {displayState.succes && <p role="status" className="mt-2 text-sm text-emerald-700">{displayState.succes}</p>}
         </div>
       </form>
 

@@ -1,0 +1,13 @@
+{
+  "name": "patisgest",
+  "private": true,
+  "workspaces": [
+    "patisgest-app"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=patisgest-app",
+    "build": "npm run build --workspace=patisgest-app",
+    "start": "npm run start --workspace=patisgest-app",
+    "lint": "npm run lint --workspace=patisgest-app"
+  }
+}

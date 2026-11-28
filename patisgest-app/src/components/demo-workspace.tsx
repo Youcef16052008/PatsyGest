@@ -35,3 +35,7 @@ export function useDemoWorkspace() {
   if (!context) throw new Error("DemoWorkspaceProvider manquant");
   return context;
 }
+
+export function useOptionalDemoWorkspace() {
+  return useContext(DemoContext);
+}

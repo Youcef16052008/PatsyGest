@@ -27,29 +27,32 @@ export default function MentionsLegales() {
       <section className="mt-8 space-y-3 text-sm">
         <h2 className="text-xl font-bold">1. Éditeur</h2>
         <p>
-          PâtisGest — logiciel de gestion pour pâtisseries artisanales, édité pour le marché
-          algérien. Les coordonnées complètes de l&apos;éditeur (raison sociale, NIF, NIS, RC,
-          adresse, contact) doivent être complétées avant la mise en service commerciale.
+          PâtisGest — logiciel de gestion pour boulangeries, viennoiseries, cake shops et
+          pâtisseries artisanales, édité pour le marché algérien. Les coordonnées complètes de
+          l&apos;éditeur (raison sociale, NIF, NIS, RC, adresse, contact) doivent être complétées
+          avant la mise en service commerciale.
         </p>
 
         <h2 className="pt-4 text-xl font-bold">2. Objet du service</h2>
         <p>
           PâtisGest aide à suivre les stocks, calculer les coûts de revient, planifier la
           production, tracer les lots et encaisser les ventes. Les calculs appliquent les formules
-          du cahier des charges (parage, cuisson, main-d&apos;œuvre chargée, coût par portion
-          hors taxes).
+          du cahier des charges (parage, cuisson, main-d&apos;œuvre chargée, coût par portion en
+          DA).
         </p>
         <p className="font-semibold">
           PâtisGest est un outil d&apos;aide à la décision. Il ne remplace ni la comptabilité
           légale, ni le conseil fiscal. Les résultats affichés dépendent des données saisies.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold">3. Fiscalité — TVA</h2>
+        <h2 className="pt-4 text-xl font-bold">3. Fiscalité algérienne — Régime IFU &amp; TVA</h2>
         <p>
-          TVA par défaut : <b>19 %</b> sur les ventes de pâtisserie fine (produits transformés) et{" "}
-          <b>9 %</b> sur les achats de matières de base (farine, lait, sucre). Ces taux sont
-          réglables par article. Le coût de revient est toujours calculé <b>hors taxes</b>
-          (règle RC-05) : la TVA n&apos;entre jamais dans un coût.
+          Les prix en boutique sont saisis directement en dinars algériens (DA) payés par le client.
+          La TVA est réglable par article selon le régime fiscal algérien (LF 2026) : <b>0 %</b>{" "}
+          (IFU, non-assujetti ou pain courant exonéré), <b>9 %</b> (taux réduit : farine, lait,
+          sucre, levure, semoule) ou <b>19 %</b> (taux normal : pâtisserie fine, viennoiserie, cake
+          design). Pour les établissements soumis à la TVA, la part incluse est extraite
+          automatiquement lors de l&apos;export comptable.
         </p>
 
         <h2 className="pt-4 text-xl font-bold">4. Conservation des documents</h2>
@@ -73,8 +76,40 @@ export default function MentionsLegales() {
         <p>
           Les données des clients (nom, téléphone) servis en pâtisserie sont collectées pour la
           seule exécution de la commande. Elles sont isolées par établissement (RLS) et ne sont
-          accessibles qu&apos;aux comptes autorisés. Un export et une suppression sur demande sont
-          possibles. Aucune donnée n&apos;est revendue.
+          accessibles qu&apos;aux comptes autorisés. Aucune donnée n&apos;est revendue.
+        </p>
+        <p className="mt-2">
+          <b>Droit d&apos;accès :</b> le propriétaire peut produire un export des données détenues,
+          et cet export est lui-même enregistré dans le journal d&apos;audit.
+        </p>
+        <p className="mt-2">
+          <b>Droit d&apos;effacement :</b> les données identifiantes d&apos;une commande peuvent être
+          anonymisées sur demande — le nom et le téléphone sont remplacés par une référence.
+          La commande et la vente correspondantes sont <b>conservées</b> : la loi impose de garder
+          les pièces comptables dix ans, et elle demande de ne plus identifier la personne, non de
+          détruire les écritures. Nous ne dirons donc pas « suppression » là où nous faisons une
+          anonymisation : ce serait promettre autre chose que ce qui est fait.
+        </p>
+        <p className="mt-2">
+          <b>Hébergement :</b> la base de données et les fichiers sont hébergés dans l&apos;Union
+          européenne (région <code>eu-west-1</code>, Irlande) chez Supabase. Les fonctions
+          applicatives déployées sur Vercel (offre Hobby) s&apos;exécutent actuellement dans la
+          région <code>iad1</code> (États-Unis, côte Est), ce qui implique un transit applicatif
+          hors UE et Algérie tant que la région Vercel n&apos;est pas basculée en Europe et
+          encadrée par un DPA.
+        </p>
+        <p className="mt-2">
+          <b>Durées de conservation :</b> les pièces comptables et les commandes sont conservées
+          dix ans (obligation commerciale). Les données identifiantes d&apos;une commande
+          anonymisée disparaissent immédiatement, la référence d&apos;anonymisation restant la
+          seule trace. Le journal d&apos;audit est conservé dix ans et ne peut pas être modifié.
+        </p>
+        <p className="mt-2">
+          <b>Responsable de traitement :</b> l&apos;exploitant de l&apos;établissement, qui décide
+          des données collectées dans son commerce. Subordonné aux obligations de la loi 18-07,
+          il tient le registre des traitements et répond aux demandes de ses clients ; l&apos;export
+          et l&apos;anonymisation sont les outils prévus pour cela. PâtisGest fournit le logiciel et
+          n&apos;exploite pas les données de ses utilisateurs.
         </p>
 
         <h2 className="pt-4 text-xl font-bold">7. Rôles et accès</h2>

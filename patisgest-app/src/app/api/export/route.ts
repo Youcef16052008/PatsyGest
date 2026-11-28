@@ -4,7 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { TABLES_EXPORT, interpreterPeriode, nomFichier, tableExportable, versCsv, type ValeurCsv } from "@/lib/csv";
 import { lireModulesDesactives } from "@/lib/modules-access";
 import { messageUtilisateur } from "@/lib/erreurs-db";
+import { journalErreurRoute } from "@/lib/observabilite-route";
 import { lirePages } from "@/lib/pagination";
+import { estProprietaireSeul } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +17,13 @@ export const dynamic = "force-dynamic";
  * (migration 17). Aucune donnée n'est modifiée.
  */
 export async function GET(request: Request) {
-  const ctx = await getSessionContext();
+  // Export CSV = issue de secours en LECTURE : accessible même verrouillé,
+  // pour qu'un essai échu n'emprisonne pas les données du propriétaire.
+  const ctx = await getSessionContext({ allowLocked: true });
   if (!ctx) return NextResponse.json({ erreur: "Session requise." }, { status: 401 });
   // Les tables dites non « coût » contiennent aussi des coûts et des JSON
   // financiers. Aucun export brut employé sans projection expurgée validée.
-  if (ctx.role !== "proprietaire") return NextResponse.json({ erreur: "Export non autorisé." }, { status: 403 });
+  if (!estProprietaireSeul(ctx.role)) return NextResponse.json({ erreur: "Export non autorisé." }, { status: 403 });
 
   const cle = new URL(request.url).searchParams.get("table") ?? "";
   if (!tableExportable(cle, canReadCosts(ctx.role))) {
@@ -40,8 +44,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ erreur: "Filtre de période non applicable à cette table." }, { status: 400 });
   }
 
+  let etape = "client";
   try {
     const supabase = await createClient();
+    etape = `lecture:${cle}`;
     const lecture = await lirePages<Record<string, ValeurCsv>>(
       async (offset, limite) => {
         let requete = supabase.from(def.table).select("*").eq("client_id", ctx.clientId);
@@ -58,6 +64,7 @@ export async function GET(request: Request) {
       }
       return NextResponse.json({ erreur: lecture.error ? messageUtilisateur(lecture.error, "Export impossible") : "Export impossible" }, { status: 500 });
     }
+    etape = "csv";
     const lignes = lecture.lignes;
     // Colonnes = union des clés rencontrées, ordre stable (alphabétique) pour
     // que deux exports successifs soient comparables au diff.
@@ -73,7 +80,8 @@ export async function GET(request: Request) {
         "Cache-Control": "no-store",
       },
     });
-  } catch {
+  } catch (erreur) {
+    journalErreurRoute("api/export", etape, erreur);
     return NextResponse.json({ erreur: "Supabase est inaccessible depuis ce serveur." }, { status: 503 });
   }
 }

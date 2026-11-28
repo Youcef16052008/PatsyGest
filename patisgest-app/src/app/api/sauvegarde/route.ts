@@ -3,11 +3,13 @@ import { getSessionContext } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { lireModulesDesactives } from "@/lib/modules-access";
 import { messageUtilisateur } from "@/lib/erreurs-db";
+import { journalErreurRoute } from "@/lib/observabilite-route";
 import { lirePages } from "@/lib/pagination";
 import {
   ORDRE_RESTAURATION, colonneTenant, construireSauvegarde, nomFichierSauvegarde, MAX_OCTETS_SAUVEGARDE,
   type TableSauvegardee,
 } from "@/lib/sauvegarde";
+import { estProprietaireSeul } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -18,15 +20,18 @@ export const dynamic = "force-dynamic";
  * Lecture seule, aucune écriture.
  */
 export async function GET() {
-  const ctx = await getSessionContext();
+  // Sauvegarde = issue de secours : un propriétaire verrouillé doit pouvoir
+  // emporter ses données (promesse « aucune donnée en otage »). Lecture seule.
+  const ctx = await getSessionContext({ allowLocked: true });
   if (!ctx) return NextResponse.json({ erreur: "Session requise." }, { status: 401 });
-  if (ctx.role !== "proprietaire") {
+  if (!estProprietaireSeul(ctx.role)) {
     return NextResponse.json({ erreur: "Sauvegarde réservée au propriétaire." }, { status: 403 });
   }
 
   const disabled = await lireModulesDesactives(ctx);
   if (disabled === null || disabled.size > 0) return NextResponse.json({ erreur: "Sauvegarde indisponible : autorisations incomplètes ou modules désactivés." }, { status: 403 });
 
+  let etape = "client";
   try {
     const supabase = await createClient();
     const tables: TableSauvegardee[] = [];
@@ -35,6 +40,7 @@ export async function GET() {
     for (const table of ORDRE_RESTAURATION) {
       // `clients` s'isole par `id`, toutes les autres par `client_id` :
       // filtrer clients sur client_id fait échouer la sauvegarde entière.
+      etape = `lecture:${table}`;
       const lecture = await lirePages<Record<string, unknown>>(
         async (offset, limite) => {
           const { data, error } = await supabase.from(table).select("*")
@@ -61,8 +67,10 @@ export async function GET() {
       );
     }
 
+    etape = "serialisation";
     const dump = construireSauvegarde(ctx.clientId, ctx.clientNom, tables);
     const json = JSON.stringify(dump, null, 2);
+    etape = "taille";
     if (Buffer.byteLength(json, "utf8") > MAX_OCTETS_SAUVEGARDE) return NextResponse.json({erreur:"Sauvegarde trop volumineuse pour la restauration actuelle : contactez le support."},{status:413});
     return new NextResponse(json, {
       status: 200,
@@ -72,7 +80,8 @@ export async function GET() {
         "Cache-Control": "no-store",
       },
     });
-  } catch {
+  } catch (erreur) {
+    journalErreurRoute("api/sauvegarde", etape, erreur);
     return NextResponse.json({ erreur: "Supabase est inaccessible depuis ce serveur." }, { status: 503 });
   }
 }

@@ -7,9 +7,18 @@
     "src/app/(auth)/connexion/page.tsx",
     "src/app/(auth)/rejoindre/page.tsx",
     "src/app/(vitrine)/vitrine/[slug]/page.tsx",
+    "src/app/api/cron/connectivite/route.ts",
+    "src/app/api/export/comptable/route.ts",
     "src/app/api/export/route.ts",
+    "src/app/api/health/route.ts",
+    "src/app/api/health/stack/route.ts",
+    "src/app/api/invoice-ocr/route.ts",
+    "src/app/api/licence/statut/route.ts",
+    "src/app/api/presence/heartbeat/route.ts",
     "src/app/api/sauvegarde/route.ts",
     "src/app/estimation/page.tsx",
+    "src/app/hors-ligne/page.tsx",
+    "src/app/master/page.tsx",
     "src/app/page.tsx"
   ],
   "actions": {
@@ -27,14 +36,36 @@
       "quickDemoLogin"
     ],
     "src/lib/actions-caisse.ts": [
+      "createAvoir",
       "importZReal",
-      "sellCart",
-      "sellProduct"
+      "sellCart"
+    ],
+    "src/lib/actions-cakes.ts": [
+      "accepterCgvReal",
+      "assignCakeProductionReal",
+      "createCakeReal",
+      "editerCakeReal",
+      "evolveCakeReal"
+    ],
+    "src/lib/actions-clotures.ts": [
+      "saisirCloture",
+      "validerComptageTiroir"
     ],
     "src/lib/actions-couts.ts": [
       "analyserHausseMatiereReal",
       "ficheCoutReal",
       "sauverParamsCoutsReal"
+    ],
+    "src/lib/actions-credits.ts": [
+      "cancelCreditCloud",
+      "createCreditCloud",
+      "loadCreditsCloud",
+      "payCreditCloud",
+      "updateCreditTotalCloud"
+    ],
+    "src/lib/actions-donnees.ts": [
+      "anonymiserCommande",
+      "exporterDonnees"
     ],
     "src/lib/actions-equipe.ts": [
       "afficherCodeEquipe",
@@ -48,22 +79,31 @@
     "src/lib/actions-etablissement.ts": [
       "sauverEtablissement"
     ],
-    "src/lib/actions-journaux.ts": [
-      "accepterCgvReal",
+    "src/lib/actions-free-recipes.ts": [
+      "deleteFreeRecipeCloud",
+      "loadFreeRecipesCloud",
+      "saveFreeRecipeCloud",
+      "syncLocalRecipesToCloud"
+    ],
+    "src/lib/actions-haccp.ts": [
       "addCleaning",
       "addNc",
-      "addTask",
       "addTemperature",
-      "assignCakeProductionReal",
-      "cancelRestockRequestReal",
-      "createCakeReal",
-      "createRestockRequestReal",
-      "editerCakeReal",
-      "evolveCakeReal",
-      "saisirCloture",
-      "toggleTask",
-      "updateNc",
-      "validateTomorrowLineReal"
+      "updateNc"
+    ],
+    "src/lib/actions-licence.ts": [
+      "creerComptePatisserie",
+      "definirMonTelephone",
+      "masterChangerStatut",
+      "masterCreerCompteClient",
+      "masterLogin",
+      "masterLogout",
+      "masterMarquerPaye",
+      "masterModifierDureeEssai",
+      "masterVerifierConnectivite"
+    ],
+    "src/lib/actions-locale.ts": [
+      "enregistrerLangueUtilisateur"
     ],
     "src/lib/actions-modules.ts": [
       "modifierModule"
@@ -72,6 +112,25 @@
       "createOf",
       "finishOf",
       "startOf"
+    ],
+    "src/lib/actions-onboarding.ts": [
+      "importerPackPatisserieDz",
+      "sauverBoutiqueExpress"
+    ],
+    "src/lib/actions-photos.ts": [
+      "sauverPhotoArticleCloud"
+    ],
+    "src/lib/actions-planning.ts": [
+      "addTask",
+      "cancelRestockRequestReal",
+      "createRestockRequestReal",
+      "toggleTask",
+      "validateTomorrowLineReal"
+    ],
+    "src/lib/actions-price-alerts.ts": [
+      "loadOwnerPriceAlertsCloud",
+      "resolveOwnerPriceAlertCloud",
+      "submitEmployeePriceProposalCloud"
     ],
     "src/lib/actions-rappel.ts": [
       "bloquerLotReal",
@@ -109,6 +168,9 @@
       "reserverSousDomaine",
       "supprimerRecetteVitrine",
       "traiterDemandeVitrine"
+    ],
+    "src/lib/courses-server.ts": [
+      "lireListeCourses"
     ]
   }
 }

@@ -56,14 +56,31 @@ export function isFefoLotEligible(
  * l.date_reception asc, l.id asc`). En PostgreSQL `false < true` : les lots
  * NON congelés passent en premier, les congelés sont consommés en dernier.
  */
+/**
+ * Équivalent de `order by congele asc, dlc asc nulls last, date_reception asc, id asc`
+ * (06-ventes-caisse-fefo.sql:138, 07:256, 08:118, 11:185, 21:451…).
+ *
+ * Piège corrigé : `Date.parse` rend `NaN` sur une date illisible (import Z
+ * mal formé, saisie libre). Un comparateur qui rend `NaN` n'a pas d'ordre
+ * défini — mesuré : un lot à DLC « pas une date » passait DEVANT un lot à
+ * DLC proche, donc un produit rappelé/périmé pouvait être consommé en
+ * priorité. Toute date non parsable est donc traitée comme absente et
+ * reléguée en fin de tri, exactement comme `nulls last`.
+ */
+function cleDate(valeur: string | null | undefined): number {
+  if (!valeur) return Number.POSITIVE_INFINITY;
+  const t = Date.parse(valeur);
+  return Number.isNaN(t) ? Number.POSITIVE_INFINITY : t;
+}
+
 export function sortFefo<T extends FefoLot>(lots: T[]): T[] {
   return [...lots].sort((a, b) => {
     if (a.congele !== b.congele) return a.congele ? 1 : -1;
-    const da = a.dlc ? Date.parse(a.dlc) : Number.POSITIVE_INFINITY;
-    const db = b.dlc ? Date.parse(b.dlc) : Number.POSITIVE_INFINITY;
+    const da = cleDate(a.dlc);
+    const db = cleDate(b.dlc);
     if (da !== db) return da - db;
-    const ra = a.date_reception ? Date.parse(a.date_reception) : Number.POSITIVE_INFINITY;
-    const rb = b.date_reception ? Date.parse(b.date_reception) : Number.POSITIVE_INFINITY;
+    const ra = cleDate(a.date_reception);
+    const rb = cleDate(b.date_reception);
     if (ra !== rb) return ra - rb;
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });

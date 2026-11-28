@@ -4,6 +4,8 @@
  * qui ne doivent jamais faire confiance aux données du navigateur.
  */
 
+import { dateIsoValide, jourLocal } from "./workspace-data.ts";
+
 export type ArticleInput = {
   code: string;
   nom: string;
@@ -56,7 +58,7 @@ function optionalUuid(value: unknown, label: string): string | null {
 function date(value: unknown, label: string): string | null {
   const s = String(value ?? "").trim();
   if (s === "") return null;
-  if (!DATE_RE.test(s) || Number.isNaN(Date.parse(s)) || new Date(s).toISOString().slice(0, 10) !== s) {
+  if (!dateIsoValide(s)) {
     throw new Error(`${label} : date invalide (format AAAA-MM-JJ).`);
   }
   return s;
@@ -75,25 +77,34 @@ function list(value: unknown, label: string): string[] {
 export function parseArticleInput(formData: FormData): ArticleInput {
   const niveau = String(formData.get("niveau") ?? "").trim();
   if (niveau !== "matiere" && niveau !== "produit") throw new Error("Niveau : choisir matière ou produit.");
+  const tva = number(formData.get("tva"), "TVA", 0, 100);
+  const prixTtcRaw = formData.get("prix_ttc");
+  const pv_ht =
+    prixTtcRaw !== null && String(prixTtcRaw).trim() !== ""
+      ? (() => {
+          const ttc = number(prixTtcRaw, "Prix de vente", 0, 10_000_000);
+          return Math.round((ttc / (1 + tva / 100)) * 100) / 100;
+        })()
+      : number(formData.get("pv_ht"), "Prix de vente", 0, 10_000_000);
   return {
     code: text(formData.get("code"), "Code article", 40),
     nom: text(formData.get("nom"), "Nom", 120),
     niveau,
     unite: text(formData.get("unite"), "Unité", 20),
     seuil: number(formData.get("seuil"), "Seuil", 0, 1_000_000),
-    pv_ht: number(formData.get("pv_ht"), "Prix de vente HT", 0, 10_000_000),
-    tva: number(formData.get("tva"), "TVA", 0, 100),
+    pv_ht,
+    tva,
     allergenes: list(formData.get("allergenes"), "Allergènes"),
     traces: list(formData.get("traces"), "Traces"),
   };
 }
 
-function futureDate(value: FormDataEntryValue | null, label: string): string {
+function futureDate(value: FormDataEntryValue | null, label: string, maintenant?: Date): string {
   const s = String(value ?? "").trim();
-  if (!DATE_RE.test(s) || Number.isNaN(Date.parse(s)) || new Date(s).toISOString().slice(0, 10) !== s) {
+  if (!dateIsoValide(s)) {
     throw new Error(`${label} : date invalide (format AAAA-MM-JJ).`);
   }
-  const today = new Date().toISOString().slice(0, 10);
+  const today = jourLocal(maintenant);
   if (s < today) throw new Error(`${label} doit être aujourd'hui ou plus tard.`);
   return s;
 }
@@ -105,12 +116,12 @@ export type OfCreateInput = {
   datePrevue: string;
 };
 
-export function parseOfCreateInput(formData: FormData): OfCreateInput {
+export function parseOfCreateInput(formData: FormData, maintenant?: Date): OfCreateInput {
   return {
     versionId: uuid(formData.get("versionId"), "Version"),
     siteId: uuid(formData.get("siteId"), "Site"),
     qtePrevue: number(formData.get("qtePrevue"), "Quantité prévue", 0.0001, 100_000_000),
-    datePrevue: futureDate(formData.get("datePrevue"), "Date prévue"),
+    datePrevue: futureDate(formData.get("datePrevue"), "Date prévue", maintenant),
   };
 }
 
@@ -121,12 +132,12 @@ export type OfFinishInput = {
   dlc: string;
 };
 
-export function parseOfFinishInput(formData: FormData): OfFinishInput {
+export function parseOfFinishInput(formData: FormData, maintenant?: Date): OfFinishInput {
   return {
     ofId: uuid(formData.get("ofId"), "OF"),
     qte: number(formData.get("qte"), "Quantité réalisée", 0.0001, 100_000_000),
     numeroLot: text(formData.get("numeroLot"), "N° de lot", 80),
-    dlc: futureDate(formData.get("dlc"), "DLC"),
+    dlc: futureDate(formData.get("dlc"), "DLC", maintenant),
   };
 }
 

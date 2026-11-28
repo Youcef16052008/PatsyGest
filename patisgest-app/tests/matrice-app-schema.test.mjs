@@ -102,10 +102,9 @@ test('F-19 matrice application × schéma : tout objet lu existe dans la chaîne
   for (const t of dynamiques) litterales.add(t);
 
   const tablesLabo = [...litterales].filter((t) => /^(labo|vendeur)_/.test(t)).sort();
-  const tablesDeployees = [...litterales].filter((t) => !/^(labo|vendeur)_/.test(t)).sort();
+  const tablesDeployees = [...litterales].sort();
   const rpcsEquipe = [...rpcs].filter((r) => r.startsWith('equipe_')).sort();
-  // Réservé aux rôles non-propriétaire (labo/vendeur), masqués ci-dessus.
-  const rpcsHorsChemin = [...rpcsEquipe, 'patisgest_tous_sites_autorises'].sort();
+  const rpcsHorsChemin = [...rpcsEquipe].sort();
   const rpcsDeployees = [...rpcs].filter((r) => !rpcsHorsChemin.includes(r)).sort();
 
   const { db, relations, fonctions } = await schemaDeploye();
@@ -120,9 +119,8 @@ test('F-19 matrice application × schéma : tout objet lu existe dans la chaîne
     const rpcsManquantes = rpcsDeployees.filter((r) => !fonctions.has(r));
     assert.deepEqual(rpcsManquantes, [], `RPC appelées par l'application mais absentes du schéma déployé : ${rpcsManquantes.join(', ')}`);
 
-    // Les exceptions ne sont admises que parce qu'un garde-fou les masque.
-    assert.equal(ROLES_LABO_VENDEUR_ACTIFS, false, 'Les vues labo/vendeur ne sont plus masquées : exiger alors leur présence dans le schéma déployé.');
-    assert.ok(tablesLabo.length > 0, 'Aucune vue labo/vendeur détectée : la liste d\'exception serait morte.');
+    assert.equal(ROLES_LABO_VENDEUR_ACTIFS, true, 'Les vues labo/vendeur sont déployées et actives.');
+    assert.ok(tablesLabo.length >= 7, `Attendu au moins 7 vues labo/vendeur lues littéralement, trouvé ${tablesLabo.length}`);
     assert.equal(equipeExperimentaleActive(), false, 'La gestion d\'équipe n\'est plus hors production : exiger alors les RPC equipe_* dans le schéma déployé.');
     assert.ok(rpcsEquipe.length > 0, 'Aucune RPC equipe_* détectée : la liste d\'exception serait morte.');
     assert.ok(rpcs.has('patisgest_tous_sites_autorises'), 'La RPC de vérification des sites a changé de nom : mettre à jour la matrice.');
@@ -131,14 +129,21 @@ test('F-19 matrice application × schéma : tout objet lu existe dans la chaîne
   }
 });
 
-test('F-19 matrice : les vues labo/vendeur sont bien absentes de la chaîne déployée', async () => {
-  // Preuve de couplage : le déploiement de `main` sans les brouillons 101/115/116
-  // ne fournit pas ces vues. Si cette assertion devient fausse, c'est que la
-  // chaîne de déploiement a changé et que le masquage des rôles peut être revu.
+test('F-19 matrice : les 9 vues labo/vendeur sont présentes dans la chaîne déployée', async () => {
   const { db, relations } = await schemaDeploye();
   try {
     const vuesLabo = [...relations].filter((r) => /^(labo|vendeur)_/.test(r)).sort();
-    assert.deepEqual(vuesLabo, [], `Des vues labo/vendeur sont maintenant dans la chaîne déploiée : revoir ROLES_LABO_VENDEUR_ACTIFS.`);
+    assert.deepEqual(vuesLabo, [
+      'labo_articles',
+      'labo_bons_commande',
+      'labo_cakes',
+      'labo_lots',
+      'labo_ordres_fabrication',
+      'labo_recette_versions',
+      'labo_ventes_quantites',
+      'vendeur_lots',
+      'vendeur_ordres_fabrication',
+    ]);
   } finally {
     await db.close();
   }

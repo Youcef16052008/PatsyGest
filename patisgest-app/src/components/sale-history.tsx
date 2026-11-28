@@ -1,4 +1,4 @@
-import { isPaymentMode, PAYMENT_MODE_LABELS } from "@/lib/pos-cart";
+import { libelleModePaiement } from "@/lib/pos-cart";
 import { dateLisible, dinars, quantite, type SaleSummary } from "@/lib/workspace-data";
 import { EmptyState, Notice } from "./workspace-ui";
 import { Icon } from "./workspace-icons";
@@ -13,7 +13,7 @@ export default function SaleHistory({ sales, demo = false }: { sales: SaleSummar
       <div className="pg-card-head">
         <div>
           <h2>{demo ? "Tickets de démonstration" : "Tickets récents"}</h2>
-          <p>Produits du panier, mode de règlement enregistré et montant TTC.</p>
+          <p>Produits du panier, mode de règlement enregistré et montant final.</p>
         </div>
       </div>
       {sales === null ? (
@@ -26,9 +26,7 @@ export default function SaleHistory({ sales, demo = false }: { sales: SaleSummar
             const modeLabel =
               s.source === "z-import"
                 ? "Import Z"
-                : isPaymentMode(s.modePaiement)
-                  ? PAYMENT_MODE_LABELS[s.modePaiement]
-                  : null;
+                : libelleModePaiement(s.modePaiement);
             return (
               <li key={s.id}>
                 <span className="pg-emblem">
@@ -63,7 +61,6 @@ export default function SaleHistory({ sales, demo = false }: { sales: SaleSummar
                 </div>
                 <span className="pg-history-total">
                   {dinars(s.totalTTC)}
-                  <small>TTC</small>
                 </span>
               </li>
             );

@@ -119,6 +119,7 @@ const CHEMINS_APPLICATION = [
   "/_next/",
   "/icons/",
   "/appearance/",
+  "/recettes/",
   "/sw.js",
   "/manifest.webmanifest",
 ];

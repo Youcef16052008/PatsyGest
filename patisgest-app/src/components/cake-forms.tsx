@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { useActionState, useState, useSyncExternalStore } from "react";
-import {
-  accepterCgvReal, assignCakeProductionReal, createCakeReal, editerCakeReal, evolveCakeReal, type JournalState,
-} from "@/lib/actions-journaux";
+import { accepterCgvReal, assignCakeProductionReal, createCakeReal, editerCakeReal, evolveCakeReal } from "@/lib/actions-cakes";
+import { type JournalState } from "@/lib/journal-actions-communs";
 import { clearEstimatorDraft, ESTIMATOR_DRAFT_KEY, loadEstimatorDraft } from "@/lib/portion-estimator";
 import { traiterDemandeVitrine } from "@/lib/actions-vitrine";
 import { peutTraiterDemande, type Role } from "@/lib/vitrine-permissions";
+import { canCreateOrEditCakeQuotes, canSellAtPos } from "@/lib/permissions";
 import CakeTicket from "./cake-ticket";
 import { cakeConnectedTotals } from "@/lib/cake-money";
+import { whatsappOrderUrl } from "@/lib/whatsapp";
+import { compareCakePriority } from "@/lib/cake-priority";
 
 function subscribeDraft(cb: () => void) {
   window.addEventListener("storage", cb);
@@ -60,7 +62,6 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
   const [prixHtVal, setPrixHtVal] = useState("");
   const [notesVal, setNotesVal] = useState("");
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
-  const today = new Date().toISOString().slice(0, 10);
   // Les demandes de vitrine ne sont PAS des devis : elles n'ont ni prix ni
   // paiement. On les isole en haut pour que le vendeur voie d'abord ce qui
   // attend une réponse, au lieu de les chercher au milieu des devis.
@@ -68,8 +69,15 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
     .filter((c) => c.statut === "demande")
     .sort((a, b) => a.dateEvent.localeCompare(b.dateEvent));
   const autres = cakes.filter((c) => c.statut !== "demande");
-  const sorted = [...autres].sort((a, b) => a.numero.localeCompare(b.numero));
+  const sorted = [...autres].sort((a, b) => compareCakePriority({ status: a.statut, date: a.dateEvent, numero: a.numero }, { status: b.statut, date: b.dateEvent, numero: b.numero }));
   const peutTraiter = peutTraiterDemande(role);
+  const canCreateOrEditQuotes = canCreateOrEditCakeQuotes(role);
+  const transitionsDisponibles =
+    canCreateOrEditQuotes
+      ? ["payer", "confirme", "produit", "livre", "annule"]
+      : canSellAtPos(role)
+        ? ["payer", "confirme", "livre"]
+        : ["produit"];
 
   function appliquerBrouillon() {
     if (!draft) return;
@@ -127,6 +135,7 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
         </section>
       )}
 
+      {canCreateOrEditQuotes ? (
       <section className="rounded-2xl border bg-white p-5">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-bold">Nouveau devis gâteau</h2>
@@ -142,7 +151,7 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-950">
             <span>
               <strong>Brouillon d&apos;estimation disponible :</strong> {draft.modeleNom} · {draft.parts} parts · {draft.formatLabel}
-              {!draft.coutIncomplet && draft.prixHtPropose != null ? ` · ${draft.prixHtPropose.toLocaleString("fr-DZ")} DA HT` : " · coût partiel (prix à saisir)"}
+              {!draft.coutIncomplet && draft.prixHtPropose != null ? ` · ${draft.prixHtPropose.toLocaleString("fr-DZ")} DA` : " · coût partiel (prix à saisir)"}
             </span>
             <span className="flex gap-2">
               <button type="button" onClick={appliquerBrouillon} className="rounded bg-violet-700 px-2.5 py-1 font-bold text-white">
@@ -165,7 +174,7 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
             <label className={`${label} w-40`}>Téléphone<input name="telephone" maxLength={40} className={field} /></label>
             <label className={`${label} w-44`}>Date événement<input name="dateEvent" type="date" min="2000-01-04" required className={field} /></label>
             <label className={`${label} w-28`}>Parts<input name="nbParts" type="number" min={1} max={10000} required value={nbPartsVal} onChange={(e) => setNbPartsVal(e.target.value)} className={field} /></label>
-            <label className={`${label} w-36`}>Prix HT (DA)<input name="prixHt" type="number" step="any" min={0.01} required value={prixHtVal} onChange={(e) => setPrixHtVal(e.target.value)} className={field} /></label>
+            <label className={`${label} w-36`}>Prix total (DA)<input name="prixHt" type="number" step="any" min={0.01} required value={prixHtVal} onChange={(e) => setPrixHtVal(e.target.value)} className={field} /></label>
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <label className={`${label} flex items-center gap-2 py-2`}><input name="cgv" type="checkbox" defaultChecked className="h-4 w-4" /> CGV acceptées</label>
@@ -189,40 +198,60 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
           {createState.succes && <p role="status" className="text-sm text-emerald-700">{createState.succes}</p>}
         </form>
       </section>
+      ) : (
+        <section className="rounded-2xl border bg-slate-50 p-4 text-xs text-slate-700">
+          <strong>Espace comptoir :</strong> vous pouvez traiter les demandes de la vitrine, encaisser les acomptes ou soldes et marquer les commandes livrées. La création et la modification des prix de devis sont réservées au propriétaire.
+        </section>
+      )}
 
       <section className="rounded-2xl border bg-white p-5">
         <h2 className="mb-3 font-bold">Devis &amp; commandes en cours</h2>
         <p className="mb-3 text-xs text-slate-500">
-          Édition réservée au statut devis · paiements historisés · acompte 30 % HT minimum
-          pour confirmer · solde avant livraison · preuve CGV horodatée · ticket imprimable.
+          Les retraits les plus proches apparaissent en premier ; les dossiers terminés suivent.
         </p>
         <ul className="space-y-3">
-          {sorted.map((c) => (
+          {sorted.map((c) => {
+            const totals = cakeConnectedTotals(Number(c.prixHt), Number(c.tvaPct), Number(c.acompte));
+            const wa = whatsappOrderUrl({
+              phone: c.telephone,
+              client: c.clientNom,
+              numero: c.numero,
+              eventDate: c.dateEvent,
+              parts: c.nbParts,
+              resteDa: totals.balance,
+            });
+            return (
             <li key={c.id} className={`rounded-lg border p-3 text-sm ${payId === c.id ? "border-violet-500 ring-1 ring-violet-500" : ""}`}>
               <form action={evolveAction} className="space-y-2">
                 <input type="hidden" name="id" value={c.id} />
                 <div className="flex flex-wrap items-center gap-2">
                   <button type="button" onClick={() => setPayId(payId === c.id ? "" : c.id)} className="font-bold text-violet-800 underline">{c.numero}</button>
-                  <span>{c.clientNom}</span>
-                  <span className="text-slate-500">{Number(c.prixHt).toLocaleString("fr-FR")} DA HT · TVA {c.tvaPct} %</span>
+                  <b>{c.clientNom}</b>
+                  <span className="text-slate-500">{c.dateEvent} · {c.nbParts} parts</span>
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 font-bold uppercase text-xs">{c.statut}</span>
-                  <span className="text-xs text-slate-500">versé {Number(c.acompte).toLocaleString("fr-FR")} DA · solde TTC {cakeConnectedTotals(Number(c.prixHt), Number(c.tvaPct), Number(c.acompte)).balance.toFixed(2)} DA</span>
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-800">Acompte : {Number(c.acompte).toLocaleString("fr-FR")} DA</span>
+                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800">Reste : {totals.balance.toFixed(0)} DA</span>
+                  {wa && (
+                    <a href={wa} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-emerald-700 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-800">
+                      WhatsApp
+                    </a>
+                  )}
                   {c.cgv
                     ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">CGV {c.cgvVersion ?? ""} ✓</span>
                     : <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">CGV non acceptées</span>}
                   <span className="ml-auto flex flex-wrap gap-1">
-                    {c.statut === "devis" && (
+                    {canCreateOrEditQuotes && c.statut === "devis" && (
                       <button type="button" onClick={() => setEditId(editId === c.id ? "" : c.id)} className={btn2}>éditer</button>
                     )}
                     <button type="button" onClick={() => setTicketId(ticketId === c.id ? "" : c.id)} className={btn2}>ticket</button>
-                    {["payer", "confirme", "produit", "livre", "annule"].map((t) => (
+                    {transitionsDisponibles.map((t) => (
                       <button key={t} type="submit" name="transition" value={t} disabled={evolvePending || (t === "annule" && !!c.ofId)}
                         className={btn2}>{t === "confirme" ? "confirmer" : t === "produit" ? "produire" : t === "livre" ? "livrer" : t === "annule" ? "annuler" : "payer"}</button>
                     ))}
                   </span>
                 </div>
                 {payId === c.id && (
-                  <label className={`${label} max-w-64`}>Montant du paiement (DA TTC)
+                  <label className={`${label} max-w-64`}>Montant du paiement (DA)
                     <input name="montant" type="number" step="any" min={0.01} required className={`${field} mt-0`} />
                   </label>
                 )}
@@ -232,7 +261,7 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
               {c.ofId && <p className="mt-2 text-xs text-slate-500">Un OF lié doit être terminé avec un lot avant de marquer produit. Annulation du dossier indisponible tant que cet OF existe.</p>}
               {c.ofNumero && <p className="mt-2 text-xs">OF : {c.ofNumero} · Lots : {c.lots.map(l=>l.numero).join(", ") || "aucun"}</p>}
               {!c.versionId && ["devis","acompte"].includes(c.statut) && <form action={assignAction} className="mt-3 rounded-lg border p-3 space-y-2"><p>Ancien devis : associez une production avant confirmation.</p><input type="hidden" name="id" value={c.id}/><ProductionFields recipes={recipes} sites={sites}/><button disabled={assignPending || optionsError || !recipes.length || !sites.length} className={btn2}>Associer</button></form>}
-              {editId === c.id && (
+              {editId === c.id && canCreateOrEditQuotes && (
                 <form action={editAction} className="mt-2 grid gap-2 rounded-lg border border-violet-200 bg-violet-50 p-3 sm:grid-cols-4">
                   <input type="hidden" name="id" value={c.id} />
                   <label className={label}>Client
@@ -247,12 +276,10 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
                   <label className={label}>Parts
                     <input name="nbParts" type="number" min={1} max={10000} required defaultValue={c.nbParts} className={field} />
                   </label>
-                  <label className={label}>Prix HT
+                  <label className={label}>Prix (DA)
                     <input name="prixHt" type="number" step="any" min={0.01} required defaultValue={c.prixHt} className={field} />
                   </label>
-                  <label className={label}>TVA %
-                    <input name="tvaPct" type="number" step="any" min={0} max={100} required defaultValue={c.tvaPct} className={field} />
-                  </label>
+                  <input type="hidden" name="tvaPct" value={c.tvaPct} />
                   <label className={`${label} sm:col-span-2`}>Notes
                     <input name="notes" maxLength={500} defaultValue={c.notes ?? ""} className={field} />
                   </label>
@@ -283,7 +310,8 @@ export default function CakeForms({ cakes, recipes, sites, optionsError, role }:
                 </div>
               )}
             </li>
-          ))}
+            );
+          })}
           {sorted.length === 0 && <li className="text-sm text-slate-500">Aucun devis.</li>}
         </ul>
         {assignState.erreur && <p role="alert" className="mt-2 text-sm text-red-700">{assignState.erreur}</p>}

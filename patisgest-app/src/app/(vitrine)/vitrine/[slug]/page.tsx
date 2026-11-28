@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { decodeSlug } from "@/lib/vitrine-slug";
 import { libellePrix, lireVitrinePublique } from "@/lib/vitrine";
 import VitrineCommande from "@/components/vitrine-commande";
 import { resoudreHote, DOMAINE_SERVICE_PAR_DEFAUT } from "@/lib/domaines";
@@ -27,23 +29,35 @@ export const dynamic = "force-dynamic";
 
 type Params = { slug: string };
 
+/**
+ * Slug demandé, décodé SANS jamais lever : `decodeSlug` renvoie `null` sur
+ * une séquence `%` malformée, ce qui produira un 404 au lieu d'un 500 sur
+ * une URL publique que n'importe qui peut fabriquer.
+ */
 async function resoudreSlug(params: Promise<Params>, entetes: Headers): Promise<string | null> {
   const { slug } = await params;
-  const valeur = decodeURIComponent(slug ?? "").trim().toLowerCase();
-  if (valeur && valeur !== "_") return valeur;
+  const valeur = decodeSlug(slug ?? "");
+  if (valeur) return valeur;
 
   // Réécriture interne du middleware : la boutique vient de l'en-tête Host.
   const hote = resoudreHote(entetes.get("host"), DOMAINE_SERVICE_PAR_DEFAUT, []);
-  if (hote.type === "boutique") return hote.sousDomaine;
+  if (hote.type === "boutique") return decodeSlug(hote.sousDomaine);
   return null;
 }
+
+/**
+ * `generateMetadata` et la page lisent la même vitrine. `cache()` mémoïse
+ * l'appel pour la durée d'une requête : une seule lecture de la vue
+ * publique par visite au lieu de deux (et un seul message d'erreur).
+ */
+const lireVitrineUneFois = cache(async (slug: string) => lireVitrinePublique(slug));
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const entetes = await headers();
   const slug = await resoudreSlug(params, entetes);
   if (!slug) return { title: "Vitrine — PâtisGest" };
 
-  const vitrine = await lireVitrinePublique(slug);
+  const vitrine = await lireVitrineUneFois(slug);
   if (vitrine.indisponible) return { title: "Vitrine — PâtisGest" };
 
   return {
@@ -58,7 +72,7 @@ export default async function VitrinePage({ params }: { params: Promise<Params> 
   const slug = await resoudreSlug(params, entetes);
   if (!slug) notFound();
 
-  const vitrine = await lireVitrinePublique(slug);
+  const vitrine = await lireVitrineUneFois(slug);
 
   if (vitrine.indisponible) {
     return (

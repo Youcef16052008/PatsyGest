@@ -5,6 +5,7 @@ import { getSessionContext } from "./auth";
 import { createClient } from "./supabase/server";
 import { messageUtilisateur } from "./erreurs-db";
 import { lireFichierSauvegarde, resumeSauvegarde } from "./sauvegarde";
+import { estProprietaireSeul } from "./permissions";
 
 export type RestaurationState = {
   erreur?: string;
@@ -30,7 +31,7 @@ export type RestaurationState = {
 export async function analyserSauvegarde(_prev: RestaurationState, formData: FormData): Promise<RestaurationState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
-  if (ctx.role !== "proprietaire") return { erreur: "Restauration réservée au propriétaire." };
+  if (!estProprietaireSeul(ctx.role)) return { erreur: "Restauration réservée au propriétaire." };
 
   const lecture = await lireFichierSauvegarde(formData.get("fichier"), ctx.clientId);
   if ("erreur" in lecture) return lecture;
@@ -51,7 +52,7 @@ export async function analyserSauvegarde(_prev: RestaurationState, formData: For
 export async function confirmerRestauration(_prev: RestaurationState, formData: FormData): Promise<RestaurationState> {
   const ctx = await getSessionContext();
   if (!ctx) return { erreur: "Session requise." };
-  if (ctx.role !== "proprietaire") return { erreur: "Restauration réservée au propriétaire." };
+  if (!estProprietaireSeul(ctx.role)) return { erreur: "Restauration réservée au propriétaire." };
   if (String(formData.get("confirmation") ?? "").trim().toUpperCase() !== "RESTAURER") {
     return { erreur: "Tapez RESTAURER pour confirmer." };
   }

@@ -10,7 +10,13 @@ export type SaleCartLine = { articleId: string; qty: number; unitPriceHT: number
 export type Sale = { id: string; numero?: string; articleId: string; qty: number; totalHT: number; totalTTC: number; missing: number; lots: string[]; lotDetails?: {lotId:string; qty:number}[]; lines?: SaleCartLine[]; modePaiement?: PaymentMode; date: string; source?: 'caisse'|'z-import'; unitPriceHT?:number; vatPercent?:number };
 export type RestockRequest = { id: string; targetDate: string; site: string; articleId: string; qty: number; motif: string; demandeur: string; status: 'ouverte'|'planifiee'|'transferee'|'annulee'; ofId?: string; transferId?: string; createdAt: string };
 export type State = { articles: Article[]; lots: Lot[]; movements: Movement[]; sales: Sale[]; suppliers: string[]; purchases: PurchaseOrder[]; productions: ProductionOrder[]; transfers: Transfer[]; recipes: Recipe[]; closings: DailyClosing[]; temperatures: TemperatureReading[]; cleanings: CleaningRecord[]; incidents: QualityIncident[]; cakes: CakeOrder[]; lotEvents: LotEvent[]; planningTasks: PlanningTask[]; dailyCapacity:number; zImports: ZImport[]; restockRequests?: RestockRequest[] };
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Algiers',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 const id = () => crypto.randomUUID();
 /** Arrondi monétaire au centime, calculé en centimes entiers : le total d'un ticket Z ou panier est toujours la somme exacte de ses lignes. */
 const moneyCents = (n: number) => Math.round((n + Number.EPSILON) * 100);
@@ -50,7 +56,7 @@ export function sellCart(
   // Idempotence : rejouer un ticket déjà enregistré retourne l'état intact, sans seconde sortie de stock.
   if (state.sales.some(s => s.id === ticketId)) return state;
   if (!items.length || items.length > 50) throw new Error('Le panier doit contenir entre 1 et 50 produits.');
-  const modePaiement: PaymentMode = opts.modePaiement && ['especes','carte','cheque_virement'].includes(opts.modePaiement) ? opts.modePaiement : 'especes';
+  const modePaiement: PaymentMode = opts.modePaiement && ['especes','cheque_virement'].includes(opts.modePaiement) ? opts.modePaiement : 'especes';
   const saleDate = opts.date && isValidDate(opts.date) ? opts.date : today();
   const site = opts.site ?? 'Boutique';
   // Fusionner les doublons éventuels avant validation et déstockage.
@@ -63,8 +69,8 @@ export function sellCart(
   }
   const validated = [...merged.entries()].map(([articleId, qty]) => {
     const article = state.articles.find(a => a.id === articleId && a.niveau === 'produit');
-    if (!article || !Number.isFinite(article.prix) || article.prix < 0 || !Number.isFinite(article.tva) || article.tva < 0 || article.tva > 100) {
-      throw new Error('Produit ou quantité invalide.');
+    if (!article || !Number.isFinite(article.prix) || article.prix <= 0 || !Number.isFinite(article.tva) || article.tva < 0 || article.tva > 100) {
+      throw new Error('Produit, prix ou quantité invalide.');
     }
     return { article, qty };
   });
@@ -577,7 +583,8 @@ export function planningOverview(state:State,date:string) {
   const unscheduled=state.productions.filter(o=>o.status==='planifie' && !o.plannedDate);
   const need=new Map<string,number>();
   for (const order of orders) for (const ing of order.snapshot.ingredients) {
-    const qty=round4(ing.qty*(order.planned/order.snapshot.baseYield)*(1+ing.parage/100));
+    const art=state.articles.find(a=>a.id===ing.articleId);
+    const qty=round4(ing.qty*unitFactor(ing.unite,art?.unite)*(order.planned/order.snapshot.baseYield)*(1+ing.parage/100));
     need.set(ing.articleId,round4((need.get(ing.articleId) ?? 0)+qty));
   }
   const needs=Array.from(need,([articleId,required])=>{

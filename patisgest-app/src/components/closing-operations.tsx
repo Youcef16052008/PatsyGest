@@ -16,10 +16,11 @@ import {
   type SaleRecord,
 } from "@/lib/reconciliation";
 import ReconPanel from "./recon-panel";
+import { jourLocal } from "@/lib/workspace-data";
 
-const box = "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm";
-const field = "w-full rounded-lg border border-slate-300 bg-white p-2 text-sm";
-const btn = "rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white hover:bg-violet-800";
+const box = "pg-card pg-card-pad";
+const field = "pg-input";
+const btn = "pg-button";
 const money = (n: number) => new Intl.NumberFormat("fr-DZ", { maximumFractionDigits: 2 }).format(n) + " DA";
 const format = (n: number) => new Intl.NumberFormat("fr-DZ", { maximumFractionDigits: 4 }).format(n);
 const flux = [
@@ -39,11 +40,11 @@ function Detail({ entry }: { entry: DailyClosing }) {
     <>
       <div className="grid gap-2 sm:grid-cols-3">
         <div className="rounded-lg bg-slate-50 p-3">
-          <span className="text-xs text-slate-500">CA déclaré HT estimé</span>
+          <span className="text-xs text-slate-500">CA déclaré estimé</span>
           <p className="font-bold">{money(stats.caHT)}</p>
         </div>
         <div className="rounded-lg bg-slate-50 p-3">
-          <span className="text-xs text-slate-500">Manque à gagner estimé HT</span>
+          <span className="text-xs text-slate-500">Manque à gagner estimé</span>
           <p className="font-bold">{money(stats.manque)}</p>
         </div>
         <div className="rounded-lg bg-slate-50 p-3">
@@ -78,7 +79,7 @@ function Detail({ entry }: { entry: DailyClosing }) {
                   <b>{l.name}</b>
                   <br />
                   <span className="text-xs text-slate-500">
-                    {l.unit} · PV {money(l.priceHT)} HT
+                    {l.unit} · PV {money(l.priceHT)}
                   </span>
                 </td>
                 {flux.map(([key]) => (
@@ -210,7 +211,7 @@ export function ClosingOperations(props: Props) {
         <h2 className="font-bold">Saisir une clôture · produits &amp; tiroir-caisse</h2>
         <p className="mt-2 text-sm text-slate-600">
           1) Quantités produits (fabriqué, vendu, reporté, jeté, casse, offert) · 2) Comptage facultatif du
-          tiroir-caisse en DA TTC. Saisie déclarative : ne modifie ni les stocks ni les ventes.
+          tiroir-caisse en DA. Saisie déclarative : ne modifie ni les stocks ni les ventes.
         </p>
         <form onSubmit={submit} className="mt-4 space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -220,7 +221,7 @@ export function ClosingOperations(props: Props) {
                 name="date"
                 type="date"
                 required
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                defaultValue={jourLocal()}
                 className={field}
               />
             </label>
@@ -287,7 +288,7 @@ export function ClosingOperations(props: Props) {
 
           <fieldset className="rounded-xl border border-slate-200 bg-slate-50 p-3">
             <legend className="px-1 text-xs font-bold uppercase tracking-wide text-slate-600">
-              Comptage tiroir-caisse (DA TTC · facultatif, séparé des produits)
+              Comptage tiroir-caisse (en DA · facultatif, séparé des produits)
             </legend>
             <div className="mt-2 grid gap-3 sm:grid-cols-4">
               <label className="text-xs font-semibold text-slate-600">

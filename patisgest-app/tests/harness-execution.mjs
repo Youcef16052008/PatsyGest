@@ -6,7 +6,7 @@
 // pour exécuter les actions avec une session et un client factices, et savoir
 // si la base a été appelée ou non.
 import { mock } from 'node:test';
-import { canWrite, canReadCosts, roleDisponible } from '../src/lib/permissions.ts';
+import * as permissions from '../src/lib/permissions.ts';
 
 const authUrl = new URL('../src/lib/auth.ts', import.meta.url).href;
 const serverUrl = new URL('../src/lib/supabase/server.ts', import.meta.url).href;
@@ -36,9 +36,7 @@ mock.module(authUrl, {
   // `namedExports` : supporté par Node 22 (CI) comme par Node 26 (local) ;
   // `exports` est plus récent mais absent de Node 22.
   namedExports: {
-    canWrite,
-    canReadCosts,
-    roleDisponible,
+    ...permissions,
     getSessionContext: async () => etat.session,
   },
 });
@@ -66,15 +64,20 @@ export function fauxClient({ data = null, error = null, rpc: resolue } = {}) {
         return Promise.resolve({ data, error }).then(fait);
       },
     };
-    return new Proxy(b, {
+    // Le proxy doit se renvoyer LUI-MÊME : renvoyer la cible brute
+    // interrompait la chaîne au deuxième appel (`from().select().eq()` levait
+    // « eq is not a function »), l'exception étant ensuite avalée par le
+    // `catch` des actions — le test croyait alors tester un refus métier.
+    const proxy = new Proxy(b, {
       get(cible, prop) {
         if (prop in cible) return cible[prop];
         return (...args) => {
           appels.push({ op: String(prop), args });
-          return cible;
+          return proxy;
         };
       },
     });
+    return proxy;
   };
   return {
     appels,

@@ -1,18 +1,19 @@
 "use client";
 import { type FormEvent } from 'react';
 import { addTemperature, addCleaning, addIncident, updateIncident, type State } from '@/lib/patisgest-store';
+import { jourLocal } from '@/lib/workspace-data';
 
-const box='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
-const field='w-full rounded-lg border border-slate-300 bg-white p-2 text-sm';
-const btn='rounded-lg bg-violet-700 px-4 py-2 text-sm font-bold text-white hover:bg-violet-800';
+const box='pg-card pg-card-pad';
+const field='pg-input';
+const btn='pg-button';
 type Props={data:State; canEdit:boolean; save:(state:State)=>boolean; notify:(message:string)=>void};
-function trySave(next:()=>State,props:Props,success:string) {try {if(props.save(next())) props.notify(success);} catch(err) {props.notify(err instanceof Error?err.message:'Opération impossible.');}}
+function trySave(next:()=>State,props:Props,success:string):boolean {try {if(props.save(next())) {props.notify(success); return true;} return false;} catch(err) {props.notify(err instanceof Error?err.message:'Opération impossible.'); return false;}}
 export function QualityOperations(props:Props) {
   const {data,canEdit}=props;
-  const today=new Date().toISOString().slice(0,10);
-  function temp(e:FormEvent<HTMLFormElement>) {e.preventDefault();const f=new FormData(e.currentTarget);const temperature=Number(f.get('temperature')),max=Number(f.get('max'));trySave(()=>addTemperature(data,{date:String(f.get('date')),equipment:String(f.get('equipment')),max,temperature,agent:String(f.get('agent'))}),props,temperature>max?'Relevé hors seuil enregistré : action requise. Créez une non-conformité si nécessaire.':'Relevé enregistré sous le seuil renseigné.');}
-  function cleaning(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);trySave(()=>addCleaning(data,{date:String(f.get('date')),zone:String(f.get('zone')),agent:String(f.get('agent')),done:f.get('done')==='oui'}),props,'Nettoyage enregistré.');}
-  function incident(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);trySave(()=>addIncident(data,{date:String(f.get('date')),type:String(f.get('type')),description:String(f.get('description')),lotId:String(f.get('lot')),action:String(f.get('action'))}),props,'Non-conformité ouverte. Aucun lot n’a été bloqué automatiquement.');}
+  const today=jourLocal();
+  function temp(e:FormEvent<HTMLFormElement>) {e.preventDefault();const form=e.currentTarget;const f=new FormData(form);const temperature=Number(f.get('temperature')),max=Number(f.get('max'));if(trySave(()=>addTemperature(data,{date:String(f.get('date')),equipment:String(f.get('equipment')),max,temperature,agent:String(f.get('agent'))}),props,temperature>max?'Relevé hors seuil enregistré : action requise. Créez une non-conformité si nécessaire.':'Relevé enregistré sous le seuil renseigné.')) form.reset();}
+  function cleaning(e:FormEvent<HTMLFormElement>){e.preventDefault();const form=e.currentTarget;const f=new FormData(form);if(trySave(()=>addCleaning(data,{date:String(f.get('date')),zone:String(f.get('zone')),agent:String(f.get('agent')),done:f.get('done')==='oui'}),props,'Nettoyage enregistré.')) form.reset();}
+  function incident(e:FormEvent<HTMLFormElement>){e.preventDefault();const form=e.currentTarget;const f=new FormData(form);if(trySave(()=>addIncident(data,{date:String(f.get('date')),type:String(f.get('type')),description:String(f.get('description')),lotId:String(f.get('lot')),action:String(f.get('action'))}),props,'Non-conformité ouverte. Aucun lot n’a été bloqué automatiquement.')) form.reset();}
   function close(e:FormEvent<HTMLFormElement>,id:string){e.preventDefault();const f=new FormData(e.currentTarget);trySave(()=>updateIncident(data,id,'cloturee',String(f.get('action'))),props,'Non-conformité clôturée dans la démo.');}
   return <><p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Registre de démonstration : les seuils sont saisis manuellement et ne constituent pas une validation réglementaire. Les alertes ne bloquent aucun lot et ne créent pas automatiquement de non-conformité.</p>
     <section className={box}><h2 className="font-bold">🌡️ Relevés de température</h2>{canEdit && <form onSubmit={temp} className="mt-3 grid gap-3 sm:grid-cols-3"><label className="text-xs font-semibold text-slate-600">Date<input name="date" type="date" required defaultValue={today} className={field}/></label><label className="text-xs font-semibold text-slate-600">Équipement<input name="equipment" maxLength={80} required placeholder="Chambre froide" className={field}/></label><label className="text-xs font-semibold text-slate-600">Agent<input name="agent" maxLength={80} className={field}/></label><label className="text-xs font-semibold text-slate-600">Température °C<input name="temperature" type="number" min="-100" max="200" step="0.01" required className={field}/></label><label className="text-xs font-semibold text-slate-600">Seuil maximum °C<input name="max" type="number" min="-100" max="200" step="0.01" required defaultValue="4" className={field}/></label><div className="self-end"><button className={btn}>Enregistrer</button></div></form>}

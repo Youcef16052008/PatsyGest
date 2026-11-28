@@ -25,12 +25,17 @@ export default function CostSheetForm({ produits }: { produits: Option[] }) {
       <section className="rounded-2xl border bg-white p-5">
         <h2 className="mb-1 font-bold">Paramètres de coûts (RC-04)</h2>
         <p className="mb-3 text-xs text-slate-500">
-          Taux horaire et charges appliqués à la MO chargée : <b>(min ÷60) × taux × (1 + charges %)</b>.
+          Salaire payé <b>par journée de travail</b>, et charges appliqués à la MO chargée :
+          le taux horaire est dérivé (salaire ÷ heures payées par jour), puis <b>(min ÷60) × taux × (1 + charges %)</b>.
         </p>
         <form action={pAction} className="flex flex-wrap items-end gap-3">
-          <label className={`${label} w-44`}>Taux horaire (DA)
-            <input name="tauxHoraire" type="number" step="any" min={0} required
-              defaultValue={state.tauxHoraire ?? 400} className={field} />
+          <label className={`${label} w-44`}>Salaire par jour (DA)
+            <input name="salaireJournalier" type="number" step="any" min={0} required
+              defaultValue={state.salaireJournalier ?? 3200} className={field} />
+          </label>
+          <label className={`${label} w-36`}>Heures payées / jour
+            <input name="heuresParJour" type="number" step="any" min={0.5} max={24} required
+              defaultValue={state.heuresParJour ?? 8} className={field} />
           </label>
           <label className={`${label} w-40`}>Charges (%)
             <input name="chargesPct" type="number" step="any" min={0} max={1000} required
@@ -53,7 +58,7 @@ export default function CostSheetForm({ produits }: { produits: Option[] }) {
         <p className="mb-3 text-xs text-slate-500">
           Version active du produit · matières au coût <b>FEFO</b> avec parage (RC-01) ·
           cuisson déduite du rendement (RC-02) · <b>jamais de TVA dans le coût</b> (RC-05) ·
-          marge toujours sur <b>PV HT</b> (RC-06).
+          marge sur <b>Prix de vente</b> (RC-06).
         </p>
         <form action={action} className="flex flex-wrap items-end gap-3">
           <label className={`${label} min-w-56 flex-1`}>Produit
@@ -133,7 +138,7 @@ export default function CostSheetForm({ produits }: { produits: Option[] }) {
               <ul className="mt-1 space-y-0.5">
                 <li className="flex justify-between"><span>Rendement net (RC-02)</span><b>{state.net} {state.rendement?.split(" ")[1]}</b></li>
                 <li className="flex justify-between"><span>Coût / portion (RC-05)</span><b>{da(state.portion ?? 0)}</b></li>
-                <li className="flex justify-between"><span>PV HT</span><b>{da(state.pvHt ?? 0)}</b></li>
+                <li className="flex justify-between"><span>Prix de vente</span><b>{da(state.pvHt ?? 0)}</b></li>
                 <li className="flex justify-between"><span>Marge (RC-06)</span><b className={ (state.marge ?? 0) >= 0 ? "text-emerald-700" : "text-red-700"}>{da(state.marge ?? 0)}</b></li>
                 <li className="flex justify-between border-t pt-1 text-base font-black"><span>Taux de marge</span>
                   <span>{(((state.taux ?? 0) * 100)).toFixed(2)} %</span></li>
@@ -144,7 +149,7 @@ export default function CostSheetForm({ produits }: { produits: Option[] }) {
               <ul className="mt-1 space-y-0.5">
                 <li className="flex justify-between"><span>Taux de perte (jeté+casse÷fabriqué)</span>
                   <b>{(((state.perte?.taux ?? 0) * 100)).toFixed(2)} %</b></li>
-                <li className="flex justify-between"><span>Manque à gagner (× PV HT)</span><b>{da(state.perte?.manque ?? 0)}</b></li>
+                <li className="flex justify-between"><span>Manque à gagner (× prix vente)</span><b>{da(state.perte?.manque ?? 0)}</b></li>
                 <li className="text-xs text-slate-500">Source : {state.perte?.source ?? "—"}</li>
               </ul>
             </div>

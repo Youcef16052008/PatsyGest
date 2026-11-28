@@ -11,8 +11,31 @@ const stubs = new URL('./next-stubs.mjs', import.meta.url).href;
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier === 'next/cache' || specifier === 'next/headers' || specifier === 'next/navigation') {
+    if (
+      specifier === 'next/cache' ||
+      specifier === 'next/headers' ||
+      specifier === 'next/navigation' ||
+      // `next/server` n'est pas résolvable hors bundler non plus : les tests
+      // de routes (ex. /api/health) l'importent pour `NextResponse`.
+      specifier === 'next/server'
+    ) {
       return { url: stubs, shortCircuit: true };
+    }
+    // `server-only` est une garde de bundler (elle n'existe que pour faire
+    // échouer un import côté client). Dans un test Node, elle n'a pas de paquet
+    // installé : on la neutralise explicitement plutôt que d'installer une
+    // dépendance factice qui masquerait un vrai import client par erreur.
+    if (specifier === 'server-only') {
+      return { url: 'data:text/javascript,export default undefined;', shortCircuit: true };
+    }
+    // Alias TypeScript/Next `@/…` : les tests Node ne lisent pas tsconfig.
+    // Seuls les fichiers réellement présents sous src/ sont résolus ; un alias
+    // inconnu continue de lever au lieu d'être remplacé par un faux module.
+    if (specifier.startsWith('@/')) {
+      const base = new URL(`../../src/${specifier.slice(2)}`, import.meta.url).href;
+      for (const suffixe of ['', '.ts', '.tsx', '/index.ts', '/index.tsx']) {
+        try { return nextResolve(base + suffixe, context); } catch { /* essai suivant */ }
+      }
     }
     try {
       return nextResolve(specifier, context);

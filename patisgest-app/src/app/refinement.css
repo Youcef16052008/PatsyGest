@@ -1,0 +1,87 @@
+/* Finitions partagées : chaque apparence garde sa personnalité, tandis que
+   les actions dangereuses, les statuts et les boutons spécialisés gardent leurs couleurs. */
+:root {
+  --pg-action-radius: 12px;
+  --pg-action-shadow: 0 3px 8px color-mix(in srgb, var(--pg-accent) 20%, transparent), inset 0 1px 0 #ffffff24;
+  --pg-action-hover-shadow: 0 7px 16px color-mix(in srgb, var(--pg-accent) 26%, transparent), inset 0 1px 0 #ffffff20;
+  --pg-action-lift: -2px;
+  --pg-surface-shadow: 0 2px 5px #16251b09, 0 10px 26px #16251b0a;
+}
+:root[data-design='atelier'] { --pg-action-radius: 12px; --pg-surface-shadow: 0 2px 5px #3a332008, 0 10px 26px #3a33200b; }
+:root[data-design='pilotage'] { --pg-action-radius: 9px; --pg-action-lift: -1px; --pg-surface-shadow: 0 2px 6px #2338580b, 0 10px 25px #2338580b; }
+:root[data-design='fabrication'] { --pg-action-radius: 10px; --pg-action-lift: -1px; --pg-surface-shadow: 0 2px 5px #183d3409, 0 8px 18px #183d340b; }
+:root[data-design='comptoir'] { --pg-action-radius: 14px; --pg-surface-shadow: 0 2px 5px #153b2d0a, 0 10px 22px #153b2d0c; }
+:root[data-design='essentiel'] { --pg-action-radius: 16px; --pg-surface-shadow: 0 2px 6px #49305a09, 0 12px 26px #49305a0b; }
+:root[data-mode='dark'] { --pg-surface-shadow: 0 3px 8px #00000024, 0 12px 26px #00000017; }
+
+/* Feedback cohérent pour les boutons de l'application, sans modifier leurs
+   états métier, leurs dimensions particulières ni leurs couleurs d'alerte. */
+:where(.pg-shell, .pg-login, .pg-public-main, .pg-appearance-dialog) button,
+:is(.pg-button, .pg-btn, a.bg-violet-700) {
+  transition: background-color .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+:where(.pg-shell, .pg-login, .pg-public-main, .pg-appearance-dialog) button:not(:disabled) { cursor: pointer; }
+
+/* Actions principales modernes, y compris les anciens formulaires Tailwind. */
+:is(.pg-button, .pg-btn, button.bg-violet-700, a.bg-violet-700) {
+  border-radius: var(--pg-action-radius);
+  box-shadow: var(--pg-action-shadow);
+  text-decoration: none;
+}
+:is(button.bg-violet-700, a.bg-violet-700) {
+  min-height: 44px;
+  background-color: var(--pg-accent);
+  color: #fff;
+}
+:is(button.bg-violet-700, a.bg-violet-700):hover:not(:disabled) { background-color: var(--pg-accent-hover); }
+:is(.pg-button-secondary, .pg-btn-sec) {
+  box-shadow: 0 1px 3px #0000000c;
+}
+:is(.pg-button, .pg-btn, button.bg-violet-700, a.bg-violet-700):not(:disabled):active { transform: translateY(1px); }
+:is(.pg-button, .pg-btn, button.bg-violet-700):disabled { box-shadow: none; }
+@media (hover: hover) {
+  :is(.pg-button, .pg-btn, button.bg-violet-700, a.bg-violet-700):hover:not(:disabled):not(:active) {
+    transform: translateY(var(--pg-action-lift));
+    box-shadow: var(--pg-action-hover-shadow);
+  }
+  :is(.pg-button-secondary, .pg-btn-sec):hover:not(:disabled) { box-shadow: 0 5px 12px #00000012; }
+  :is(.pg-product, .pg-design-card):hover:not(:disabled) { box-shadow: 0 6px 18px color-mix(in srgb, var(--pg-accent) 12%, transparent); }
+}
+
+/* Les actions de validation et de suppression gardent leurs teintes sémantiques. */
+:where(.pg-content, .pg-login, .pg-public-main) button:is(.rounded-lg, .rounded-xl) { border-radius: var(--pg-action-radius); }
+:where(.pg-content, .pg-login, .pg-public-main) button:is(.bg-red-700, .bg-emerald-700, .bg-amber-700) {
+  min-height: 44px;
+  box-shadow: 0 3px 8px #0000001a, inset 0 1px 0 #ffffff24;
+}
+:where(.pg-content, .pg-login, .pg-public-main) button:is(.bg-red-700, .bg-emerald-700, .bg-amber-700):disabled { box-shadow: none; }
+
+/* Les contrôles secondaires et les sélecteurs conservent leurs états et couleurs. */
+:is(.pg-icon-button, .pg-appearance-trigger, .pg-filter, .pg-segment button) { border-radius: calc(var(--pg-action-radius) - 2px); }
+:where(.pg-content, .pg-login, .pg-public-main) button:is(.border.rounded-lg, .border.rounded-xl):not([aria-pressed]):not([role='radio']) {
+  min-height: 40px;
+  border-radius: var(--pg-action-radius);
+}
+:is(.pg-content, .pg-login, .pg-public-main, .pg-appearance-dialog) :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--pg-link);
+  outline-offset: 3px;
+}
+:is(.pg-topbar, .pg-nav) :is(button, a, summary):focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
+
+/* Plus de profondeur et une hiérarchie visuelle douce, sans mouvement continu. */
+.pg-card { box-shadow: var(--pg-surface-shadow); }
+.pg-page-intro h1 { text-wrap: balance; }
+.pg-page-description { text-wrap: pretty; }
+.pg-input:focus-visible { border-color: var(--pg-link); }
+.pg-product { transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease; }
+.pg-design-card { transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.pg-shell, .pg-login, .pg-public-main, .pg-appearance-dialog) button,
+  :is(.pg-button, .pg-btn, a.bg-violet-700, .pg-product, .pg-design-card) { transition: none; }
+  :is(.pg-button, .pg-btn, button.bg-violet-700, a.bg-violet-700):hover:not(:disabled),
+  :is(.pg-button, .pg-btn, button.bg-violet-700, a.bg-violet-700):not(:disabled):active { transform: none; }
+}
+
+/* Le choix actif reste identifiable même au survol. */
+.pg-design-card[data-active='true']:hover { border-color: var(--pg-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--pg-accent) 26%, transparent), var(--pg-surface-shadow); }
