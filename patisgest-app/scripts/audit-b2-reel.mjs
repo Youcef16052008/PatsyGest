@@ -184,13 +184,31 @@ async function auditerPageChromium(browser, { baseUrl, path, label, viewport, co
         }
       }
       const vw = document.documentElement.clientWidth;
+      const isClippedByAncestor = (el) => {
+        let p = el.parentElement;
+        while (p && p !== document.documentElement) {
+          const ox = getComputedStyle(p).overflowX;
+          if (ox === "auto" || ox === "scroll" || ox === "hidden" || ox === "clip") return true;
+          p = p.parentElement;
+        }
+        return false;
+      };
       const overflowElements = [];
       for (const el of document.querySelectorAll("body *")) {
         const r = el.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0 && r.right > vw + 2) {
+        if (r.width > 0 && r.height > 0 && r.right > vw + 2 && !isClippedByAncestor(el)) {
           const cls = typeof el.className === "string" && el.className.trim() ? `.${el.className.trim().split(/\s+/).slice(0, 2).join(".")}` : "";
           overflowElements.push(`${el.tagName.toLowerCase()}${cls}(${Math.round(r.right)}/${vw})`);
-          if (overflowElements.length >= 4) break;
+          if (overflowElements.length >= 6) break;
+        }
+      }
+      if (overflowElements.length === 0 && document.documentElement.scrollWidth > vw + 2) {
+        for (const el of document.querySelectorAll("body *")) {
+          if (el.scrollWidth > el.clientWidth + 2 && !isClippedByAncestor(el)) {
+            const cls = typeof el.className === "string" && el.className.trim() ? `.${el.className.trim().split(/\s+/).slice(0, 2).join(".")}` : "";
+            overflowElements.push(`sw:${el.tagName.toLowerCase()}${cls}(${el.scrollWidth}/${el.clientWidth})`);
+            if (overflowElements.length >= 4) break;
+          }
         }
       }
       return {
