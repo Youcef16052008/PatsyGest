@@ -42,14 +42,16 @@ export default async function CashWorkspace({ ctx, db }: { ctx: SessionContext; 
   ]);
   const sales = await lireHistoriqueCaisse(db, clientId, (articles ?? []).map(articleAffiche), sites ?? []);
   return <>
-    <PageIntro title="Caisse rapide" label="Boutique" description="Composez le panier client en 1 clic, choisissez le règlement et imprimez le ticket."
-      actions={<><Link href="/cake-design" className="pg-button pg-button-secondary"><Icon name="cake" size={18}/> Acomptes &amp; commandes</Link><Link href="/stocks" className="pg-button pg-button-secondary"><Icon name="box" size={18}/> Stocks</Link></>}/>
+    <PageIntro title="Caisse rapide" label="Boutique" description="Touchez les produits, encaissez : le ticket s’imprime."
+      actions={<><Link href="/cake-design" className="pg-button pg-button-secondary"><Icon name="cake" size={18}/> Commandes</Link><Link href="/stocks" className="pg-button pg-button-secondary"><Icon name="box" size={18}/> Stocks</Link></>}/>
     <div className="pg-stack">
       <CashPanel queueIdentity={{clientId:ctx.clientId,authUserId:ctx.authUserId}} articles={articles} sites={sites} lots={lots} identite={identite} clientId={ctx.clientId}/>
-      {creditsRes.tableAvailable && (
-        <CreditsWorkspace mode="supabase" scopeKey={ctx.clientId} shop={identite.nom} today={today} initialCredits={creditsRes.credits} canManageAdmin={ctx.role === "proprietaire"} />
-      )}
       <SaleHistory sales={sales}/>
+      {creditsRes.tableAvailable && (
+        <Disclosure title="Carnet des crédits" description="Qui doit encore payer, et combien." icon="receipt">
+          <CreditsWorkspace mode="supabase" scopeKey={ctx.clientId} shop={identite.nom} today={today} initialCredits={creditsRes.credits} canManageAdmin={ctx.role === "proprietaire"} />
+        </Disclosure>
+      )}
       {ctx.role === "proprietaire" && <Disclosure title="Retour ou avoir" description="Reprendre un produit vendu : remise en stock ou destruction tracée." icon="receipt"><AvoirForm ventes={sales ?? []}/></Disclosure>}
       {ctx.role === "proprietaire" && <Disclosure title="Importer un Z de caisse" description="Ajouter les ventes d’une caisse externe." icon="list"><ZImportForm sites={sites ?? []}/></Disclosure>}
     </div>

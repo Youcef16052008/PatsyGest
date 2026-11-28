@@ -108,6 +108,7 @@ export default function DemoCaisse({
           label: art?.label ?? l.articleId,
           qty: l.qty,
           unit: art?.unit,
+          unitTTC: Math.round(l.unitPriceHT * (1 + l.vatPercent / 100) * 100) / 100,
           totalTTC: l.totalTTC,
         };
       });
@@ -124,6 +125,7 @@ export default function DemoCaisse({
         at: new Date().toISOString(),
         demo: true,
         etablissement: demoEtab,
+        creditNom: creditMode ? creditNom : undefined,
       });
       if (creditMode) {
         try {
@@ -184,9 +186,13 @@ export default function DemoCaisse({
         demo
       />
       {feedback && <Notice kind={feedback.kind}>{feedback.message}</Notice>}
-      {ticket && <SaleTicket data={ticket} />}
-      {!dashboard && <CreditsWorkspace mode="demo" scopeKey="demo" shop={shop} today={today} canManageAdmin={canManageCreditsAdmin} />}
+      {ticket && <SaleTicket data={ticket} autoPrint />}
       {!dashboard && <SaleHistory sales={demoSales(data)} demo />}
+      {!dashboard && (
+        <Disclosure title="Carnet des crédits" description="Qui doit encore payer, et combien." icon="receipt">
+          <CreditsWorkspace mode="demo" scopeKey="demo" shop={shop} today={today} canManageAdmin={canManageCreditsAdmin} />
+        </Disclosure>
+      )}
       {!dashboard && canEdit && (
         <Disclosure title="Importer un Z de caisse" icon="list">
           <ZImportOperations

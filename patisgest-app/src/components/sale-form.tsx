@@ -38,6 +38,7 @@ type VenteAffichee = Omit<SaleState, "modePaiement"> & {
   modePaiement: PaymentMode | string;
   at: string;
   etablissement: Etablissement | null;
+  creditNom?: string;
 };
 
 /**
@@ -162,6 +163,11 @@ export default function SaleForm({
               l.nom,
             qty: l.qty,
             unit: articles.find((a) => a.id === l.articleId)?.unit,
+            // Prix de l'unité, tel qu'il doit apparaître sur le ticket.
+            unitTTC:
+              l.puHT != null && Number.isFinite(Number(l.puHT))
+                ? Math.round(Number(l.puHT) * (1 + Number(l.tva ?? 0) / 100) * 100) / 100
+                : undefined,
             totalTTC: l.totalTTC,
           }))
         : qLines.map((q) => ({ label: q.articleLabel, qty: q.qte, unit: q.unit }));
@@ -255,7 +261,10 @@ export default function SaleForm({
             queue.write(removeSale(queue.read(), sale.ticket));
             const ticket = ticketVente(state, sale);
             if (ticket) {
-              if (creditMode) ticket.modePaiement = "À crédit (Carnet)";
+              if (creditMode) {
+                ticket.modePaiement = "À crédit (Carnet)";
+                ticket.creditNom = creditNom;
+              }
               setLastSale(ticket);
             }
             if (creditMode && status === "ok" && (state.totalTTC ?? 0) > 0) {
@@ -476,6 +485,7 @@ export default function SaleForm({
 
       {lastSale && (
         <SaleTicket
+          autoPrint
           data={{
             numero: lastSale.numero,
             articleLabel: lastSale.articleLabel,
@@ -488,6 +498,7 @@ export default function SaleForm({
             lots: lastSale.lots ?? [],
             at: lastSale.at,
             etablissement: lastSale.etablissement,
+            creditNom: lastSale.creditNom,
           }}
         />
       )}

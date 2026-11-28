@@ -1033,3 +1033,228 @@
 
 /* Les repères du laboratoire ne sont pas des états synchronisés. */
 .pg-kitchen-local-note { color: var(--pg-muted); border-inline-start: 3px solid var(--pg-tint-border); padding: 8px 12px; background: var(--pg-subtle); border-radius: 0 9px 9px 0; font-size: .82rem; line-height: 1.5; }
+
+/* ——— Recettes : un chemin court (nom → ingrédients → prix), le reste replié.
+   Constat terrain : l'ancien formulaire alignait 6 champs par ingrédient et
+   5 réglages rares. Seuls trois nombres servent à chaque recette : la
+   quantité, le prix d'achat et le prix de vente. Le reste est derrière
+   « Plus d'options ». ——— */
+.pg-recipe-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.pg-recipe-essentiel { display: grid; gap: 12px; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+.pg-recipe-essentiel .pg-field-wide { grid-column: auto; }
+@media (max-width: 720px) { .pg-recipe-essentiel { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .pg-recipe-essentiel > :first-child { grid-column: 1 / -1; } }
+.pg-recipe-line { border: 1px solid var(--pg-line); border-radius: 12px; background: var(--pg-subtle); padding: 11px 12px; }
+.pg-recipe-line-fields { display: grid; gap: 9px; grid-template-columns: minmax(0, 2.1fr) minmax(0, .8fr) minmax(0, .8fr) minmax(0, 1fr) auto; align-items: end; }
+.pg-recipe-line-name { min-width: 0; }
+.pg-recipe-line-end { display: flex; align-items: center; gap: 6px; padding-bottom: 3px; }
+@media (max-width: 760px) {
+  .pg-recipe-line-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .pg-recipe-line-name { grid-column: 1 / -1; }
+  .pg-recipe-line-end { grid-column: 1 / -1; justify-content: flex-end; padding-bottom: 0; }
+}
+.pg-recipe-resume { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); border: 1px solid var(--pg-tint-border); border-radius: 13px; background: var(--pg-tint); padding: 14px; }
+.pg-recipe-resume span { display: block; color: var(--pg-muted); font-size: .76rem; font-weight: 800; }
+.pg-recipe-resume b { display: block; margin-top: 3px; font-size: 1.24rem; font-weight: 800; letter-spacing: -.03em; }
+.pg-recipe-resume small { display: block; margin-top: 3px; color: var(--pg-muted); font-size: .76rem; line-height: 1.4; }
+.pg-recipe-suggestions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.pg-recipe-suggestions .pg-filter { background: var(--pg-surface); border-color: var(--pg-control); font-variant-numeric: tabular-nums; }
+.pg-money-ok { color: var(--pg-ok-ink); }
+.pg-money-bad { color: var(--pg-bad-ink); }
+.pg-recipe-more { border-top: 1px dashed var(--pg-line); padding-top: 12px; }
+.pg-recipe-more > .pg-text-link { gap: .4rem; }
+.pg-recipe-more > .pg-text-link[aria-expanded='true'] > .pg-icon:last-child { transform: rotate(180deg); }
+.pg-recipe-more-body { margin-top: 13px; }
+.pg-recipe-actions { display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--pg-line); padding-top: 13px; }
+.pg-recipe-actions .pg-button { flex: 0 1 auto; }
+@media (max-width: 560px) { .pg-recipe-actions .pg-button { flex: 1 1 100%; } }
+.pg-recipe-card { align-content: start; }
+.pg-recipe-card-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.pg-recipe-figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; border: 1px solid var(--pg-line); border-radius: 11px; background: var(--pg-subtle); padding: 10px 12px; }
+.pg-recipe-figs span { display: block; color: var(--pg-muted); font-size: .73rem; font-weight: 700; }
+.pg-recipe-figs b { display: block; margin-top: 2px; font-size: .92rem; font-weight: 800; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.pg-recipe-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; color: var(--pg-link); font-size: .82rem; font-weight: 800; cursor: pointer; list-style: none; }
+.pg-recipe-details > summary::-webkit-details-marker { display: none; }
+.pg-recipe-details[open] > summary > .pg-icon { transform: rotate(180deg); }
+.pg-recipe-details ul { border-top: 1px solid var(--pg-line); font-size: .84rem; }
+
+/* ——— Stocks : deux gestes en clair (ce qui arrive / nouvel article).
+   Les formulaires longs restent disponibles mais repliés : sur une tablette de
+   comptoir, un écran qui demande dix champs n'est pas rempli. ——— */
+.pg-stock-action-buttons { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.pg-stock-action { display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 12px 14px; text-align: start; border: 1px solid var(--pg-control); border-radius: 13px; background: var(--pg-surface); color: var(--pg-ink); cursor: pointer; }
+.pg-stock-action:hover { background: var(--pg-tint); border-color: var(--pg-tint-border); }
+.pg-stock-action[aria-pressed='true'] { background: var(--pg-tint); border-color: var(--pg-link); box-shadow: inset 0 0 0 1px var(--pg-link); }
+.pg-stock-action > span:last-child { min-width: 0; }
+.pg-stock-action b { display: block; font-size: 1rem; font-weight: 800; letter-spacing: -.02em; }
+.pg-stock-action small { display: block; margin-top: 2px; color: var(--pg-muted); font-size: .8rem; line-height: 1.35; }
+.pg-stock-form { display: grid; gap: 12px; margin-top: 14px; padding: 14px; border: 1px solid var(--pg-tint-border); border-radius: 13px; background: var(--pg-tint); }
+.pg-stock-form-title { font-weight: 800; font-size: 1rem; }
+.pg-stock-form-row { display: grid; gap: 11px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); align-items: start; }
+.pg-stock-form-wide { grid-column: 1 / -1; }
+@media (min-width: 700px) { .pg-stock-form-wide { grid-column: span 2; } }
+.pg-stock-form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 560px) { .pg-stock-form-actions .pg-button { flex: 1 1 100%; } }
+.pg-stock-plus { color: var(--pg-link); font-size: .82rem; justify-content: flex-start; min-height: 38px; }
+.pg-stock-plus[aria-expanded='true'] { text-decoration: underline; }
+.pg-hint { color: var(--pg-muted); font-size: .72rem; font-weight: 650; }
+
+/* Démo : les deux gestes de stock sont des blocs dépliables (pas de JavaScript
+   d'état) — même promesse que l'écran réel, sans Server Action. */
+details.pg-stock-action { display: block; }
+details.pg-stock-action > summary { display: flex; align-items: center; gap: 12px; min-height: 72px; cursor: pointer; list-style: none; padding: 12px 14px; }
+details.pg-stock-action > summary::-webkit-details-marker { display: none; }
+details.pg-stock-action[open] { border-color: var(--pg-link); background: var(--pg-tint); }
+details.pg-stock-action > .pg-stock-form { margin: 0 12px 12px; background: var(--pg-surface); }
+
+/* « Plus d’options » de la démo : même rendu que le dépliant de recette. */
+details.pg-recipe-more > summary.pg-stock-plus { display: flex; align-items: center; gap: 6px; min-height: 40px; cursor: pointer; list-style: none; }
+details.pg-recipe-more > summary.pg-stock-plus::-webkit-details-marker { display: none; }
+details.pg-recipe-more[open] > summary.pg-stock-plus { text-decoration: underline; }
+
+/* Sur un téléphone, quatre onglets ne tiennent pas : on garde l'onglet actif en
+   tête et la barre défile horizontalement. Aucun libellé n'est tronqué. */
+@media (max-width: 720px) {
+  .pg-recipe-top { flex-direction: column; align-items: stretch; }
+  .pg-recipe-top > .pg-segment { display: flex; overflow-x: auto; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; max-width: 100%; }
+  .pg-recipe-top > .pg-segment > button { flex: 0 0 auto; scroll-snap-align: start; }
+  .pg-recipe-top > .pg-button { width: 100%; }
+}
+
+/* Un panneau qui s'ouvre (article/réception) doit être vu : sans cela, sur une
+   page longue, le clic semble ne rien faire. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes pg-panel-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .pg-stock-form { animation: pg-panel-in .18s ease-out; }
+}
+
+/* ---------------------------------------------------------------------------
+   Caisse : un produit = une photo, un nom, un prix. Le ticket en cours reste
+   la seule zone « chiffres » de l'écran. Rien d'autre à lire.
+   --------------------------------------------------------------------------- */
+.pg-product { position: relative; overflow: hidden; }
+.pg-product-photo { height: clamp(84px, 9vw, 118px); }
+.pg-product-price { font-size: .95rem; font-weight: 800; color: var(--pg-link); font-variant-numeric: tabular-nums; }
+.pg-product-out { font-size: .74rem; font-weight: 800; color: var(--pg-warn-ink); }
+.pg-product-select { width: 32px; height: 32px; }
+.pg-product[aria-pressed='true'] { border-color: var(--pg-accent); }
+.pg-catalog .pg-product-grid { margin-top: 10px; }
+
+.pg-sale-draft .pg-sale-draft-head { padding-bottom: 12px; }
+.pg-sale-draft h2 { font-size: 1.12rem; letter-spacing: -.02em; }
+.pg-sale-submit { width: 100%; min-height: 58px; font-size: 1.05rem; border-radius: 13px; margin-top: 4px; }
+.pg-sale-clear { justify-content: center; width: 100%; min-height: 40px; color: var(--pg-muted); font-size: .8rem; font-weight: 700; }
+.pg-sale-totals { border-top: 0; padding-top: 0; }
+.pg-sale-totals > span { font-size: .95rem; color: var(--pg-muted); }
+.pg-sale-totals strong { font-size: clamp(1.6rem, 3vw, 2.1rem); letter-spacing: -.04em; }
+.pg-pay-chip { min-height: 44px; font-size: .85rem; }
+.pg-credit-fields { display: grid; gap: 8px; margin-top: 10px; padding: 10px; border-radius: 11px; background: var(--pg-subtle); border: 1px solid var(--pg-line); }
+@media (min-width: 620px) { .pg-credit-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* Ticket imprimé : cinq informations, en gros, centrées. */
+.pg-ticket-card { gap: 14px; }
+.pg-ticket-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.pg-ticket-head h2 { font-size: 1.14rem; font-weight: 800; }
+.pg-ticket-wa { position: relative; }
+.pg-ticket-wa > summary { list-style: none; padding-inline: 12px; }
+.pg-ticket-wa > summary::-webkit-details-marker { display: none; }
+.pg-ticket-wa-body { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.pg-ticket-wa-body .pg-input { flex: 1 1 10rem; }
+.sale-ticket { border-radius: 6px; }
+[dir='rtl'] .sale-ticket { font-family: Manrope, 'Segoe UI', system-ui, sans-serif; }
+
+/* Arabe : Manrope n'a pas de glyphes arabes — on passe explicitement aux
+   polices système arabes, avec une hauteur de ligne plus généreuse (les
+   diacritiques et descendantes arabes se coupent sinon). */
+[dir='rtl'] body, [dir='rtl'] input, [dir='rtl'] select, [dir='rtl'] textarea, [dir='rtl'] button {
+  font-family: 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Segoe UI', Tahoma, 'Geeza Pro', 'Arial', sans-serif;
+  line-height: 1.65;
+}
+[dir='rtl'] :is(h1, h2, h3, .pg-product-copy strong, .pg-sale-totals strong) { letter-spacing: 0; line-height: 1.5; }
+[dir='rtl'] .pg-kicker, [dir='rtl'] .pg-active-design, [dir='rtl'] .pg-nav-caption { letter-spacing: 0; }
+[dir='rtl'] .pg-num, [dir='rtl'] .pg-product-price, [dir='rtl'] .pg-cart-line-total { font-variant-numeric: normal; direction: rtl; }
+
+/* ---------------------------------------------------------------------------
+   Commandes & Gâteaux : une demande = une carte, une commande = trois chiffres
+   et un seul bouton. Tout le reste est rangé derrière « Plus ».
+   --------------------------------------------------------------------------- */
+.pg-cake-demands { border-color: var(--pg-warn-line); background: var(--pg-warn-bg); }
+.pg-cake-demand-list { display: grid; gap: 8px; }
+.pg-cake-demand-list > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; background: var(--pg-surface); border: 1px solid var(--pg-line); border-radius: 11px; padding: 10px 12px; }
+.pg-cake-demand-copy { display: grid; gap: 2px; min-width: 0; }
+.pg-cake-demand-copy strong { font-size: 1rem; font-weight: 800; }
+.pg-cake-demand-copy span, .pg-cake-demand-copy em { color: var(--pg-muted); font-size: .82rem; font-style: normal; }
+.pg-cake-demand-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.pg-cake-draft { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; padding: 10px 12px; border-radius: 11px; border: 1px solid var(--pg-tint-border); background: var(--pg-tint); color: var(--pg-link); font-size: .82rem; }
+.pg-cake-draft-actions { display: flex; gap: 6px; }
+
+.pg-cake-form { display: grid; gap: 10px; }
+@media (min-width: 720px) {
+  .pg-cake-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pg-cake-wide { grid-column: 1 / -1; }
+  .pg-cake-submit { grid-column: 1 / -1; }
+}
+.pg-cake-submit { width: 100%; min-height: 56px; font-size: 1.02rem; border-radius: 13px; }
+.pg-cake-more { border: 1px solid var(--pg-line); border-radius: 11px; padding: 0 12px; }
+.pg-cake-more > summary { list-style: none; cursor: pointer; min-height: 46px; display: flex; align-items: center; font-size: .84rem; font-weight: 800; color: var(--pg-link); }
+.pg-cake-more > summary::-webkit-details-marker { display: none; }
+.pg-cake-more-body { display: grid; gap: 10px; padding-bottom: 12px; }
+.pg-check { display: flex; align-items: center; gap: 8px; font-size: .84rem; font-weight: 700; }
+.pg-cake-options { display: grid; gap: 8px; }
+.pg-cake-option { display: grid; gap: 8px; align-items: end; border: 1px solid var(--pg-line); border-radius: 10px; padding: 8px; }
+@media (min-width: 640px) { .pg-cake-option { grid-template-columns: minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto; } }
+.pg-cake-option-remove { color: var(--pg-bad-ink); font-size: .8rem; }
+
+.pg-cake-list { display: grid; gap: 10px; }
+.pg-cake-item { border: 1px solid var(--pg-line); border-radius: 13px; background: var(--pg-surface); padding: 12px; display: grid; gap: 8px; }
+.pg-cake-item-form { display: grid; gap: 10px; }
+.pg-cake-item-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.pg-cake-item-copy { display: grid; gap: 2px; min-width: 0; }
+.pg-cake-item-copy strong { font-size: 1.05rem; font-weight: 800; }
+.pg-cake-item-copy span { color: var(--pg-muted); font-size: .82rem; }
+.pg-cake-money { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.pg-cake-money > div { border-radius: 10px; padding: 7px 9px; background: var(--pg-subtle); display: grid; gap: 1px; }
+.pg-cake-money small { color: var(--pg-muted); font-size: .72rem; font-weight: 700; }
+.pg-cake-money b { font-size: 1rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pg-cake-money > div[data-reste] { background: var(--pg-warn-bg); color: var(--pg-warn-ink); }
+.pg-cake-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.pg-cake-actions .pg-button { min-height: 46px; }
+.pg-cake-pay { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; padding: 8px; border-radius: 10px; background: var(--pg-subtle); }
+.pg-cake-pay .pg-field { flex: 1 1 10rem; }
+.pg-cake-details { border-top: 1px dashed var(--pg-line); padding-top: 4px; }
+.pg-cake-details > summary { list-style: none; cursor: pointer; min-height: 40px; display: flex; align-items: center; font-size: .82rem; font-weight: 800; color: var(--pg-muted); }
+.pg-cake-details > summary::-webkit-details-marker { display: none; }
+.pg-cake-details-body { display: grid; gap: 8px; padding-block: 6px; }
+.pg-cake-cgv { display: grid; gap: 8px; align-items: end; }
+@media (min-width: 620px) { .pg-cake-cgv { grid-template-columns: minmax(0,1fr) auto; } }
+.pg-cake-assign, .pg-cake-edit { display: grid; gap: 8px; padding: 10px; border-radius: 10px; background: var(--pg-subtle); }
+@media (min-width: 720px) {
+  .pg-cake-assign { grid-template-columns: repeat(3, minmax(0, 1fr)) auto; }
+  .pg-cake-edit { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.pg-cake-edit-actions { display: flex; gap: 8px; }
+.pg-cake-done > summary { color: var(--pg-muted); }
+.pg-cake-done-list { display: grid; gap: 6px; padding-bottom: 10px; font-size: .85rem; }
+.pg-cake-done-list > li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pg-form-error { color: var(--pg-bad-ink); font-size: .84rem; font-weight: 700; }
+.pg-form-ok { color: var(--pg-ok-ink); font-size: .84rem; font-weight: 700; }
+.pg-danger { color: var(--pg-bad-ink); border-color: var(--pg-bad-ink); }
+.pg-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; background: var(--pg-subtle); border: 1px solid var(--pg-line); font-size: .74rem; font-weight: 800; }
+.pg-badge[data-tone='warning'] { background: var(--pg-warn-bg); border-color: var(--pg-warn-line); color: var(--pg-warn-ink); }
+
+/* ---------------------------------------------------------------------------
+   Recettes (écran court) : fiche → préparation → coûts fins derrière « plus ».
+   --------------------------------------------------------------------------- */
+.pg-version-grid { display: grid; gap: 10px; }
+@media (min-width: 720px) { .pg-version-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.pg-version-lines { display: grid; gap: 8px; }
+.pg-version-line { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--pg-line); border-radius: 11px; }
+@media (min-width: 720px) { .pg-version-line { grid-template-columns: minmax(0,1fr) minmax(0,1.4fr) minmax(0,.8fr) minmax(0,.7fr) minmax(0,.8fr); } }
+.pg-version-more { border: 1px solid var(--pg-line); border-radius: 11px; padding: 0 12px; }
+.pg-version-more > summary { list-style: none; cursor: pointer; min-height: 46px; display: flex; align-items: center; font-size: .84rem; font-weight: 800; color: var(--pg-link); }
+.pg-version-more > summary::-webkit-details-marker { display: none; }
+.pg-version-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.pg-version-list { display: grid; gap: 4px; }
+.pg-version-list > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--pg-line); font-size: .88rem; }
+.pg-version-list > li:last-child { border-bottom: 0; }
+.pg-badge[data-tone='ok'] { background: var(--pg-ok-bg); border-color: var(--pg-ok-line); color: var(--pg-ok-ink); }

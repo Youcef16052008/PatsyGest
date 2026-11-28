@@ -24,8 +24,15 @@ import { useLocale } from "./locale-provider";
 import NetworkStatusPill from "./network-status-pill";
 import SaleCreditFields from "./sale-credit-fields";
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 24;
 
+/**
+ * Caisse de comptoir, version courte :
+ *  1. on touche les produits ;
+ *  2. le ticket se remplit à droite ;
+ *  3. on encaisse, le ticket s'imprime.
+ * Aucun texte technique à l'écran : ni TVA, ni lot, ni site de production.
+ */
 export default function SaleComposer({
   articles,
   sites,
@@ -118,7 +125,7 @@ export default function SaleComposer({
   function ajouterProduit(product: CatalogProduct) {
     const unitPrice = prixUnitaire(product);
     if (unitPrice === null || unitPrice <= 0) {
-      setCartError(`« ${product.label} » attend la validation de son prix par le propriétaire.`);
+      setCartError(`« ${product.label} » : prix à valider par le patron.`);
       return;
     }
     try {
@@ -126,9 +133,7 @@ export default function SaleComposer({
       setCart((prev) => {
         const next = addToCart(prev, product, 1);
         const updated = next.find((x) => x.articleId === product.id);
-        if (updated) {
-          setQtyDrafts((d) => ({ ...d, [product.id]: String(updated.qte) }));
-        }
+        if (updated) setQtyDrafts((d) => ({ ...d, [product.id]: String(updated.qte) }));
         return next;
       });
     } catch (e) {
@@ -176,12 +181,10 @@ export default function SaleComposer({
 
   return (
     <div className="pg-pos">
+      {/* 1 — les produits */}
       <section className="pg-card pg-card-pad pg-catalog" aria-labelledby={`${id}-catalog`}>
         <div className="pg-card-head">
-          <div>
-            <h2 id={`${id}-catalog`}>{t.posProducts}</h2>
-            <p>Touchez un produit pour l’ajouter au panier. Les quantités vendables tiennent compte des dates limites.</p>
-          </div>
+          <h2 id={`${id}-catalog`}>{t.posProducts}</h2>
           {status}
         </div>
         <div className="pg-pos-toolbar">
@@ -190,8 +193,8 @@ export default function SaleComposer({
             <input
               type="search"
               className="pg-input"
-              placeholder="Rechercher un produit…"
-              aria-label="Rechercher un produit"
+              placeholder={locale === "ar" ? t.posSearch : "Chercher un produit…"}
+              aria-label={locale === "ar" ? t.posSearch : "Chercher un produit"}
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -199,9 +202,9 @@ export default function SaleComposer({
               }}
             />
           </div>
-          {sites.length > 1 ? (
+          {sites.length > 1 && (
             <label className="pg-field pg-pos-site">
-              <span>Site de vente</span>
+              <span>{t.posSite}</span>
               <select
                 value={site?.id ?? ""}
                 className="pg-input"
@@ -215,43 +218,24 @@ export default function SaleComposer({
                 ))}
               </select>
             </label>
-          ) : (
-            site && (
-              <span className="pg-pos-only-site">
-                <Icon name="store" size={17} /> {site.label}
-              </span>
-            )
           )}
         </div>
-        {!!articles.length && (
-          <div className="pg-pos-subbar">
-            <p className="pg-list-count" role="status">
-              {rows.length} {rows.length === 1 ? "produit" : "produits"}
-            </p>
-            {cart.length > 0 && (
-              <button
-                type="button"
-                className="pg-button pg-button-secondary pg-pos-jump"
-                onClick={() => ticket.current?.focus()}
-              >
-                Voir le panier ({cart.length})
-              </button>
-            )}
-          </div>
-        )}
+
         {cartError && (
           <p role="alert" className="pg-quantity-warning">
             <Icon name="alert" size={16} /> {cartError}
           </p>
         )}
+
         {rows.length ? (
-          <div className="pg-product-grid" role="group" aria-label="Produits">
+          <div className="pg-product-grid" role="group" aria-label={t.posProducts}>
             {rows.slice(0, limit).map((a, index) => {
               const dispo = currentStock(a);
               const perime = currentExpired(a);
               const price = prixUnitaire(a);
               const unpriced = price === null || price <= 0;
               const inCart = qtyInCart.get(a.id) ?? 0;
+              const rupture = dispo !== null && dispo <= 0;
               return (
                 <button
                   type="button"
@@ -259,45 +243,31 @@ export default function SaleComposer({
                   className="pg-product"
                   aria-pressed={inCart > 0}
                   disabled={busy || unpriced}
-                  title={unpriced ? "Prix à valider par le patron avant mise en vente" : undefined}
                   onClick={() => ajouterProduit(a)}
                 >
-                  <span className="pg-product-body">
-                    <span className="pg-product-icon pg-emblem">
-                      <Icon name="cake" size={20} />
-                    </span>
-                    <span className="pg-product-copy">
-                      <strong>{a.label}</strong>
-                      <span className="pg-product-stock" data-empty={dispo === 0}>
-                        {dispo === null
-                          ? "Stock indisponible"
-                          : `${quantite(dispo, a.unit)} utilisable${dispo > 1 ? "s" : ""}`}
-                        {perime > 0 ? ` · ${quantite(perime)} DLC dépassée` : ""}
-                      </span>
-                      {unpriced ? (
-                        <small className="text-amber-700 font-semibold">Prix à valider par le patron</small>
-                      ) : (
-                        <small>{dinars(price)}</small>
-                      )}
-                      {(noms.get(a.label) ?? 0) > 1 && a.code && <small>{a.code}</small>}
-                    </span>
-                    <span className="pg-product-select" data-count={inCart > 0 || undefined}>
-                      {inCart > 0 ? (
-                        <strong className="pg-product-qty">{quantite(inCart)}</strong>
-                      ) : (
-                        <Icon name="plus" size={18} />
-                      )}
-                    </span>
-                  </span>
                   <Image
                     className="pg-product-photo"
                     src={customPhotoMap[a.id] ?? sanitizePhotoSource(a.photo) ?? defaultPastryVisual(a.label)}
                     alt=""
                     width={480}
                     height={336}
-                    loading={index < 2 ? "eager" : "lazy"}
+                    loading={index < 4 ? "eager" : "lazy"}
                     unoptimized
                   />
+                  <span className="pg-product-body">
+                    <span className="pg-product-copy">
+                      <strong>{a.label}</strong>
+                      <small className="pg-product-price">
+                        {unpriced ? t.posNoPrice : dinars(price)}
+                      </small>
+                      {rupture && <small className="pg-product-out">{t.posOutOfStock}</small>}
+                      {perime > 0 && <small className="pg-product-out">{t.posExpired}</small>}
+                      {(noms.get(a.label) ?? 0) > 1 && a.code && <small>{a.code}</small>}
+                    </span>
+                    <span className="pg-product-select" data-count={inCart > 0 || undefined}>
+                      {inCart > 0 ? <strong className="pg-product-qty">{quantite(inCart)}</strong> : <Icon name="plus" size={18} />}
+                    </span>
+                  </span>
                 </button>
               );
             })}
@@ -306,72 +276,40 @@ export default function SaleComposer({
           <EmptyState
             icon="cake"
             title={articles.length ? "Aucun produit trouvé" : "Aucun produit à vendre"}
-            text={
-              articles.length
-                ? "Essayez un autre nom ou effacez la recherche."
-                : "Créez un produit fini dans Stocks pour l’afficher ici."
-            }
+            text={articles.length ? "Essayez un autre nom." : "Créez un produit fini dans Mes stocks."}
           />
         )}
         {rows.length > limit && (
-          <button
-            type="button"
-            className="pg-button pg-button-secondary mt-3"
-            onClick={() => setLimit(limit + PAGE_SIZE)}
-          >
+          <button type="button" className="pg-button pg-button-secondary mt-3" onClick={() => setLimit(limit + PAGE_SIZE)}>
             Afficher plus de produits
           </button>
         )}
       </section>
 
-      <section
-        ref={ticket}
-        tabIndex={-1}
-        className="pg-card pg-card-pad pg-sale-draft"
-        aria-labelledby={`${id}-draft`}
-      >
+      {/* 2 — le ticket en cours */}
+      <section ref={ticket} tabIndex={-1} className="pg-card pg-card-pad pg-sale-draft" aria-labelledby={`${id}-draft`}>
         <div className="pg-sale-draft-head">
           <span className="pg-emblem">
             <Icon name="receipt" size={22} />
           </span>
           <div style={{ flex: 1 }}>
-            <p className="pg-kicker">{demo ? "Simulation panier" : "Panier client"}</p>
-            <h2 id={`${id}-draft`}>
-              {t.posCartTitle}{cart.length > 0 ? ` (${cart.length})` : ""}
-            </h2>
+            <h2 id={`${id}-draft`}>{t.posCartTitle}</h2>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <NetworkStatusPill inline />
-            {cart.length > 0 && (
-              <button
-                type="button"
-                className="pg-btn pg-btn-sec pg-btn-xs"
-                disabled={busy}
-                onClick={viderPanier}
-              >
-                Vider
-              </button>
-            )}
-          </div>
+          <NetworkStatusPill inline />
         </div>
 
         {!sites.length ? (
           <p className="pg-muted">Aucun site de vente configuré.</p>
         ) : cart.length === 0 ? (
-          <EmptyState
-            title="Panier vide"
-            text="Touchez un ou plusieurs produits : chaque clic ajoute au même ticket client sans effacer le précédent."
-            icon="receipt"
-          />
+          <EmptyState title={t.posEmpty} text="Touchez un produit pour commencer." icon="receipt" />
         ) : (
           <form onSubmit={onSubmit} onReset={viderPanier} className="pg-sale-draft-form">
             <input type="hidden" name="siteId" value={site?.id ?? ""} />
             <input type="hidden" name="lignesJson" value={serializedLines} />
             <input type="hidden" name="modePaiement" value={isCredit ? "cheque_virement" : modePaiement} />
-            {/* Compatibilité premier article */}
             <input type="hidden" name="articleId" value={cart[0].articleId} />
 
-            <ul className="pg-cart-list" aria-label="Articles du panier">
+            <ul className="pg-cart-list" aria-label="Produits du ticket">
               {totals.lignes.map((line) => {
                 const draftVal = qtyDrafts[line.articleId] ?? (Number.isFinite(line.qte) ? String(line.qte) : "");
                 return (
@@ -380,16 +318,14 @@ export default function SaleComposer({
                       <div>
                         <strong>{line.label}</strong>
                         <small className="pg-cart-unit">
-                          {line.unitTTC !== null
-                            ? `${dinars(line.unitTTC)}${line.unit ? ` / ${line.unit}` : ""}`
-                            : "Tarif à vérifier"}
+                          {line.unitTTC !== null ? dinars(line.unitTTC) : t.posNoPrice}
                         </small>
                       </div>
                       <button
                         type="button"
                         className="pg-icon-button pg-cart-remove"
                         disabled={busy}
-                        aria-label={`Retirer ${line.label} du panier`}
+                        aria-label={`Retirer ${line.label}`}
                         onClick={() => retirerLigne(line.articleId)}
                       >
                         <Icon name="close" size={15} />
@@ -440,19 +376,12 @@ export default function SaleComposer({
 
             {stockAlerts.map((al) => (
               <p key={al.articleId} className="pg-quantity-warning" role="status">
-                <Icon name="alert" size={16} />{" "}
-                <span>
-                  <strong>{al.label}</strong> :{" "}
-                  {al.manquant > 0
-                    ? `${quantite(al.disponible, al.unit)} utilisable(s) pour ${quantite(al.demande, al.unit)} demandé(s)`
-                    : `${quantite(al.disponible, al.unit)} utilisable(s)`}
-                  {al.perimeExclu > 0 && ` (${quantite(al.perimeExclu, al.unit)} exclu(s) : DLC dépassée)`}.
-                </span>
+                <Icon name="alert" size={16} /> {al.label} · {quantite(al.disponible, al.unit)}
               </p>
             ))}
 
             <fieldset className="pg-pay-modes" disabled={busy}>
-              <legend className="pg-label">Mode de règlement</legend>
+              <legend className="pg-label">{t.posPayment}</legend>
               <div className="pg-pay-grid">
                 {PAYMENT_MODES_SAISIE.map((mode) => (
                   <button
@@ -476,7 +405,7 @@ export default function SaleComposer({
                   aria-pressed={isCredit}
                   onClick={() => setIsCredit((v) => !v)}
                 >
-                  {isCredit ? t.posCreditToggle : "À crédit (Carnet)"}
+                  {t.posCreditToggle}
                 </button>
               </div>
               {isCredit && (
@@ -492,38 +421,25 @@ export default function SaleComposer({
             </fieldset>
 
             <div className="pg-sale-totals">
-              <div>
-                <span>
-                  {isCredit ? "Total à noter au carnet" : "Total à payer"}{" "}
-                  <small>
-                    {site?.label} · {cart.length} {cart.length > 1 ? "produits" : "produit"}
-                  </small>
-                </span>
-                {totals.totalTVA !== null && totals.totalTVA > 0.01 && (
-                  <small className="pg-num">
-                    Dont TVA incluse : {dinars(totals.totalTVA)}
-                  </small>
-                )}
-              </div>
-              <strong className="pg-num">
-                {totals.totalTTC !== null ? dinars(totals.totalTTC) : "—"}
-              </strong>
+              <span>{t.posTotal}</span>
+              <strong className="pg-num">{totals.totalTTC !== null ? dinars(totals.totalTTC) : "—"}</strong>
             </div>
 
             {totals.prixIncomplet && (
               <p className="pg-sale-note" role="alert">
-                Un produit du ticket n&apos;a pas de prix de vente positif : retirez-le ou corrigez sa fiche avant d&apos;encaisser.
+                Un produit n’a pas de prix : retirez-le du ticket.
               </p>
             )}
 
             <button className="pg-button pg-sale-submit" type="submit" disabled={!canSell}>
-              {busy ? "Enregistrement…" : demo ? t.posSimPay : locale === "ar" ? t.posPay : "Encaisser"}
-              <Icon name="arrow" size={17} />
+              {busy ? "…" : demo ? t.posSimPay : "Encaisser"}
+              <Icon name="arrow" size={18} />
+            </button>
+            <button type="button" className="pg-text-link pg-sale-clear" onClick={viderPanier} disabled={busy}>
+              {t.posClear}
             </button>
             <p className="pg-sale-note">
-              {demo
-                ? "Démonstration locale — aucun paiement réel."
-                : "Enregistre un règlement déjà encaissé (suivi tiroir, sans terminal en ligne). Lots bloqués et périmés exclus."}
+              {demo ? "Démonstration : aucun paiement réel." : "Le ticket s’imprime dès l’encaissement."}
             </p>
           </form>
         )}

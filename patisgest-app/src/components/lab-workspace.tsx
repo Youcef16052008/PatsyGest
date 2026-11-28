@@ -50,7 +50,7 @@ export default async function LabWorkspace({module,ctx,disabled,requestedDate,to
  const versionRows:VersionRow[]=rows.flatMap(v=>{const f=family.find(x=>x.id===v.famille_id);return f?[{id:v.id,familleId:v.famille_id,version:v.version,active:v.active,label:`${f.nom} · v${v.version} (${v.rendement_qte} ${v.rendement_unite})`}]:[];});
  const stockSuggestions = arts.filter(a=>a.niveau==='matiere').map(a=>({id:a.id,nom:a.nom,unite:a.unite,prixUnitaireDa:null}));
  return <>
-   <PageIntro title="Recettes &amp; grammages" description="Ingrédients, quantités, moules et suggestions de prix (sans coûts ni marges)." />
+   <PageIntro title="Mes recettes" description="Les ingrédients, les quantités et les prix proposés — sans les coûts." />
    <FreeRecipesWorkspace
      scopeKey={ctx.clientId}
      stockSuggestions={stockSuggestions}

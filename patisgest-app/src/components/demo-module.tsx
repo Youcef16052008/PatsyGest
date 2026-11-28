@@ -27,8 +27,9 @@ import {
   type OwnerPriceAlert,
 } from '@/lib/owner-price-guard';
 import { DEMO_SITES, demoLots, demoOrders } from '@/lib/demo-workspace';
-import { jourLocal, stockArticle, indexLots } from '@/lib/workspace-data';
+import { jourLocal } from '@/lib/workspace-data';
 import { Disclosure, Notice, PageIntro } from './workspace-ui';
+import { Icon } from './workspace-icons';
 
 type Module = 'stocks'|'achats'|'recettes'|'caisse'|'production'|'transferts'|'cloture'|'qualite'|'cake-design'|'tracabilite'|'planning'|'simulation';
 const field='pg-input';
@@ -102,24 +103,20 @@ export default function DemoModule({ module, role, filtre, shop }: { module: Mod
     }
   }
   function addLot(e:FormEvent<HTMLFormElement>) {e.preventDefault(); const f=new FormData(e.currentTarget); try {const next=receive(db,{articleId:String(f.get('article')),numero:String(f.get('numero')).trim(),site:String(f.get('site')),qte:Number(f.get('qte')),pu:isOwner?Number(f.get('pu')):0,dlc:String(f.get('dlc'))});if (save(next)) {e.currentTarget.reset();setMessage('Lot réceptionné localement.');}} catch(err){setMessage(err instanceof Error?err.message:'Erreur');}}
-  const title={stocks:isSeller?'Stocks boutique & Réassort':'Stocks & Achats',achats:'Achats & fournisseurs',recettes:isOwner?'Recettes & Coûts':'Recettes & grammages',caisse:'Caisse rapide',production:'Production',transferts:'Transferts',cloture:isSeller?'Comptage de caisse':'Clôture & pertes',qualite:'HACCP & qualité','cake-design':'Commandes & Gâteaux',tracabilite:'Traçabilité des lots',planning:'Planning de production',simulation:'Simulation de prix'}[module];
+  const title={stocks:isSeller?'Ce qu’il y a en boutique':'Mes stocks',achats:'Achats & fournisseurs',recettes:isOwner?'Mes recettes & mes prix':'Mes recettes',caisse:'Caisse rapide',production:'Production',transferts:'Transferts',cloture:isSeller?'Comptage de caisse':'Clôture & pertes',qualite:'HACCP & qualité','cake-design':'Commandes & Gâteaux',tracabilite:'Traçabilité des lots',planning:'Planning de production',simulation:'Simulation de prix'}[module];
   const descriptions: Partial<Record<Module, string>> = {
     stocks: isSeller
-      ? "Consultez les quantités disponibles et demandez un réassort au laboratoire."
-      : "Voyez ce qui manque en un coup d’œil et enregistrez vos achats ou réceptions.",
+      ? "Regardez ce qui reste, et demandez au labo ce qui manque."
+      : "Ce qui reste, ce qui manque, et ce qui vient d’arriver.",
     caisse: "Grosses tuiles visuelles pour encaisser vite au comptoir.",
     recettes: isOwner
-      ? "Écrivez vos recettes librement en DA, calculez vos moules et vos marges."
-      : "Notez vos recettes, quantités et moules (sans coûts ni marges).",
+      ? "Écrivez une recette, voyez son coût et choisissez votre prix."
+      : "Notez vos recettes et leurs quantités (sans les coûts).",
     "cake-design": "Mariages, anniversaires, acomptes payés, reste à encaisser et WhatsApp client.",
     cloture: isSeller ? "Comptez les espèces de votre tiroir en fin de journée." : undefined,
   };
   const today = jourLocal();
   const lots = demoLots(db);
-  const lotsByArt = indexLots(lots);
-  const lowStocks = module === 'stocks'
-    ? db.articles.map((a) => ({ a, ...stockArticle(a, lotsByArt.get(a.id) ?? [], today) })).filter((x) => x.signals.length > 0)
-    : [];
   const stockSuggestions = module === 'recettes'
     ? db.articles.filter((a) => a.niveau === 'matiere').map((a) => {
         const latestLot = db.lots.filter((l) => l.articleId === a.id && l.pu > 0).at(-1);
@@ -129,9 +126,7 @@ export default function DemoModule({ module, role, filtre, shop }: { module: Mod
   return <div className="pg-stack"><PageIntro title={title} label={module === "stocks" ? "Inventaire" : module === "caisse" ? "Boutique" : module === "production" ? "Laboratoire" : undefined}
     description={descriptions[module]}
     actions={
-      module === "stocks" && canEdit ? (
-        <a href="#nouvel-article" className="pg-button pg-button-secondary">Achat / Nouvel article</a>
-      ) : module === "caisse" ? (
+      module === "caisse" ? (
         <Link href="/cake-design" className="pg-button pg-button-secondary">Acomptes &amp; commandes →</Link>
       ) : module === "production" ? (
         <Link href="/planning#demain-au-labo" className="pg-button pg-button-secondary">Demain au labo →</Link>
@@ -139,22 +134,71 @@ export default function DemoModule({ module, role, filtre, shop }: { module: Mod
     }/>
     {message && <p role="status" className="rounded-lg bg-violet-50 p-3 text-sm text-violet-900">{message}</p>}
     {module === 'stocks' && <>
-      {lowStocks.length > 0 && (
-        <Notice kind="warning">
-          <b>{lowStocks.length} article{lowStocks.length > 1 ? 's' : ''} à surveiller / commander :</b>{' '}
-          {lowStocks.slice(0, 5).map((x) => `${x.a.nom} (${x.quantity} ${x.a.unite})`).join(' · ')}
-        </Notice>
-      )}
-      <StockList key={filtre ?? "tous"} articles={(isOwner ? db.articles : db.articles.map((a) => ({ ...a, prix: 0, tva: 0 }))).slice().sort((a,b) => a.nom.localeCompare(b.nom,"fr"))} lots={lots} sites={DEMO_SITES} today={today} filtre={filtre}/>
-      {isSeller && (
-        <RestockRequestQuickForm
-          mode="demo"
-          articles={db.articles.filter((a) => a.niveau === "produit").map((p) => ({ id: p.id, label: `${p.nom} · ${p.code}` }))}
-          sites={DEMO_SITES.filter((s) => s.type === "boutique").map((s) => ({ id: s.id, label: s.label }))}
-        />
-      )}
       {canEdit && <div id="nouvel-article" className="pg-stack">
-        <Disclosure title="Importer une facture / bon fournisseur (photo)" description="Prenez en photo ou dictez les lignes du bon, vérifiez, puis entrez en stock." icon="store">
+        <section className="pg-card pg-card-pad pg-stock-actions" aria-label="Entrée de stock">
+          <div className="pg-card-head">
+            <div>
+              <h2>Que voulez-vous faire ?</h2>
+              <p>Deux gestes suffisent : ce qui arrive, ou un nouveau produit.</p>
+            </div>
+          </div>
+          <div className="pg-stock-action-buttons">
+            <details className="pg-stock-action" id="arrive">
+              <summary><span className="pg-emblem"><Icon name="box" size={20}/></span><span><b>Ça vient d’arriver</b><small>Farine, beurre, gâteaux reçus…</small></span></summary>
+              <form onSubmit={addLot} className="pg-stock-form">
+                <div className="pg-stock-form-row">
+                  <label className="pg-field pg-stock-form-wide">Quel article ?
+                    <select name="article" className="pg-input" defaultValue="">
+                      <option value="">— choisir —</option>
+                      {db.articles.map((a) => <option value={a.id} key={a.id}>{a.nom} ({a.unite})</option>)}
+                    </select>
+                  </label>
+                  <label className="pg-field">Combien ?<input name="qte" type="number" inputMode="decimal" min="0.0001" step="any" placeholder="0" required className="pg-input" /></label>
+                  {isOwner && <label className="pg-field">Prix d’achat (DA)<input name="pu" type="number" inputMode="decimal" min="0" step="any" placeholder="0" required className="pg-input" /></label>}
+                  <label className="pg-field">Où ?<select name="site" className="pg-input"><option>Labo</option><option>Boutique</option></select></label>
+                </div>
+                <details className="pg-recipe-more">
+                  <summary className="pg-stock-plus"><Icon name="plus" size={14}/> Plus d’options (n° de bon, DLC)</summary>
+                  <div className="pg-stock-form-row">
+                    <label className="pg-field">N° de bon / facture<input name="numero" placeholder={`BON-${today.slice(0, 4)}`} className="pg-input" /></label>
+                    <label className="pg-field">À consommer avant <span className="pg-hint">facultatif</span><input name="dlc" type="date" className="pg-input" /></label>
+                  </div>
+                </details>
+                <div className="pg-stock-form-actions"><button className="pg-button">C’est entré en stock</button></div>
+              </form>
+            </details>
+
+            <details className="pg-stock-action" id="article">
+              <summary><span className="pg-emblem"><Icon name="plus" size={20}/></span><span><b>Nouvel article</b><small>Un produit ou un ingrédient à vendre</small></span></summary>
+              <form onSubmit={addArticle} className="pg-stock-form">
+                <div className="pg-stock-form-row">
+                  <label className="pg-field pg-stock-form-wide">Nom<input name="nom" required maxLength={120} placeholder="Ex : Mille-feuille, Farine T45…" className="pg-input" /></label>
+                  <label className="pg-field">C’est…<select name="niveau" className="pg-input"><option value="produit">Un gâteau à vendre</option><option value="matiere">Un ingrédient</option></select></label>
+                  <label className="pg-field">Unité<select name="unite" defaultValue="pcs" className="pg-input"><option value="pcs">pièces</option><option value="kg">kg</option><option value="g">g</option><option value="L">litres</option><option value="ml">ml</option></select></label>
+                  <label className="pg-field">{isLabo ? 'Prix proposé au patron (DA)' : 'Prix de vente (DA)'}<input name="prix" type="number" inputMode="decimal" min="0" step="0.01" defaultValue={0} className="pg-input" /></label>
+                </div>
+                <details className="pg-recipe-more">
+                  <summary className="pg-stock-plus"><Icon name="plus" size={14}/> Plus d’options (code, seuil, TVA)</summary>
+                  <div className="pg-stock-form-row">
+                    <label className="pg-field">Code article <span className="pg-hint">auto si vide</span><input name="code" maxLength={40} placeholder="PF-005" className="pg-input" /></label>
+                    <label className="pg-field">Alerter sous… <span className="pg-hint">0 = jamais</span><input name="seuil" type="number" min="0" step="any" defaultValue={0} className="pg-input" /></label>
+                    {isOwner && (
+                      <label className="pg-field">TVA
+                        <select name="tva" defaultValue="19" className="pg-input">
+                          <option value="19">19 % — pâtisserie, gâteaux</option>
+                          <option value="9">9 % — farine, lait, œufs</option>
+                          <option value="0">0 % — exonéré / artisan</option>
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                </details>
+                <div className="pg-stock-form-actions"><button className="pg-button">Ajouter l’article</button></div>
+              </form>
+            </details>
+          </div>
+        </section>
+        <Disclosure title="Importer une facture / bon fournisseur (photo)" description="Prenez-la en photo : les lignes sont recopiées, vous vérifiez, puis ça entre en stock." icon="store">
           <InvoicePhotoIntake
             mode="demo"
             canReadCosts={isOwner}
@@ -178,38 +222,15 @@ export default function DemoModule({ module, role, filtre, shop }: { module: Mod
             }}
           />
         </Disclosure>
-        <Disclosure title="Achat rapide / Réception de marchandise" description="Ajouter du stock reçu d’un fournisseur." icon="store">
-          <form onSubmit={addLot} className="grid gap-3 sm:grid-cols-3">
-            <label className="pg-field">Article<select name="article" className="pg-input">{db.articles.map(a=><option value={a.id} key={a.id}>{a.nom} ({a.unite})</option>)}</select></label>
-            <label className="pg-field">N° Lot / Facture<input name="numero" placeholder="Ex : LOT-01" required className="pg-input"/></label>
-            <label className="pg-field">Destination<select name="site" className="pg-input"><option>Labo</option><option>Boutique</option></select></label>
-            <label className="pg-field">Quantité reçue<input name="qte" type="number" min="0.0001" step="any" placeholder="Quantité" required className="pg-input"/></label>
-            {isOwner && <label className="pg-field">Prix d’achat unitaire (DA)<input name="pu" type="number" min="0" step="any" placeholder="DA" required className="pg-input"/></label>}
-            <label className="pg-field">Date péremption (optionnel)<input name="dlc" type="date" className="pg-input"/></label>
-            <div><button className="pg-button">Enregistrer l’entrée</button></div>
-          </form>
-        </Disclosure>
-        <Disclosure title="Nouvel article" description={isLabo ? "Créer un produit fini ou un ingrédient (prix soumis au propriétaire)." : "Créer un produit fini ou un ingrédient."} icon="plus">
-        <form onSubmit={addArticle} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="pg-field">Nom de l’article<input name="nom" required maxLength={120} placeholder="Mille-feuille" className="pg-input"/></label>
-          <label className="pg-field">Code article<input name="code" required maxLength={40} placeholder="PF-005" className="pg-input"/></label>
-          <label className="pg-field">Type<select name="niveau" className="pg-input"><option value="produit">Produit fini</option><option value="matiere">Ingrédient</option></select></label>
-          <label className="pg-field">Unité<input name="unite" defaultValue="pcs" required maxLength={20} className="pg-input"/></label>
-          <label className="pg-field">Seuil d’alerte<input name="seuil" type="number" min="0" step="any" defaultValue="0" className="pg-input"/></label>
-          <label className="pg-field">{isLabo ? "Prix suggéré pour validation patron (DA, optionnel)" : "Prix de vente en boutique (DA)"}<input name="prix" type="number" min="0" step="0.01" defaultValue="0" className="pg-input"/></label>
-          {isOwner && (
-            <label className="pg-field">Régime TVA (Algérie · LF 2026)
-              <select name="tva" defaultValue="0" className="pg-input">
-                <option value="0">0 % — Exonéré / IFU</option>
-                <option value="9">9 % — Taux réduit (farine, pain, lait)</option>
-                <option value="19">19 % — Taux normal (pâtisserie, cake)</option>
-              </select>
-            </label>
-          )}
-          <div><button className="pg-button">Ajouter l’article</button></div>
-        </form>
-      </Disclosure>
-      <Disclosure title="Photos des produits (Caisse tactile)" description="Prenez ou choisissez une photo réelle pour chaque gâteau en boutique." icon="cake">
+      <StockList key={filtre ?? "tous"} articles={(isOwner ? db.articles : db.articles.map((a) => ({ ...a, prix: 0, tva: 0 }))).slice().sort((a,b) => a.nom.localeCompare(b.nom,"fr"))} lots={lots} sites={DEMO_SITES} today={today} filtre={filtre}/>
+      {isSeller && (
+        <RestockRequestQuickForm
+          mode="demo"
+          articles={db.articles.filter((a) => a.niveau === "produit").map((p) => ({ id: p.id, label: `${p.nom} · ${p.code}` }))}
+          sites={DEMO_SITES.filter((s) => s.type === "boutique").map((s) => ({ id: s.id, label: s.label }))}
+        />
+      )}
+      <Disclosure title="Photos des gâteaux" description="Une photo par gâteau : elle s’affiche sur la caisse tactile." icon="cake">
         <ProductPhotoPicker
           mode="demo"
           scopeKey="demo"

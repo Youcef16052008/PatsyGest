@@ -44,7 +44,7 @@ import { loadFreeRecipesCloud } from "@/lib/actions-free-recipes";
 const modules = {
   stocks: { title:'Articles & stocks', tables:[['articles','Articles'],['lots','Lots']] },
   achats: { title:'Achats & fournisseurs', tables:[['fournisseurs','Fournisseurs'],['bons_commande','Bons de commande']] },
-  recettes: { title:'Recettes & coûts', tables:[['recette_familles','Recettes'],['recette_versions','Versions']] },
+  recettes: { title:'Mes recettes & mes prix', tables:[['recette_familles','Recettes'],['recette_versions','Versions']] },
   production: { title:'Production', tables:[['ordres_fabrication','Ordres de fabrication']] },
   transferts: { title:'Transferts', tables:[['transferts','Transferts']] },
   simulation: { title:'Simulation de prix', tables:[['recette_familles','Recettes'],['recette_versions','Versions'],['lots','Lots']] },
@@ -59,7 +59,7 @@ type Module = keyof typeof modules;
 
 const moduleDescriptions: Partial<Record<Module, string>> = {
   achats: "Préparez les commandes et retrouvez vos fournisseurs.",
-  recettes: "Écrivez vos recettes librement, calculez vos moules/parts et vérifiez vos marges en DA.",
+  recettes: "Écrivez une recette, voyez son coût et choisissez votre prix.",
   simulation: "Comparez vos prix de vente et vos marges par produit.",
   transferts: "Retrouvez les mouvements de stock entre vos sites.",
   planning: "Préparez la journée et suivez les tâches du laboratoire.",
