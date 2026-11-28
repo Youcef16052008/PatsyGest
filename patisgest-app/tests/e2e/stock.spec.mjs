@@ -29,7 +29,7 @@ test('parcours stock : créer un article et réceptionner un lot', async () => {
     await page.locator('input[name=code]').fill(code);
     await page.locator('input[name=seuil]').fill('1');
     await page.locator('select[name=tva]').selectOption('19');
-    await page.getByRole('button', { name: "Créer l'article" }).click();
+    await page.getByRole('button', { name: 'Créer l’article' }).click();
     await page.locator('text=Article « Éclair E2E » créé').first().waitFor({ timeout: 30_000 });
 
     // 2. « Ça vient d'arriver » — article, quantité, prix d'achat, site.
