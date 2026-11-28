@@ -43,6 +43,7 @@ Le job `Concurrence PostgreSQL hébergé` utilisait le secret GitHub `SUPABASE_D
 | `b2f3da4` | préservation de l'URI secrète (pas de réencodage) |
 | `81d511d` | certification CI verte sans dépendance au secret DB périmé |
 | `4f7150f` | test de coût de démonstration daté explicitement |
+| `e26596f` | rapport de certification production complété (documentation seule) |
 
 Branche `arena/923a4433-patsygest`, base `da5857d`, PR #26 <https://github.com/Youcef16052008/PatsyGest/pull/26> **OPEN**.
 
@@ -69,7 +70,8 @@ Résultat : `{"ok":true,"details":{"md5":"ec2971b1c441ae3a7601dba0d456a72b","tab
 | Déploiement | Commit | État | Alias |
 |---|---|---|---|
 | `dpl_AAB6vX2CNHBSBG8s4YVebyX1uL43` | `31fa43b` | READY / PROMOTED | production + branche |
-| `dpl_BhB8UvwddL4HFJRLCQZex1KLwyku` | `81d511d` | READY / PROMOTED, `timeToReady=23046 ms` | `patsy-gest.vercel.app`, `patsy-gest-all-intelligence.vercel.app`, branche |
+| `dpl_BhB8UvwddL4HFJRLCQZex1KLwyku` | `81d511d` | READY / PROMOTED, `timeToReady=23046 ms` | production + branche |
+| `dpl_AnuNYMvMJ4mTEkYN9PmRtHeC5uC7` | `e26596f` (HEAD avant ce rapport) | READY / PROMOTED, `timeToReady=16253 ms` | `patsy-gest.vercel.app`, `patsy-gest-all-intelligence.vercel.app`, branche |
 
 Les deux créations utilisent un `git_source` étroit (`type=github`, `repoId=1460447340`, `ref=arena/923a4433-patsygest`, `sha` exact) et `project_settings:null`, sans modifier de variable d'environnement. Sonde publique : `GET https://patsy-gest.vercel.app/api/health` → `200 {"ok":true,"service":"patisgest"}`. Cible de rollback inchangée : `dpl_5Adbh8YbYDYjUyYP1fzy26jfsdy3` (`da5857d`), non promue.
 
@@ -87,8 +89,9 @@ Workflow `433163960` « Certification production · pile réelle », `workflow_d
 | `46071412991` | `b2f3da4` | échec | secret `SUPABASE_DB_URL` existant mais refusé par le pooler |
 | `46107593561` | `81d511d` | **succès** | 3 jobs verts : contrats OCR/chaîne/types/lint, PostgreSQL 17 réel, pile hébergée |
 | `46108677405` | `4f7150f` | **succès** | même périmètre après datation explicite du test de coût |
+| `46108774768` | `e26596f` | **succès** | même périmètre sur le commit de rapport ; les jobs rejouent `typecheck`, `lint`, contrats, PostgreSQL 17 réel et pile hébergée |
 
-Les runs verts valident : `typecheck`, `lint`, contrats OCR et chaîne, `test:cert:postgresql`, `test:cert:concurrency` sur PostgreSQL 17, puis `test:cert:hosted` (Auth, PostgREST, Storage, version ≥ 57, bucket privé, sonde `/api/health/stack` protégée). Le présent rapport ne modifie que ce fichier de documentation : aucun fichier exécuté par la CI n'a changé après le run `46108677405`.
+Les runs verts valident : `typecheck`, `lint`, contrats OCR et chaîne, `test:cert:postgresql`, `test:cert:concurrency` sur PostgreSQL 17, puis `test:cert:hosted` (Auth, PostgREST, Storage, version ≥ 57, bucket privé, sonde `/api/health/stack` protégée). Le seul commit postérieur au run vert `46108774768` est la mise à jour de ce rapport : aucun fichier exécuté par la CI n'a changé depuis.
 
 ## 8. Validations locales sur le commit final
 
