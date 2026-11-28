@@ -573,7 +573,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
             </div>
 
             <div className="pg-table-wrap">
-              <table className="pg-table">
+              <table className="pg-table pg-est-table">
                 <thead>
                   <tr>
                     <th scope="col">Ingrédient / élément</th>
@@ -610,7 +610,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                             <option value="fixe">Fixe / commande</option>
                           </select>
                         </td>
-                        <td className="pg-num">
+                        <td className="pg-num" data-label="Qté base">
                           <input
                             aria-label={`Quantité base ${l.nom}`}
                             type="number"
@@ -622,7 +622,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                             onChange={(e) => updateLine(l.id, { qteBase: Number(e.target.value) })}
                           />
                         </td>
-                        <td>
+                        <td data-label="Unité">
                           <input
                             aria-label={`Unité ${l.nom}`}
                             className="pg-input pg-input-sm"
@@ -632,7 +632,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                             onChange={(e) => updateLine(l.id, { unite: e.target.value })}
                           />
                         </td>
-                        <td className="pg-num">
+                        <td className="pg-num" data-label="Parage %">
                           <input
                             aria-label={`Parage ${l.nom}`}
                             type="number"
@@ -645,7 +645,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                             onChange={(e) => updateLine(l.id, { paragePct: Number(e.target.value) })}
                           />
                         </td>
-                        <td className="pg-num">
+                        <td className="pg-num" data-label="Prix unit. (DA)">
                           <input
                             aria-label={`Prix unitaire ${l.nom}`}
                             type="number"
@@ -661,7 +661,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                             }}
                           />
                         </td>
-                        <td className="pg-num">
+                        <td className="pg-num" data-label="Coût ajusté">
                           {computed?.prixManquant ? (
                             <span className="pg-badge" data-tone="warning">Prix manquant</span>
                           ) : computed ? (
