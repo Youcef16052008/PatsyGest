@@ -561,7 +561,7 @@ export default function PortionEstimator({ sessionMode = null, canReadCosts = fa
                   Les lignes « Proportionnel » suivent automatiquement la taille du moule ; les lignes « Fixe » (cake drum, topper, ruban) restent comptées une seule fois par commande.
                 </p>
               </div>
-              <label className="pg-field" style={{ minWidth: 220 }}>
+              <label className="pg-field" style={{ minWidth: "min(100%, 220px)" }}>
                 <span className="pg-label">Intitulé de la création</span>
                 <input
                   className="pg-input"

@@ -262,6 +262,7 @@ jobs:
           done
           node scripts/audit-b2-reel.mjs
       - name: Vérifier les sondes d'observabilité sur la production
+        if: ${{ always() }}
         env:
           APP_URL: https://patsy-gest.vercel.app
           CRON_SECRET: ${{ secrets.CRON_SECRET }}

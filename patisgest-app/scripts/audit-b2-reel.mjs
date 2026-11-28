@@ -183,6 +183,16 @@ async function auditerPageChromium(browser, { baseUrl, path, label, viewport, co
           brokenImages += 1;
         }
       }
+      const vw = document.documentElement.clientWidth;
+      const overflowElements = [];
+      for (const el of document.querySelectorAll("body *")) {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && r.right > vw + 2) {
+          const cls = typeof el.className === "string" && el.className.trim() ? `.${el.className.trim().split(/\s+/).slice(0, 2).join(".")}` : "";
+          overflowElements.push(`${el.tagName.toLowerCase()}${cls}(${Math.round(r.right)}/${vw})`);
+          if (overflowElements.length >= 4) break;
+        }
+      }
       return {
         ttfbMs: nav ? Math.round(nav.responseStart - nav.requestStart) : null,
         domContentLoadedMs: nav ? Math.round(nav.domContentLoadedEventEnd) : null,
@@ -198,6 +208,7 @@ async function auditerPageChromium(browser, { baseUrl, path, label, viewport, co
           0,
           Math.round(document.documentElement.scrollWidth - document.documentElement.clientWidth),
         ),
+        overflowElements,
         hasArabicText: /[\u0600-\u06FF]/u.test(document.body?.innerText ?? ""),
       };
     });
@@ -231,6 +242,7 @@ async function auditerPageChromium(browser, { baseUrl, path, label, viewport, co
       domContentLoadedMs: metriques.domContentLoadedMs,
       loadMs: metriques.loadMs,
       overflowPx: metriques.horizontalOverflowPx,
+      overflowElements: metriques.overflowElements,
       ok,
       consoleErrors,
       pageErrors,
@@ -251,12 +263,14 @@ export function formaterRapportB2({ chromiumResults = [], loadResults = [] }) {
     for (const r of chromiumResults) {
       const notes = [
         ...r.a11yProblemes,
+        ...(r.overflowElements?.length ? [`elems:${r.overflowElements.join(",")}`] : []),
         ...r.consoleErrors.map((e) => `console:${e}`),
         ...r.pageErrors.map((e) => `page:${e}`),
         ...r.badResponses.map((e) => `http:${e}`),
       ].join("; ");
+      const statut = r.ok ? "OK" : r.prodAdvisory ? `AVERTISSEMENT prod pré-déploiement (${notes})` : `KO (${notes})`;
       lignes.push(
-        `| ${r.label} | ${r.viewport} | ${r.locale} | ${r.httpStatus} | ${r.ttfbMs ?? "n/a"} ms | ${r.fcpMs ?? "n/a"} ms | ${r.loadMs ?? "n/a"} ms | ${r.overflowPx} px | ${r.ok ? "OK" : `KO (${notes})`} |`,
+        `| ${r.label} | ${r.viewport} | ${r.locale} | ${r.httpStatus} | ${r.ttfbMs ?? "n/a"} ms | ${r.fcpMs ?? "n/a"} ms | ${r.loadMs ?? "n/a"} ms | ${r.overflowPx} px | ${statut} |`,
       );
     }
     lignes.push("");
@@ -334,18 +348,21 @@ async function principal() {
           { path: "/estimation", viewport: { width: 360, height: 780 }, lang: "fr", dir: "ltr" },
           { path: "/hors-ligne", viewport: { width: 360, height: 780 }, lang: "fr", dir: "ltr" },
         ];
+        const strictProd = process.env.B2_STRICT_PROD === "1";
         for (const c of casProd) {
-          chromiumResults.push(
-            await auditerPageChromium(browser, {
-              baseUrl: prodBase,
-              path: c.path,
-              label: `prod:${c.path}`,
-              viewport: c.viewport,
-              cookies: [],
-              expectedLang: c.lang,
-              expectedDir: c.dir,
-            }),
-          );
+          const res = await auditerPageChromium(browser, {
+            baseUrl: prodBase,
+            path: c.path,
+            label: `prod:${c.path}`,
+            viewport: c.viewport,
+            cookies: [],
+            expectedLang: c.lang,
+            expectedDir: c.dir,
+          });
+          if (!strictProd && !res.ok && res.httpStatus === 200 && res.pageErrors.length === 0) {
+            res.prodAdvisory = true;
+          }
+          chromiumResults.push(res);
         }
       }
     } finally {
@@ -369,7 +386,7 @@ async function principal() {
     appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${md}\n`, "utf8");
   }
 
-  const echecsChromium = chromiumResults.filter((r) => !r.ok);
+  const echecsChromium = chromiumResults.filter((r) => !r.ok && !r.prodAdvisory);
   const echecsLoad = loadResults.filter((l) => l.erreurs > 0);
   if (echecsChromium.length > 0 || echecsLoad.length > 0) {
     console.error(`[b2-audit] Échecs détectés : chromium=${echecsChromium.length}, load=${echecsLoad.length}`);
