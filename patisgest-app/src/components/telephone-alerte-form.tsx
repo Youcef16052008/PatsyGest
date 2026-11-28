@@ -16,8 +16,8 @@ export default function TelephoneAlerteForm({
     <section className="mb-6 rounded-2xl border bg-white p-5">
       <h2 className="mb-1 font-bold">Alertes coupure Internet (&gt; 1 heure) · {roleLabel}</h2>
       <p className="mb-3 text-xs text-slate-500">
-        Si Internet est coupé pendant plus d’une heure sur votre appareil, une alerte SMS et WhatsApp
-        est automatiquement envoyée au Master, au laboratoire et au vendeur pour rétablir la connexion.
+        Les alertes SMS et WhatsApp ne sont pas garanties. Elles nécessitent un fournisseur configuré,
+        une surveillance active et des numéros valides. Vérifiez leur fonctionnement avant de les proposer.
       </p>
       <form action={action} className="flex flex-wrap items-end gap-3">
         <label className="block min-w-[240px] flex-1 text-xs font-semibold text-slate-600">

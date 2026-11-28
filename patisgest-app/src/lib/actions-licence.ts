@@ -185,7 +185,7 @@ export async function definirMonTelephone(
     return {
       ok: true,
       succes: telephone
-        ? "Numéro enregistré pour les alertes SMS / WhatsApp de coupure Internet (> 1 h)."
+        ? "Numéro enregistré. La réception d’alertes dépend de la configuration et n’est pas garantie."
         : "Numéro retiré.",
     };
   } catch {

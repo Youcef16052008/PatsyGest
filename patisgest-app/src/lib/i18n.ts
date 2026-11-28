@@ -195,6 +195,8 @@ export const UI_DICT = {
 // Les clés sont les libellés français exacts du code ; `translateUI` applique
 // ensuite les remplacements dynamiques (dates, unités, montants, pluriels).
 const UI_TEXT_AR_NOYAU: Record<string, string> = {
+  "Les alertes SMS et WhatsApp ne sont pas garanties. Elles nécessitent un fournisseur configuré, une surveillance active et des numéros valides. Vérifiez leur fonctionnement avant de les proposer.": "تنبيهات الرسائل والواتساب ما هيش مضمونة. لازم مزوّد مهيّأ، مراقبة نشطة وأرقام صالحة. تأكد من خدمتها قبل ما تقترحها.",
+  "Numéro enregistré. La réception d’alertes dépend de la configuration et n’est pas garantie.": "تسجّل الرقم. وصول التنبيهات يعتمد على الإعدادات وما هوش مضمون.",
   "+ Ajouter une commande": "+ إضافة طلب",
   "0 = jamais": "0 = أبداً",
   "0 commande pour demain": "0 طلب للغد",
